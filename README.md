@@ -1,71 +1,54 @@
 # MC Modpack Crawler Board
 
-MC 整合包爬虫与看板。当前阶段主要完成了 MCMod 的抓取、数据转换和本地 HTML 看板；后续目标是把更多 MC 整合包平台接入同一套数据结构。
+一个面向 Minecraft 整合包的本地数据看板。当前数据来源只实现了 MC百科（MCMod），核心产物是一个可直接在浏览器打开的 HTML 看板，用来辅助搜索、筛选、排序和比较整合包。
 
-MC modpack crawler and dashboard. The current implementation mainly supports MCMod crawling, conversion, and a local HTML dashboard. The long-term direction is to add more MC modpack platforms under one shared data model.
+## HTML 看板功能
 
-## 当前状态 / Current Status
+- 整合包搜索：支持按名称、介绍、评论、标签、模组等内容检索。
+- 多维筛选：支持整合包分类、整合包标签、模组分类、具体模组、趋势天数等筛选。
+- 排序比较：支持指数评分、浏览量、趋势、红黑票、互动数据等排序。
+- 趋势预览：在表格中显示迷你走势图，悬浮后查看近 60 天或本地历史趋势。
+- 介绍预览：悬浮整合包名称可查看本地整理的介绍内容，并可跳转 MC百科原页面。
+- 评论预览：悬浮互动/评论区域可查看已抓取评论，支持分页、搜索命中跳转和原页面入口。
+- 模组查看：按模组分类展示包含模组；展开后可点击模组筛选，再点一次取消筛选，右上角箭头打开 MC百科模组页。
+- 本地历史：转换器会读取 `trend_history/`，让长期趋势逐步超过官网短期窗口。
 
-- 已实现 / Implemented: MCMod 爬虫、JSONL 数据输出、趋势历史读取、HTML 看板生成。
-- 当前只完成了 MCMod；其他平台属于后续扩展方向。
-- This project currently supports MCMod only. Other platforms are planned future extensions.
+## 当前状态
 
-## 核心文件 / Core Files
+当前只完成了 MCMod 数据源。项目名虽然叫 crawler board，但现在还不是多站完整聚合器；后续可以继续接入其他 MC 整合包平台。
 
-| 路径 / Path | 作用 / Purpose |
+## 主要文件
+
+| 文件 | 作用 |
 | --- | --- |
-| `多平台聚合爬虫_v1.0.py` | 抓取平台数据；当前主要是 MCMod。 |
-| `多平台聚合转换器_v1.0.py` | 把 JSONL 和趋势历史转换成 HTML 看板。 |
-| `多平台爬虫数据_v1.0.jsonl` | 当前主数据快照。 |
-| `trend_history/` | 本地长期趋势历史。 |
-| `多平台聚合看板_V1.0.html` | 生成后的本地看板。 |
-| `LOCAL_FILE_MAP.md` | 给用户和后续 AI 的项目地图。 |
-| `history_sources/` | 从旧归档整理出的历史源码参考。 |
+| `多平台聚合爬虫_v1.0.py` | 抓取 MCMod 整合包、评论、趋势、包含模组等数据 |
+| `多平台聚合转换器_v1.0.py` | 把 JSONL 和趋势历史转换成本地 HTML 看板 |
+| `多平台爬虫数据_v1.0.jsonl` | 当前主数据快照 |
+| `trend_history/` | 本地长期趋势历史 |
+| `多平台聚合看板_V1.0.html` | 生成后的本地看板 |
+| `LOCAL_FILE_MAP.md` | 本地文件分类说明 |
+| `AI_AGENT_GUIDE.md` | 给后续 AI 协作时看的规则 |
 
-## 本地私有文件 / Local-Only Files
-
-这些内容不要提交到 Git:
-
-- `ignored_local_files/browser_data/`: 浏览器登录状态、Cookie、缓存。
-- `ignored_local_files/归档/`: 旧版本、旧实验、截图和备份。
-- `.agents/`: AI 工具工作记录。
-- `.vscode/`: 本机编辑器配置。
-- `__pycache__/`: Python 自动缓存。
-
-Do not commit these local/private/tool files to Git.
-
-## 基本流程 / Basic Workflow
+## 基本使用
 
 1. 运行爬虫，更新 `多平台爬虫数据_v1.0.jsonl` 和 `trend_history/`。
 2. 运行转换器，生成 `多平台聚合看板_V1.0.html`。
-3. 检查看板效果。
-4. 满意后再提交并推送 GitHub。
+3. 用浏览器打开 HTML 看板。
 
-## 给后续 AI 的提示 / Prompt For Future AI
+常用转换命令：
 
-```text
-这是一个 Git 仓库，根目录是 [local-project-path]。
-This is a Git repository. The root directory is [local-project-path].
-
-项目名建议使用 mc-modpack-crawler-board，中文可理解为“MC 整合包爬虫与看板”。
-The recommended repository name is mc-modpack-crawler-board.
-
-当前实现只完成了 MCMod；不要误以为其他平台已经完成。
-The current implementation supports MCMod only; do not assume other platforms are implemented.
-
-开始前先看 LOCAL_FILE_MAP.md 和 git status --short --ignored。
-不要覆盖用户已有改动，不要提交 ignored_local_files/、.agents/、.vscode/、__pycache__/。
-
-提交前必须检查 Git 作者身份：
-git config user.name
-git config user.email
-
-正确身份应该是：
-suifracti
-[redacted]
-
-如果显示 Antigravity、Codex、Google、OpenAI 或其他工具身份，先停止并改成本仓库用户身份，不要直接提交。
-
-完成后如果用户明确要求“同步 GitHub”，请先说明改动范围，运行必要检查，然后 git add、git commit、git push。
-不要在用户没有确认的情况下把不相关改动一起提交。
+```powershell
+python "多平台聚合转换器_v1.0.py"
 ```
+
+生成临时测试看板时建议输出到 `ignored_local_files/`，避免覆盖正式 HTML：
+
+```powershell
+python "多平台聚合转换器_v1.0.py" -o "ignored_local_files\tmp_check.html"
+```
+
+## 注意
+
+- `ignored_local_files/browser_data/` 保存浏览器登录状态和 Cookie，不要提交到 Git。
+- 当前评论逐条跳转依赖 MCMod 页面是否提供稳定锚点；如果站点没有给出单条评论链接，看板会只保留原页面入口。
+- 数据仅用于个人整理与学习交流，排序和评分不代表作品质量结论。

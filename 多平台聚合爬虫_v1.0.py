@@ -101,6 +101,9 @@ from enum import Enum, auto
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
 
+# v7.8.2-comment-links: 评论抓取为主楼和楼中楼补充 comment_url / comment_id /
+# comment_page 等原站定位字段，供看板逐条评论跳转使用。
+
 # ========== 配置 ==========
 OUTPUT_JSON = 'MC百科整合包数据.json'
 PARTIAL_JSON = 'MC百科整合包进度.json'
@@ -130,7 +133,7 @@ COMMENT_ACTION_REST_MIN = 6.0
 COMMENT_ACTION_REST_MAX = 10.0
 
 # ========== 测试模式 ==========
-TEST_MODE_LIMIT_PAGES = 0  # 设置为 > 0 的整数时开启极速测试模式，仅抓取指定页数的列表。设为 0 关闭测试。
+TEST_MODE_LIMIT_PAGES = 1  # 设置为 > 0 的整数时开启极速测试模式，仅抓取指定页数的列表。设为 0 关闭测试。
 
 # ========== 任务对象定义 ==========
 class TaskType(Enum):
@@ -151,6 +154,8 @@ EVAL_TIMEOUT = 15
 NAVIGATION_RETRY = 3
 MAX_CONSECUTIVE_FAILS = 10
 PAGE_MAX_FAILS = 3
+COMMENT_PAGE_MAX_RETRY = 2
+REPLY_PAGE_MAX_RETRY = 2
 
 # Git/local file layout:
 # - Project source and data stay in the repository root.
@@ -197,8 +202,6 @@ REPLY_EXPAND_MAX_ROUNDS = 5  # 从3增加到5，确保楼中楼完全展开
 MAX_CONSECUTIVE_PAGE_FAILS = 10  # 主楼连续翻页失败重试阈值
 MAX_EMPTY_COMMENT_PAGES = 5  # 连续空白页判定为末尾
 MAX_COMMENT_PAGES = 999  # 主楼最大翻页数：取消旧版硬截断
-COMMENT_PAGE_MAX_RETRY = 5  # 单次主楼翻页点击重试次数
-REPLY_PAGE_MAX_RETRY = 5  # 单次楼中楼翻页点击重试次数
 MAX_REPLY_PAGES = 200  # 楼中楼最大页数：部分帖子可能有上百页楼中楼（单条主楼100+页回复）
 
 # ========== 评论断点续跑配置 ==========
@@ -445,7 +448,7 @@ def export_final_json(results, all_links, output_path, stats=None):
             'generated_at': time.strftime('%Y-%m-%d %H:%M:%S'),
             'total_packs': len(results),
             'total_links': len(all_links),
-            'version': '7.8.1',
+            'version': '7.8.2-comment-links',
         },
         'stats': stats or {},
         'all_links': all_links,
@@ -708,6 +711,39 @@ def _comment_preview_count(comments):
                 total += len(replies)
     return total
 
+def _collect_comment_images(comments):
+    images = []
+    seen = set()
+    if not isinstance(comments, list):
+        return images
+
+    def add_many(items, comment_floor=None):
+        if not isinstance(items, list):
+            return
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            url = item.get('url') or item.get('src')
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            copied = dict(item)
+            if comment_floor and not copied.get('comment_floor'):
+                copied['comment_floor'] = comment_floor
+            images.append(copied)
+
+    for comment in comments:
+        if not isinstance(comment, dict):
+            continue
+        floor = comment.get('floor') or ''
+        add_many(comment.get('images'), floor)
+        replies = comment.get('replies') or []
+        if isinstance(replies, list):
+            for reply in replies:
+                if isinstance(reply, dict):
+                    add_many(reply.get('images'), floor)
+    return images
+
 def _safe_int(value, default=0):
     try:
         if value is None:
@@ -718,6 +754,9 @@ def _safe_int(value, default=0):
 
 def pack_to_row(pack):
     comments = pack.get('comments', [])
+    intro_images = pack.get('intro_images') or pack['basic'].get('intro_images') or pack['basic'].get('介绍图片') or []
+    comment_images = pack.get('comment_images') or pack['basic'].get('comment_images') or _collect_comment_images(comments)
+    mods = pack.get('mods') or pack['basic'].get('包含模组') or []
     comment_total = max(
         _safe_int(pack['basic'].get('评论数', 0)),
         _safe_int(pack.get('comment_total', 0)),
@@ -726,6 +765,8 @@ def pack_to_row(pack):
     row = {
         '标题': pack['basic'].get('标题', ''),
         '链接': pack['url'],
+        'modpack_type': pack['basic'].get('modpack_type', ''),
+        'modpack_type_url': pack['basic'].get('modpack_type_url', ''),
         '指数评分': pack['basic'].get('指数评分', 0),
         '总浏览': pack['basic'].get('总浏览', '0'),
         '总浏览量': pack['basic'].get('总浏览量', 0),
@@ -737,11 +778,19 @@ def pack_to_row(pack):
         '评论数': comment_total,
         '分类标签': pack['basic'].get('分类标签', ''),
         '整合包标签': pack['basic'].get('整合包标签', ''),
+        'category_tag_details': pack['basic'].get('category_tag_details', []),
+        'pack_tag_details': pack['basic'].get('pack_tag_details', []),
+        '包含模组': mods,
+        '模组数量': len(mods) if isinstance(mods, list) else _safe_int(pack['basic'].get('模组数量', 0)),
         '推荐数': pack['basic'].get('推荐数', 0),
         '收藏数': pack['basic'].get('收藏数', 0),
         '整合包介绍': pack.get('intro', ''),
+        '介绍图片': intro_images,
+        'intro_images': intro_images,
         '评论总数': comment_total,
         '评论详情': comments,
+        '评论图片': comment_images,
+        'comment_images': comment_images,
         '_comment_checked': pack.get('comment_checked', False),
         '_status': 'done',
         '_comment_row_page': 0,
@@ -938,6 +987,16 @@ EXTRACTOR_BASIC = r"""
     try {
         const bodyText = document.body ? document.body.innerText : '';
         const flatText = bodyText.replace(/\s+/g, ' ');
+        const typeLink = Array.from(document.querySelectorAll('a[href*="/modpack.html?mold="]'))
+            .find(a => /[?&]mold=[12]/.test(a.getAttribute('href') || ''));
+        if (typeLink) {
+            result.modpack_type = (typeLink.textContent || '').trim();
+            try { result.modpack_type_url = new URL(typeLink.getAttribute('href') || '', location.href).href; }
+            catch(e) { result.modpack_type_url = typeLink.getAttribute('href') || ''; }
+        } else {
+            const typeMatch = flatText.match(/\u6574\u5408\u5305\u7c7b\u578b\s*[：:]\s*(\u539f\u751f\u6574\u5408|\u9b54\u6539\u6574\u5408)/);
+            if (typeMatch) result.modpack_type = typeMatch[1];
+        }
         function parseCount(raw) {
             if (!raw) return 0;
             const s = String(raw).replace(/,/g, '').replace(/，/g, '').trim();
@@ -1115,6 +1174,7 @@ EXTRACTOR_INTRO_TAGS = r'''
     let description = '';
     let categoryTags = '';
     let modpackTags = '';
+    let introImages = [];
     const bodyText = document.body ? document.body.innerText : '';
     const flatText = bodyText.replace(/\s+/g, ' ');
 
@@ -1163,6 +1223,31 @@ EXTRACTOR_INTRO_TAGS = r'''
         let i = 0;
         while (i < lines.length && isPureNumberToc(lines[i])) i++;
         return lines.slice(i);
+    }
+    function absUrl(raw) {
+        if (!raw) return '';
+        try { return new URL(raw, location.href).href; } catch(e) { return raw; }
+    }
+    function collectImages(root, source) {
+        const out = [];
+        const seen = new Set();
+        if (!root) return out;
+        root.querySelectorAll('img').forEach((img, idx) => {
+            const raw = img.getAttribute('data-src') || img.getAttribute('src') || img.getAttribute('data-original') || '';
+            const url = absUrl(raw);
+            if (!url || seen.has(url) || /loading|loadfail/i.test(url)) return;
+            seen.add(url);
+            out.push({
+                url,
+                src: url,
+                alt: (img.getAttribute('alt') || '').trim(),
+                width: parseInt(img.getAttribute('data-width') || img.getAttribute('width') || '0', 10) || 0,
+                height: parseInt(img.getAttribute('data-height') || img.getAttribute('height') || '0', 10) || 0,
+                source: source || 'intro',
+                index: idx + 1
+            });
+        });
+        return out;
     }
 
     function cleanIntroContent(parts) {
@@ -1219,6 +1304,7 @@ EXTRACTOR_INTRO_TAGS = r'''
     const mainPane = document.querySelector('.class-menu-main li.text-area[data-id="1"]') || document.querySelector('.text-area.common-text[data-id="1"]');
     
     if (mainPane) {
+        introImages = collectImages(mainPane, 'intro');
         let contentParts = [];
         let inTOC = false;
         
@@ -1258,6 +1344,7 @@ EXTRACTOR_INTRO_TAGS = r'''
             const text = el.innerText ? el.innerText.trim() : '';
             if (text && text.length > 100 && text.length < 5000) {
                 introContent = [text];
+                if (!introImages.length) introImages = collectImages(el, 'intro');
                 break;
             }
         }
@@ -1293,6 +1380,22 @@ EXTRACTOR_INTRO_TAGS = r'''
     
     // 分类标签：百科页面现在分类标签在整合包标题旁的 <a class="label label-default label-s" href="/class/..."> 中
     const cats = [];
+    const catDetails = [];
+    function absHref(href) {
+        if (!href) return '';
+        try { return new URL(href, location.href).href; } catch(e) { return href; }
+    }
+    function pushDetail(list, name, href, title, color) {
+        name = (name || '').trim();
+        if (!name || name.length > 30) return;
+        if (list.some(x => x.name === name)) return;
+        list.push({
+            name: name,
+            url: absHref(href || ''),
+            title: (title || '').trim(),
+            color: (color || '').trim()
+        });
+    }
     // 方法1：从 .label-s 或 .label-default 提取分类标签
     const labelEls = document.querySelectorAll('a.label.label-s, a.label-default.label-s, a[class*="label"][class*="label-s"]');
     if (labelEls.length === 0) {
@@ -1300,12 +1403,18 @@ EXTRACTOR_INTRO_TAGS = r'''
         const oldCats = document.querySelectorAll('a[href*="/category/"]');
         for (const link of oldCats) {
             const text = link.textContent.trim();
-            if (text && text.length <= 20 && text.length >= 2 && !cats.includes(text)) cats.push(text);
+            if (text && text.length <= 20 && text.length >= 2 && !cats.includes(text)) {
+                cats.push(text);
+                pushDetail(catDetails, text, link.getAttribute('href') || '', link.getAttribute('data-original-title') || link.getAttribute('title') || '', link.getAttribute('style') || '');
+            }
         }
     } else {
         for (const el of labelEls) {
             const text = (el.textContent || '').trim();
-            if (text && text.length <= 20 && text.length >= 2 && !cats.includes(text)) cats.push(text);
+            if (text && text.length <= 20 && text.length >= 2 && !cats.includes(text)) {
+                cats.push(text);
+                pushDetail(catDetails, text, el.getAttribute('href') || '', el.getAttribute('data-original-title') || el.getAttribute('title') || '', el.getAttribute('style') || '');
+            }
         }
     }
     if (cats.length > 0) {
@@ -1315,12 +1424,14 @@ EXTRACTOR_INTRO_TAGS = r'''
     // 整合包标签：从页面里找 a[href*="/s?key="] 开头的搜索链接（整合包标签栏）
     // 示例：<a class="class-son-tag" href="https://search.mcmod.cn/s?key=剧情向&mold=1">剧情向</a>
     const packTags = [];
+    const packTagDetails = [];
     const tagLinkEls = document.querySelectorAll('a[href*="/s?key="], a.class-son-tag, a[href*="search.mcmod.cn/s?key="]');
     if (tagLinkEls.length > 0) {
         for (const el of tagLinkEls) {
             const text = (el.textContent || '').trim();
             if (text && text.length >= 1 && text.length <= 20 && !packTags.includes(text) && !cats.includes(text)) {
                 packTags.push(text);
+                pushDetail(packTagDetails, text, el.getAttribute('href') || '', el.getAttribute('data-original-title') || el.getAttribute('title') || '', el.getAttribute('style') || '');
             }
         }
     }
@@ -1344,7 +1455,14 @@ EXTRACTOR_INTRO_TAGS = r'''
         const list = [];
         if (!scope) return list;
         const links = scope.querySelectorAll('a');
-        links.forEach(a => pushTag(list, a.innerText || a.textContent || ''));
+        links.forEach(a => {
+            const before = list.length;
+            pushTag(list, a.innerText || a.textContent || '');
+            if (list.length > before) {
+                const name = list[list.length - 1];
+                pushDetail(packTagDetails, name, a.getAttribute('href') || '', a.getAttribute('data-original-title') || a.getAttribute('title') || '', a.getAttribute('style') || '');
+            }
+        });
         return list;
     }
     function tagsFromText(text) {
@@ -1387,7 +1505,147 @@ EXTRACTOR_INTRO_TAGS = r'''
         modpackTags = tagList.join('、');
     }
     
-    return { 整合包介绍: description || '', 分类标签: categoryTags || '', 整合包标签: modpackTags || '' };
+    return {
+        整合包介绍: description || '',
+        分类标签: categoryTags || '',
+        整合包标签: modpackTags || '',
+        intro_images: introImages,
+        介绍图片: introImages,
+        category_tag_details: catDetails,
+        pack_tag_details: packTagDetails
+    };
+}
+'''
+
+# ========== Extractor 2.5: 包含模组列表 ==========
+EXTRACTOR_MOD_LIST = r'''
+() => {
+    const out = [];
+    const seen = new Set();
+    const base = 'https://www.mcmod.cn';
+    const categoryNames = {
+        '1': '科技',
+        '2': '魔法',
+        '3': '冒险',
+        '4': '农业',
+        '5': '装饰',
+        '6': '安全',
+        '7': 'LIB',
+        '8': '资源',
+        '9': '世界',
+        '10': '群系',
+        '11': '生物',
+        '12': '能源',
+        '13': '存储',
+        '14': '物流',
+        '15': '道具',
+        '16': '红石',
+        '17': '食物',
+        '18': '模型',
+        '19': '指南',
+        '20': '破坏',
+        '21': '魔改',
+        '22': 'Meme',
+        '23': '实用',
+        '24': '辅助',
+        '25': '中式',
+        '26': '日式',
+        '27': '西式',
+        '28': '恐怖',
+        '29': '建材',
+        '30': '生存',
+        '31': '指令',
+        '32': '优化',
+        '33': '国创',
+        '34': '关卡',
+        '35': '结构'
+    };
+
+    function text(el) {
+        return (el && (el.innerText || el.textContent) || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function absUrl(href) {
+        if (!href) return '';
+        try { return new URL(href, base).href; } catch(e) { return href; }
+    }
+
+    function classIdFromHref(href) {
+        const m = String(href || '').match(/\/class\/(\d+)\.html/i);
+        return m ? m[1] : '';
+    }
+
+    function categoryFromGroup(a) {
+        const group = a.closest('li.relation.modlist');
+        if (!group) return {};
+        const cat = group.querySelector(':scope > span a[href*="/class/category/"]') ||
+                    group.querySelector('a[href*="/class/category/"]');
+        const href = cat ? cat.getAttribute('href') : '';
+        const m = String(href || '').match(/\/class\/category\/(\d+)-/i);
+        const id = m ? m[1] : '';
+        let name = '';
+        if (cat) {
+            name = (cat.getAttribute('data-original-title') || cat.getAttribute('title') ||
+                    cat.getAttribute('aria-label') || text(cat)).trim();
+        }
+        if (!name && id) name = categoryNames[id] || ('分类 ' + id);
+        const fieldset = group.closest('fieldset');
+        const groupName = fieldset ? text(fieldset.querySelector('legend')) : '';
+        return {
+            category_id: id,
+            category_name: name,
+            category_url: href ? absUrl(href) : '',
+            group_name: groupName
+        };
+    }
+
+    function versionNear(a) {
+        const item = a.closest('li');
+        if (!item) return '';
+        const ps = Array.from(item.querySelectorAll(':scope > p'));
+        const name = text(a);
+        for (const p of ps) {
+            if (p.querySelector('a[href*="/class/"]')) continue;
+            const v = text(p);
+            if (v && v !== name && v.length <= 80) return v;
+        }
+        return '';
+    }
+
+    const roots = Array.from(document.querySelectorAll(
+        '.class-menu-main li[data-id="2"], .class-menu-main li.relation.modlist, li.relation.modlist'
+    ));
+    const scope = roots.length ? roots : [document];
+    const anchors = [];
+    for (const root of scope) {
+        root.querySelectorAll('a[href*="/class/"][href$=".html"]').forEach(a => anchors.push(a));
+    }
+
+    for (const a of anchors) {
+        const href = a.getAttribute('href') || '';
+        if (/\/class\/category\//i.test(href)) continue;
+        const classId = classIdFromHref(href);
+        if (!classId) continue;
+        const url = absUrl(href);
+        if (seen.has(url)) continue;
+        seen.add(url);
+
+        const name = text(a);
+        const title = (a.getAttribute('data-original-title') || a.getAttribute('title') || name || '').trim();
+        const cat = categoryFromGroup(a);
+        out.push({
+            name: name || title,
+            title: title || name,
+            url: url,
+            class_id: classId,
+            version: versionNear(a),
+            category_id: cat.category_id || '',
+            category_name: cat.category_name || '',
+            category_url: cat.category_url || '',
+            group_name: cat.group_name || ''
+        });
+    }
+    return out;
 }
 '''
 
@@ -1496,64 +1754,101 @@ FIND_TREND_TARGET_JS = r'''
 '''
 
 def build_trend_js():
-    return f'''
-async () => {{
-    const result = {{
-        指数走势数据: '', 走势数据点: 0,
-        走势起始日期: '', 走势结束日期: '',
-        走势最高指数: 0, 走势最低指数: 0,
-        走势平均指数: 0, 走势最新指数: 0,
-        走势涨幅_7天: 0, 走势涨幅_30天: 0
-    }};
-    
-    if (typeof echarts === 'undefined') return result;
-    
-    let dates = null, values = null;
-    const divs = document.querySelectorAll('div');
-    for (const div of divs) {{
-        try {{
-            const inst = echarts.getInstanceByDom(div);
-            if (inst) {{
-                const opt = inst.getOption ? inst.getOption() : inst.getModel && inst.getModel().option;
+    return r'''
+async () => {
+    const result = {
+        '指数走势数据': '', '走势数据点': 0,
+        '走势起始日期': '', '走势结束日期': '',
+        '走势最高指数': 0, '走势最低指数': 0,
+        '走势平均指数': 0, '走势最新指数': 0,
+        '走势涨幅_7天': 0, '走势涨幅_30天': 0
+    };
+
+    function normalizeSeriesData(raw) {
+        if (!Array.isArray(raw)) return [];
+        return raw.map(item => {
+            if (Array.isArray(item)) return item[1];
+            if (item && typeof item === 'object') return item.value ?? item.y ?? item.data;
+            return item;
+        }).map(v => parseInt(String(v).replace(/,/g, ''), 10)).filter(v => !isNaN(v));
+    }
+
+    function closeTrendModal() {
+        try {
+            const cb = document.querySelector('#modpack-index-chart-frame .close, #modpack-index-chart-frame [data-dismiss], .modal .close, .modal [data-dismiss], .modal-close, [class*="close"]');
+            if (cb) cb.click();
+        } catch(e) {}
+    }
+
+    function finish(dates, values) {
+        if (!Array.isArray(dates) || !Array.isArray(values)) return result;
+        const nums = normalizeSeriesData(values);
+        const cleanDates = dates.map(v => String(v || '').trim()).filter(Boolean);
+        if (cleanDates.length < 2 || nums.length < 2) return result;
+        const n = Math.min(cleanDates.length, nums.length);
+        const ds = cleanDates.slice(0, n);
+        const vs = nums.slice(0, n);
+        result['指数走势数据'] = JSON.stringify(ds.map((d, i) => ({ '日期': d, '指数': vs[i] })));
+        result['走势数据点'] = n;
+        result['走势起始日期'] = ds[0];
+        result['走势结束日期'] = ds[n - 1];
+        result['走势最高指数'] = Math.max(...vs);
+        result['走势最低指数'] = Math.min(...vs);
+        result['走势平均指数'] = Math.round(vs.reduce((a, b) => a + b, 0) / n);
+        result['走势最新指数'] = vs[n - 1];
+        if (n >= 8) {
+            const v7 = vs[n - 8];
+            result['走势涨幅_7天'] = v7 > 0 ? Math.round((result['走势最新指数'] - v7) / v7 * 100) : 0;
+        }
+        if (n >= 31) {
+            const v30 = vs[n - 31];
+            result['走势涨幅_30天'] = v30 > 0 ? Math.round((result['走势最新指数'] - v30) / v30 * 100) : 0;
+        }
+        return result;
+    }
+
+    if (typeof echarts !== 'undefined') {
+        const chartNodes = Array.from(document.querySelectorAll('#chart-index, .modpack-chart-canvas, div[_echarts_instance_]'));
+        const divs = chartNodes.length ? chartNodes : Array.from(document.querySelectorAll('div'));
+        for (const div of divs) {
+            try {
+                const inst = echarts.getInstanceByDom(div);
+                if (!inst) continue;
+                const opt = inst.getOption ? inst.getOption() : (inst.getModel && inst.getModel().option);
                 const xAxis = opt && opt.xAxis ? (Array.isArray(opt.xAxis) ? opt.xAxis[0] : opt.xAxis) : null;
                 const series = opt && opt.series ? (Array.isArray(opt.series) ? opt.series[0] : opt.series) : null;
-                if (xAxis && series) {{
-                    const d = xAxis.data || [];
-                    const v = (series.data || []).map(item => Array.isArray(item) ? item[1] : (item && typeof item === 'object' ? (item.value ?? item.y ?? item.data) : item));
-                    if (d.length > 0 && v.length > 0) {{ dates = d; values = v; break; }}
-                }}
-            }}
-        }} catch(e){{}}
-    }}
-    
-    if (!dates || !values) return result;
-    
-    const nums = values.map(v => parseInt(v)).filter(v => !isNaN(v));
-    if (nums.length === 0) return result;
-    
-    result.指数走势数据 = JSON.stringify(dates.map((d,i)=>({{ 日期: d, 指数: parseInt(values[i]) || 0 }})));
-    result.走势数据点 = nums.length;
-    result.走势起始日期 = dates[0];
-    result.走势结束日期 = dates[dates.length-1];
-    result.走势最高指数 = Math.max(...nums);
-    result.走势最低指数 = Math.min(...nums);
-    result.走势平均指数 = Math.round(nums.reduce((a,b)=>a+b,0)/nums.length);
-    result.走势最新指数 = nums[nums.length-1];
-    
-    if (nums.length >= 8) {{
-        const v7 = nums[nums.length - 8];
-        result.走势涨幅_7天 = v7 > 0 ? Math.round((result.走势最新指数 - v7) / v7 * 100) : 0;
-    }}
-    if (nums.length >= 31) {{
-        const v30 = nums[nums.length - 31];
-        result.走势涨幅_30天 = v30 > 0 ? Math.round((result.走势最新指数 - v30) / v30 * 100) : 0;
-    }}
-    
-    try {{ const cb = document.querySelector('.modal .close, .modal [data-dismiss], .modal-close, [class*="close"]');
-        if (cb) cb.click(); }} catch(e){{}}
-    
+                const dates = xAxis && xAxis.data ? xAxis.data : [];
+                const values = series && series.data ? series.data : [];
+                const parsed = finish(dates, values);
+                if (parsed['走势数据点'] > 0) {
+                    closeTrendModal();
+                    return parsed;
+                }
+            } catch(e) {}
+        }
+    }
+
+    const scripts = Array.from(document.querySelectorAll('script'))
+        .map(s => s.textContent || '')
+        .filter(t => t.includes('xAxis') && t.includes('series') && t.includes('data'));
+    for (const text of scripts) {
+        const dateMatch = text.match(/xAxis\s*:\s*\{[\s\S]*?data\s*:\s*(\[[\s\S]*?\])/m);
+        const seriesMatch = text.match(/series\s*:\s*\[[\s\S]*?data\s*:\s*(\[[\s\S]*?\])/m);
+        if (!dateMatch || !seriesMatch) continue;
+        try {
+            const dates = Function('"use strict"; return (' + dateMatch[1] + ');')();
+            const values = Function('"use strict"; return (' + seriesMatch[1] + ');')();
+            const parsed = finish(dates, values);
+            if (parsed['走势数据点'] > 0) {
+                closeTrendModal();
+                return parsed;
+            }
+        } catch(e) {}
+    }
+
+    closeTrendModal();
     return result;
-}}
+}
 '''
 EXTRACT_TREND_JS = build_trend_js()
 
@@ -1561,6 +1856,20 @@ EXTRACT_TREND_JS = build_trend_js()
 def extract_modpack_id(url):
     m = re.search(r'/modpack/(\d+)\.html', url)
     return m.group(1) if m else None
+
+def is_retryable_network_error(error_msg: str) -> bool:
+    msg = str(error_msg or '')
+    return (
+        'Timeout' in msg
+        or 'ERR_CONNECTION' in msg
+        or 'net::' in msg
+        or '连接超时' in msg
+        or 'about:blank' in msg
+    )
+
+class PageNeedsRecreate(Exception):
+    """当前页面已被网络错误拖入不可靠状态，交给 worker 关闭并重建。"""
+    pass
 
 async def _mcmod_check_anti_crawl(page):
     try:
@@ -1581,7 +1890,7 @@ async def _mcmod_recreate_page(context, old_page):
     return page
 
 async def safe_goto(page, url, wait_until='domcontentloaded', timeout=None, attempts=NAVIGATION_RETRY):
-    """带全局闸门感知的导航重试，避免静默休息或网络抖动造成单次超时后直接丢任务。"""
+    """带全局闸门感知的导航重试；连续网络失败时要求 worker 重建页面。"""
     timeout = timeout or GOTO_TIMEOUT * 1000
     last_error = None
     for attempt in range(1, attempts + 1):
@@ -1592,8 +1901,10 @@ async def safe_goto(page, url, wait_until='domcontentloaded', timeout=None, atte
         except Exception as e:
             last_error = e
             msg = str(e)
-            retryable = 'Timeout' in msg or 'ERR_CONNECTION' in msg or 'net::' in msg or '连接超时' in msg
-            if attempt >= attempts or not retryable:
+            retryable = is_retryable_network_error(msg)
+            if retryable and attempt >= attempts:
+                raise PageNeedsRecreate(f'导航连续失败，需要重建页面: {url} | {msg[:120]}')
+            if not retryable:
                 raise
             wait_s = min(4 + attempt * 3, 12)
             print(f"  [导航重试] 第 {attempt}/{attempts} 次进入页面失败，{wait_s}s 后重试: {msg[:90]}")
@@ -1601,12 +1912,8 @@ async def safe_goto(page, url, wait_until='domcontentloaded', timeout=None, atte
                 await page.evaluate("window.stop && window.stop()")
             except Exception:
                 pass
-            try:
-                await page.goto('about:blank', wait_until='commit', timeout=10000)
-            except Exception:
-                pass
             await rate_controller.safe_sleep(wait_s)
-    raise last_error or Exception(f'导航失败: {url}')
+    raise PageNeedsRecreate(f'导航连续失败，需要重建页面: {url} | {str(last_error)[:120]}')
 
 async def wait_mcmod_page_ready(page, url='', worker_id=0, index=0, attempts=3):
     """等待 MCMod 详情页真正出现可读正文；commit 只代表开始响应，不代表 DOM 可提取。"""
@@ -1636,10 +1943,6 @@ async def wait_mcmod_page_ready(page, url='', worker_id=0, index=0, attempts=3):
                 last_state = {}
             print(f"  [W{worker_id}] [{index}] 页面仍为空/未就绪，重试加载 {attempt}/{attempts}: {last_state}")
             if attempt < attempts:
-                try:
-                    await page.goto('about:blank', wait_until='commit', timeout=10000)
-                except Exception:
-                    pass
                 await rate_controller.safe_sleep(3 + attempt * 2)
                 await safe_goto(page, url or page.url, wait_until='domcontentloaded')
     raise Exception(f"页面未加载出可提取内容: {last_state}")
@@ -1680,6 +1983,20 @@ async def _mcmod_fetch_intro_tags(page, worker_id, index):
             pass
         await asyncio.sleep(1)
     return {'整合包介绍': '', '分类标签': '', '整合包标签': ''}
+
+async def _mcmod_fetch_mod_list(page, worker_id, index):
+    for attempt in range(MODULE_RETRY):
+        try:
+            mods = await asyncio.wait_for(page.evaluate(EXTRACTOR_MOD_LIST), timeout=EVAL_TIMEOUT)
+            if isinstance(mods, list):
+                if mods:
+                    print(f'  [W{worker_id}] [{index}] 包含模组: {len(mods)} 个')
+                return mods
+        except Exception as e:
+            if attempt == 0:
+                print(f'  [W{worker_id}] [{index}] ⚠️ 包含模组提取异常: {str(e)[:120]}')
+        await asyncio.sleep(1)
+    return []
 
 async def _mcmod_scroll_to_comments(page, worker_id, index, max_retry=6):
     for retry in range(max_retry):
@@ -2034,6 +2351,28 @@ EXTRACT_REPLY_ROWS_FOR_MAIN_JS = r'''
         }
         return '匿名用户';
     }
+    function collectImages(root, source) {
+        const out = [];
+        const seen = new Set();
+        if (!root) return out;
+        root.querySelectorAll('img').forEach((img, idx) => {
+            const raw = img.getAttribute('data-src') || img.getAttribute('src') || img.getAttribute('data-original') || '';
+            let url = '';
+            try { url = new URL(raw, location.href).href; } catch(e) { url = raw || ''; }
+            if (!url || seen.has(url) || /loading|loadfail/i.test(url)) return;
+            seen.add(url);
+            out.push({
+                url,
+                src: url,
+                alt: (img.getAttribute('alt') || '').trim(),
+                width: parseInt(img.getAttribute('data-width') || img.getAttribute('width') || '0', 10) || 0,
+                height: parseInt(img.getAttribute('data-height') || img.getAttribute('height') || '0', 10) || 0,
+                source: source || 'comment_reply',
+                index: idx + 1
+            });
+        });
+        return out;
+    }
     
     const replyRowSelectors = [
         "li.class-comment-reply-row", "li.comment-reply-row", "div.class-comment-reply-row", "div.comment-reply-row",
@@ -2074,7 +2413,30 @@ EXTRACT_REPLY_ROWS_FOR_MAIN_JS = r'''
             const key = author + '|' + text;
             if (!keys.has(key)) {
                 keys.add(key);
-                replies.push({ author, text });
+                const base = location.href.split('#')[0];
+                const ridInput = reply.querySelector('input.comment-id[name="comment-id"], input[name="comment-id"]');
+                const rid = (ridInput && ridInput.value) || reply.id || reply.getAttribute('data-id') || reply.getAttribute('data-comment-id') || reply.getAttribute('data-cid') || '';
+                let replyUrl = '';
+                const directLink = Array.from(reply.querySelectorAll('a[href]')).find(a => {
+                    const href = a.getAttribute('href') || '';
+                    return href.startsWith('#') || /comment|reply|floor/i.test(href);
+                });
+                if (directLink) {
+                    try { replyUrl = new URL(directLink.getAttribute('href'), location.href).href; } catch(e) { replyUrl = directLink.getAttribute('href') || ''; }
+                } else if (rid) {
+                    replyUrl = base + '#' + encodeURIComponent(rid);
+                } else {
+                    replyUrl = '';
+                }
+                replies.push({
+                    author,
+                    text,
+                    images: collectImages(reply, 'comment_reply'),
+                    comment_id: rid,
+                    comment_page: page,
+                    comment_url: replyUrl,
+                    url: replyUrl
+                });
             }
         }
     });
@@ -2243,8 +2605,71 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
                         const ta = tx.querySelector('.class-comment-row, .comment-row-username a') || tx.querySelector('[class*="class-username"]') || {{}};
                         const text = (tc.innerText || tc.textContent || '').trim().replace(/^回复\\s*/, '');
                         const author = (ta.innerText || ta.textContent || '').trim();
-                        return {{ author: author || '匿名用户', text: text, replies: [] }};
+                        function collectImages(root) {{
+                            const out = [];
+                            const seen = new Set();
+                            if (!root) return out;
+                            root.querySelectorAll('img').forEach((img, idx) => {{
+                                const raw = img.getAttribute('data-src') || img.getAttribute('src') || img.getAttribute('data-original') || '';
+                                let url = '';
+                                try {{ url = new URL(raw, location.href).href; }} catch(e) {{ url = raw || ''; }}
+                                if (!url || seen.has(url) || /loading|loadfail/i.test(url)) return;
+                                seen.add(url);
+                                out.push({{
+                                    url: url,
+                                    src: url,
+                                    alt: (img.getAttribute('alt') || '').trim(),
+                                    width: parseInt(img.getAttribute('data-width') || img.getAttribute('width') || '0', 10) || 0,
+                                    height: parseInt(img.getAttribute('data-height') || img.getAttribute('height') || '0', 10) || 0,
+                                    source: 'comment',
+                                    index: idx + 1
+                                }});
+                            }});
+                            return out;
+                        }}
+                        return {{ author: author || '匿名用户', text: text, images: collectImages(tx), replies: [] }};
                     }}''')
+                    if main_row_data:
+                        try:
+                            comment_meta = await page.evaluate('''([rowSel, commentPage, rowIndex, packId]) => {
+                                const row = document.querySelector(rowSel);
+                                const base = location.href.split('#')[0];
+                            if (!row) return { comment_page: commentPage, comment_index: rowIndex, comment_url: '', url: '', modpack_id: packId };
+                                function cleanText(raw) {
+                                    return String(raw || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
+                                }
+                                const idInput = row.querySelector('input.comment-id[name="comment-id"], input[name="comment-id"]');
+                                const id = (idInput && idInput.value) || row.id || row.getAttribute('data-id') || row.getAttribute('data-comment-id') || row.getAttribute('data-cid') || '';
+                                const floorEl = row.querySelector('.comment-row-userinfo, .floor-num, [class*="floor"], [class*="lou"]');
+                                const floorRaw = cleanText(floorEl ? (floorEl.innerText || floorEl.textContent) : '');
+                                const floorMatch = floorRaw.match(/#?\\s*(\\d+)/);
+                                const directLink = Array.from(row.querySelectorAll('a[href]')).find(a => {
+                                    const href = a.getAttribute('href') || '';
+                                    return href.startsWith('#') || /comment|reply|floor/i.test(href);
+                                });
+                                let url = '';
+                                if (directLink) {
+                                    try { url = new URL(directLink.getAttribute('href'), location.href).href; } catch(e) { url = directLink.getAttribute('href') || ''; }
+                                } else if (id) {
+                                    url = base + '#' + encodeURIComponent(id);
+                                } else {
+                                    url = '';
+                                }
+                                return {
+                                    floor: floorMatch ? floorMatch[1] : '',
+                                    page: commentPage,
+                                    comment_page: commentPage,
+                                    comment_index: rowIndex,
+                                    comment_id: id,
+                                    comment_url: url,
+                                    url: url,
+                                    modpack_id: packId
+                                };
+                            }''', [row_css, dom_page, idx, modpack_id])
+                            if isinstance(comment_meta, dict):
+                                main_row_data.update(comment_meta)
+                        except Exception:
+                            pass
                     if main_row_data and main_row_data['text'] and main_row_data['text'] not in existing_texts:
                         page_new_comments.append(main_row_data)
                         existing_texts.add(main_row_data['text'])
@@ -2312,9 +2737,72 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
                 const ta = tx.querySelector('.class-comment-row, .comment-row-username a') || tx.querySelector('[class*="class-username"]') || {{}};
                 const text = (tc.innerText || tc.textContent || '').trim().replace(/^回复\\s*/, '');
                 const author = (ta.innerText || ta.textContent || '').trim();
-                return {{ author: author || '匿名用户', text: text, replies: {json.dumps(collected_replies, ensure_ascii=False)} }};
+                function collectImages(root) {{
+                    const out = [];
+                    const seen = new Set();
+                    if (!root) return out;
+                    root.querySelectorAll('img').forEach((img, idx) => {{
+                        const raw = img.getAttribute('data-src') || img.getAttribute('src') || img.getAttribute('data-original') || '';
+                        let url = '';
+                        try {{ url = new URL(raw, location.href).href; }} catch(e) {{ url = raw || ''; }}
+                        if (!url || seen.has(url) || /loading|loadfail/i.test(url)) return;
+                        seen.add(url);
+                        out.push({{
+                            url: url,
+                            src: url,
+                            alt: (img.getAttribute('alt') || '').trim(),
+                            width: parseInt(img.getAttribute('data-width') || img.getAttribute('width') || '0', 10) || 0,
+                            height: parseInt(img.getAttribute('data-height') || img.getAttribute('height') || '0', 10) || 0,
+                            source: 'comment',
+                            index: idx + 1
+                        }});
+                    }});
+                    return out;
+                }}
+                return {{ author: author || '匿名用户', text: text, images: collectImages(tx), replies: {json.dumps(collected_replies, ensure_ascii=False)} }};
             }}''')
             
+            if main_row_data:
+                try:
+                    comment_meta = await page.evaluate('''([rowSel, commentPage, rowIndex, packId]) => {
+                        const row = document.querySelector(rowSel);
+                        const base = location.href.split('#')[0];
+                        if (!row) return { comment_page: commentPage, comment_index: rowIndex, comment_url: '', url: '', modpack_id: packId };
+                        function cleanText(raw) {
+                            return String(raw || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
+                        }
+                        const idInput = row.querySelector('input.comment-id[name="comment-id"], input[name="comment-id"]');
+                        const id = (idInput && idInput.value) || row.id || row.getAttribute('data-id') || row.getAttribute('data-comment-id') || row.getAttribute('data-cid') || '';
+                        const floorEl = row.querySelector('.comment-row-userinfo, .floor-num, [class*="floor"], [class*="lou"]');
+                        const floorRaw = cleanText(floorEl ? (floorEl.innerText || floorEl.textContent) : '');
+                        const floorMatch = floorRaw.match(/#?\\s*(\\d+)/);
+                        const directLink = Array.from(row.querySelectorAll('a[href]')).find(a => {
+                            const href = a.getAttribute('href') || '';
+                            return href.startsWith('#') || /comment|reply|floor/i.test(href);
+                        });
+                        let url = '';
+                        if (directLink) {
+                            try { url = new URL(directLink.getAttribute('href'), location.href).href; } catch(e) { url = directLink.getAttribute('href') || ''; }
+                        } else if (id) {
+                            url = base + '#' + encodeURIComponent(id);
+                        } else {
+                            url = '';
+                        }
+                        return {
+                            floor: floorMatch ? floorMatch[1] : '',
+                            page: commentPage,
+                            comment_page: commentPage,
+                            comment_index: rowIndex,
+                            comment_id: id,
+                            comment_url: url,
+                            url: url,
+                            modpack_id: packId
+                        };
+                    }''', [row_css, dom_page, idx, modpack_id])
+                    if isinstance(comment_meta, dict):
+                        main_row_data.update(comment_meta)
+                except Exception:
+                    pass
             if main_row_data and main_row_data['text'] and main_row_data['text'] not in existing_texts:
                 page_new_comments.append(main_row_data)
                 existing_texts.add(main_row_data['text'])
@@ -2393,6 +2881,8 @@ async def _mcmod_fetch_trend(page, worker_id, index):
         try:
             clicked = False
             for sel in [
+                "#modpack-index-chart-btn",
+                "[data-target='#modpack-index-chart-frame']",
                 "a:has-text('指数走势')",
                 "button:has-text('指数走势')",
                 "[role='button']:has-text('指数走势')",
@@ -2428,6 +2918,8 @@ async def _mcmod_fetch_trend(page, worker_id, index):
             await page.wait_for_timeout(TREND_WAIT_MS)
             try:
                 await page.wait_for_function('''() => {
+                    if (document.querySelector('#chart-index, .modpack-chart-canvas, #modpack-index-chart-frame .modal-content')) return true;
+                    if (Array.from(document.querySelectorAll('script')).some(s => (s.textContent || '').includes('myChart_index') && (s.textContent || '').includes('xAxis'))) return true;
                     if (typeof echarts === 'undefined') return false;
                     return Array.from(document.querySelectorAll('div')).some(div => {
                         try { return !!echarts.getInstanceByDom(div); } catch(e) { return false; }
@@ -2472,6 +2964,14 @@ async def _mcmod_fetch_detail_pack(page, url, worker_id, index, total):
         basic['整合包介绍'] = intro_data.get('整合包介绍', '')
         basic['分类标签'] = intro_data.get('分类标签', '') or basic.get('分类标签', '')
         basic['整合包标签'] = intro_data.get('整合包标签', '') or basic.get('整合包标签', '')
+        basic['category_tag_details'] = intro_data.get('category_tag_details', []) or basic.get('category_tag_details', [])
+        basic['pack_tag_details'] = intro_data.get('pack_tag_details', []) or basic.get('pack_tag_details', [])
+        intro_images = intro_data.get('intro_images') or intro_data.get('介绍图片') or []
+        basic['intro_images'] = intro_images
+        basic['介绍图片'] = intro_images
+        mods = await _mcmod_fetch_mod_list(page, worker_id, index)
+        basic['包含模组'] = mods
+        basic['模组数量'] = len(mods)
         
         # 抓走势
         if FETCH_TREND_DATA:
@@ -2499,6 +2999,9 @@ async def _mcmod_fetch_detail_pack(page, url, worker_id, index, total):
             'comment_total': comment_total,
             'comment_checked': False,
             'trend': trend,
+            'mods': mods,
+            'intro_images': intro_images,
+            'comment_images': [],
         }
         return pack
 
@@ -2539,11 +3042,15 @@ async def _mcmod_fetch_comment_pack(page, url, worker_id, index, total, row):
 
         row['comments'] = comments
         row['评论详情'] = comments
+        comment_images = _collect_comment_images(comments)
+        row['comment_images'] = comment_images
+        row['评论图片'] = comment_images
         
         pack = {
             'url': url,
             'basic': {}, # 因为只更新评论，这里不需要 basic
             'comments': comments,
+            'comment_images': comment_images,
             'comment_total': final_comment_total,
             'comment_checked': comment_checked,
         }
@@ -2766,6 +3273,8 @@ class MCModAdapter(BaseAdapter):
                         raw_data['basic']['评论数'] = raw_data['comment_total']
                     print(f"  [MCMod] 评论完整抓取完成！")
                 except Exception as ce:
+                    if isinstance(ce, PageNeedsRecreate) or is_retryable_network_error(str(ce)):
+                        raise
                     raw_data['comment_checked'] = False
                     raw_data['comment_error'] = str(ce)[:300]
                     print(f"  [MCMod] ⚠️ 评论提取中断，基础数据会先落盘，下次继续补评论: {ce}")
@@ -2778,6 +3287,8 @@ class MCModAdapter(BaseAdapter):
             return raw_data
         except Exception as e:
             err_msg = str(e)
+            if isinstance(e, PageNeedsRecreate) or is_retryable_network_error(err_msg):
+                raise
             if '触发反爬' in err_msg or '10秒' in err_msg:
                 raise Exception("ANTI_CRAWL_TRIGGERED")
             raise Exception(f"FETCH_ERROR: {err_msg}")
@@ -2861,6 +3372,7 @@ class Scheduler:
                 raise Exception(f"平台 {platform} 没有已注册的 Context")
                 
             try:
+                await self._cleanup_blank_pages(context)
                 print(f"[Scheduler] 为 [{platform}] 创建工作页面...")
                 page = await context.new_page()
                 page.set_default_timeout(30000)
@@ -2883,6 +3395,17 @@ class Scheduler:
                 else:
                     raise e
         raise Exception(f"平台 {platform} 的 BrowserContext 多次重建后依然处于关闭死亡状态，无法拉起工作页面。")
+
+    async def _cleanup_blank_pages(self, context, keep_page=None):
+        """网络抖动后清理多余 about:blank 标签，避免窗口里越堆越多空白页。"""
+        for p in list(getattr(context, 'pages', []) or []):
+            if keep_page is not None and p == keep_page:
+                continue
+            try:
+                if p.url == 'about:blank':
+                    await p.close()
+            except Exception:
+                pass
 
     def _load_progress(self):
         """从已有 JSONL 中加载进度；质量不达标的历史记录会在本轮补抓。"""
@@ -3040,7 +3563,7 @@ class Scheduler:
                     break
                 else:
                     print(f"[W{worker_id}] ❌ 抓取失败: {err_msg}")
-                    if 'Page.goto' in err_msg or 'Timeout' in err_msg or 'ERR_CONNECTION' in err_msg or 'net::' in err_msg or '基础信息提取失败' in err_msg or '页面未加载出可提取内容' in err_msg:
+                    if isinstance(e, PageNeedsRecreate) or 'Page.goto' in err_msg or is_retryable_network_error(err_msg) or '基础信息提取失败' in err_msg or '页面未加载出可提取内容' in err_msg:
                         try:
                             print(f"[W{worker_id}] 页面异常，重建浏览器页面后继续。")
                             try:
