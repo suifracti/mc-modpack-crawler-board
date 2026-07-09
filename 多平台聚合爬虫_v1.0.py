@@ -111,8 +111,8 @@ MODULE_RETRY = 2
 CONCURRENCY = 2  # 并发数设为 2，在速度与防封控 ban 之间达到最佳均衡
 
 # ========== 安全采集模式 ==========
-# 不再追求“全量评论一把梭”。详情数据照常抓，评论大户采用预算制采样，
-# 避免单个 800+ 评论的整合包连续翻几十页把 IP 风险打满。
+# 评论仍尽量完整抓取，方便后续分析；安全策略放在请求层和评论动作节流上，
+# 避免连续展开/翻页过密导致账号或 IP 风险升高。
 SAFE_CRAWL_MODE = True
 FIRST_PARTY_REQUEST_INTERVAL = 0.45
 REQUEST_BURST_LIMIT = 80
@@ -125,6 +125,9 @@ SAFE_MAX_COMMENT_PAGES_SMALL = 999
 SAFE_MAX_COMMENT_PAGES_MEDIUM = 999
 SAFE_MAX_COMMENT_PAGES_LARGE = 999
 SAFE_MAX_REPLY_PAGES = 200
+COMMENT_ACTION_BURST_LIMIT = 24
+COMMENT_ACTION_REST_MIN = 6.0
+COMMENT_ACTION_REST_MAX = 10.0
 
 # ========== 测试模式 ==========
 TEST_MODE_LIMIT_PAGES = 0  # 设置为 > 0 的整数时开启极速测试模式，仅抓取指定页数的列表。设为 0 关闭测试。
@@ -235,6 +238,7 @@ class GlobalRateController:
         self.crawl_gate: Optional[asyncio.Event] = None
         self.pending_burst_rest = False
         self.pending_burst_reason = ''
+        self.comment_action_counter = 0
         
     async def report_error(self, error_msg):
         async with self.lock:
@@ -258,6 +262,7 @@ class GlobalRateController:
     async def before_request(self, url='', resource_type=''):
         if self.stop_requested:
             raise Exception('采集已停止')
+        await self._wait_gate()
 
         host = ''
         try:
@@ -282,9 +287,10 @@ class GlobalRateController:
             current_count = self.request_counter
 
         if current_count > 0 and current_count % REQUEST_BURST_LIMIT == 0:
-            async with self.lock:
-                self.pending_burst_rest = True
-                self.pending_burst_reason = f'[RateController] 已放行 {current_count} 次采集请求，进行一次削峰休息'
+            await self.global_rest(
+                random.uniform(REQUEST_BURST_REST_MIN, REQUEST_BURST_REST_MAX),
+                f'[RateController] 已拦截到 {current_count} 次采集请求，放行前进行削峰休息'
+            )
 
     async def maybe_burst_rest(self):
         await self._wait_gate()
@@ -342,6 +348,18 @@ class GlobalRateController:
         if self.stop_requested:
             raise Exception('采集已停止')
         await asyncio.sleep(seconds)
+
+    async def after_comment_action(self, reason='评论动作'):
+        """评论区展开/翻页的轻量节流：不截断内容，只降低连续点击密度。"""
+        await self._wait_gate()
+        async with self.lock:
+            self.comment_action_counter += 1
+            current_count = self.comment_action_counter
+        if current_count > 0 and current_count % COMMENT_ACTION_BURST_LIMIT == 0:
+            await self.global_rest(
+                random.uniform(COMMENT_ACTION_REST_MIN, COMMENT_ACTION_REST_MAX),
+                f'[RateController] 已完成 {current_count} 次{reason}，进行评论区削峰休息'
+            )
 
 rate_controller = GlobalRateController()
 
@@ -1667,7 +1685,7 @@ async def _mcmod_scroll_to_comments(page, worker_id, index, max_retry=6):
     for retry in range(max_retry):
         try:
             await page.evaluate('window.scrollTo(0, document.body.scrollHeight);')
-            await page.wait_for_timeout(random.randint(1500, 2200))
+            await rate_controller.safe_sleep(random.randint(1500, 2200) / 1000.0)
             exist = await page.evaluate('''() => {
                 const block = document.querySelector(".class-comment-block, .common-comment-block");
                 if(block){ block.scrollIntoView({behavior:"smooth", block:"center"}); return true; }
@@ -1682,7 +1700,7 @@ async def _mcmod_scroll_to_comments(page, worker_id, index, max_retry=6):
         except Exception as e:
             if DEBUG_COMMENTS:
                 print(f'  [W{worker_id}] [{index}] ⚠️ 滚动重试{retry+1}异常：{str(e)[:40]}')
-        await page.wait_for_timeout(random.randint(1200, 2000))
+        await rate_controller.safe_sleep(random.randint(1200, 2000) / 1000.0)
     if DEBUG_COMMENTS:
         print(f'  [W{worker_id}] [{index}] ⚠️ {max_retry}轮滚动未检测到评论区块，继续执行抓取逻辑')
     return False
@@ -1777,6 +1795,7 @@ async def _mcmod_click_single_reply_next(page, row_selector, worker_id, index):
         clicked = await page.evaluate(js, row_selector)
         if not clicked:
             return False
+        await rate_controller.after_comment_action('楼中楼翻页')
         await rate_controller.safe_sleep(random.randint(REPLY_EXPAND_WAIT_MIN, REPLY_EXPAND_WAIT_MAX) / 1000.0)
     except Exception as e:
         if DEBUG_COMMENTS:
@@ -1836,6 +1855,7 @@ async def _mcmod_expand_all_replies(page, worker_id, index):
             total_expanded += expanded_count
             if DEBUG_COMMENTS:
                 print(f'  [W{worker_id}] [{index}] 📂 第{round_num+1}轮展开 {expanded_count} 个楼中楼')
+            await rate_controller.after_comment_action('楼中楼展开')
             await rate_controller.safe_sleep(random.randint(REPLY_EXPAND_WAIT_MIN, REPLY_EXPAND_WAIT_MAX) / 1000.0)
         else:
             break
@@ -1896,6 +1916,7 @@ async def _mcmod_click_next_page(page, worker_id, index, current_page):
             await page.wait_for_load_state('networkidle', timeout=5000)
         except:
             pass
+        await rate_controller.after_comment_action('主评论翻页')
         await rate_controller.safe_sleep(random.randint(COMMENT_PAGE_WAIT_MIN, COMMENT_PAGE_WAIT_MAX) / 1000.0)
         new_page = await page.evaluate(EXTRACTOR_CURRENT_PAGE)
         if new_page and new_page > current_page:
@@ -2075,7 +2096,7 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
     
     await _mcmod_scroll_to_comments(page, worker_id, index)
     await _mcmod_wait_for_comments_loaded(page, worker_id, index)
-    await page.wait_for_timeout(1000)
+    await rate_controller.safe_sleep(1.0)
     
     actual_comment_count = 0
     try:
@@ -2142,7 +2163,7 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
         # 展开"查看回复"按钮
         expanded = await _mcmod_expand_all_replies(page, worker_id, index)
         if expanded > 0:
-            await page.wait_for_timeout(1500)
+            await rate_controller.safe_sleep(1.5)
         
         # ★先提取当前页主楼的基本信息（不含楼中楼），然后逐条翻楼中楼
         page_main_comment_texts = await page.evaluate('''() => {
@@ -2266,7 +2287,8 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
                         if reply_p == 2:
                             await _mcmod_click_single_reply_next(page, row_css, worker_id, index)
                         break
-                    await page.wait_for_timeout(random.randint(1500, 2500))
+                    await rate_controller.after_comment_action('楼中楼翻页')
+                    await rate_controller.safe_sleep(random.randint(1500, 2500) / 1000.0)
                 
                 # 提取当前页的楼中楼
                 try:
@@ -2310,7 +2332,8 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
                         firstLink.click();
                     }}
                 }}''')
-                await page.wait_for_timeout(random.randint(500, 1000))
+                await rate_controller.after_comment_action('楼中楼回到第一页')
+                await rate_controller.safe_sleep(random.randint(500, 1000) / 1000.0)
             except:
                 pass
             
@@ -2349,7 +2372,7 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
         dom_page += 1
         try:
             await page.evaluate('document.querySelector(".class-comment-block, .common-comment-block").scrollIntoView({block:"center"})')
-            await page.wait_for_timeout(1500)
+            await rate_controller.safe_sleep(1.5)
         except:
             pass
     
