@@ -2595,7 +2595,7 @@ class MCModAdapter(BaseAdapter):
 
     async def create_context(self, playwright):
         """创建 MCMod 专属的持久化浏览器上下文（携带已保存的登录态）"""
-        user_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'browser_data')
+        user_data_dir = USER_DATA_DIR
         context = await playwright.chromium.launch_persistent_context(
             user_data_dir=user_data_dir,
             headless=False,
