@@ -15,6 +15,8 @@ INPUT_FILE  = "多平台爬虫数据_v1.0.jsonl"
 
 FALLBACK_INPUT_FILE = "MC百科整合包数据.json"
 
+# The converter does not use browser cache or cookies. Browser state belongs to
+# the crawler only, under ignored_local_files/browser_data.
 TREND_HISTORY_DIR = "trend_history"
 
 MCMOD_BASE  = "https://www.mcmod.cn/modpack/"

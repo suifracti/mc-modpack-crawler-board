@@ -1,4 +1,4 @@
-# Byte-compiled / optimized / DLL files
+# Python runtime cache
 __pycache__/
 *.py[cod]
 *$py.class
@@ -7,8 +7,20 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Agent framework
+# Local editor / assistant state. These help this machine only; they are not
+# crawler/converter source files.
+.vscode/
+pyrightconfig.json
+
+# Codex/Gemini/agent working notes. These are local work logs, not project files.
 .agents/
 
-# Reorganized untracked local browser cache and archives directory
+# Local-only files moved out of the Git-managed project surface:
+# - browser_data/ contains Playwright/Chromium profile state, cookies and cache.
+# - 归档/ contains old scratch/backup scripts kept only for reference.
 ignored_local_files/
+
+# Common temporary outputs
+*.tmp
+*.bak
+*.log

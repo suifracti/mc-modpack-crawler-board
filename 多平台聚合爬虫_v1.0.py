@@ -142,30 +142,20 @@ class QueueTask:
     url: str = field(compare=False)
     index: int = field(compare=False)       # 列表页索引 或 整合包序号
     retry_count: int = field(default=0, compare=False)
-
-# ========== 测试模式 ==========
-TEST_MODE_LIMIT_PAGES = 0  # 设置为 > 0 的整数时开启极速测试模式，仅抓取指定页数的列表。设为 0 关闭测试。
-
-# ========== 任务对象定义 ==========
-class TaskType(Enum):
-    LIST_PAGE = auto()      # 抓取列表页 (低优先级)
-    DETAIL_PAGE = auto()    # 抓取详情、走势和标签 (中优先级)
-    COMMENT_PAGE = auto()   # 抓取评论及楼中楼 (高优先级，严格限流)
-
-@dataclass(order=True)
-class QueueTask:
-    priority: int           # 优先级(越小越高)
-    task_type: TaskType = field(compare=False)
-    url: str = field(compare=False)
-    index: int = field(compare=False)       # 列表页索引 或 整合包序号
-    retry_count: int = field(default=0, compare=False)
     context_data: dict = field(default_factory=dict, compare=False) # 传递已抓取的数据
 GOTO_TIMEOUT = 90
 EVAL_TIMEOUT = 15
 NAVIGATION_RETRY = 3
 MAX_CONSECUTIVE_FAILS = 10
 PAGE_MAX_FAILS = 3
-USER_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ignored_local_files', 'browser_data')
+
+# Git/local file layout:
+# - Project source and data stay in the repository root.
+# - Browser login state, cookies and cache stay local-only under
+#   ignored_local_files/browser_data and are ignored by Git.
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+LOCAL_ONLY_DIR = os.path.join(PROJECT_ROOT, 'ignored_local_files')
+USER_DATA_DIR = os.path.join(LOCAL_ONLY_DIR, 'browser_data')
 TREND_WAIT_MS = 4000
 
 # ========== 数据补全模式 ==========
@@ -2608,7 +2598,7 @@ class MCModAdapter(BaseAdapter):
         """检测 MCMod 登录状态，未登录则弹出浏览器引导用户手动登录"""
         page = context.pages[0] if context.pages else await context.new_page()
         print('🔄 [MCMod] 检测登录...')
-        await page.goto('https://www.mcmod.cn/')
+        await safe_goto(page, 'https://www.mcmod.cn/', wait_until='domcontentloaded')
         await page.wait_for_timeout(2000)
         is_logged_in = await page.evaluate('''() => {
             const t = document.body.textContent;
@@ -2617,7 +2607,7 @@ class MCModAdapter(BaseAdapter):
 
         if not is_logged_in:
             print('\n⚠️ [MCMod] 未登录，请在浏览器中手动登录...')
-            await page.goto('https://www.mcmod.cn/login/')
+            await safe_goto(page, 'https://www.mcmod.cn/login/', wait_until='domcontentloaded')
             for i in range(120):
                 await page.wait_for_timeout(1000)
                 try:
@@ -3078,7 +3068,20 @@ class Scheduler:
                 continue
 
             # b. 登录检测（由 Adapter 自己控制）
-            await adapter.check_login(context)
+            try:
+                await adapter.check_login(context)
+            except Exception as e:
+                msg = str(e)
+                if 'ERR_NAME_NOT_RESOLVED' in msg or 'net::' in msg:
+                    print(f"❌ [{platform_name}] 无法访问平台首页，可能是 DNS/网络/代理问题：{msg}")
+                    print(f"   已跳过该平台；请确认浏览器能打开 https://www.mcmod.cn/ 后再重试。")
+                else:
+                    print(f"❌ [{platform_name}] 登录检测失败：{e}")
+                try:
+                    await context.close()
+                except Exception:
+                    pass
+                continue
             await install_safe_routes(context)
 
             # c. 列表提取（由 Adapter 自己控制）
