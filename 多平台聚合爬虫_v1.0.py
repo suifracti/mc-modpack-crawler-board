@@ -142,13 +142,30 @@ class QueueTask:
     url: str = field(compare=False)
     index: int = field(compare=False)       # 列表页索引 或 整合包序号
     retry_count: int = field(default=0, compare=False)
+
+# ========== 测试模式 ==========
+TEST_MODE_LIMIT_PAGES = 0  # 设置为 > 0 的整数时开启极速测试模式，仅抓取指定页数的列表。设为 0 关闭测试。
+
+# ========== 任务对象定义 ==========
+class TaskType(Enum):
+    LIST_PAGE = auto()      # 抓取列表页 (低优先级)
+    DETAIL_PAGE = auto()    # 抓取详情、走势和标签 (中优先级)
+    COMMENT_PAGE = auto()   # 抓取评论及楼中楼 (高优先级，严格限流)
+
+@dataclass(order=True)
+class QueueTask:
+    priority: int           # 优先级(越小越高)
+    task_type: TaskType = field(compare=False)
+    url: str = field(compare=False)
+    index: int = field(compare=False)       # 列表页索引 或 整合包序号
+    retry_count: int = field(default=0, compare=False)
     context_data: dict = field(default_factory=dict, compare=False) # 传递已抓取的数据
 GOTO_TIMEOUT = 90
 EVAL_TIMEOUT = 15
 NAVIGATION_RETRY = 3
 MAX_CONSECUTIVE_FAILS = 10
 PAGE_MAX_FAILS = 3
-USER_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'browser_data')
+USER_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ignored_local_files', 'browser_data')
 TREND_WAIT_MS = 4000
 
 # ========== 数据补全模式 ==========
