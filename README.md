@@ -44,8 +44,8 @@ Do not commit these local/private/tool files to Git.
 ## 给后续 AI 的提示 / Prompt For Future AI
 
 ```text
-这是一个 Git 仓库，根目录是 D:\mcmod。
-This is a Git repository. The root directory is D:\mcmod.
+这是一个 Git 仓库，根目录是 [local-project-path]。
+This is a Git repository. The root directory is [local-project-path].
 
 项目名建议使用 mc-modpack-crawler-board，中文可理解为“MC 整合包爬虫与看板”。
 The recommended repository name is mc-modpack-crawler-board.
