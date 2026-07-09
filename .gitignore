@@ -1,0 +1,19 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Scraper browser data & caches
+browser_data/
+browser_data_domcheck/
+comment_progress/
+
+# Agent framework
+.agents/
+
+# Archive folder (contains historic versioned files, large generated HTMLs, and excels)
+归档/
