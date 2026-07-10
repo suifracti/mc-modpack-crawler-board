@@ -53,6 +53,8 @@
 # v10.5.6: Make title-column covers larger, keep favorite stars above covers, and add delayed cover hover preview.
 # v10.5.7: Restore a visible page-size selector; cap inline mod previews so local HTML opens smoothly on Windows.
 # v10.5.8: Build each row's complete mod list only when that row is opened.
+# v10.5.9: Load the full mod list directly from the summary click, including browsers that do not bubble toggle events.
+# v10.5.10: Write the default dashboard only to its stable local entry; version copies go straight to local archive.
 import re
 import sys
 import os
@@ -62,7 +64,7 @@ import urllib.parse
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.8"
+APP_VERSION = "v10.5.10"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 
 def default_output_file():
@@ -6298,6 +6300,8 @@ $(document).ready(function() {{
                         $wrapper.find('.mod-details[open]').each(function() {{
                             if (this !== current) this.open = false;
                         }});
+                        // 某些浏览器不让 <details> 的 toggle 事件冒泡；这里直接补载完整名单。
+                        loadFullModList($(current));
                         api.columns.adjust();
                         rebuildSortStrip();
                         refreshActiveSortColumn();
@@ -8047,8 +8051,8 @@ def main():
     parser = argparse.ArgumentParser(description="整合包 JSON 转 HTML 生成器（多主题版）")
     parser.add_argument("-i", "--input", default=None,
                         help="输入 JSONL 文件（默认: 多平台爬虫数据_v1.0.jsonl）")
-    parser.add_argument("-o", "--output", default=default_output_file(),
-                        help="输出 HTML 文件（默认文件名带版本号；同时自动刷新固定入口 HTML）")
+    parser.add_argument("-o", "--output", default=DEFAULT_OUTPUT_STEM + ".html",
+                        help="输出 HTML 文件（默认固定入口；版本副本自动归档到 ignored_local_files）")
     parser.add_argument("-t", "--theme", default="light",
                         choices=list(THEMES.keys()),
                         help="选择配色主题（默认: light）")
