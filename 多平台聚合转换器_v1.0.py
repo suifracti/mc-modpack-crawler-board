@@ -55,6 +55,7 @@
 # v10.5.8: Build each row's complete mod list only when that row is opened.
 # v10.5.9: Load the full mod list directly from the summary click, including browsers that do not bubble toggle events.
 # v10.5.10: Write the default dashboard only to its stable local entry; version copies go straight to local archive.
+# v10.5.11: Lazily render the complete original grouped mod-card preview on row expansion.
 import re
 import sys
 import os
@@ -64,7 +65,7 @@ import urllib.parse
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.10"
+APP_VERSION = "v10.5.11"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 
 def default_output_file():
@@ -1251,7 +1252,7 @@ def gen_row_pretty(d, idx=0):
         mod_html = (
             '<details class="mod-details">'
             '<summary><span class="mod-summary-main">包含模组 <b>{count}</b></span><span class="mod-summary-cats">{chips}</span></summary>'
-            '<div class="mod-details-body">{sections}{more}<div class="mod-grid mod-full-list" data-loaded="0"></div></div>'
+            '<div class="mod-details-body">{sections}{more}<div class="mod-full-list" data-loaded="0"></div></div>'
             '</details>'
         ).format(
             count=mod_count, chips="".join(mod_summary_chips), sections="".join(mod_sections),
@@ -6246,17 +6247,26 @@ $(document).ready(function() {{
                 var $full = $details.find('.mod-full-list');
                 if (!$full.length || $full.attr('data-loaded') === '1') return;
                 var mid = $details.closest('tr').attr('data-mid') || '';
-                var item = (window.compareData && window.compareData[mid]) || {{}};
-                var mods = item.mods || [];
-                if (!mods.length) return;
-                var html = '<div class="mod-category-head"><span>完整模组名单（按名称）</span><span>' + mods.length + '</span></div>';
-                html += '<div class="mod-grid">';
-                mods.forEach(function(mod) {{
-                    var name = typeof mod === 'string' ? mod : (mod.name || '');
-                    if (!name) return;
-                    html += '<span class="tag-mod" role="button" tabindex="0" data-mod="' + escHtml(name, true) + '"><span class="tag-mod-name">' + escHtml(name, true) + '</span></span>';
+                var groups = (window.modDetailData && window.modDetailData[mid]) || [];
+                if (!groups.length) return;
+                // 用完整分组卡片替换初始的轻量预览：打开前不创建大量 DOM，打开后外观与旧版一致。
+                $details.find('.mod-details-body > .mod-category-section, .mod-details-body > .tag-empty').remove();
+                var html = '';
+                groups.forEach(function(group) {{
+                    var name = group.n || '未分类';
+                    var head = group.u ? '<a class="mod-category-link" href="' + escHtml(group.u, true) + '" target="_blank">' + escHtml(name, true) + '</a>' : '<span>' + escHtml(name, true) + '</span>';
+                    html += '<section class="mod-category-section" data-mod-cat-key="' + escHtml(group.k || '', true) + '"><div class="mod-category-head">' + head + '<span>' + (group.m || []).length + '</span></div><div class="mod-grid">';
+                    (group.m || []).forEach(function(mod) {{
+                        var modName = mod[0] || '';
+                        if (!modName) return;
+                        var version = mod[1] || '';
+                        var url = mod[2] || '#';
+                        var title = mod[3] || modName;
+                        var hint = title + (version ? ' · 版本: ' + version : '') + ' · 分类: ' + name;
+                        html += '<span class="tag-mod" role="button" tabindex="0" title="' + escHtml(hint, true) + '" data-mod="' + escHtml(modName, true) + '" data-mod-cat="' + escHtml(name, true) + '" data-mod-url="' + escHtml(url, true) + '"><span class="tag-mod-name">' + escHtml(modName, true) + '</span>' + (version ? '<span class="tag-mod-version">' + escHtml(version, true) + '</span>' : '') + '<a class="tag-mod-open" href="' + escHtml(url, true) + '" target="_blank" title="打开 MC百科模组页">↗</a></span>';
+                    }});
+                    html += '</div></section>';
                 }});
-                html += '</div>';
                 $full.attr('data-loaded', '1').html(html);
             }}
             $wrapper.on('click', '.mod-summary-chip', function(e) {{
@@ -6268,6 +6278,7 @@ $(document).ready(function() {{
             if (!$details.prop('open')) {{
                 $details.prop('open', true);
             }}
+            loadFullModList($details);
             setTimeout(function() {{
                 var $target = $details.find('.mod-category-section[data-mod-cat-key="' + key + '"]');
                 if (!$target.length) return;
@@ -6494,7 +6505,9 @@ $(document).ready(function() {{
     var descData = {desc_json};
     var commentData = {comment_json};
     var compareData = {compare_json};
+    var modDetailData = {mod_detail_json};
     window.compareData = compareData;
+    window.modDetailData = modDetailData;
     var $popup = $('#pvPopup');
     var $pvTitle = $('#pvTitle');
     var $pvBody = $('#pvBody');
@@ -7939,6 +7952,8 @@ def gen_pretty_html(data, theme_name="light"):
     desc_json_str = json.dumps(desc_data, ensure_ascii=False)
     comment_json_str = json.dumps(comment_data, ensure_ascii=False)
     compare_data = {}
+    # 完整模组卡片数据只作为延迟渲染源存在：页面初始不把它们插进 DOM。
+    mod_detail_data = {}
     for d in data:
         mid = _extract_mid(d.get("url", ""))
         if not mid:
@@ -7946,6 +7961,8 @@ def gen_pretty_html(data, theme_name="light"):
         title_cn, title_en = split_modpack_title(d.get("title", ""))
         mods = []
         mod_categories = []
+        detail_groups = []
+        detail_group_map = {}
         seen_mod = set()
         seen_cat = set()
         for m in d.get("mods", []):
@@ -7963,6 +7980,22 @@ def gen_pretty_html(data, theme_name="light"):
             if cat_name and cat_name not in seen_cat:
                 seen_cat.add(cat_name)
                 mod_categories.append(cat_name)
+            cat_id = _s(m.get("category_id"))
+            group_key = "{}|{}".format(cat_id, cat_name)
+            if group_key not in detail_group_map:
+                detail_group_map[group_key] = {
+                    "k": "cat{}".format(len(detail_groups)),
+                    "n": cat_name,
+                    "u": _s(m.get("category_url")),
+                    "m": [],
+                }
+                detail_groups.append(detail_group_map[group_key])
+            detail_group_map[group_key]["m"].append([
+                name,
+                _s(m.get("version")),
+                _s(m.get("url")),
+                _s(m.get("title") or name),
+            ])
         compare_data[mid] = {
             "mid": mid,
             "title": d.get("title", ""),
@@ -7987,7 +8020,9 @@ def gen_pretty_html(data, theme_name="light"):
             "mods": mods,
             "mod_categories": mod_categories,
         }
+        mod_detail_data[mid] = detail_groups
     compare_json_str = json.dumps(compare_data, ensure_ascii=False)
+    mod_detail_json_str = json.dumps(mod_detail_data, ensure_ascii=False, separators=(',', ':'))
     cat_opts = "\n".join(
         '                    <option value="{}">{} ({})</option>'.format(esc_attr(tag), esc(tag), count)
         for tag, count in build_category_options(data)
@@ -8029,6 +8064,7 @@ def gen_pretty_html(data, theme_name="light"):
         mod_cat_opts=mod_cat_opts, mod_opts=mod_opts, rows=rows_html,
         total=total, total_views=total_views_str, total_comments=total_comments_str,
         desc_json=desc_json_str, comment_json=comment_json_str, compare_json=compare_json_str,
+        mod_detail_json=mod_detail_json_str,
         theme_warm=THEMES["warm"]["root"],
         theme_dark=THEMES["dark"]["root"],
         theme_light=THEMES["light"]["root"],
