@@ -57,6 +57,7 @@
 # v10.5.10: Write the default dashboard only to its stable local entry; version copies go straight to local archive.
 # v10.5.11: Lazily render the complete original grouped mod-card preview on row expansion.
 # v10.5.12: Compact the oversized pagination controls into a quiet table footer.
+# v10.5.13: Default the dashboard to 25 rows per page.
 import re
 import sys
 import os
@@ -66,7 +67,7 @@ import urllib.parse
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.12"
+APP_VERSION = "v10.5.13"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 
 def default_output_file():
@@ -5988,7 +5989,7 @@ $(document).ready(function() {{
             "smart": false
         }},
         "order": [[1, "desc"]],       // 默认按「官方流行指数」降序（已并入趋势列）
-        "pageLength": 50,             // ★ 每页 50 条
+        "pageLength": 25,             // ★ 默认每页 25 条
         "paging": true,
         "deferRender": true,
         "lengthChange": true,
