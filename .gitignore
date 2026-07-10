@@ -24,3 +24,11 @@ ignored_local_files/
 *.tmp
 *.bak
 *.log
+
+# Local crawler snapshots can grow beyond GitHub's file limit.  The crawler and
+# converter still use this path locally; Git keeps code and long-term trends.
+多平台爬虫数据_v1.0.jsonl
+
+# The stable dashboard is tracked.  Versioned copies and run logs are local.
+多平台聚合看板_V1.0_v*.html
+1.txt

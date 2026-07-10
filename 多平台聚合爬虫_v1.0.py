@@ -10,10 +10,10 @@
 
 针对多并发防封锁、防数据污染、以及挂机全自动自愈等痛点，本版本实施了全套主动防封与全局大门熔断避风头方案：
 
-1. 流量削峰大闸门机制 (全局累计 35 次请求强制呼吸 10~18s)
-   - 痛点：以前只在整合包之间呼吸，但由于海量评论及楼中楼展开的包包含有高频子翻页网络请求，单个包就可以发送高达百次请求，中间完全没有任何降温，导致还没抓完第 13 个包就遭遇 403 封锁。而 12 次请求强制呼吸又有些过于频繁和耗时。
-   - 升级：在 GlobalRateController 中新增了统一的物理请求拦截计数器，**每当全网并发累计发送满 35 次网络请求，Scheduler 强制拉下全局大门（Event.clear），开始 10 ~ 18 秒的随机消火呼吸！**
-   - 效果：即使遇到极长评论的单个整合包，程序翻评论途中也会自动降温休眠 2 次。这在保留削峰防封强力保障的绝对前提下，最大化放开数据流通路，速度相比之前快了 3 倍！
+1. 动作级削峰大闸门机制
+   - 旧版曾在 GlobalRateController 中使用统一的物理请求拦截计数器，并通过 Playwright route 处理所有网络请求。
+   - 现已移除全量 route 拦截，不再屏蔽图片/字体/媒体/广告域名，避免每个资源请求都绕一圈 Python 导致入站加载变慢。
+   - 当前只保留导航、整合包任务、评论翻页/展开等动作级节流，减少连续操作过密带来的风控风险。
 
 2. 黄金效率与安全平衡时延 (安全提速黄金平衡线)
    - 升级：基于“防 ban 第一”和“别太慢，挂一晚能抓完”的黄金双子塔诉求，我们将参数回调到最经典、效率极高的折中带：
@@ -103,6 +103,7 @@ from typing import Optional, Dict, Any
 
 # v7.8.2-comment-links: 评论抓取为主楼和楼中楼补充 comment_url / comment_id /
 # comment_page 等原站定位字段，供看板逐条评论跳转使用。
+# v7.8.2-no-request-route: 移除 Playwright 全量请求 route 拦截，不再屏蔽图片/字体/媒体/广告域名，避免入站加载被拦截钩子拖慢。
 
 # ========== 配置 ==========
 OUTPUT_JSON = 'MC百科整合包数据.json'
@@ -111,29 +112,34 @@ DELAY_MIN = 2.5
 DELAY_MAX = 4.5
 MAX_RETRY = 3
 MODULE_RETRY = 2
-CONCURRENCY = 2  # 并发数设为 2，在速度与防封控 ban 之间达到最佳均衡
+# MCMod 评论区对连续 AJAX 翻页非常敏感。单 Worker 是默认安全档，
+# 不能再让两个页面同时翻评论页。
+CONCURRENCY = 1
 
 # ========== 安全采集模式 ==========
-# 评论仍尽量完整抓取，方便后续分析；安全策略放在请求层和评论动作节流上，
+# 评论仍尽量完整抓取，方便后续分析；安全策略放在导航/评论动作节流上，
 # 避免连续展开/翻页过密导致账号或 IP 风险升高。
 SAFE_CRAWL_MODE = True
-FIRST_PARTY_REQUEST_INTERVAL = 0.45
 REQUEST_BURST_LIMIT = 80
 REQUEST_BURST_REST_MIN = 8.0
 REQUEST_BURST_REST_MAX = 14.0
-COUNTED_REQUEST_RESOURCE_TYPES = {"document", "xhr", "fetch"}
 INTRO_TEXT_MAX_CHARS = 30000
 COMMENT_DETAIL_MIN_TOTAL = 1
 SAFE_MAX_COMMENT_PAGES_SMALL = 999
 SAFE_MAX_COMMENT_PAGES_MEDIUM = 999
 SAFE_MAX_COMMENT_PAGES_LARGE = 999
 SAFE_MAX_REPLY_PAGES = 200
-COMMENT_ACTION_BURST_LIMIT = 24
-COMMENT_ACTION_REST_MIN = 6.0
-COMMENT_ACTION_REST_MAX = 10.0
+# 安全平衡档：评论全局串行，但不再使用上一版过长的等待。
+COMMENT_ACTION_BURST_LIMIT = 12
+COMMENT_ACTION_REST_MIN = 25.0
+COMMENT_ACTION_REST_MAX = 45.0
+COMMENT_PACK_REST_MIN = 12.0
+COMMENT_PACK_REST_MAX = 25.0
+# full：完整主评论/楼中楼；first-page：只保存第一页主评论与当前可见回复。
+COMMENT_FETCH_MODE = 'full'
 
 # ========== 测试模式 ==========
-TEST_MODE_LIMIT_PAGES = 1  # 设置为 > 0 的整数时开启极速测试模式，仅抓取指定页数的列表。设为 0 关闭测试。
+TEST_MODE_LIMIT_PAGES = 0  # 设置为 > 0 的整数时开启极速测试模式，仅抓取指定页数的列表。设为 0 关闭测试。
 
 # ========== 任务对象定义 ==========
 class TaskType(Enum):
@@ -194,10 +200,10 @@ COMMENT_SCROLL_WAIT = 2000
 COMMENT_SCROLL_STEP = 800
 DEBUG_COMMENTS = True
 
-COMMENT_PAGE_WAIT_MIN = 1500  # 主楼翻页等待下限（毫秒）
-COMMENT_PAGE_WAIT_MAX = 2500  # 主楼翻页等待上限（毫秒）
-REPLY_EXPAND_WAIT_MIN = 1000  # 楼中楼翻页等待下限（毫秒）
-REPLY_EXPAND_WAIT_MAX = 1800  # 楼中楼翻页等待上限（毫秒）
+COMMENT_PAGE_WAIT_MIN = 4000   # 主楼翻页后随机等待 4~7 秒
+COMMENT_PAGE_WAIT_MAX = 7000
+REPLY_EXPAND_WAIT_MIN = 3000   # 楼中楼展开/翻页后随机等待 3~6 秒
+REPLY_EXPAND_WAIT_MAX = 6000
 REPLY_EXPAND_MAX_ROUNDS = 5  # 从3增加到5，确保楼中楼完全展开
 MAX_CONSECUTIVE_PAGE_FAILS = 10  # 主楼连续翻页失败重试阈值
 MAX_EMPTY_COMMENT_PAGES = 5  # 连续空白页判定为末尾
@@ -234,13 +240,9 @@ class GlobalRateController:
         self.global_delay_multiplier = 1.0
         self.in_cooldown = False
         self.cooldown_until = 0
-        self.request_counter = 0
         self.action_counter = 0
-        self.last_first_party_request = 0.0
         self.stop_requested = False
         self.crawl_gate: Optional[asyncio.Event] = None
-        self.pending_burst_rest = False
-        self.pending_burst_reason = ''
         self.comment_action_counter = 0
         
     async def report_error(self, error_msg):
@@ -262,71 +264,32 @@ class GlobalRateController:
             while not self.crawl_gate.is_set():
                 await self.crawl_gate.wait()
 
-    async def before_request(self, url='', resource_type=''):
-        if self.stop_requested:
-            raise Exception('采集已停止')
-        await self._wait_gate()
-
-        host = ''
-        try:
-            from urllib.parse import urlparse
-            host = urlparse(url or '').netloc.lower()
-        except:
-            host = ''
-
-        is_mcmod = host.endswith('mcmod.cn') or host.endswith('search.mcmod.cn')
-        is_counted_request = is_mcmod and resource_type in COUNTED_REQUEST_RESOURCE_TYPES
-        if not is_counted_request:
-            return
-
-        async with self.lock:
-            now = time.time()
-            gap = now - self.last_first_party_request
-            if gap < FIRST_PARTY_REQUEST_INTERVAL:
-                await asyncio.sleep(FIRST_PARTY_REQUEST_INTERVAL - gap)
-            self.last_first_party_request = time.time()
-
-            self.request_counter += 1
-            current_count = self.request_counter
-
-        if current_count > 0 and current_count % REQUEST_BURST_LIMIT == 0:
-            await self.global_rest(
-                random.uniform(REQUEST_BURST_REST_MIN, REQUEST_BURST_REST_MAX),
-                f'[RateController] 已拦截到 {current_count} 次采集请求，放行前进行削峰休息'
-            )
-
-    async def maybe_burst_rest(self):
-        await self._wait_gate()
-        async with self.lock:
-            if not self.pending_burst_rest:
-                return
-            reason = self.pending_burst_reason or '[RateController] 请求削峰休息'
-            self.pending_burst_rest = False
-            self.pending_burst_reason = ''
-        await self.global_rest(
-            random.uniform(REQUEST_BURST_REST_MIN, REQUEST_BURST_REST_MAX),
-            reason
-        )
-
     async def global_rest(self, seconds, reason):
         if not hasattr(self, 'crawl_gate') or self.crawl_gate is None:
             await asyncio.sleep(seconds)
             return
 
+        should_sleep = False
         async with self.lock:
-            if not self.crawl_gate.is_set():
-                pass
-            else:
+            if self.crawl_gate.is_set():
                 self.crawl_gate.clear()
-                print(f"\n☕ {reason}，静默 {seconds:.1f} 秒...")
-                print("👉 暂停新的抓取动作；已经开始加载的页面会继续完成，避免导航被睡眠拖到超时。\n")
+                should_sleep = True
+                print(f"\n[RateController] {reason}; global rest {seconds:.1f}s...")
+                print("[RateController] New crawl actions are paused; already-loading pages may finish.\n")
+            else:
+                print(f"\n[RateController] {reason}; another global rest is active, waiting for release...")
+
+        if should_sleep:
+            try:
                 await asyncio.sleep(seconds)
-                print(f"🔄 {seconds:.1f} 秒静默结束，重新放行。\n")
+            finally:
+                print(f"[RateController] global rest finished after {seconds:.1f}s; releasing gate.\n")
                 self.crawl_gate.set()
+        else:
+            await self._wait_gate()
 
     async def wait_if_needed(self, base_delay):
         await self._wait_gate()
-        await self.maybe_burst_rest()
 
         async with self.lock:
             self.action_counter += 1
@@ -347,7 +310,6 @@ class GlobalRateController:
     async def safe_sleep(self, seconds):
         # 🌟 统一大门安全延迟：防止子操作（翻页等）绕开全局大门。一旦拉闸，全部子进程在 sleep 前原地锁死！
         await self._wait_gate()
-        await self.maybe_burst_rest()
         if self.stop_requested:
             raise Exception('采集已停止')
         await asyncio.sleep(seconds)
@@ -365,45 +327,9 @@ class GlobalRateController:
             )
 
 rate_controller = GlobalRateController()
-
-
-BLOCKED_RESOURCE_TYPES = {"image", "media", "font"}
-BLOCKED_HOST_KEYWORDS = (
-    "doubleclick", "googlesyndication", "google-analytics", "adsrvr",
-    "adservice", "analytics", "tracking", "beacon", "cnzz",
-)
-
-async def install_safe_routes(context_or_page):
-    """让所有浏览器请求经过同一个全局节流阀，并屏蔽非采集必要资源。"""
-    async def safe_abort(route):
-        try:
-            await route.abort()
-        except Exception:
-            pass
-
-    async def safe_continue(route):
-        try:
-            await route.continue_()
-        except Exception:
-            pass
-
-    async def route_handler(route):
-        req = route.request
-        url = req.url.lower()
-        if req.resource_type in BLOCKED_RESOURCE_TYPES or any(k in url for k in BLOCKED_HOST_KEYWORDS):
-            await safe_abort(route)
-            return
-        try:
-            await rate_controller.before_request(req.url, req.resource_type)
-        except:
-            await safe_abort(route)
-            return
-        await safe_continue(route)
-
-    try:
-        await context_or_page.route("**/*", route_handler)
-    except Exception as e:
-        print(f"⚠️ 安全请求路由安装失败: {str(e)[:80]}")
+# 即使未来把详情抓取并发调高，评论区也始终只能由一个任务访问。
+# 这把锁覆盖整包评论抓取，避免两个 Worker 交错点击同一个站点的评论分页接口。
+comment_crawl_lock = asyncio.Lock()
 
 
 RATE_LIMIT_KEYWORDS = [
@@ -756,6 +682,7 @@ def pack_to_row(pack):
     comments = pack.get('comments', [])
     intro_images = pack.get('intro_images') or pack['basic'].get('intro_images') or pack['basic'].get('介绍图片') or []
     comment_images = pack.get('comment_images') or pack['basic'].get('comment_images') or _collect_comment_images(comments)
+    cover_image = pack.get('cover_image') or pack['basic'].get('cover_image') or ''
     mods = pack.get('mods') or pack['basic'].get('包含模组') or []
     comment_total = max(
         _safe_int(pack['basic'].get('评论数', 0)),
@@ -787,6 +714,7 @@ def pack_to_row(pack):
         '整合包介绍': pack.get('intro', ''),
         '介绍图片': intro_images,
         'intro_images': intro_images,
+        'cover_image': cover_image,
         '评论总数': comment_total,
         '评论详情': comments,
         '评论图片': comment_images,
@@ -1017,6 +945,13 @@ EXTRACTOR_BASIC = r"""
             const m = flatText.match(regex) || bodyText.match(regex);
             return m ? m[1] : '';
         }
+        function absUrl(raw) {
+            if (!raw) return '';
+            try { return new URL(raw, location.href).href; } catch(e) {
+                if (String(raw).startsWith('//')) return 'https:' + raw;
+                return raw;
+            }
+        }
         function pickNearLines(label) {
             const lines = bodyText.split(/\n+/).map(x => x.trim()).filter(Boolean);
             for (let i = 0; i < lines.length; i++) {
@@ -1030,6 +965,12 @@ EXTRACTOR_BASIC = r"""
         if (titleEl) result.标题 = titleEl.innerText.trim();
         if (!result.标题 && document.title) {
             result.标题 = document.title.replace(/\s*-\s*MC百科.*$/i, '').trim();
+        }
+
+        const coverImg = document.querySelector('img[src*="/modpack/cover/"], img[data-src*="/modpack/cover/"]');
+        if (coverImg) {
+            const coverRaw = coverImg.getAttribute('data-src') || coverImg.getAttribute('src') || '';
+            result.cover_image = absUrl(coverRaw);
         }
         
         function setScore(raw) {
@@ -1232,6 +1173,25 @@ EXTRACTOR_INTRO_TAGS = r'''
         const out = [];
         const seen = new Set();
         if (!root) return out;
+        function imageSection(img) {
+            let el = img.closest('table, .table-scroll, p, div') || img;
+            let cur = el;
+            for (let step = 0; cur && step < 8; step++, cur = cur.previousElementSibling) {
+                const titleEl = cur.querySelector ? cur.querySelector('.common-text-title') : null;
+                const txt = normLine((titleEl ? titleEl.textContent : cur.textContent) || '');
+                if (txt && txt.length <= 40 && !txt.includes('目录')) return txt;
+            }
+            let parent = el.parentElement;
+            for (let depth = 0; parent && depth < 4; depth++, parent = parent.parentElement) {
+                let prev = parent.previousElementSibling;
+                for (let step = 0; prev && step < 6; step++, prev = prev.previousElementSibling) {
+                    const titleEl = prev.querySelector ? prev.querySelector('.common-text-title') : null;
+                    const txt = normLine((titleEl ? titleEl.textContent : prev.textContent) || '');
+                    if (txt && txt.length <= 40 && !txt.includes('目录')) return txt;
+                }
+            }
+            return '';
+        }
         root.querySelectorAll('img').forEach((img, idx) => {
             const raw = img.getAttribute('data-src') || img.getAttribute('src') || img.getAttribute('data-original') || '';
             const url = absUrl(raw);
@@ -1244,6 +1204,7 @@ EXTRACTOR_INTRO_TAGS = r'''
                 width: parseInt(img.getAttribute('data-width') || img.getAttribute('width') || '0', 10) || 0,
                 height: parseInt(img.getAttribute('data-height') || img.getAttribute('height') || '0', 10) || 0,
                 source: source || 'intro',
+                section: imageSection(img),
                 index: idx + 1
             });
         });
@@ -1886,7 +1847,6 @@ async def _mcmod_recreate_page(context, old_page):
         pass
     page = await context.new_page()
     page.set_default_timeout(GOTO_TIMEOUT * 1000)
-    await install_safe_routes(page)
     return page
 
 async def safe_goto(page, url, wait_until='domcontentloaded', timeout=None, attempts=NAVIGATION_RETRY):
@@ -1896,7 +1856,6 @@ async def safe_goto(page, url, wait_until='domcontentloaded', timeout=None, atte
     for attempt in range(1, attempts + 1):
         try:
             await rate_controller._wait_gate()
-            await rate_controller.maybe_burst_rest()
             return await page.goto(url, wait_until=wait_until, timeout=timeout)
         except Exception as e:
             last_error = e
@@ -2317,6 +2276,21 @@ EXTRACT_REPLY_ROWS_FOR_MAIN_JS = r'''
         const el = mainRow.querySelector(sel);
         if (el) { replyFloor = el; break; }
     }
+    if (!replyFloor) {
+        let sib = mainRow.nextElementSibling;
+        let guard = 0;
+        while (sib && guard < 6) {
+            if (sib.matches && (sib.matches('.class-comment-row, .comment-row') || sib.matches('li.comment-row'))) break;
+            for (const sel of replyFloorSelectors) {
+                if (sib.matches && sib.matches(sel)) { replyFloor = sib; break; }
+                const el = sib.querySelector ? sib.querySelector(sel) : null;
+                if (el) { replyFloor = el; break; }
+            }
+            if (replyFloor) break;
+            sib = sib.nextElementSibling;
+            guard++;
+        }
+    }
     if (!replyFloor) return { page: 1, keys: [], replies: [] };
     
     function cleanText(raw) {
@@ -2360,6 +2334,9 @@ EXTRACT_REPLY_ROWS_FOR_MAIN_JS = r'''
             let url = '';
             try { url = new URL(raw, location.href).href; } catch(e) { url = raw || ''; }
             if (!url || seen.has(url) || /loading|loadfail/i.test(url)) return;
+            const lower = url.toLowerCase();
+            if (lower.includes('/user/avatar/') || lower.includes('/identicons/') || lower.includes('@60x60')) return;
+            const kind = (lower.includes('/emotion/images/') || lower.includes('/dialogs/emotion/')) ? 'emotion' : 'image';
             seen.add(url);
             out.push({
                 url,
@@ -2368,6 +2345,7 @@ EXTRACT_REPLY_ROWS_FOR_MAIN_JS = r'''
                 width: parseInt(img.getAttribute('data-width') || img.getAttribute('width') || '0', 10) || 0,
                 height: parseInt(img.getAttribute('data-height') || img.getAttribute('height') || '0', 10) || 0,
                 source: source || 'comment_reply',
+                kind: kind,
                 index: idx + 1
             });
         });
@@ -2408,6 +2386,7 @@ EXTRACT_REPLY_ROWS_FOR_MAIN_JS = r'''
             "[class*='reply-text']", "[class*='reply-content']",
             "[class*='text-content']", "p"
         ]);
+        const imageRoot = reply.querySelector('.comment-reply-row-text-content, .class-comment-reply-row-text-content, .reply-text-content, .class-comment-reply-text, .reply-text, [class*="reply-text"], [class*="text-content"]') || reply;
         if (!text) text = cleanText(reply.innerText || reply.textContent || '');
         if (text && !/加载中|正在加载/.test(text)) {
             const key = author + '|' + text;
@@ -2431,7 +2410,7 @@ EXTRACT_REPLY_ROWS_FOR_MAIN_JS = r'''
                 replies.push({
                     author,
                     text,
-                    images: collectImages(reply, 'comment_reply'),
+                    images: collectImages(imageRoot, 'comment_reply'),
                     comment_id: rid,
                     comment_page: page,
                     comment_url: replyUrl,
@@ -2442,6 +2421,87 @@ EXTRACT_REPLY_ROWS_FOR_MAIN_JS = r'''
     });
 
     return { page: page, keys: Array.from(keys), replies: replies };
+}
+'''
+
+# 主评论统一从固定脚本提取。不要把 row selector、回复 JSON 拼进 JS 字符串：
+# 评论文本中常见的引号、换行会让 page.evaluate 的动态脚本变成非法 JavaScript。
+EXTRACT_MAIN_COMMENT_JS = r'''
+([rowSel, replies]) => {
+    const row = document.querySelector(rowSel);
+    if (!row) return null;
+    const clean = (value) => String(value || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const first = (selectors) => {
+        for (const selector of selectors) {
+            const el = row.querySelector(selector);
+            if (el) {
+                const value = clean(el.innerText || el.textContent);
+                if (value) return el;
+            }
+        }
+        return null;
+    };
+    const textEl = first([
+        '.comment-row-text-content', '.class-comment-row-text-content',
+        '.class-comment-text-content', '[class*="comment-text"]',
+        '[class*="comment-content"]', 'p'
+    ]);
+    const authorEl = first([
+        '.comment-row-username a', '.class-comment-row-username a',
+        '.comment-username a', '[class*="comment-username"] a',
+        '[class*="username"] a', '[class*="author"] a'
+    ]);
+    const text = clean((textEl || row).innerText || (textEl || row).textContent).replace(/^回复\s*/, '');
+    const author = clean(authorEl ? (authorEl.innerText || authorEl.textContent) : '');
+    const images = [];
+    const seen = new Set();
+    (textEl || row).querySelectorAll('img').forEach((img, index) => {
+        const raw = img.getAttribute('data-src') || img.getAttribute('src') || img.getAttribute('data-original') || '';
+        let url = '';
+        try { url = new URL(raw, location.href).href; } catch (e) { url = raw; }
+        const lower = url.toLowerCase();
+        if (!url || seen.has(url) || /loading|loadfail|\/user\/avatar\/|\/identicons\/|@60x60/i.test(lower)) return;
+        seen.add(url);
+        images.push({
+            url: url, src: url, alt: (img.getAttribute('alt') || '').trim(),
+            width: parseInt(img.getAttribute('data-width') || img.getAttribute('width') || '0', 10) || 0,
+            height: parseInt(img.getAttribute('data-height') || img.getAttribute('height') || '0', 10) || 0,
+            source: 'comment', kind: /\/emotion\/images\/|\/dialogs\/emotion\//i.test(lower) ? 'emotion' : 'image', index: index + 1
+        });
+    });
+    const idInput = row.querySelector('input.comment-id[name="comment-id"], input[name="comment-id"]');
+    const id = (idInput && idInput.value) || row.id || row.getAttribute('data-id') || row.getAttribute('data-comment-id') || row.getAttribute('data-cid') || '';
+    const floorEl = row.querySelector('.comment-row-userinfo, .floor-num, [class*="floor"], [class*="lou"]');
+    const floorMatch = clean(floorEl ? (floorEl.innerText || floorEl.textContent) : '').match(/#?\s*(\d+)/);
+    const directLink = Array.from(row.querySelectorAll('a[href]')).find((a) => {
+        const href = a.getAttribute('href') || '';
+        return href.startsWith('#') || /comment|reply|floor/i.test(href);
+    });
+    let url = '';
+    if (directLink) {
+        try { url = new URL(directLink.getAttribute('href'), location.href).href; } catch (e) { url = directLink.getAttribute('href') || ''; }
+    } else if (id) {
+        url = location.href.split('#')[0] + '#' + encodeURIComponent(id);
+    }
+    return { author: author || '匿名用户', text: text, images: images, replies: Array.isArray(replies) ? replies : [], floor: floorMatch ? floorMatch[1] : '', comment_id: id, comment_url: url, url: url };
+}
+'''
+
+EXTRACT_MAIN_COMMENT_ROWS_JS = r'''
+() => {
+    const block = document.querySelector('.class-comment-block, .common-comment-block');
+    if (!block) return [];
+    const selectors = ['li.class-comment-row', 'li.comment-row', 'div.class-comment-row', 'div.comment-row', '[data-comment-id]'];
+    let rows = [];
+    for (const selector of selectors) {
+        rows = Array.from(block.querySelectorAll(selector));
+        if (rows.length) break;
+    }
+    return rows.map((row, index) => {
+        row.setAttribute('data-crawl-comment-idx', String(index + 1));
+        const textEl = row.querySelector('.comment-row-text-content, .class-comment-row-text-content, .class-comment-text-content, [class*="comment-text"], [class*="comment-content"]') || row;
+        return { idx: index + 1, text: String(textEl.innerText || textEl.textContent || '').replace(/\s+/g, ' ').trim().replace(/^回复\s*/, '').slice(0, 200) };
+    });
 }
 '''
 
@@ -2478,6 +2538,11 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
     effective_comment_total = max(int(actual_comment_count or 0), int(comment_count_display or 0))
     page_budget = MAX_COMMENT_PAGES
     reply_page_budget = MAX_REPLY_PAGES
+    if COMMENT_FETCH_MODE == 'first-page':
+        page_budget = 1
+        reply_page_budget = 1
+        if DEBUG_COMMENTS:
+            print(f'  [W{worker_id}] [{index}] ⚙️ 评论模式：仅抓第一页（不翻主评论/楼中楼分页）')
     if SAFE_CRAWL_MODE:
         if effective_comment_total >= 500:
             page_budget = min(page_budget, SAFE_MAX_COMMENT_PAGES_LARGE)
@@ -2486,6 +2551,9 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
         else:
             page_budget = min(page_budget, SAFE_MAX_COMMENT_PAGES_SMALL)
         reply_page_budget = min(reply_page_budget, SAFE_MAX_REPLY_PAGES)
+        if COMMENT_FETCH_MODE == 'first-page':
+            page_budget = 1
+            reply_page_budget = 1
         if DEBUG_COMMENTS:
             print(f'  [W{worker_id}] [{index}] 🛡️ 安全预算: 主评论最多 {page_budget} 页，单楼中楼最多 {reply_page_budget} 页')
     
@@ -2528,17 +2596,7 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
             await rate_controller.safe_sleep(1.5)
         
         # ★先提取当前页主楼的基本信息（不含楼中楼），然后逐条翻楼中楼
-        page_main_comment_texts = await page.evaluate('''() => {
-            const block = document.querySelector(".class-comment-block, .common-comment-block");
-            if (!block) return [];
-            const texts = [];
-            const rows = block.querySelectorAll(".class-comment-row, .comment-row");
-            rows.forEach((r, i) => {
-                const tc = (r.querySelector('.class-comment-row, .comment-row-text-content') || r.querySelector('[class*="class-comment-text"]') || {});
-                texts.push({ text: (tc.innerText || tc.textContent || '').trim().replace(/^回复\\s*/, '').slice(0, 200), idx: i+1 });
-            });
-            return texts;
-        }''')
+        page_main_comment_texts = await page.evaluate(EXTRACT_MAIN_COMMENT_ROWS_JS)
         
         # 生成已存在评论的 text 集合
         existing_texts = {c['text'] for c in all_comments}
@@ -2566,21 +2624,11 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
             if elapsed >= COMMENT_TIMEOUT:
                 break
             
-            row_css = f".class-comment-block .class-comment-row:nth-child({idx}), .common-comment-block .comment-row:nth-child({idx})"
+            row_css = f'[data-crawl-comment-idx="{idx}"]'
             
             # 判断这条主楼是不是已经存在（去重）：用主楼 text 签名
             main_text = page_main_comment_texts[idx-1]['text'] if idx-1 < len(page_main_comment_texts) else ''
-            # 如果主楼 text 为空则用更精确的方法取
-            if not main_text:
-                try:
-                    main_text = await page.evaluate(f'''() => {{
-                        const r = document.querySelector('{row_css}');
-                        if (!r) return '';
-                        const tc = r.querySelector('.class-comment-row, .comment-row-text-content') || r.querySelector('[class*="class-comment-text"]') || {{}};
-                        return (tc.innerText || tc.textContent || '').trim().replace(/^回复\\s*/, '').slice(0, 200);
-                    }}''')
-                except:
-                    pass
+            # 空正文不能参与去重；实际提取时会由固定脚本再读取一次。
             
             if main_text in existing_texts:
                 # 已经抓过这条主楼（翻页回到同一行），跳过
@@ -2598,78 +2646,9 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
                 if not has_reply_floor:
                     # 没有楼中楼
                     # 直接提取这条主楼
-                    main_row_data = await page.evaluate(f'''() => {{
-                        const tx = document.querySelector("{row_css}");
-                        if (!tx) return null;
-                        const tc = tx.querySelector('.class-comment-row, .comment-row-text-content') || tx.querySelector('[class*="class-comment-text"]') || {{}};
-                        const ta = tx.querySelector('.class-comment-row, .comment-row-username a') || tx.querySelector('[class*="class-username"]') || {{}};
-                        const text = (tc.innerText || tc.textContent || '').trim().replace(/^回复\\s*/, '');
-                        const author = (ta.innerText || ta.textContent || '').trim();
-                        function collectImages(root) {{
-                            const out = [];
-                            const seen = new Set();
-                            if (!root) return out;
-                            root.querySelectorAll('img').forEach((img, idx) => {{
-                                const raw = img.getAttribute('data-src') || img.getAttribute('src') || img.getAttribute('data-original') || '';
-                                let url = '';
-                                try {{ url = new URL(raw, location.href).href; }} catch(e) {{ url = raw || ''; }}
-                                if (!url || seen.has(url) || /loading|loadfail/i.test(url)) return;
-                                seen.add(url);
-                                out.push({{
-                                    url: url,
-                                    src: url,
-                                    alt: (img.getAttribute('alt') || '').trim(),
-                                    width: parseInt(img.getAttribute('data-width') || img.getAttribute('width') || '0', 10) || 0,
-                                    height: parseInt(img.getAttribute('data-height') || img.getAttribute('height') || '0', 10) || 0,
-                                    source: 'comment',
-                                    index: idx + 1
-                                }});
-                            }});
-                            return out;
-                        }}
-                        return {{ author: author || '匿名用户', text: text, images: collectImages(tx), replies: [] }};
-                    }}''')
+                    main_row_data = await page.evaluate(EXTRACT_MAIN_COMMENT_JS, [row_css, []])
                     if main_row_data:
-                        try:
-                            comment_meta = await page.evaluate('''([rowSel, commentPage, rowIndex, packId]) => {
-                                const row = document.querySelector(rowSel);
-                                const base = location.href.split('#')[0];
-                            if (!row) return { comment_page: commentPage, comment_index: rowIndex, comment_url: '', url: '', modpack_id: packId };
-                                function cleanText(raw) {
-                                    return String(raw || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
-                                }
-                                const idInput = row.querySelector('input.comment-id[name="comment-id"], input[name="comment-id"]');
-                                const id = (idInput && idInput.value) || row.id || row.getAttribute('data-id') || row.getAttribute('data-comment-id') || row.getAttribute('data-cid') || '';
-                                const floorEl = row.querySelector('.comment-row-userinfo, .floor-num, [class*="floor"], [class*="lou"]');
-                                const floorRaw = cleanText(floorEl ? (floorEl.innerText || floorEl.textContent) : '');
-                                const floorMatch = floorRaw.match(/#?\\s*(\\d+)/);
-                                const directLink = Array.from(row.querySelectorAll('a[href]')).find(a => {
-                                    const href = a.getAttribute('href') || '';
-                                    return href.startsWith('#') || /comment|reply|floor/i.test(href);
-                                });
-                                let url = '';
-                                if (directLink) {
-                                    try { url = new URL(directLink.getAttribute('href'), location.href).href; } catch(e) { url = directLink.getAttribute('href') || ''; }
-                                } else if (id) {
-                                    url = base + '#' + encodeURIComponent(id);
-                                } else {
-                                    url = '';
-                                }
-                                return {
-                                    floor: floorMatch ? floorMatch[1] : '',
-                                    page: commentPage,
-                                    comment_page: commentPage,
-                                    comment_index: rowIndex,
-                                    comment_id: id,
-                                    comment_url: url,
-                                    url: url,
-                                    modpack_id: packId
-                                };
-                            }''', [row_css, dom_page, idx, modpack_id])
-                            if isinstance(comment_meta, dict):
-                                main_row_data.update(comment_meta)
-                        except Exception:
-                            pass
+                        main_row_data.update({'page': dom_page, 'comment_page': dom_page, 'comment_index': idx, 'modpack_id': modpack_id})
                     if main_row_data and main_row_data['text'] and main_row_data['text'] not in existing_texts:
                         page_new_comments.append(main_row_data)
                         existing_texts.add(main_row_data['text'])
@@ -2727,82 +2706,10 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
                         collected_keys.add(key)
                         collected_replies.append(rp)
             
-            # 提取主楼内容
-            main_row_data = await page.evaluate(f'''() => {{
-                const block = document.querySelector('.class-comment-block, .common-comment-block');
-                if (!block) return null;
-                const tx = block.querySelector('.class-comment-row, .comment-row:nth-child({idx})');
-                if (!tx) return null;
-                const tc = tx.querySelector('.class-comment-row, .comment-row-text-content') || tx.querySelector('[class*="class-comment-text"]') || {{}};
-                const ta = tx.querySelector('.class-comment-row, .comment-row-username a') || tx.querySelector('[class*="class-username"]') || {{}};
-                const text = (tc.innerText || tc.textContent || '').trim().replace(/^回复\\s*/, '');
-                const author = (ta.innerText || ta.textContent || '').trim();
-                function collectImages(root) {{
-                    const out = [];
-                    const seen = new Set();
-                    if (!root) return out;
-                    root.querySelectorAll('img').forEach((img, idx) => {{
-                        const raw = img.getAttribute('data-src') || img.getAttribute('src') || img.getAttribute('data-original') || '';
-                        let url = '';
-                        try {{ url = new URL(raw, location.href).href; }} catch(e) {{ url = raw || ''; }}
-                        if (!url || seen.has(url) || /loading|loadfail/i.test(url)) return;
-                        seen.add(url);
-                        out.push({{
-                            url: url,
-                            src: url,
-                            alt: (img.getAttribute('alt') || '').trim(),
-                            width: parseInt(img.getAttribute('data-width') || img.getAttribute('width') || '0', 10) || 0,
-                            height: parseInt(img.getAttribute('data-height') || img.getAttribute('height') || '0', 10) || 0,
-                            source: 'comment',
-                            index: idx + 1
-                        }});
-                    }});
-                    return out;
-                }}
-                return {{ author: author || '匿名用户', text: text, images: collectImages(tx), replies: {json.dumps(collected_replies, ensure_ascii=False)} }};
-            }}''')
-            
+            # 固定脚本 + 参数传递：回复内容即使含引号，也不会破坏 JavaScript 语法。
+            main_row_data = await page.evaluate(EXTRACT_MAIN_COMMENT_JS, [row_css, collected_replies])
             if main_row_data:
-                try:
-                    comment_meta = await page.evaluate('''([rowSel, commentPage, rowIndex, packId]) => {
-                        const row = document.querySelector(rowSel);
-                        const base = location.href.split('#')[0];
-                        if (!row) return { comment_page: commentPage, comment_index: rowIndex, comment_url: '', url: '', modpack_id: packId };
-                        function cleanText(raw) {
-                            return String(raw || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
-                        }
-                        const idInput = row.querySelector('input.comment-id[name="comment-id"], input[name="comment-id"]');
-                        const id = (idInput && idInput.value) || row.id || row.getAttribute('data-id') || row.getAttribute('data-comment-id') || row.getAttribute('data-cid') || '';
-                        const floorEl = row.querySelector('.comment-row-userinfo, .floor-num, [class*="floor"], [class*="lou"]');
-                        const floorRaw = cleanText(floorEl ? (floorEl.innerText || floorEl.textContent) : '');
-                        const floorMatch = floorRaw.match(/#?\\s*(\\d+)/);
-                        const directLink = Array.from(row.querySelectorAll('a[href]')).find(a => {
-                            const href = a.getAttribute('href') || '';
-                            return href.startsWith('#') || /comment|reply|floor/i.test(href);
-                        });
-                        let url = '';
-                        if (directLink) {
-                            try { url = new URL(directLink.getAttribute('href'), location.href).href; } catch(e) { url = directLink.getAttribute('href') || ''; }
-                        } else if (id) {
-                            url = base + '#' + encodeURIComponent(id);
-                        } else {
-                            url = '';
-                        }
-                        return {
-                            floor: floorMatch ? floorMatch[1] : '',
-                            page: commentPage,
-                            comment_page: commentPage,
-                            comment_index: rowIndex,
-                            comment_id: id,
-                            comment_url: url,
-                            url: url,
-                            modpack_id: packId
-                        };
-                    }''', [row_css, dom_page, idx, modpack_id])
-                    if isinstance(comment_meta, dict):
-                        main_row_data.update(comment_meta)
-                except Exception:
-                    pass
+                main_row_data.update({'page': dom_page, 'comment_page': dom_page, 'comment_index': idx, 'modpack_id': modpack_id})
             if main_row_data and main_row_data['text'] and main_row_data['text'] not in existing_texts:
                 page_new_comments.append(main_row_data)
                 existing_texts.add(main_row_data['text'])
@@ -2874,6 +2781,10 @@ async def _mcmod_fetch_comments(page, modpack_id, comment_count_display, worker_
         row['评论已采集主楼数'] = len(all_comments)
         row['评论采集页数预算'] = page_budget
     save_comment_progress(dom_page, checked=(reached_comment_end or len(all_comments) >= total_all or total_all == 0))
+    # 锁仍由调用方持有：一整包评论结束后留出安静窗口，避免立即切到下一包评论接口。
+    rest = random.uniform(COMMENT_PACK_REST_MIN, COMMENT_PACK_REST_MAX)
+    print(f'  [W{worker_id}] [{index}] 🛡️ 本包评论完成，静默冷却 {rest:.0f}s 后再进入下一包评论区')
+    await rate_controller.safe_sleep(rest)
     return all_comments, total_all
 
 async def _mcmod_fetch_trend(page, worker_id, index):
@@ -3001,6 +2912,7 @@ async def _mcmod_fetch_detail_pack(page, url, worker_id, index, total):
             'trend': trend,
             'mods': mods,
             'intro_images': intro_images,
+            'cover_image': basic.get('cover_image', ''),
             'comment_images': [],
         }
         return pack
@@ -3251,7 +3163,9 @@ class MCModAdapter(BaseAdapter):
             if FETCH_COMMENT_DETAILS and comment_total_for_fetch >= COMMENT_DETAIL_MIN_TOTAL:
                 print(f"  [MCMod] 探测到 {raw_data['comment_total']} 条评论，启动完整评论抓取...")
                 try:
-                    comment_result = await _mcmod_fetch_comment_pack(page, task.url, worker_id=worker_id, index=task.index, total=0, row=raw_data)
+                    # 评论区全局串行：不能与另一条整合包评论翻页并发执行。
+                    async with comment_crawl_lock:
+                        comment_result = await _mcmod_fetch_comment_pack(page, task.url, worker_id=worker_id, index=task.index, total=0, row=raw_data)
                     if isinstance(comment_result, dict) and 'comments' in comment_result:
                         raw_data['comments'] = comment_result['comments']
                         raw_data['comment_checked'] = bool(comment_result.get('comment_checked'))
@@ -3628,8 +3542,6 @@ class Scheduler:
                 except Exception:
                     pass
                 continue
-            await install_safe_routes(context)
-
             # c. 列表提取（由 Adapter 自己控制）
             urls = await adapter.fetch_list(context)
 
@@ -3683,7 +3595,11 @@ if __name__ == '__main__':
                         help='强制刷新列表中匹配到的所有目标；谨慎使用，会接近重新抓一遍。')
     parser.add_argument('--repair-comments', action='store_true',
                         help='兼容旧命令；现在默认就会补抓缺失或明显异常的评论详情。')
+    parser.add_argument('--comment-mode', choices=['full', 'first-page'], default='full',
+                        help='评论抓取范围：full=完整抓取（默认）；first-page=只抓第一页主评论与当前可见回复。')
     args = parser.parse_args()
+    COMMENT_FETCH_MODE = args.comment_mode
+    print('[评论模式] {}'.format('完整抓取（全局串行、安全平衡档）' if COMMENT_FETCH_MODE == 'full' else '仅抓第一页主评论'))
     if args.repair_comments:
         REPAIR_EMPTY_COMMENT_DETAILS = True
 

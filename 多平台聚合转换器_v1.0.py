@@ -46,15 +46,23 @@
 # v10.4.29: Fix tag sorting click handling, simplify tag header, fully expand collapsed mod summaries, and harden themed pagination color overrides.
 # v10.5.0: Add compact category filter UI plus favorites, compare tray, and full-screen glass comparison matrix.
 # v10.5.1: Move the favorite star to the upper-right of each title cell and keep the title text clear.
+# v10.5.2: Render crawled cover/intro/comment images in popups and normalize image URLs for file:// dashboards.
+# v10.5.3: Filter comment avatars, keep emotion images inline, enlarge image previews, and add an in-page image lightbox.
+# v10.5.4: Show modpack cover thumbs in the title column, lift image previews above popups, and restore per-row mod scrolling.
+# v10.5.5: Enlarge title-column cover thumbs and allow the title text to share a little of the cover area.
+# v10.5.6: Make title-column covers larger, keep favorite stars above covers, and add delayed cover hover preview.
+# v10.5.7: Restore a visible page-size selector; cap inline mod previews so local HTML opens smoothly on Windows.
+# v10.5.8: Build each row's complete mod list only when that row is opened.
 import re
 import sys
 import os
 import json
 import html as _html
+import urllib.parse
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.1"
+APP_VERSION = "v10.5.8"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 
 def default_output_file():
@@ -116,6 +124,62 @@ def _s(val):
     if val is None:
         return ""
     return str(val).strip()
+
+def normalize_image_url(url, base="https://www.mcmod.cn/"):
+    raw = _s(url)
+    if not raw:
+        return ""
+    if raw.startswith("//"):
+        return "https:" + raw
+    return urllib.parse.urljoin(base, raw)
+
+def normalize_image_list(value):
+    out = []
+    seen = set()
+    if not value:
+        return out
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            value = parsed
+        except (TypeError, ValueError):
+            value = [value]
+    if not isinstance(value, (list, tuple)):
+        value = [value]
+    for idx, item in enumerate(value):
+        if isinstance(item, dict):
+            url = normalize_image_url(item.get("url") or item.get("src") or item.get("data-src"))
+            alt = _s(item.get("alt") or item.get("title"))
+            source = _s(item.get("source"))
+            kind = _s(item.get("kind"))
+            section = _s(item.get("section") or item.get("heading"))
+            width = _s(item.get("width"))
+            height = _s(item.get("height"))
+        else:
+            url = normalize_image_url(item)
+            alt = ""
+            source = ""
+            kind = ""
+            section = ""
+            width = ""
+            height = ""
+        if not url or url in seen:
+            continue
+        if "loading" in url.lower() or "loadfail" in url.lower():
+            continue
+        seen.add(url)
+        out.append({
+            "url": url,
+            "src": url,
+            "alt": alt,
+            "source": source,
+            "kind": kind,
+            "section": section,
+            "width": width,
+            "height": height,
+            "index": idx + 1,
+        })
+    return out
 
 def esc(text):
     return _html.escape(str(text), quote=False)
@@ -711,6 +775,9 @@ def normalize_json_row(row):
         merged["评论详情"] = row.get("comments", basic.get("评论详情", []))
         merged["包含模组"] = row.get("mods") or basic.get("包含模组", [])
         merged["模组数量"] = row.get("mod_count") or basic.get("模组数量", 0)
+        merged["intro_images"] = row.get("intro_images") or basic.get("intro_images") or []
+        merged["comment_images"] = row.get("comment_images") or basic.get("comment_images") or []
+        merged["cover_image"] = row.get("cover_image") or basic.get("cover_image") or ""
         if isinstance(row.get("trend"), dict):
             merged.update(row["trend"])
         row = merged
@@ -786,10 +853,16 @@ def process_data(raw_rows):
             t60_d = format_pct_display(t60_d, t60_n)
         tall_d, tall_n = compute_total_growth_pct(trend_arr)
         desc_text = clean_intro_text(first_value(row, "整合包介绍", "介绍"))
+        intro_images = normalize_image_list(first_value(row, "intro_images"))
+        cover_image = normalize_image_url(first_value(row, "cover_image"))
+        if cover_image:
+            intro_images = normalize_image_list([{"url": cover_image, "alt": title, "source": "cover"}] + intro_images)
+        comment_images = normalize_image_list(first_value(row, "comment_images"))
         comments_raw = comments_to_json_text(first_value(row, "评论详情", "comments"))
         data.append({
             "title": title, "url": url,
             "desc": desc_text, "comments_raw": comments_raw, "trend_arr": trend_arr,
+            "intro_images": intro_images, "comment_images": comment_images, "cover_image": cover_image,
             "comment_total": _s(first_value(row, "评论总数", "评论数")),
             "score_d": score_d, "score_n": score_n,
             "views_d": views_d, "views_n": views_n,
@@ -909,6 +982,17 @@ def gen_row_pretty(d, idx=0):
     mid = _extract_mid(d.get("url", ""))
     title_cn, title_en = split_modpack_title(d.get("title", ""))
     title_en_html = esc(title_en) if title_en else "&nbsp;"
+    cover_image = normalize_image_url(d.get("cover_image") or "")
+    cover_html = ""
+    title_extra_class = ""
+    if cover_image:
+        title_extra_class = " has-cover"
+        cover_html = (
+            '<button type="button" class="modpack-cover-thumb image-thumb" '
+            'data-image-url="{cover}" title="{title} 封面（悬停 1.6 秒放大）" aria-label="查看整合包封面">'
+            '<img src="{cover}" alt="{title} 封面" loading="lazy">'
+            '</button>'
+        ).format(cover=esc_attr(cover_image), title=esc_attr(title_cn or d.get("title", "")))
     type_name = d.get("modpack_type") or "未标明"
     type_url = d.get("modpack_type_url") or ""
     if type_url:
@@ -920,12 +1004,14 @@ def gen_row_pretty(d, idx=0):
     L.append('            <tr data-row="{}" data-mid="{}">'.format(idx, esc_attr(mid)))
     # 标题（链接，hover 触发预览卡片）
     L.append(
-        '                <td class="td-title" data-type-search="{type_name}" data-name="{name_order}" data-order="{name_order}" data-views="{views_n}">'
+        '                <td class="td-title{title_extra_class}" data-type-search="{type_name}" data-name="{name_order}" data-order="{name_order}" data-views="{views_n}">'
         '<button type="button" class="fav-star" data-mid="{mid}" title="收藏用于对比" aria-label="收藏用于对比">★</button>'
+        '{cover_html}'
         '<a href="{url}" target="_blank" class="modpack-link" data-url="{url}" data-mid="{mid}" data-full-title="{full_title}">'
         '<span class="modpack-title-cn">{title_cn}</span><span class="modpack-title-en">{title_en}</span></a>'
         '<div class="modpack-meta-row">{type_badge}{views_badge}</div></td>'.format(
             url=esc_attr(d["url"]), mid=mid, full_title=esc_attr(d["title"]),
+            title_extra_class=title_extra_class, cover_html=cover_html,
             title_cn=esc(title_cn), title_en=title_en_html,
             name_order=esc_attr((title_cn or d.get("title", "")).lower()),
             views_n=int(d.get("views_n") or 0),
@@ -1110,6 +1196,9 @@ def gen_row_pretty(d, idx=0):
         ])
     mod_sections = []
     mod_summary_chips = []
+    preview_limit = 8
+    preview_used = 0
+    hidden_mod_count = 0
     for group_idx, group in enumerate(mod_groups):
         links = []
         for m in group["mods"]:
@@ -1122,6 +1211,10 @@ def gen_row_pretty(d, idx=0):
             if m.get("category_name"):
                 title_bits.append("分类: {}".format(m.get("category_name")))
             version_html = '<span class="tag-mod-version">{}</span>'.format(esc(m.get("version", ""))) if m.get("version") else ''
+            if preview_used >= preview_limit:
+                hidden_mod_count += 1
+                continue
+            preview_used += 1
             links.append(
                 '<span class="tag-mod" role="button" tabindex="0" title="{title}" data-mod="{mod}" data-mod-cat="{cat}" data-mod-url="{href}"><span class="tag-mod-name">{name}</span>{version}<a class="tag-mod-open" href="{href}" target="_blank" title="打开 MC百科模组页">↗</a></span>'.format(
                     href=esc_attr(m.get("url") or "#"),
@@ -1132,8 +1225,6 @@ def gen_row_pretty(d, idx=0):
                     version=version_html,
                 )
             )
-        if not links:
-            continue
         cat_label = esc(group["name"])
         if group.get("url"):
             cat_head = '<a class="mod-category-link" href="{}" target="_blank">{}</a>'.format(esc_attr(group["url"]), cat_label)
@@ -1141,23 +1232,29 @@ def gen_row_pretty(d, idx=0):
             cat_head = '<span>{}</span>'.format(cat_label)
         mod_summary_chips.append(
             '<button type="button" class="mod-summary-chip" data-mod-cat-key="{key}" title="跳到 {name} 分类">{name}<b>{count}</b></button>'.format(
-                key="cat{}".format(group_idx), name=cat_label, count=len(links)
+                key="cat{}".format(group_idx), name=cat_label, count=len(group["mods"])
             )
         )
+        if not links:
+            continue
         mod_sections.append(
             '<section class="mod-category-section" data-mod-cat-key="{key}"><div class="mod-category-head">{head}<span>{count}</span></div><div class="mod-grid">{mods}</div></section>'.format(
-                key="cat{}".format(group_idx), head=cat_head, count=len(links), mods="".join(links)
+                key="cat{}".format(group_idx), head=cat_head, count=len(group["mods"]), mods="".join(links)
             )
         )
-    search_mods = esc_attr(" ".join([x for x in mod_search_parts if x]))
+    # 完整模组名只保留在 compareData 中供筛选/对比使用，避免在每行 HTML 属性里再复制一遍。
+    search_mods = esc_attr(" ".join(sorted({m.get("category_name", "") for m in d.get("mods", []) if m.get("category_name")})))
     mod_count = len(d.get("mods", []))
     if mod_sections:
         mod_html = (
             '<details class="mod-details">'
             '<summary><span class="mod-summary-main">包含模组 <b>{count}</b></span><span class="mod-summary-cats">{chips}</span></summary>'
-            '<div class="mod-details-body">{sections}</div>'
+            '<div class="mod-details-body">{sections}{more}<div class="mod-grid mod-full-list" data-loaded="0"></div></div>'
             '</details>'
-        ).format(count=mod_count, chips="".join(mod_summary_chips), sections="".join(mod_sections))
+        ).format(
+            count=mod_count, chips="".join(mod_summary_chips), sections="".join(mod_sections),
+            more=('<div class="tag-empty">为保持本地看板流畅，仅预览前 {} 个模组；完整名单仍可用上方筛选与收藏对比查看。</div>'.format(preview_limit) if hidden_mod_count else '')
+        )
     else:
         mod_html = '<span class="tag-empty">—</span>'
     L.append('                <td class="td-mods" data-search="{}" data-count="{}" data-order="{}"><div class="tag-wrap mod-container">{}</div></td>'.format(
@@ -2110,6 +2207,36 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
         }}
         /* ★★★ 表格列样式 ★★★ */
         .td-title {{ min-width: 220px; position: relative; }}
+        .td-title.has-cover {{
+            padding-right: 122px !important;
+        }}
+        .modpack-cover-thumb {{
+            position: absolute !important;
+            right: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 124px !important;
+            height: 78px !important;
+            aspect-ratio: 480 / 300 !important;
+            padding: 0;
+            border: 1px solid rgba(var(--primary-rgb), 0.20);
+            border-radius: 18px;
+            background: rgba(var(--glass-tint-rgb), 0.46);
+            box-shadow: 0 12px 26px rgba(var(--shadow-rgb), 0.18);
+            overflow: hidden;
+            z-index: 2;
+            cursor: zoom-in;
+        }}
+        .modpack-cover-thumb img {{
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }}
+        .modpack-cover-thumb:hover {{
+            transform: translateY(-50%) scale(1.06);
+            border-color: rgba(var(--primary-rgb), 0.45);
+        }}
         .td-title .modpack-link {{
             color: var(--primary-light); text-decoration: none;
             font-weight: 600; transition: all 0.2s; cursor: pointer;
@@ -3535,6 +3662,146 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
             font-weight: 650;
         }}
         .comment-floor-text {{ font-size: 0.9rem; color: var(--text) !important; line-height: 1.6; font-weight: 500; }}
+        .image-gallery {{
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            gap: 0.8rem;
+            margin: 0.85rem 0 0.35rem;
+        }}
+        .pv-image-gallery {{
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            margin: 1rem 0 1.05rem;
+        }}
+        .pv-image-gallery.section-bound {{
+            margin-top: 0.7rem;
+            margin-bottom: 1.1rem;
+        }}
+        .pv-cover-wrap {{
+            margin: 0.2rem 0 1rem;
+        }}
+        .pv-cover-wrap .image-thumb {{
+            max-width: 360px;
+            aspect-ratio: 480 / 300;
+        }}
+        .comment-image-gallery {{
+            grid-template-columns: repeat(auto-fit, minmax(220px, 320px));
+            justify-content: start;
+        }}
+        .image-thumb {{
+            display: block;
+            position: relative;
+            overflow: hidden;
+            border-radius: 14px;
+            border: 1px solid rgba(var(--line-rgb), 0.12);
+            background: rgba(var(--glass-tint-rgb), 0.42);
+            box-shadow: 0 10px 24px rgba(var(--shadow-rgb), 0.10);
+            aspect-ratio: 16 / 9;
+            text-decoration: none;
+            cursor: zoom-in;
+        }}
+        .image-thumb img {{
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: transform .22s ease, filter .22s ease;
+        }}
+        .image-thumb:hover img {{
+            transform: scale(1.035);
+            filter: saturate(1.08) contrast(1.04);
+        }}
+        .image-caption {{
+            position: absolute;
+            left: 8px;
+            right: 8px;
+            bottom: 8px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: rgba(var(--glass-tint-rgb), 0.78);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: var(--text);
+            font-size: 0.68rem;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }}
+        .inline-emotions {{
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }}
+        .inline-emotion {{
+            width: 30px;
+            height: 30px;
+            object-fit: contain;
+            vertical-align: middle;
+        }}
+        .image-lightbox {{
+            position: fixed;
+            inset: 0;
+            z-index: 2147483600;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 4vh 4vw;
+            background: rgba(8, 12, 24, 0.58);
+            backdrop-filter: blur(24px) saturate(145%);
+            -webkit-backdrop-filter: blur(24px) saturate(145%);
+        }}
+        .image-lightbox.show {{ display: flex; }}
+        .image-lightbox-panel {{
+            position: relative;
+            max-width: min(1180px, 94vw);
+            max-height: 92vh;
+            padding: 14px;
+            border-radius: 22px;
+            border: 1px solid rgba(var(--glass-tint-rgb), 0.28);
+            background: rgba(var(--glass-tint-rgb), 0.20);
+            box-shadow: 0 34px 90px rgba(0, 0, 0, 0.34);
+        }}
+        .image-lightbox-img {{
+            display: block;
+            max-width: calc(94vw - 28px);
+            max-height: calc(86vh - 72px);
+            object-fit: contain;
+            border-radius: 14px;
+            background: rgba(0, 0, 0, 0.18);
+        }}
+        .image-lightbox-caption {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            color: #fff;
+            margin-top: 10px;
+            font-size: 0.86rem;
+            font-weight: 700;
+        }}
+        .image-lightbox-caption a {{
+            color: #fff !important;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.16);
+        }}
+        .image-lightbox-close {{
+            position: absolute;
+            right: 12px;
+            top: 12px;
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            background: rgba(255, 255, 255, 0.22);
+            color: #fff;
+            font-size: 1.4rem;
+            line-height: 1;
+            cursor: pointer;
+        }}
         .comment-reply {{
             margin-left: 1.2rem; padding: 0.5rem 0.8rem;
             background: rgba(var(--shadow-rgb), 0.04); border-left: 3px solid var(--primary-light);
@@ -4863,8 +5130,11 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
         .mod-container {{
             height: 100%;
             width: 100%;
-            padding-right: 0 !important;
-            overflow: visible !important;
+            padding-right: 4px !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
         }}
         .td-mods {{
             height: 100%;
@@ -4874,9 +5144,35 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
             min-width: 100% !important;
         }}
         .mod-details {{
-            height: 100%;
             width: 100%;
             min-height: 72px;
+        }}
+        .mod-details:not([open]) {{
+            max-height: 84px;
+            overflow: hidden;
+        }}
+        .mod-details:not([open]) .mod-details-body {{
+            display: none !important;
+        }}
+        .mod-details[open] {{
+            max-height: min(520px, 66vh);
+            overflow: hidden;
+        }}
+        .mod-details[open] .mod-details-body {{
+            max-height: calc(min(520px, 66vh) - 92px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            overscroll-behavior: contain;
+            padding-right: 6px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(var(--primary-rgb), .35) transparent;
+        }}
+        .mod-details[open] .mod-details-body::-webkit-scrollbar {{
+            width: 7px;
+        }}
+        .mod-details[open] .mod-details-body::-webkit-scrollbar-thumb {{
+            background: rgba(var(--primary-rgb), .35);
+            border-radius: 999px;
         }}
         .mod-details > summary {{
             min-height: 72px !important;
@@ -5021,6 +5317,9 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
             padding-left: 0.75rem !important;
             padding-right: 42px !important;
         }}
+        table.dataTable tbody td.td-title.has-cover {{
+            padding-right: 122px !important;
+        }}
         .fav-star {{
             position: absolute;
             right: 10px;
@@ -5040,7 +5339,7 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
             line-height: 1;
             box-shadow: inset 0 1px 0 rgba(255,255,255,.14);
             transition: transform .16s ease, color .16s ease, background .16s ease, box-shadow .16s ease;
-            z-index: 3;
+            z-index: 8;
         }}
         .fav-star:hover {{
             transform: scale(1.08);
@@ -5518,13 +5817,13 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
     </div>
     <div class="pv-body" id="pvBody"></div>
     <div class="pv-tip" style="line-height:1.6;">
-        📋 本页面仅作信息整理预览，不含图片及完整排版 · 鼠标移出会正常关闭且不进入冷却 · 点 ✕ 后 5 秒内悬停同一整合包不会再弹出 · 详细内容请访问 <a href="https://www.mcmod.cn/" target="_blank" style="color:var(--primary-dark);font-weight:600;">MC百科 mcmod.cn</a> 原页面查看
+        📋 本页面仅作信息整理预览，含已抓取图片预览但不保证完整排版 · 鼠标移出会正常关闭且不进入冷却 · 点 ✕ 后 5 秒内悬停同一整合包不会再弹出 · 详细内容请访问 <a href="https://www.mcmod.cn/" target="_blank" style="color:var(--primary-dark);font-weight:600;">MC百科 mcmod.cn</a> 原页面查看
     </div>
     <div class="mcmod-consent">
         <div class="mcmod-consent-panel">
             <div class="mcmod-consent-brand">MC百科</div>
             <div class="mcmod-consent-title">内容来自 mcmod.cn 公开页面</div>
-            <div class="mcmod-consent-text">这里显示的是本地整理预览，可能不含完整排版、图片或最新修订。确认后继续查看介绍内容。</div>
+            <div class="mcmod-consent-text">这里显示的是本地整理预览，图片为已抓取链接预览，完整排版与最新修订请以 MC百科 原页面为准。确认后继续查看介绍内容。</div>
             <button type="button" class="mcmod-consent-ok">知道了</button>
         </div>
     </div>
@@ -5563,6 +5862,16 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
             <div class="mcmod-consent-title">评论来自 mcmod.cn 公开页面</div>
             <div class="mcmod-consent-text">评论仅作整理与检索辅助，完整上下文请以 MC百科原页面为准。确认后继续查看评论。</div>
             <button type="button" class="mcmod-consent-ok">知道了</button>
+        </div>
+    </div>
+</div>
+<div id="imageLightbox" class="image-lightbox" aria-hidden="true">
+    <div class="image-lightbox-panel">
+        <button type="button" class="image-lightbox-close" id="imageLightboxClose" aria-label="关闭">×</button>
+        <img class="image-lightbox-img" id="imageLightboxImg" src="" alt="">
+        <div class="image-lightbox-caption">
+            <span id="imageLightboxTitle"></span>
+            <a id="imageLightboxOpen" href="#" target="_blank" rel="noreferrer">打开原图 ↗</a>
         </div>
     </div>
 </div>
@@ -5638,7 +5947,7 @@ $(document).ready(function() {{
                          String(data[7] || '').toLowerCase().indexOf(kw) !== -1;
             var mid = $(tr).find('a.modpack-link').data('mid');
             if (mid) {{
-                result.desc = textHasKeyword(descData[mid], keyword);
+                result.desc = textHasKeyword(getDescText(descData[mid]), keyword);
                 result.commentIndex = findCommentMatch(commentData[mid], keyword);
                 result.comment = result.commentIndex >= 0;
             }}
@@ -5708,8 +6017,10 @@ $(document).ready(function() {{
             var $filter = $wrapper.find('.dataTables_filter');
             var $info = $wrapper.find('.dataTables_info');
             var $paginate = $wrapper.find('.dataTables_paginate');
-            /* 重新排列：搜索框 + 每页条数 → 一行，信息 + 分页 → 一行 */
-            $length.css({{ 'display': 'inline-block', 'margin-right': '1rem' }});
+            /* 每页条数必须紧挨搜索框显示，不能只依赖 DataTables 默认的页尾位置。 */
+            $length.addClass('page-size-control').detach().prependTo($filter);
+            $length.css({{ 'display': 'inline-flex', 'align-items': 'center', 'margin-right': '0.8rem' }});
+            $length.find('select').attr('aria-label', '选择每页显示数量').val(api.page.len());
             $filter.css({{ 'display': 'inline-block', 'float': 'right' }});
             $info.css({{ 'padding-top': '0.6rem', 'clear': 'both' }});
             $paginate.css({{ 'padding-top': '0.3rem', 'text-align': 'center' }});
@@ -5929,22 +6240,39 @@ $(document).ready(function() {{
                 refreshActiveSortColumn();
                 updateSearchNav();
             }});
+            function loadFullModList($details) {{
+                var $full = $details.find('.mod-full-list');
+                if (!$full.length || $full.attr('data-loaded') === '1') return;
+                var mid = $details.closest('tr').attr('data-mid') || '';
+                var item = (window.compareData && window.compareData[mid]) || {{}};
+                var mods = item.mods || [];
+                if (!mods.length) return;
+                var html = '<div class="mod-category-head"><span>完整模组名单（按名称）</span><span>' + mods.length + '</span></div>';
+                html += '<div class="mod-grid">';
+                mods.forEach(function(mod) {{
+                    var name = typeof mod === 'string' ? mod : (mod.name || '');
+                    if (!name) return;
+                    html += '<span class="tag-mod" role="button" tabindex="0" data-mod="' + escHtml(name, true) + '"><span class="tag-mod-name">' + escHtml(name, true) + '</span></span>';
+                }});
+                html += '</div>';
+                $full.attr('data-loaded', '1').html(html);
+            }}
             $wrapper.on('click', '.mod-summary-chip', function(e) {{
                 e.preventDefault();
                 e.stopPropagation();
                 var $chip = $(this);
-                var key = $chip.data('mod-cat-key');
-                var $details = $chip.closest('.mod-details');
-                var $container = $chip.closest('.mod-container');
-                if (!$details.prop('open')) {{
-                    $details.prop('open', true);
-                }}
-                setTimeout(function() {{
-                    var $target = $details.find('.mod-category-section[data-mod-cat-key="' + key + '"]');
-                    if (!$target.length) return;
-                    var currentTop = $container.scrollTop();
-                    var targetTop = $target.position().top + currentTop - 6;
-                    $container.stop(true).animate({{ scrollTop: Math.max(0, targetTop) }}, 220);
+            var key = $chip.data('mod-cat-key');
+            var $details = $chip.closest('.mod-details');
+            if (!$details.prop('open')) {{
+                $details.prop('open', true);
+            }}
+            setTimeout(function() {{
+                var $target = $details.find('.mod-category-section[data-mod-cat-key="' + key + '"]');
+                if (!$target.length) return;
+                var $scrollBox = $details.find('.mod-details-body');
+                var currentTop = $scrollBox.scrollTop();
+                var targetTop = $target.position().top + currentTop - 6;
+                $scrollBox.stop(true).animate({{ scrollTop: Math.max(0, targetTop) }}, 220);
                     $target.removeClass('jump-focus');
                     void $target[0].offsetWidth;
                     $target.addClass('jump-focus');
@@ -5963,12 +6291,42 @@ $(document).ready(function() {{
                     refreshActiveSortColumn();
                 }}
             }});
+            $wrapper.on('click', '.mod-details > summary', function() {{
+                var current = $(this).closest('.mod-details')[0];
+                setTimeout(function() {{
+                    if (current && current.open) {{
+                        $wrapper.find('.mod-details[open]').each(function() {{
+                            if (this !== current) this.open = false;
+                        }});
+                        api.columns.adjust();
+                        rebuildSortStrip();
+                        refreshActiveSortColumn();
+                    }}
+                }}, 0);
+            }});
             $wrapper.on('toggle', '.mod-details', function() {{
+                if (this.open) {{
+                    var current = this;
+                    $wrapper.find('.mod-details[open]').each(function() {{
+                        if (this !== current) this.open = false;
+                    }});
+                    loadFullModList($(this));
+                }}
                 setTimeout(function() {{
                     api.columns.adjust();
                     rebuildSortStrip();
                     refreshActiveSortColumn();
                 }}, 30);
+            }});
+            $wrapper.on('wheel', '.mod-container, .mod-details-body', function(e) {{
+                var el = this;
+                if (!el || el.scrollHeight <= el.clientHeight) return;
+                var oe = e.originalEvent;
+                var delta = oe.deltaY || 0;
+                var atTop = el.scrollTop <= 0;
+                var atBottom = Math.ceil(el.scrollTop + el.clientHeight) >= el.scrollHeight;
+                if ((delta < 0 && atTop) || (delta > 0 && atBottom)) return;
+                e.stopPropagation();
             }});
             function toggleMultiSelect(selector, val) {{
                 var $sel = $(selector);
@@ -6060,12 +6418,15 @@ $(document).ready(function() {{
             var rowType = titleCell.attr('data-type-search') || '';
             var rowCat  = tagCell.attr('data-cat-search') || '';
             var rowPack = tagCell.attr('data-pack-search') || '';
-            var rowMods = $(table.cell(dataIndex, 6).node()).attr('data-search') || '';
+            var rowMid = titleCell.closest('tr').attr('data-mid') || '';
+            var rowModData = (window.compareData && window.compareData[rowMid]) || {{}};
+            var rowModCategories = (rowModData.mod_categories || []).join(' ');
+            var rowModNames = (rowModData.mods || []).map(function(m) {{ return typeof m === 'string' ? m : (m.name || ''); }}).join(' ');
             if (selectedType && rowType !== selectedType) return false;
             if (!passFilter(rowCat, selectedCat, excludeCat)) return false;
             if (!passFilter(rowPack, selectedPack, excludePack)) return false;
-            if (!passFilter(rowMods, selectedModCat, excludeModCat)) return false;
-            if (!passFilter(rowMods, selectedMod, excludeMod)) return false;
+            if (!passFilter(rowModCategories, selectedModCat, excludeModCat)) return false;
+            if (!passFilter(rowModNames, selectedMod, excludeMod)) return false;
             // 💡 升级：直接从单元格的 data-days 属性中抓取纯数字，避开文本干扰
             var cellNode = table.cell(dataIndex, 1).node();
             var trendDays = cellNode ? parseInt($(cellNode).attr('data-days')) : 0;
@@ -6208,10 +6569,10 @@ $(document).ready(function() {{
     function renderCompare() {{
         var selected = favoriteIds.map(function(mid) {{ return compareData[mid]; }}).filter(Boolean);
         if (selected.length < 2) return;
-        var modSets = selected.map(function(item) {{ return new Set((item.mods || []).map(function(m) {{ return (m.name || '').toLowerCase(); }})); }});
+        var modSets = selected.map(function(item) {{ return new Set((item.mods || []).map(function(m) {{ return (typeof m === 'string' ? m : (m.name || '')).toLowerCase(); }})); }});
         var modNameMap = {{}};
         selected.forEach(function(item) {{
-            (item.mods || []).forEach(function(m) {{ modNameMap[(m.name || '').toLowerCase()] = m.name || ''; }});
+            (item.mods || []).forEach(function(m) {{ var name = typeof m === 'string' ? m : (m.name || ''); modNameMap[name.toLowerCase()] = name; }});
         }});
         var commonMods = setIntersection(modSets).map(function(k) {{ return modNameMap[k] || k; }});
         var allMods = setUnion(modSets);
@@ -6238,9 +6599,9 @@ $(document).ready(function() {{
         html += '<div class="compare-section"><h3>各包独有模组</h3><div class="compare-columns">';
         selected.forEach(function(item, idx) {{
             var unique = (item.mods || []).filter(function(m) {{
-                var key = (m.name || '').toLowerCase();
+                var key = (typeof m === 'string' ? m : (m.name || '')).toLowerCase();
                 return modSets.filter(function(s) {{ return s.has(key); }}).length === 1;
-            }}).map(function(m) {{ return m.name; }});
+            }}).map(function(m) {{ return typeof m === 'string' ? m : m.name; }});
             html += '<div class="compare-card"><h3>' + escHtml(compactTitle(item), true) + ' · ' + unique.length + '</h3><div class="compare-chip-cloud">' + listNames(unique, 120) + '</div></div>';
         }});
         html += '</div></div>';
@@ -6311,10 +6672,161 @@ $(document).ready(function() {{
     function commentOriginMeta(c, localIndex) {{
         return '';
     }}
+    function getDescText(desc) {{
+        if (!desc) return '';
+        if (typeof desc === 'string') return desc;
+        return desc.text || '';
+    }}
+    function getDescImages(desc) {{
+        if (!desc || typeof desc === 'string') return [];
+        return Array.isArray(desc.images) ? desc.images : [];
+    }}
+    function normalizeImageUrlJs(url) {{
+        if (!url) return '';
+        try {{ return new URL(url, window.location.href).href; }} catch(e) {{
+            if (String(url).indexOf('//') === 0) return 'https:' + url;
+            return String(url);
+        }}
+    }}
+    function isAvatarImage(img) {{
+        if (img && String(img.kind || '').toLowerCase() === 'avatar') return true;
+        var raw = (typeof img === 'string') ? img : (img.url || img.src || '');
+        var url = normalizeImageUrlJs(raw).toLowerCase();
+        return url.indexOf('/user/avatar/') >= 0 || url.indexOf('/identicons/') >= 0 || url.indexOf('@60x60') >= 0;
+    }}
+    function isEmotionImage(img) {{
+        if (img && String(img.kind || '').toLowerCase() === 'emotion') return true;
+        var raw = (typeof img === 'string') ? img : (img.url || img.src || '');
+        var url = normalizeImageUrlJs(raw).toLowerCase();
+        return url.indexOf('/emotion/images/') >= 0 || url.indexOf('/dialogs/emotion/') >= 0;
+    }}
+    function filterGalleryImages(images) {{
+        if (!Array.isArray(images)) return [];
+        return images.filter(function(img) {{ return !isAvatarImage(img) && !isEmotionImage(img); }});
+    }}
+    function filterEmotionImages(images) {{
+        if (!Array.isArray(images)) return [];
+        return images.filter(function(img) {{ return isEmotionImage(img); }});
+    }}
+    function renderInlineEmotions(images) {{
+        var emos = filterEmotionImages(images);
+        if (!emos.length) return '';
+        var html = '<span class="inline-emotions">';
+        emos.forEach(function(img, idx) {{
+            var raw = (typeof img === 'string') ? img : (img.url || img.src || '');
+            var url = normalizeImageUrlJs(raw);
+            if (!url) return;
+            html += '<img class="inline-emotion" src="' + escAttrJs(url) + '" alt="表情" loading="lazy">';
+        }});
+        html += '</span>';
+        return html;
+    }}
+    function renderImageGallery(images, extraClass) {{
+        images = filterGalleryImages(images);
+        if (!Array.isArray(images) || !images.length) return '';
+        var html = '<div class="image-gallery ' + (extraClass || '') + '">';
+        images.forEach(function(img, idx) {{
+            var raw = (typeof img === 'string') ? img : (img.url || img.src || '');
+            var url = normalizeImageUrlJs(raw);
+            if (!url || /loading|loadfail/i.test(url)) return;
+            var alt = (typeof img === 'string') ? '' : (img.alt || img.title || '');
+            var caption = alt || ('图片 ' + (idx + 1));
+            html += '<a class="image-thumb" href="' + escAttrJs(url) + '" target="_blank" rel="noreferrer" title="' + escAttrJs(caption) + '">';
+            html += '<img src="' + escAttrJs(url) + '" alt="' + escAttrJs(caption) + '" loading="lazy">';
+            html += '<span class="image-caption">' + escHtml(caption, true) + '</span></a>';
+        }});
+        html += '</div>';
+        return html;
+    }}
+    function splitIntroImages(images) {{
+        var cover = [];
+        var rest = [];
+        (images || []).forEach(function(img) {{
+            var source = (img && img.source ? String(img.source).toLowerCase() : '');
+            if (source === 'cover') cover.push(img);
+            else rest.push(img);
+        }});
+        return {{ cover: cover, rest: rest }};
+    }}
+    function sectionKeyFromText(text) {{
+        var s = String(text || '').replace(/\s+/g, '');
+        if (!s) return '';
+        if (s.indexOf('任务截图') >= 0 || s.indexOf('游戏截图') >= 0 || s.indexOf('截图') >= 0 || s.indexOf('图片') >= 0) return 'screenshots';
+        if (s.indexOf('使用') >= 0) return 'usage';
+        if (s.indexOf('介绍') >= 0 || s.indexOf('简介') >= 0) return 'intro';
+        return '';
+    }}
+    function imageSectionKey(img) {{
+        var s = ((img && (img.section || img.heading || img.alt || img.title)) || '').replace(/\s+/g, '');
+        return sectionKeyFromText(s);
+    }}
+    function renderDescHtml(desc, images, keyword) {{
+        var splitImages = splitIntroImages(images || []);
+        var textHtml = '';
+        if (desc) {{
+            if (keyword && desc.toLowerCase().indexOf(keyword.toLowerCase()) !== -1) {{
+                textHtml = '<div class="pv-para">' + highlightText(desc, keyword) + '</div>';
+            }} else {{
+                textHtml = escHtml(desc);
+            }}
+        }}
+        var coverHtml = splitImages.cover.length ? '<div class="pv-cover-wrap">' + renderImageGallery(splitImages.cover, 'pv-cover-gallery') + '</div>' : '';
+        var rest = splitImages.rest;
+        if (!rest.length) return coverHtml + textHtml;
+
+        var used = new Set();
+        var $box = $('<div>' + textHtml + '</div>');
+        $box.children().each(function() {{
+            var key = sectionKeyFromText($(this).text());
+            if (!key) return;
+            var group = rest.filter(function(img, idx) {{
+                return !used.has(idx) && (imageSectionKey(img) === key || (!imageSectionKey(img) && key === 'screenshots'));
+            }});
+            if (group.length) {{
+                group.forEach(function(img) {{ used.add(rest.indexOf(img)); }});
+                $(this).after(renderImageGallery(group, 'pv-image-gallery section-bound'));
+            }}
+        }});
+        var leftovers = rest.filter(function(img, idx) {{ return !used.has(idx); }});
+        return coverHtml + $box.html() + renderImageGallery(leftovers, 'pv-image-gallery');
+    }}
     $(document).on('click', '.mcmod-consent-ok', function(e) {{
         e.preventDefault();
         e.stopPropagation();
         $(this).closest('.pv-popup, .comment-popup').removeClass('needs-consent');
+    }});
+    function openImageLightbox(url, title) {{
+        url = normalizeImageUrlJs(url);
+        if (!url) return;
+        $('#imageLightboxImg').attr('src', url).attr('alt', title || '');
+        $('#imageLightboxTitle').text(title || '图片预览');
+        $('#imageLightboxOpen').attr('href', url);
+        $('#imageLightbox').addClass('show').attr('aria-hidden', 'false');
+    }}
+    function closeImageLightbox() {{
+        $('#imageLightbox').removeClass('show').attr('aria-hidden', 'true');
+        $('#imageLightboxImg').attr('src', '');
+    }}
+    var coverHoverPreviewTimer = null;
+    $(document).on('mouseenter', '.modpack-cover-thumb', function() {{
+        var $thumb = $(this);
+        clearTimeout(coverHoverPreviewTimer);
+        coverHoverPreviewTimer = setTimeout(function() {{
+            openImageLightbox($thumb.data('image-url') || $thumb.attr('href'), $thumb.attr('title') || '封面预览');
+        }}, 1600);
+    }});
+    $(document).on('mouseleave', '.modpack-cover-thumb', function() {{
+        clearTimeout(coverHoverPreviewTimer);
+        coverHoverPreviewTimer = null;
+    }});
+    $(document).on('click', '.image-thumb', function(e) {{
+        e.preventDefault();
+        e.stopPropagation();
+        clearTimeout(coverHoverPreviewTimer);
+        openImageLightbox($(this).attr('href') || $(this).data('image-url'), $(this).attr('title') || $(this).find('.image-caption').text());
+    }});
+    $('#imageLightboxClose, #imageLightbox').on('click', function(e) {{
+        if (e.target === this) closeImageLightbox();
     }});
     function showDescPopup($link) {{
         var url = $link.attr('href') || '#';
@@ -6324,15 +6836,13 @@ $(document).ready(function() {{
         if (isHoverCooling(activeDescKey)) return;
         $pvTitle.text(title);
         $pvOpen.attr('href', url);
-        var desc = descData[mid];
-        if (desc) {{
+        var descObj = descData[mid];
+        var desc = getDescText(descObj);
+        var descImages = getDescImages(descObj);
+        if (desc || descImages.length) {{
             var $filterInput = $('#modpackTable_filter input');
             var keyword = $filterInput.length > 0 ? $filterInput.val().trim() : '';
-            if (keyword && desc.toLowerCase().indexOf(keyword.toLowerCase()) !== -1) {{
-                $pvBody.html('<div class="pv-para">' + highlightText(desc, keyword) + '</div>');
-            }} else {{
-                $pvBody.html(escHtml(desc));
-            }}
+            $pvBody.html(renderDescHtml(desc, descImages, keyword));
         }} else {{
             $pvBody.html('<div class="pv-body-empty">暂无介绍数据<div><a href="' + url + '" target="_blank">点击打开 mcmod.cn 原页面 →</a></div></div>');
         }}
@@ -6499,7 +7009,8 @@ $(document).ready(function() {{
                 html += '<a class="comment-floor-link" href="' + escAttrJs(cUrl) + '" target="_blank" title="在 MC百科原页面定位这条评论">↗</a>';
             }}
             html += '</div>';
-            html += '<div class="comment-floor-text">' + highlightText(c.text || '', keyword) + '</div>';
+            html += '<div class="comment-floor-text">' + highlightText(c.text || '', keyword) + renderInlineEmotions(c.images || []) + '</div>';
+            html += renderImageGallery(c.images || [], 'comment-image-gallery');
             if (c.replies && c.replies.length > 0) {{
                 c.replies.forEach(function(r) {{
                     var rUrl = getSingleCommentUrl(r);
@@ -6509,7 +7020,8 @@ $(document).ready(function() {{
                         html += '<a class="comment-reply-link" href="' + escAttrJs(rUrl) + '" target="_blank" title="在 MC百科原页面定位这条回复">↗</a>';
                     }}
                     html += '</div>';
-                    html += '<div class="comment-reply-text">' + highlightText(r.text || '', keyword) + '</div>';
+                    html += '<div class="comment-reply-text">' + highlightText(r.text || '', keyword) + renderInlineEmotions(r.images || []) + '</div>';
+                    html += renderImageGallery(r.images || [], 'comment-image-gallery');
                     html += '</div>';
                 }});
             }}
@@ -7348,6 +7860,7 @@ $(document).ready(function() {{
             hideDescPopup();
             hideCommentPopup();
             hideTrendTooltipNow();
+            closeImageLightbox();
             $('body').css({{ 'overflow': '', 'height': '' }});
         }} else if ($cpopup.hasClass('show')) {{
             if (e.key === 'ArrowLeft') {{
@@ -7392,8 +7905,10 @@ def gen_pretty_html(data, theme_name="light"):
         if not mid:
             continue
         # 介绍：直接从 JSON 的整合包介绍字段读取
-        if d.get("desc") and len(d["desc"]) > 5:
-            desc_data[mid] = _ill_re.sub('', d["desc"])
+        desc_text = _ill_re.sub('', d.get("desc") or "")
+        desc_images = normalize_image_list(d.get("intro_images") or [])
+        if desc_text or desc_images:
+            desc_data[mid] = {"text": desc_text, "images": desc_images}
         # 评论：page_count = JSON 评论数字段（页面统计的总数）
         cmt_page_val = int(d.get("com_n") or 0)
         if d.get("comments_raw") and d["comments_raw"].strip():
@@ -7438,11 +7953,8 @@ def gen_pretty_html(data, theme_name="light"):
             key = name.lower()
             if key not in seen_mod:
                 seen_mod.add(key)
-                mods.append({
-                    "name": name,
-                    "category": _s(m.get("category_name") or "未分类"),
-                    "url": _s(m.get("url")),
-                })
+                # 对比只需要模组名称；链接和重复元数据会让单文件看板膨胀到数百 MB。
+                mods.append(name)
             cat_name = _s(m.get("category_name") or "未分类")
             if cat_name and cat_name not in seen_cat:
                 seen_cat.add(cat_name)
@@ -7595,7 +8107,10 @@ def main():
         f.write(html_out)
     output_dir = os.path.dirname(output_html) or "."
     stable_html = os.path.join(output_dir, DEFAULT_OUTPUT_STEM + ".html")
-    versioned_html = os.path.join(output_dir, default_output_file())
+    # 固定入口留在项目根目录；版本副本放本地归档，避免根目录与 Git 堆积大 HTML。
+    archive_dir = os.path.join(output_dir, "ignored_local_files", "归档", "看板历史")
+    os.makedirs(archive_dir, exist_ok=True)
+    versioned_html = os.path.join(archive_dir, default_output_file())
     extra_outputs = []
     for extra_html in (stable_html, versioned_html):
         if os.path.abspath(extra_html) == os.path.abspath(output_html):
