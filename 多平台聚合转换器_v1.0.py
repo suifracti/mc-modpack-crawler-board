@@ -56,6 +56,7 @@
 # v10.5.9: Load the full mod list directly from the summary click, including browsers that do not bubble toggle events.
 # v10.5.10: Write the default dashboard only to its stable local entry; version copies go straight to local archive.
 # v10.5.11: Lazily render the complete original grouped mod-card preview on row expansion.
+# v10.5.12: Compact the oversized pagination controls into a quiet table footer.
 import re
 import sys
 import os
@@ -65,7 +66,7 @@ import urllib.parse
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.11"
+APP_VERSION = "v10.5.12"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 
 def default_output_file():
@@ -5048,37 +5049,43 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
-            gap: 10px !important;
-            padding: 12px 14px !important;
-            margin: 1.15rem auto .6rem !important;
-            border-radius: 999px !important;
+            gap: 3px !important;
+            padding: 5px 7px !important;
+            margin: .65rem auto .35rem !important;
+            border-radius: 14px !important;
             background:
                 linear-gradient(180deg, rgba(255,255,255,.30), rgba(255,255,255,.07)),
                 linear-gradient(135deg, rgba(var(--glass-tint-rgb), .76), rgba(var(--glass-tint2-rgb), .36)) !important;
             border: 1px solid rgba(var(--primary-rgb), .18) !important;
-            box-shadow: 0 20px 55px rgba(var(--shadow-rgb), .14), inset 0 1px 0 rgba(255,255,255,.30) !important;
-            backdrop-filter: blur(34px) saturate(190%) !important;
-            -webkit-backdrop-filter: blur(34px) saturate(190%) !important;
+            box-shadow: 0 8px 24px rgba(var(--shadow-rgb), .10), inset 0 1px 0 rgba(255,255,255,.26) !important;
+            backdrop-filter: blur(22px) saturate(155%) !important;
+            -webkit-backdrop-filter: blur(22px) saturate(155%) !important;
         }}
         .dataTables_wrapper .dataTables_paginate.paging_simple_numbers .paginate_button {{
-            width: 44px !important;
-            min-width: 44px !important;
-            height: 44px !important;
+            width: 30px !important;
+            min-width: 30px !important;
+            height: 30px !important;
             padding: 0 !important;
-            border-radius: 16px !important;
+            margin: 0 !important;
+            border-radius: 8px !important;
             background: rgba(var(--glass-tint-rgb), .42) !important;
             border: 1px solid rgba(var(--line-rgb), .10) !important;
             color: var(--text-secondary) !important;
-            font-size: 1rem !important;
-            font-weight: 950 !important;
+            font-size: .82rem !important;
+            font-weight: 800 !important;
             box-shadow: inset 0 1px 0 rgba(255,255,255,.18) !important;
         }}
         .dataTables_wrapper .dataTables_paginate.paging_simple_numbers .paginate_button.previous,
         .dataTables_wrapper .dataTables_paginate.paging_simple_numbers .paginate_button.next {{
-            width: 58px !important;
-            min-width: 58px !important;
+            width: 30px !important;
+            min-width: 30px !important;
             color: var(--primary) !important;
             background: rgba(var(--primary-rgb), .08) !important;
+        }}
+        .dataTables_wrapper .dataTables_paginate.paging_simple_numbers .ellipsis {{
+            width: 18px !important;
+            min-width: 18px !important;
+            color: var(--text-muted) !important;
         }}
         .dataTables_wrapper .dataTables_paginate.paging_simple_numbers .paginate_button.current,
         .dataTables_wrapper .dataTables_paginate.paging_simple_numbers .paginate_button.current:hover {{
