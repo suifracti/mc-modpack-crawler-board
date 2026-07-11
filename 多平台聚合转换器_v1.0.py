@@ -58,6 +58,8 @@
 # v10.5.11: Lazily render the complete original grouped mod-card preview on row expansion.
 # v10.5.12: Compact the oversized pagination controls into a quiet table footer.
 # v10.5.13: Default the dashboard to 25 rows per page.
+# v10.5.14: Split comments into per-pack API data, load on demand, add an
+#           in-popup comment search field, and shorten cover preview delay.
 import re
 import sys
 import os
@@ -67,7 +69,7 @@ import urllib.parse
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.13"
+APP_VERSION = "v10.5.14"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 
 def default_output_file():
@@ -994,7 +996,7 @@ def gen_row_pretty(d, idx=0):
         title_extra_class = " has-cover"
         cover_html = (
             '<button type="button" class="modpack-cover-thumb image-thumb" '
-            'data-image-url="{cover}" title="{title} 封面（悬停 1.6 秒放大）" aria-label="查看整合包封面">'
+            'data-image-url="{cover}" title="{title} 封面（悬停 1 秒放大）" aria-label="查看整合包封面">'
             '<img src="{cover}" alt="{title} 封面" loading="lazy">'
             '</button>'
         ).format(cover=esc_attr(cover_image), title=esc_attr(title_cn or d.get("title", "")))
@@ -3514,6 +3516,14 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
             color: inherit;
             font-size: 0.84rem;
         }}
+        .comment-search-input {{
+            width: min(260px, 35vw); height: 32px; padding: 0 10px;
+            border: 2px solid rgba(255,255,255,.82); border-radius: 10px;
+            background: rgba(255,255,255,.96); color: #1b3445;
+            outline: none; font: inherit; font-size: 0.8rem; font-weight: 500;
+        }}
+        .comment-search-input::placeholder {{ color: #6c8290; }}
+        .comment-search-input:focus {{ border-color: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,.24); }}
         .comment-body {{
             padding: 0.8rem 1.2rem 0.8rem 0.8rem; /* 右边距稍微加大，给滚动条留出安全视觉空间 */
             overflow-y: auto; flex: 1 1 auto; min-height: 0; background: transparent;
@@ -5844,6 +5854,7 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
     <div class="comment-head">
         <div class="comment-head-icon">💬</div>
         <span class="comment-head-title">评论详情</span>
+        <input id="commentSearchInput" class="comment-search-input" type="search" placeholder="搜索当前整合包的评论内容" autocomplete="off">
         <span id="commentCount"></span>
         <div class="pv-actions">
             <a id="commentOpen" href="#" target="_blank" title="打开 MC百科原页面 ↗">↗</a>
@@ -6511,7 +6522,10 @@ $(document).ready(function() {{
     }});
     /* ═══════ 整合包介绍预览 ═══════ */
     var descData = {desc_json};
-    var commentData = {comment_json};
+    // 评论数据不再内嵌进 HTML：按整合包 ID 在首次打开评论时再从本地 API 读取。
+    var commentData = {{}};
+    var commentLoadJobs = {{}};
+    var commentApiBase = {comment_api_base_json};
     var compareData = {compare_json};
     var modDetailData = {mod_detail_json};
     window.compareData = compareData;
@@ -6838,7 +6852,7 @@ $(document).ready(function() {{
         clearTimeout(coverHoverPreviewTimer);
         coverHoverPreviewTimer = setTimeout(function() {{
             openImageLightbox($thumb.data('image-url') || $thumb.attr('href'), $thumb.attr('title') || '封面预览');
-        }}, 1600);
+        }}, 1000);
     }});
     $(document).on('mouseleave', '.modpack-cover-thumb', function() {{
         clearTimeout(coverHoverPreviewTimer);
@@ -7013,8 +7027,7 @@ $(document).ready(function() {{
         if (page < 1) page = 1;
         if (page > cmtTotalPages) page = cmtTotalPages;
         cmtCurrentPage = page;
-        var $filterInput = $('#modpackTable_filter input');
-        var keyword = $filterInput.length > 0 ? $filterInput.val().trim() : '';
+        var keyword = $('#commentSearchInput').val().trim();
         var start = (page - 1) * cmtPerPage;
         var end = Math.min(start + cmtPerPage, comments.length);
         var html = '';
@@ -7220,13 +7233,88 @@ $(document).ready(function() {{
         }}, delay || 120);
     }}
     // 【4. 弹窗主渲染逻辑】：渲染完数据并全部定位成功后，激活检测
+    function commentSearchMatches(comments, keyword) {{
+        var matches = [];
+        keyword = String(keyword || '').trim().toLowerCase();
+        if (!keyword || !comments) return matches;
+        for (var i = 0; i < comments.length; i++) {{
+            var c = comments[i] || {{}};
+            var match = String(c.author || '').toLowerCase().indexOf(keyword) !== -1 ||
+                        String(c.text || '').toLowerCase().indexOf(keyword) !== -1;
+            (c.replies || []).forEach(function(r) {{
+                if (String(r.author || '').toLowerCase().indexOf(keyword) !== -1 ||
+                    String(r.text || '').toLowerCase().indexOf(keyword) !== -1) match = true;
+            }});
+            if (match) matches.push(i);
+        }}
+        return matches;
+    }}
+    function applyCommentSearch() {{
+        if (!cmtCurrentData || !cmtCurrentData.comments) return;
+        cmtSearchMatches = commentSearchMatches(cmtCurrentData.comments, $('#commentSearchInput').val());
+        cmtSearchMatchPointer = cmtSearchMatches.length ? 0 : -1;
+        cmtTargetIndex = cmtSearchMatches.length ? cmtSearchMatches[0] : -1;
+        if (cmtSearchMatches.length) {{
+            $('#searchNavInfo').text('找到 ' + cmtSearchMatches.length + ' 条匹配评论 (当前第 1 条)');
+            $('#commentSearchNav').show();
+            renderCommentPage(Math.floor(cmtTargetIndex / cmtPerPage) + 1);
+        }} else {{
+            $('#commentSearchNav').hide();
+            renderCommentPage(1);
+        }}
+        checkCommentOverflow();
+    }}
+    $('#commentSearchInput').on('input', function() {{ applyCommentSearch(); }});
+    function loadCommentData(mid) {{
+        if (commentData[mid]) return Promise.resolve(commentData[mid]);
+        if (commentLoadJobs[mid]) return commentLoadJobs[mid];
+        commentLoadJobs[mid] = fetch(commentApiBase + '/comments/' + encodeURIComponent(mid), {{ cache: 'no-store' }})
+            .then(function(resp) {{
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                return resp.json();
+            }})
+            .then(function(payload) {{
+                commentData[mid] = payload || {{ comments: [] }};
+                return commentData[mid];
+            }})
+            .catch(function(err) {{
+                console.warn('评论数据加载失败:', err);
+                return null;
+            }})
+            .finally(function() {{ delete commentLoadJobs[mid]; }});
+        return commentLoadJobs[mid];
+    }}
     function showCommentPopup($cell) {{
+        var mid = String($cell.data('mid') || '');
+        activeCommentCell = $cell;
+        activeCommentKey = 'comment:' + mid;
+        if (isHoverCooling(activeCommentKey)) return;
+        if (commentData[mid]) {{
+            renderCommentPopup($cell, commentData[mid]);
+            return;
+        }}
+        var url = $cell.closest('tr').find('a.modpack-link').attr('href') || 'https://www.mcmod.cn/';
+        var commentUrl = getCommentUrl(url);
+        $('#commentModpackLink').attr('href', commentUrl);
+        $commentOpen.attr('href', commentUrl);
+        $('#commentSearchInput').val('').prop('disabled', true);
+        $('#commentSearchNav, #commentPageBar').hide();
+        $cCount.text('正在加载评论…');
+        $cBody.html('<div class="comment-empty-hint">正在按需读取这一个整合包的评论…</div>');
+        $cpopup.addClass('show needs-consent');
+        lockCommentPopupSize();
+        repositionCommentPopup();
+        loadCommentData(mid).then(function(cdata) {{
+            if (!activeCommentCell || !activeCommentCell.is($cell)) return;
+            renderCommentPopup($cell, cdata);
+        }});
+    }}
+    function renderCommentPopup($cell, cdata) {{
         activeCommentCell = $cell;
         var mid = $cell.data('mid') || '';
         activeCommentKey = 'comment:' + mid;
         if (isHoverCooling(activeCommentKey)) return;
         var floorCount = $cell.data('order') || 0;
-        var cdata = commentData[mid];
         var pageCount = (cdata && cdata.page_count) ? cdata.page_count : floorCount;
         // 重置样式，以进行正确的初始测量
         $cpopup.css({{
@@ -7249,35 +7337,17 @@ $(document).ready(function() {{
             var totalLabel = '共 ' + pageCount + ' 条 · 主楼 ' + scrapedFloors + ' · 楼中楼 ' + scrapedReplies;
             $cCount.text(totalLabel);
             cmtCurrentData = cdata;
-            /* ★ 自动导航算页算法：打开弹窗时自动跳转到第一个包含搜索词的评论页，提供无缝定位体验 */
+            $('#commentSearchInput').prop('disabled', false);
+            /* 评论搜索只针对当前打开的评论，不再借用整合包总搜索框。 */
             var startPage = 1;
-            var $filterInput = $('#modpackTable_filter input');
-            var keyword = $filterInput.length > 0 ? $filterInput.val().trim().toLowerCase() : '';
+            var keyword = $('#commentSearchInput').val().trim().toLowerCase();
             var url = $cell.closest('tr').find('a.modpack-link').attr('href') || 'https://www.mcmod.cn/';
             var commentUrl = getCommentUrl(url);
             $('#commentModpackLink').attr('href', commentUrl);
             $commentOpen.attr('href', commentUrl);
             
-            cmtSearchMatches = [];
+            cmtSearchMatches = commentSearchMatches(cdata.comments, keyword);
             cmtSearchMatchPointer = -1;
-            if (keyword && cdata.comments && cdata.comments.length > 0) {{
-                for (var i = 0; i < cdata.comments.length; i++) {{
-                    var c = cdata.comments[i];
-                    var match = false;
-                    if (c.author && c.author.toLowerCase().indexOf(keyword) !== -1) match = true;
-                    if (c.text && c.text.toLowerCase().indexOf(keyword) !== -1) match = true;
-                    if (c.replies && c.replies.length > 0) {{
-                        for (var j = 0; j < c.replies.length; j++) {{
-                            var r = c.replies[j];
-                            if (r.author && r.author.toLowerCase().indexOf(keyword) !== -1) match = true;
-                            if (r.text && r.text.toLowerCase().indexOf(keyword) !== -1) match = true;
-                        }}
-                    }}
-                    if (match) {{
-                        cmtSearchMatches.push(i);
-                    }}
-                }}
-            }}
             if (cmtSearchMatches.length > 0) {{
                 cmtSearchMatchPointer = 0;
                 var targetIndex = cmtSearchMatches[0];
@@ -7299,6 +7369,7 @@ $(document).ready(function() {{
             $('#commentModpackLink').attr('href', commentUrl);
             $commentOpen.attr('href', commentUrl);
             $('#commentSearchNav').hide();
+            $('#commentSearchInput').prop('disabled', true);
             $cCount.text('共 ' + pageCount + ' 条 · 主楼 0 · 楼中楼 0');
             $cBody.html('<div class="comment-empty-hint">暂无详细评论预览<br>' + (pageCount > 0 ? '共 ' + pageCount + ' 条 · 主楼 0 · 楼中楼 0<br>' : '') + '<a href="' + commentUrl + '" target="_blank">前往 MC百科 原页面查看 →</a></div>');
             $('#commentPageBar').hide();
@@ -7920,7 +7991,7 @@ $(document).ready(function() {{
 </body>
 </html>'''
 
-def gen_pretty_html(data, theme_name="light"):
+def gen_pretty_html(data, theme_name="light", comment_api_base="/api"):
     # 直接从爬虫 JSON 行中构建介绍/评论预览数据
     _ill_re = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f]')
     desc_data = {}
@@ -7958,7 +8029,6 @@ def gen_pretty_html(data, theme_name="light"):
             comment_data[mid] = {"true_count": 0, "page_count": cmt_page_val, "comments": []}
     print("  -> 介绍数据: {} 条 | 评论数据: {} 条".format(len(desc_data), len(comment_data)))
     desc_json_str = json.dumps(desc_data, ensure_ascii=False)
-    comment_json_str = json.dumps(comment_data, ensure_ascii=False)
     compare_data = {}
     # 完整模组卡片数据只作为延迟渲染源存在：页面初始不把它们插进 DOM。
     mod_detail_data = {}
@@ -8071,7 +8141,9 @@ def gen_pretty_html(data, theme_name="light"):
         trend_opts=trend_opts,
         mod_cat_opts=mod_cat_opts, mod_opts=mod_opts, rows=rows_html,
         total=total, total_views=total_views_str, total_comments=total_comments_str,
-        desc_json=desc_json_str, comment_json=comment_json_str, compare_json=compare_json_str,
+        desc_json=desc_json_str,
+        comment_api_base_json=json.dumps(comment_api_base, ensure_ascii=False),
+        compare_json=compare_json_str,
         mod_detail_json=mod_detail_json_str,
         theme_warm=THEMES["warm"]["root"],
         theme_dark=THEMES["dark"]["root"],
@@ -8080,7 +8152,27 @@ def gen_pretty_html(data, theme_name="light"):
         theme_pink=THEMES["pink"]["root"],
         theme_anime=THEMES["anime"]["root"],
         default_theme=theme_name,
-    )
+    ), comment_data
+
+
+def comment_data_dir_for_html(html_path):
+    """Return the sidecar directory stored next to one generated dashboard."""
+    html_path = os.path.abspath(html_path)
+    stem = os.path.splitext(os.path.basename(html_path))[0]
+    return os.path.join(os.path.dirname(html_path), stem + "_data", "comments")
+
+
+def write_comment_sidecars(comment_data, html_path):
+    """Write one small comment payload per pack so the browser can request it on demand."""
+    comment_dir = comment_data_dir_for_html(html_path)
+    os.makedirs(comment_dir, exist_ok=True)
+    for mid, payload in comment_data.items():
+        safe_mid = str(mid)
+        if not safe_mid.isdigit():
+            continue
+        with open(os.path.join(comment_dir, safe_mid + ".json"), "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+    return comment_dir, len(comment_data)
 
 # ═══════════════════════ 主程序 ═══════════════════════
 
@@ -8150,23 +8242,33 @@ def main():
     print("    走势天数: {}  7日:{} 30日:{} 60日:{}".format(
         data[0]["tc_d"], data[0]["t7_d"], data[0]["t30_d"], data[0]["t60_d"]))
     print("\n[3/3] 生成 [{}] -> {}".format(theme["name"], output_html))
-    html_out = gen_pretty_html(data, args.theme)
-    with open(output_html, "w", encoding="utf-8") as f:
-        f.write(html_out)
+    # 只生成一次完整页面；不同输出副本只替换各自的评论 API 地址。
+    html_template, comment_data = gen_pretty_html(data, args.theme, "__COMMENT_API_BASE__")
     output_dir = os.path.dirname(output_html) or "."
     stable_html = os.path.join(output_dir, DEFAULT_OUTPUT_STEM + ".html")
     # 固定入口留在项目根目录；版本副本放本地归档，避免根目录与 Git 堆积大 HTML。
     archive_dir = os.path.join(output_dir, "ignored_local_files", "归档", "看板历史")
     os.makedirs(archive_dir, exist_ok=True)
     versioned_html = os.path.join(archive_dir, default_output_file())
-    extra_outputs = []
-    for extra_html in (stable_html, versioned_html):
-        if os.path.abspath(extra_html) == os.path.abspath(output_html):
-            continue
-        with open(extra_html, "w", encoding="utf-8") as f:
+    output_targets = []
+    for target in (output_html, stable_html, versioned_html):
+        target_abs = os.path.abspath(target)
+        if target_abs not in [os.path.abspath(x) for x in output_targets]:
+            output_targets.append(target)
+    extra_outputs = [x for x in output_targets if os.path.abspath(x) != os.path.abspath(output_html)]
+    sidecar_notes = []
+    for target_html in output_targets:
+        comment_dir = comment_data_dir_for_html(target_html)
+        # 保留相对目录（版本归档也能通过同一个本地服务读到对应快照）。
+        api_dataset_path = os.path.relpath(os.path.dirname(comment_dir), output_dir).replace(os.sep, "/")
+        api_dataset = urllib.parse.quote(api_dataset_path, safe="")
+        html_out = html_template.replace('"__COMMENT_API_BASE__"', '"/api/data/{}"'.format(api_dataset))
+        with open(target_html, "w", encoding="utf-8") as f:
             f.write(html_out)
-        extra_outputs.append(extra_html)
-    print("  [OK] 完成（{:,} 字节）".format(len(html_out)))
+        written_dir, written_count = write_comment_sidecars(comment_data, target_html)
+        sidecar_notes.append((written_dir, written_count))
+    print("  [OK] 看板完成（{:,} 字节，不含按需评论数据）".format(len(html_out)))
+    print("  [OK] 评论已拆分：{} 个整合包 payload，首次打开评论时才由 API 读取".format(len(comment_data)))
     print("\n" + "=" * 55)
     print("  生成完毕！[{}] {}".format(theme["name"], theme["desc"]))
     print("  -> {}".format(output_html))

@@ -32,4 +32,5 @@ ignored_local_files/
 # Generated dashboards are local artifacts.  Versioned copies and run logs are local.
 多平台聚合看板_V1.0.html
 多平台聚合看板_V1.0_v*.html
+多平台聚合看板_V1.0_data/
 1.txt
