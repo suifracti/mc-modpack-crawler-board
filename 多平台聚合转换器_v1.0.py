@@ -82,7 +82,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.6.0"
+APP_VERSION = "v10.6.1"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 GENERATED_DASHBOARD_DIR = "converted_output"
 OPEN_DASHBOARD_NAME = "点击打开.html"
@@ -8337,7 +8337,7 @@ def main():
     print("    走势天数: {}  7日:{} 30日:{} 60日:{}".format(
         data[0]["tc_d"], data[0]["t7_d"], data[0]["t30_d"], data[0]["t60_d"]))
     print("\n[3/3] 生成 [{}] -> {}".format(theme["name"], output_html))
-    # 只生成一次完整页面；不同输出副本只替换各自的评论 API 地址。
+    # 单文件离线版：所有可查看内容都写入同一个 HTML。
     html_template, comment_data, rows_html = gen_pretty_html(data, args.theme, "__COMMENT_API_BASE__")
     output_dir = os.path.dirname(output_html) or "."
     os.makedirs(output_dir, exist_ok=True)
@@ -8348,19 +8348,11 @@ def main():
         if target_abs not in [os.path.abspath(x) for x in output_targets]:
             output_targets.append(target)
     extra_outputs = [x for x in output_targets if os.path.abspath(x) != os.path.abspath(output_html)]
-    sidecar_notes = []
     for target_html in output_targets:
-        comment_dir = comment_data_dir_for_html(target_html)
-        # 保留相对目录（版本归档也能通过同一个本地服务读到对应快照）。
-        api_dataset_path = os.path.relpath(os.path.dirname(comment_dir), ".").replace(os.sep, "/")
-        api_dataset = urllib.parse.quote(api_dataset_path, safe="")
-        html_out = html_template.replace('"__COMMENT_API_BASE__"', '"/api/data/{}"'.format(api_dataset))
+        html_out = html_template
         with open(target_html, "w", encoding="utf-8") as f:
             f.write(html_out)
-        written_dir, written_count = write_dashboard_sidecars(comment_data, rows_html, target_html)
-        sidecar_notes.append((written_dir, written_count))
-    print("  [OK] 看板完成（{:,} 字节，不含按需评论数据）".format(len(html_out)))
-    print("  [OK] 评论已拆分：{} 个整合包 payload，首次打开评论时才由 API 读取".format(len(comment_data)))
+    print("  [OK] 单文件看板完成（{:,} 字节）".format(len(html_out)))
     print("\n" + "=" * 55)
     print("  生成完毕！[{}] {}".format(theme["name"], theme["desc"]))
     print("  -> {}".format(output_html))

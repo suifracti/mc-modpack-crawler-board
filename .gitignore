@@ -36,4 +36,6 @@ ignored_local_files/
 generated_dashboard/
 converted_output/
 trend_history.jsonl
+crawler_output/
+trend_history
 1.txt
