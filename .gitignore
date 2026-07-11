@@ -34,5 +34,6 @@ ignored_local_files/
 多平台聚合看板_V1.0_v*.html
 多平台聚合看板_V1.0_data/
 generated_dashboard/
+converted_output/
 trend_history.jsonl
 1.txt

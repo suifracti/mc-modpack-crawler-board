@@ -82,9 +82,9 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.21"
+APP_VERSION = "v10.5.22"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
-GENERATED_DASHBOARD_DIR = "generated_dashboard"
+GENERATED_DASHBOARD_DIR = "converted_output"
 OPEN_DASHBOARD_NAME = "点击打开.html"
 
 def default_output_file():
@@ -8340,12 +8340,10 @@ def main():
     # 只生成一次完整页面；不同输出副本只替换各自的评论 API 地址。
     html_template, comment_data, rows_html = gen_pretty_html(data, args.theme, "__COMMENT_API_BASE__")
     output_dir = os.path.dirname(output_html) or "."
+    os.makedirs(output_dir, exist_ok=True)
     stable_html = os.path.join(output_dir, OPEN_DASHBOARD_NAME)
-    archive_dir = os.path.join(output_dir, "archive", APP_VERSION)
-    os.makedirs(archive_dir, exist_ok=True)
-    versioned_html = os.path.join(archive_dir, default_output_file())
     output_targets = []
-    for target in (output_html, stable_html, versioned_html):
+    for target in (output_html, stable_html):
         target_abs = os.path.abspath(target)
         if target_abs not in [os.path.abspath(x) for x in output_targets]:
             output_targets.append(target)

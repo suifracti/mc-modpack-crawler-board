@@ -25,16 +25,16 @@
 | `多平台聚合转换器_v1.0.py` | 把 JSONL 和趋势历史转换成本地 HTML 看板 |
 | `多平台爬虫数据_v1.0.jsonl` | 当前主数据快照 |
 | `trend_history.jsonl` | 本地长期趋势历史（单一文件） |
-| `generated_dashboard/` | 所有生成看板、`data/` 与版本快照的唯一目录（不提交 GitHub） |
+| `converted_output/` | 当前唯一转换结果：`点击打开.html` 与 `data/`（不提交 GitHub） |
 | `LOCAL_FILE_MAP.md` | 本地文件分类说明 |
 | `AI_AGENT_GUIDE.md` | 给后续 AI 协作时看的规则 |
 
 ## 基本使用
 
 1. 运行爬虫，更新 `多平台爬虫数据_v1.0.jsonl` 和 `trend_history.jsonl`。
-2. 运行转换器；它会生成 `generated_dashboard/打开这个看板.html`、对应的 `data/` 目录，并自动打开浏览器。
+2. 运行转换器；它会生成 `converted_output/点击打开.html`、对应的 `data/` 目录，并自动打开浏览器。
 
-生成器会同时把带版本号的副本与对应数据放到 `generated_dashboard/archive/`。这些均为本地生成物，不提交 GitHub。
+生成结果只保留当前一份；代码版本归档由 Git 提交历史负责。
 
 不要再双击 HTML 直接打开：评论采用 API 按需加载，需要通过本地服务访问，换来更快的首次打开速度和可继续扩展的数据接口。
 
