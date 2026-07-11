@@ -82,7 +82,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.24"
+APP_VERSION = "v10.6.0"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 GENERATED_DASHBOARD_DIR = "converted_output"
 OPEN_DASHBOARD_NAME = "点击打开.html"
@@ -5693,7 +5693,7 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
         本页面仅为个人整理与学习交流用途，不涉及任何商业用途。排序、热度等数据均基于公开信息整理或统计，<strong>仅供参考，不代表任何作品或作者的实际质量评价，也不构成排名高低优劣的结论。</strong>如涉及版权、数据使用或其他权益问题，请联系我处理，我会第一时间修改或删除相关内容。本项目与<a href="https://www.mcmod.cn/" target="_blank">MC百科</a>（mcmod.cn）及相关作者无官方关联。
     </div>
     <div class="sort-hint-inner">
-        <span style="font-size:1rem;">💡</span>看板操作说明
+        <span style="font-size:1rem;">💡</span>单文件离线版 · 双击即可打开
         <span><b>排序：</b>点击表头排序，再次点击切换 ↑升序 / ↓降序，蓝色条内的小项可直接切换同组排序。<b>详情：</b>整合包名称悬停查看介绍；趋势列小波形可直接读日期/指数，默认点击趋势格打开或关闭大图，可开启悬浮模式；评论列默认点击打开或关闭详情，也可开启悬浮模式。<b>筛选：</b>分类、标签、模组分类和模组可多选，也可开启「排除所选」反向筛选；分页可切换每页 25 / 50 / 100 / 200 条。</span>
     </div>
 </details>
@@ -5920,7 +5920,6 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
 <script src="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <script>
 $(document).ready(function() {{
-    var dashboardApiBase = {dashboard_api_base_json};
     /* ════════ 主题切换 ════════ */
     var savedTheme = localStorage.getItem('mcmod-theme-v2') || '{default_theme}';
     function setTheme(theme) {{
@@ -5949,13 +5948,7 @@ $(document).ready(function() {{
     }});
     /* ════════ DataTables 初始化（scrollY 固定表头 + 分页优化） ════════ */
     // 🌟 性能优化：将重量级的表格初始化推入下一个事件循环，让 Select2 优先完成重绘，彻底解除页面开启瞬间的 UI 卡死
-    fetch(dashboardApiBase + '/table', {{ cache: 'no-store' }})
-        .then(function(resp) {{ if (!resp.ok) throw new Error('HTTP ' + resp.status); return resp.text(); }})
-        .then(function(rows) {{ $('#modpackTable tbody').html(rows); }})
-        .catch(function(err) {{
-            $('#modpackTable tbody').html('<tr><td colspan="7" style="padding:2rem;text-align:center">看板数据加载失败。请直接运行转换器，它会自动打开看板。</td></tr>');
-        }})
-        .finally(function() {{ setTimeout(function() {{
+    setTimeout(function() {{
         /* ════════ 全文穿透搜索引擎：支持范围自定义的全局检索 ════════ */
         function normalizeSearchKeyword() {{
             var $filterInput = $('#modpackTable_filter input');
@@ -6545,8 +6538,8 @@ $(document).ready(function() {{
     }});
     /* ═══════ 整合包介绍预览 ═══════ */
     var descData = {desc_json};
-    // 评论数据不再内嵌进 HTML：按整合包 ID 在首次打开评论时再从本地 API 读取。
-    var commentData = {{}};
+    // 单文件离线版：评论数据随 HTML 保存，打开评论时才渲染卡片。
+    var commentData = {comment_json};
     var commentLoadJobs = {{}};
     var commentApiBase = {comment_api_base_json};
     var compareData = {compare_json};
@@ -8008,7 +8001,7 @@ $(document).ready(function() {{
             }}
         }}, 300);
     }});
-    }}, 10); }}); // 数据到位后再初始化表格
+    }}, 10); // 延迟初始化，避免打开文件时阻塞浏览器
 }});
 </script>
 </body>
@@ -8052,6 +8045,7 @@ def gen_pretty_html(data, theme_name="light", comment_api_base="/api"):
             comment_data[mid] = {"true_count": 0, "page_count": cmt_page_val, "comments": []}
     print("  -> 介绍数据: {} 条 | 评论数据: {} 条".format(len(desc_data), len(comment_data)))
     desc_json_str = json.dumps(desc_data, ensure_ascii=False)
+    comment_json_str = json.dumps(comment_data, ensure_ascii=False)
     compare_data = {}
     # 完整模组卡片数据只作为延迟渲染源存在：页面初始不把它们插进 DOM。
     mod_detail_data = {}
@@ -8162,9 +8156,10 @@ def gen_pretty_html(data, theme_name="light", comment_api_base="/api"):
     return PRETTY_TEMPLATE.format(
         title=title, cat_opts=cat_opts, pack_opts=pack_opts, type_opts=type_opts,
         trend_opts=trend_opts,
-        mod_cat_opts=mod_cat_opts, mod_opts=mod_opts, rows="",
+        mod_cat_opts=mod_cat_opts, mod_opts=mod_opts, rows=rows_html,
         total=total, total_views=total_views_str, total_comments=total_comments_str,
         desc_json=desc_json_str,
+        comment_json=comment_json_str,
         comment_api_base_json=json.dumps(comment_api_base, ensure_ascii=False),
         dashboard_api_base_json=json.dumps(comment_api_base, ensure_ascii=False),
         compare_json=compare_json_str,
@@ -8296,8 +8291,6 @@ def main():
                         help="本地长期趋势历史文件（默认: trend_history.jsonl）")
     parser.add_argument("-l", "--list", action="store_true",
                         help="列出所有可用主题")
-    parser.add_argument("--no-serve", action="store_true", help="仅生成，不启动看板")
-    parser.add_argument("--port", type=int, default=8765, help="看板端口（默认 8765）")
     args = parser.parse_args()
     if args.list:
         list_themes()
@@ -8374,8 +8367,6 @@ def main():
     for extra_html in extra_outputs:
         print("  -> {}".format(extra_html))
     print("=" * 55)
-    if not args.no_serve:
-        serve_dashboard("127.0.0.1", args.port, output_html)
 
 if __name__ == "__main__":
     main()
