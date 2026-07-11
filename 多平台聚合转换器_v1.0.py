@@ -67,6 +67,7 @@
 # v10.5.17: Flatten trend history into one file, simplify root folders, and
 #           reuse an already-running local dashboard port.
 # v10.5.18: Remove the remaining Python string-escape warning from generated JS.
+# v10.5.19: Escape whitespace regexp in the generated JavaScript template.
 import re
 import sys
 import os
@@ -79,7 +80,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.18"
+APP_VERSION = "v10.5.19"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 GENERATED_DASHBOARD_DIR = "generated_dashboard"
 OPEN_DASHBOARD_NAME = "点击打开.html"
@@ -6808,7 +6809,7 @@ $(document).ready(function() {{
         return {{ cover: cover, rest: rest }};
     }}
     function sectionKeyFromText(text) {{
-        var s = String(text || '').replace(/\s+/g, '');
+        var s = String(text || '').replace(/\\s+/g, '');
         if (!s) return '';
         if (s.indexOf('任务截图') >= 0 || s.indexOf('游戏截图') >= 0 || s.indexOf('截图') >= 0 || s.indexOf('图片') >= 0) return 'screenshots';
         if (s.indexOf('使用') >= 0) return 'usage';
