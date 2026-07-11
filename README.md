@@ -26,18 +26,17 @@
 | `看板本地服务.py` | 启动本地页面服务和按需评论 API |
 | `多平台爬虫数据_v1.0.jsonl` | 当前主数据快照 |
 | `trend_history/` | 本地长期趋势历史 |
-| `多平台聚合看板_V1.0.html` | 生成后的前端看板固定入口（不提交 GitHub） |
-| `多平台聚合看板_V1.0_data/comments/` | 每个整合包独立的评论数据；由看板在首次查看评论时请求（不提交 GitHub） |
+| `generated_dashboard/` | 所有生成看板、`data/` 与版本快照的唯一目录（不提交 GitHub） |
 | `LOCAL_FILE_MAP.md` | 本地文件分类说明 |
 | `AI_AGENT_GUIDE.md` | 给后续 AI 协作时看的规则 |
 
 ## 基本使用
 
 1. 运行爬虫，更新 `多平台爬虫数据_v1.0.jsonl` 和 `trend_history/`。
-2. 运行转换器，生成 `多平台聚合看板_V1.0.html` 和对应的按需评论数据目录。
+2. 运行转换器，生成 `generated_dashboard/index.html` 和对应的 `data/` 目录。
 3. 启动本地看板服务；它会自动打开浏览器。
 
-生成器会同时把带版本号的副本与对应评论数据放到 `ignored_local_files/归档/看板历史/`。这些均为本地生成物，不提交 GitHub。
+生成器会同时把带版本号的副本与对应数据放到 `generated_dashboard/archive/`。这些均为本地生成物，不提交 GitHub。
 
 不要再双击 HTML 直接打开：评论采用 API 按需加载，需要通过本地服务访问，换来更快的首次打开速度和可继续扩展的数据接口。
 
@@ -53,7 +52,7 @@ python "多平台聚合转换器_v1.0.py"
 python "看板本地服务.py"
 ```
 
-浏览器会打开 `http://127.0.0.1:8765/多平台聚合看板_V1.0.html`。保持命令窗口运行即可；关闭窗口或按 `Ctrl+C` 会停止服务。
+浏览器会打开 `http://127.0.0.1:8765/generated_dashboard/index.html`。保持命令窗口运行即可；关闭窗口或按 `Ctrl+C` 会停止服务。
 
 评论抓取可在启动时选择范围：
 

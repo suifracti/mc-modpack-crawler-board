@@ -60,6 +60,8 @@
 # v10.5.13: Default the dashboard to 25 rows per page.
 # v10.5.14: Split comments into per-pack API data, load on demand, add an
 #           in-popup comment search field, and shorten cover preview delay.
+# v10.5.15: Keep generated artifacts under one dashboard folder and serve table
+#           rows plus detail payloads through the local API.
 import re
 import sys
 import os
@@ -69,8 +71,9 @@ import urllib.parse
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.14"
+APP_VERSION = "v10.5.15"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
+GENERATED_DASHBOARD_DIR = "generated_dashboard"
 
 def default_output_file():
     return "{}_{}.html".format(DEFAULT_OUTPUT_STEM, APP_VERSION)
@@ -5904,6 +5907,7 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
 <script src="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <script>
 $(document).ready(function() {{
+    var dashboardApiBase = {dashboard_api_base_json};
     /* ════════ 主题切换 ════════ */
     var savedTheme = localStorage.getItem('mcmod-theme-v2') || '{default_theme}';
     function setTheme(theme) {{
@@ -5932,7 +5936,13 @@ $(document).ready(function() {{
     }});
     /* ════════ DataTables 初始化（scrollY 固定表头 + 分页优化） ════════ */
     // 🌟 性能优化：将重量级的表格初始化推入下一个事件循环，让 Select2 优先完成重绘，彻底解除页面开启瞬间的 UI 卡死
-    setTimeout(function() {{
+    fetch(dashboardApiBase + '/table', {{ cache: 'no-store' }})
+        .then(function(resp) {{ if (!resp.ok) throw new Error('HTTP ' + resp.status); return resp.text(); }})
+        .then(function(rows) {{ $('#modpackTable tbody').html(rows); }})
+        .catch(function(err) {{
+            $('#modpackTable tbody').html('<tr><td colspan="7" style="padding:2rem;text-align:center">看板数据加载失败，请确认通过“看板本地服务.py”打开。</td></tr>');
+        }})
+        .finally(function() {{ setTimeout(function() {{
         /* ════════ 全文穿透搜索引擎：支持范围自定义的全局检索 ════════ */
         function normalizeSearchKeyword() {{
             var $filterInput = $('#modpackTable_filter input');
@@ -7985,7 +7995,7 @@ $(document).ready(function() {{
             }}
         }}, 300);
     }});
-    }}, 10); // 结束延迟初始化
+    }}, 10); }}); // 数据到位后再初始化表格
 }});
 </script>
 </body>
@@ -8139,10 +8149,11 @@ def gen_pretty_html(data, theme_name="light", comment_api_base="/api"):
     return PRETTY_TEMPLATE.format(
         title=title, cat_opts=cat_opts, pack_opts=pack_opts, type_opts=type_opts,
         trend_opts=trend_opts,
-        mod_cat_opts=mod_cat_opts, mod_opts=mod_opts, rows=rows_html,
+        mod_cat_opts=mod_cat_opts, mod_opts=mod_opts, rows="",
         total=total, total_views=total_views_str, total_comments=total_comments_str,
         desc_json=desc_json_str,
         comment_api_base_json=json.dumps(comment_api_base, ensure_ascii=False),
+        dashboard_api_base_json=json.dumps(comment_api_base, ensure_ascii=False),
         compare_json=compare_json_str,
         mod_detail_json=mod_detail_json_str,
         theme_warm=THEMES["warm"]["root"],
@@ -8152,17 +8163,19 @@ def gen_pretty_html(data, theme_name="light", comment_api_base="/api"):
         theme_pink=THEMES["pink"]["root"],
         theme_anime=THEMES["anime"]["root"],
         default_theme=theme_name,
-    ), comment_data
+    ), comment_data, rows_html
+
+
+def dashboard_data_dir_for_html(html_path):
+    """All generated data for one dashboard stays in its sibling data folder."""
+    return os.path.join(os.path.dirname(os.path.abspath(html_path)), "data")
 
 
 def comment_data_dir_for_html(html_path):
-    """Return the sidecar directory stored next to one generated dashboard."""
-    html_path = os.path.abspath(html_path)
-    stem = os.path.splitext(os.path.basename(html_path))[0]
-    return os.path.join(os.path.dirname(html_path), stem + "_data", "comments")
+    return os.path.join(dashboard_data_dir_for_html(html_path), "comments")
 
 
-def write_comment_sidecars(comment_data, html_path):
+def write_dashboard_sidecars(comment_data, rows_html, html_path):
     """Write one small comment payload per pack so the browser can request it on demand."""
     comment_dir = comment_data_dir_for_html(html_path)
     os.makedirs(comment_dir, exist_ok=True)
@@ -8172,6 +8185,8 @@ def write_comment_sidecars(comment_data, html_path):
             continue
         with open(os.path.join(comment_dir, safe_mid + ".json"), "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+    with open(os.path.join(dashboard_data_dir_for_html(html_path), "table_rows.html"), "w", encoding="utf-8") as f:
+        f.write(rows_html)
     return comment_dir, len(comment_data)
 
 # ═══════════════════════ 主程序 ═══════════════════════
@@ -8187,8 +8202,8 @@ def main():
     parser = argparse.ArgumentParser(description="整合包 JSON 转 HTML 生成器（多主题版）")
     parser.add_argument("-i", "--input", default=None,
                         help="输入 JSONL 文件（默认: 多平台爬虫数据_v1.0.jsonl）")
-    parser.add_argument("-o", "--output", default=DEFAULT_OUTPUT_STEM + ".html",
-                        help="输出 HTML 文件（默认固定入口；版本副本自动归档到 ignored_local_files）")
+    parser.add_argument("-o", "--output", default=os.path.join(GENERATED_DASHBOARD_DIR, "index.html"),
+                        help="输出 HTML 文件（默认 generated_dashboard/index.html；版本副本自动归档）")
     parser.add_argument("-t", "--theme", default="light",
                         choices=list(THEMES.keys()),
                         help="选择配色主题（默认: light）")
@@ -8243,11 +8258,10 @@ def main():
         data[0]["tc_d"], data[0]["t7_d"], data[0]["t30_d"], data[0]["t60_d"]))
     print("\n[3/3] 生成 [{}] -> {}".format(theme["name"], output_html))
     # 只生成一次完整页面；不同输出副本只替换各自的评论 API 地址。
-    html_template, comment_data = gen_pretty_html(data, args.theme, "__COMMENT_API_BASE__")
+    html_template, comment_data, rows_html = gen_pretty_html(data, args.theme, "__COMMENT_API_BASE__")
     output_dir = os.path.dirname(output_html) or "."
-    stable_html = os.path.join(output_dir, DEFAULT_OUTPUT_STEM + ".html")
-    # 固定入口留在项目根目录；版本副本放本地归档，避免根目录与 Git 堆积大 HTML。
-    archive_dir = os.path.join(output_dir, "ignored_local_files", "归档", "看板历史")
+    stable_html = os.path.join(output_dir, "index.html")
+    archive_dir = os.path.join(output_dir, "archive", APP_VERSION)
     os.makedirs(archive_dir, exist_ok=True)
     versioned_html = os.path.join(archive_dir, default_output_file())
     output_targets = []
@@ -8260,12 +8274,12 @@ def main():
     for target_html in output_targets:
         comment_dir = comment_data_dir_for_html(target_html)
         # 保留相对目录（版本归档也能通过同一个本地服务读到对应快照）。
-        api_dataset_path = os.path.relpath(os.path.dirname(comment_dir), output_dir).replace(os.sep, "/")
+        api_dataset_path = os.path.relpath(os.path.dirname(comment_dir), ".").replace(os.sep, "/")
         api_dataset = urllib.parse.quote(api_dataset_path, safe="")
         html_out = html_template.replace('"__COMMENT_API_BASE__"', '"/api/data/{}"'.format(api_dataset))
         with open(target_html, "w", encoding="utf-8") as f:
             f.write(html_out)
-        written_dir, written_count = write_comment_sidecars(comment_data, target_html)
+        written_dir, written_count = write_dashboard_sidecars(comment_data, rows_html, target_html)
         sidecar_notes.append((written_dir, written_count))
     print("  [OK] 看板完成（{:,} 字节，不含按需评论数据）".format(len(html_out)))
     print("  [OK] 评论已拆分：{} 个整合包 payload，首次打开评论时才由 API 读取".format(len(comment_data)))
