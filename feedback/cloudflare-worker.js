@@ -12,6 +12,7 @@ export default {
     if (!data.content || String(data.content).trim().length > 4000) return Response.json({ ok: false, error: "invalid_content" }, { status: 400, headers: cors });
     await env.FEEDBACK_RATE_LIMIT.put(key, String(count + 1), { expirationTtl: 86400 });
     const upstream = await fetch(env.GOOGLE_APPS_SCRIPT_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...data, secret: env.FEEDBACK_SHARED_SECRET, ip }) });
-    return Response.json({ ok: upstream.ok }, { status: upstream.ok ? 200 : 502, headers: cors });
+    const result = await upstream.json().catch(() => ({ ok: false }));
+    return Response.json({ ok: !!result.ok }, { status: upstream.ok && result.ok ? 200 : 502, headers: cors });
   }
 };
