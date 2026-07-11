@@ -69,6 +69,7 @@
 # v10.5.18: Remove the remaining Python string-escape warning from generated JS.
 # v10.5.19: Escape whitespace regexp in the generated JavaScript template.
 # v10.5.20: Escape the remaining JavaScript regexp templates for clean startup.
+# v10.5.21: Finish escaping ordered-list regexp literals in the HTML template.
 import re
 import sys
 import os
@@ -81,7 +82,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.20"
+APP_VERSION = "v10.5.21"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 GENERATED_DASHBOARD_DIR = "generated_dashboard"
 OPEN_DASHBOARD_NAME = "点击打开.html"
@@ -7001,9 +7002,9 @@ $(document).ready(function() {{
             }}
             var isList = false;
             var listContent = line;
-            if (firstChar === '-' || firstChar === '*' || firstChar === '•' || /^\d+\.\\s/.test(line)) {{
+            if (firstChar === '-' || firstChar === '*' || firstChar === '•' || /^\\d+\\.\\s/.test(line)) {{
                 isList = true;
-                listContent = line.replace(/^[-*•\\s]+|^\d+\.\\s+/, '');
+                listContent = line.replace(/^[-*•\\s]+|^\\d+\\.\\s+/, '');
             }} else {{
                 var colonMatch = line.match(/^([^，。！、；：:]{{2,15}})[：:]/);
                 if (colonMatch) {{
