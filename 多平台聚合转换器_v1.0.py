@@ -62,18 +62,24 @@
 #           in-popup comment search field, and shorten cover preview delay.
 # v10.5.15: Keep generated artifacts under one dashboard folder and serve table
 #           rows plus detail payloads through the local API.
+# v10.5.16: Fold the local API server into this converter; one command now
+#           generates, opens, and serves the dashboard.
 import re
 import sys
 import os
 import json
 import html as _html
 import urllib.parse
+import webbrowser
+from http import HTTPStatus
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.15"
+APP_VERSION = "v10.5.16"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 GENERATED_DASHBOARD_DIR = "generated_dashboard"
+OPEN_DASHBOARD_NAME = "打开这个看板.html"
 
 def default_output_file():
     return "{}_{}.html".format(DEFAULT_OUTPUT_STEM, APP_VERSION)
@@ -5940,7 +5946,7 @@ $(document).ready(function() {{
         .then(function(resp) {{ if (!resp.ok) throw new Error('HTTP ' + resp.status); return resp.text(); }})
         .then(function(rows) {{ $('#modpackTable tbody').html(rows); }})
         .catch(function(err) {{
-            $('#modpackTable tbody').html('<tr><td colspan="7" style="padding:2rem;text-align:center">看板数据加载失败，请确认通过“看板本地服务.py”打开。</td></tr>');
+            $('#modpackTable tbody').html('<tr><td colspan="7" style="padding:2rem;text-align:center">看板数据加载失败。请直接运行转换器，它会自动打开看板。</td></tr>');
         }})
         .finally(function() {{ setTimeout(function() {{
         /* ════════ 全文穿透搜索引擎：支持范围自定义的全局检索 ════════ */
@@ -8197,13 +8203,70 @@ def list_themes():
     for key, t in THEMES.items():
         print("  {:<10}  {}  -  {}".format(key, t["name"], t["desc"]))
 
+
+class DashboardHandler(SimpleHTTPRequestHandler):
+    """The converter's built-in local API for generated table/comment data."""
+    def __init__(self, *args, directory=None, **kwargs):
+        super().__init__(*args, directory=directory, **kwargs)
+
+    def do_GET(self):
+        path = urllib.parse.urlparse(self.path).path
+        if path == "/api/health":
+            return self._send_json({"ok": True, "version": APP_VERSION})
+        match = re.fullmatch(r"/api/data/([^/]+)/(table|comments/(\d+))", path)
+        if not match:
+            return super().do_GET()
+        dataset, resource, mid = urllib.parse.unquote(match.group(1)), match.group(2), match.group(3)
+        parts = dataset.replace("\\", "/").split("/")
+        if (not parts or parts[-1] != "data" or any(x in ("", ".", "..") for x in parts) or
+                (mid is not None and not mid.isdigit())):
+            return self.send_error(HTTPStatus.BAD_REQUEST, "非法数据请求")
+        target = os.path.join(self.directory, dataset, "table_rows.html" if resource == "table" else os.path.join("comments", mid + ".json"))
+        if os.path.commonpath([os.path.abspath(self.directory), os.path.abspath(target)]) != os.path.abspath(self.directory):
+            return self.send_error(HTTPStatus.FORBIDDEN, "非法数据路径")
+        if not os.path.isfile(target):
+            return self.send_error(HTTPStatus.NOT_FOUND, "未找到看板数据")
+        with open(target, "rb") as f:
+            body = f.read()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/html; charset=utf-8" if resource == "table" else "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_json(self, payload):
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+def serve_dashboard(host, port, html_path, open_browser=True):
+    root = os.path.dirname(os.path.abspath(__file__))
+    handler = lambda *a, **kw: DashboardHandler(*a, directory=root, **kw)
+    server = ThreadingHTTPServer((host, port), handler)
+    relative_url = urllib.parse.quote(os.path.relpath(html_path, root).replace(os.sep, "/"))
+    url = "http://{}:{}/{}".format(host, port, relative_url)
+    print("\n看板已打开：\n  {}\n\n保持此窗口运行；按 Ctrl+C 关闭看板。".format(url))
+    if open_browser:
+        webbrowser.open(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n看板已关闭。")
+    finally:
+        server.server_close()
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="整合包 JSON 转 HTML 生成器（多主题版）")
     parser.add_argument("-i", "--input", default=None,
                         help="输入 JSONL 文件（默认: 多平台爬虫数据_v1.0.jsonl）")
-    parser.add_argument("-o", "--output", default=os.path.join(GENERATED_DASHBOARD_DIR, "index.html"),
-                        help="输出 HTML 文件（默认 generated_dashboard/index.html；版本副本自动归档）")
+    parser.add_argument("-o", "--output", default=os.path.join(GENERATED_DASHBOARD_DIR, OPEN_DASHBOARD_NAME),
+                        help="输出 HTML 文件（默认 generated_dashboard/打开这个看板.html）")
     parser.add_argument("-t", "--theme", default="light",
                         choices=list(THEMES.keys()),
                         help="选择配色主题（默认: light）")
@@ -8211,6 +8274,8 @@ def main():
                         help="本地长期趋势历史目录（默认: trend_history；不存在则自动跳过）")
     parser.add_argument("-l", "--list", action="store_true",
                         help="列出所有可用主题")
+    parser.add_argument("--no-serve", action="store_true", help="仅生成，不启动看板")
+    parser.add_argument("--port", type=int, default=8765, help="看板端口（默认 8765）")
     args = parser.parse_args()
     if args.list:
         list_themes()
@@ -8260,7 +8325,7 @@ def main():
     # 只生成一次完整页面；不同输出副本只替换各自的评论 API 地址。
     html_template, comment_data, rows_html = gen_pretty_html(data, args.theme, "__COMMENT_API_BASE__")
     output_dir = os.path.dirname(output_html) or "."
-    stable_html = os.path.join(output_dir, "index.html")
+    stable_html = os.path.join(output_dir, OPEN_DASHBOARD_NAME)
     archive_dir = os.path.join(output_dir, "archive", APP_VERSION)
     os.makedirs(archive_dir, exist_ok=True)
     versioned_html = os.path.join(archive_dir, default_output_file())
@@ -8289,6 +8354,8 @@ def main():
     for extra_html in extra_outputs:
         print("  -> {}".format(extra_html))
     print("=" * 55)
+    if not args.no_serve:
+        serve_dashboard("127.0.0.1", args.port, output_html)
 
 if __name__ == "__main__":
     main()

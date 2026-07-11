@@ -23,7 +23,6 @@
 | --- | --- |
 | `多平台聚合爬虫_v1.0.py` | 抓取 MCMod 整合包、评论、趋势、包含模组等数据 |
 | `多平台聚合转换器_v1.0.py` | 把 JSONL 和趋势历史转换成本地 HTML 看板 |
-| `看板本地服务.py` | 启动本地页面服务和按需评论 API |
 | `多平台爬虫数据_v1.0.jsonl` | 当前主数据快照 |
 | `trend_history/` | 本地长期趋势历史 |
 | `generated_dashboard/` | 所有生成看板、`data/` 与版本快照的唯一目录（不提交 GitHub） |
@@ -33,8 +32,7 @@
 ## 基本使用
 
 1. 运行爬虫，更新 `多平台爬虫数据_v1.0.jsonl` 和 `trend_history/`。
-2. 运行转换器，生成 `generated_dashboard/index.html` 和对应的 `data/` 目录。
-3. 启动本地看板服务；它会自动打开浏览器。
+2. 运行转换器；它会生成 `generated_dashboard/打开这个看板.html`、对应的 `data/` 目录，并自动打开浏览器。
 
 生成器会同时把带版本号的副本与对应数据放到 `generated_dashboard/archive/`。这些均为本地生成物，不提交 GitHub。
 
@@ -46,13 +44,7 @@
 python "多平台聚合转换器_v1.0.py"
 ```
 
-启动看板：
-
-```powershell
-python "看板本地服务.py"
-```
-
-浏览器会打开 `http://127.0.0.1:8765/generated_dashboard/index.html`。保持命令窗口运行即可；关闭窗口或按 `Ctrl+C` 会停止服务。
+运行转换器后保持命令窗口运行即可；关闭窗口或按 `Ctrl+C` 会关闭看板。若只想生成文件、不打开看板，可加 `--no-serve`。
 
 评论抓取可在启动时选择范围：
 
