@@ -82,7 +82,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.6.3"
+APP_VERSION = "v10.6.4"
 # 部署 Cloudflare Worker 后，将公开 Worker 地址填在这里；留空时反馈按钮会说明未配置。
 FEEDBACK_URL = ""
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
@@ -5906,7 +5906,7 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
         <span class="comment-page-btn" id="cmtLast" title="最后一页">»</span>
     </div>
     <div class="comment-tip">
-        📋 评论整理与检索辅助 · 按 Esc、点窗外或点评论格可关闭 · 完整上下文与最新内容请访问 <a href="https://www.mcmod.cn/" target="_blank" id="commentModpackLink">MC百科 mcmod.cn</a>
+        ⚠️ 当前仍在补抓评论，评论不完整属于正常情况 · 按 Esc、点窗外或点评论格可关闭 · 完整内容请访问 <a href="https://www.mcmod.cn/" target="_blank" id="commentModpackLink">MC百科 mcmod.cn</a>
     </div>
     <div class="mcmod-consent">
         <div class="mcmod-consent-panel">
@@ -6553,8 +6553,8 @@ $(document).ready(function() {{
     /* ═══════ 整合包介绍预览 ═══════ */
     var descData = {desc_json};
     var feedbackUrl = {feedback_url_json};
-    // 单文件离线版：评论数据随 HTML 保存，打开评论时才渲染卡片。
-    var commentData = {comment_json};
+    // 评论详情拆为同目录按需脚本，避免 Windows 首次打开时解析全部评论。
+    var commentData = {{}};
     var commentLoadJobs = {{}};
     var commentApiBase = {comment_api_base_json};
     var compareData = {compare_json};
@@ -7066,7 +7066,6 @@ $(document).ready(function() {{
             var c = comments[i];
             var isActiveMatch = (cmtSearchMatchPointer >= 0 && i === cmtSearchMatches[cmtSearchMatchPointer]);
             html += '<div class="comment-floor' + (isActiveMatch ? ' matched-active' : '') + '" data-comment-index="' + i + '">';
-            var cUrl = getSingleCommentUrl(c);
             html += '<div class="comment-floor-head">';
             html += '<div class="comment-floor-main">';
             if (c.floor) {{
@@ -7074,20 +7073,13 @@ $(document).ready(function() {{
             }}
             var originMeta = commentOriginMeta(c, i);
             html += highlightText(c.author || '', keyword) + (originMeta ? '<span class="comment-origin-meta">' + originMeta + '</span>' : '') + '</div>';
-            if (cUrl) {{
-                html += '<a class="comment-floor-link" href="' + escAttrJs(cUrl) + '" target="_blank" title="在 MC百科原页面定位这条评论">↗</a>';
-            }}
             html += '</div>';
             html += '<div class="comment-floor-text">' + highlightText(c.text || '', keyword) + renderInlineEmotions(c.images || []) + '</div>';
             html += renderImageGallery(c.images || [], 'comment-image-gallery');
             if (c.replies && c.replies.length > 0) {{
                 c.replies.forEach(function(r) {{
-                    var rUrl = getSingleCommentUrl(r);
                     html += '<div class="comment-reply">';
                     html += '<div class="comment-reply-head"><span>' + highlightText(r.author || '', keyword) + '</span>';
-                    if (rUrl) {{
-                        html += '<a class="comment-reply-link" href="' + escAttrJs(rUrl) + '" target="_blank" title="在 MC百科原页面定位这条回复">↗</a>';
-                    }}
                     html += '</div>';
                     html += '<div class="comment-reply-text">' + highlightText(r.text || '', keyword) + renderInlineEmotions(r.images || []) + '</div>';
                     html += renderImageGallery(r.images || [], 'comment-image-gallery');
@@ -7296,23 +7288,17 @@ $(document).ready(function() {{
         checkCommentOverflow();
     }}
     $('#commentSearchInput').on('input', function() {{ applyCommentSearch(); }});
+    window.__registerCommentData = function(mid, payload) {{ commentData[String(mid)] = payload || {{ comments: [] }}; }};
     function loadCommentData(mid) {{
         if (commentData[mid]) return Promise.resolve(commentData[mid]);
         if (commentLoadJobs[mid]) return commentLoadJobs[mid];
-        commentLoadJobs[mid] = fetch(commentApiBase + '/comments/' + encodeURIComponent(mid), {{ cache: 'no-store' }})
-            .then(function(resp) {{
-                if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                return resp.json();
-            }})
-            .then(function(payload) {{
-                commentData[mid] = payload || {{ comments: [] }};
-                return commentData[mid];
-            }})
-            .catch(function(err) {{
-                console.warn('评论数据加载失败:', err);
-                return null;
-            }})
-            .finally(function() {{ delete commentLoadJobs[mid]; }});
+        commentLoadJobs[mid] = new Promise(function(resolve) {{
+            var script = document.createElement('script');
+            script.src = 'data/comments/' + encodeURIComponent(mid) + '.js';
+            script.onload = function() {{ resolve(commentData[mid] || null); script.remove(); }};
+            script.onerror = function() {{ console.warn('评论数据加载失败:', mid); resolve(null); script.remove(); }};
+            document.head.appendChild(script);
+        }}).finally(function() {{ delete commentLoadJobs[mid]; }});
         return commentLoadJobs[mid];
     }}
     function showCommentPopup($cell) {{
@@ -7972,6 +7958,14 @@ $(document).ready(function() {{
         $('body').css({{ 'overflow': '', 'height': '' }});
     }});
     function closeFeedback() {{ $('#feedbackModal').removeClass('show'); }}
+    var feedbackDraftKey = 'mcmod-feedback-draft-v1';
+    try {{
+        var draft = JSON.parse(localStorage.getItem(feedbackDraftKey) || '{{}}');
+        $('#feedbackType').val(draft.type || '功能建议'); $('#feedbackContent').val(draft.content || ''); $('#feedbackContact').val(draft.contact || '');
+    }} catch(e) {{}}
+    $('#feedbackType, #feedbackContent, #feedbackContact').on('input change', function() {{
+        localStorage.setItem(feedbackDraftKey, JSON.stringify({{ type: $('#feedbackType').val(), content: $('#feedbackContent').val(), contact: $('#feedbackContact').val() }}));
+    }});
     $('#feedbackOpen').on('click', function() {{
         $('#feedbackStatus').text('');
         $('#feedbackModal').addClass('show');
@@ -7986,7 +7980,7 @@ $(document).ready(function() {{
         fetch(feedbackUrl, {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{
             tool: '多平台聚合看板', version: '{app_version}', type: $('#feedbackType').val(), content: content, contact: $('#feedbackContact').val().trim()
         }}) }}).then(function(r) {{ return r.ok ? r.json().catch(function() {{ return {{ ok:true }}; }}) : Promise.reject(new Error('HTTP ' + r.status)); }}).then(function() {{
-            $('#feedbackStatus').text('已提交，感谢你的反馈！'); $('#feedbackContent, #feedbackContact').val('');
+            $('#feedbackStatus').text('已提交，感谢你的反馈！'); $('#feedbackContent, #feedbackContact').val(''); localStorage.removeItem(feedbackDraftKey);
         }}).catch(function() {{ $('#feedbackStatus').text('提交失败，请稍后重试。'); }}).finally(function() {{ $btn.prop('disabled', false).text('提交'); }});
     }});
     $('#commentClose').on('click', function(e) {{
@@ -8229,17 +8223,17 @@ def comment_data_dir_for_html(html_path):
 
 
 def write_dashboard_sidecars(comment_data, rows_html, html_path):
-    """Write one small comment payload per pack so the browser can request it on demand."""
+    """Write one local script payload per pack; file:// pages can lazy-load scripts without CORS."""
     comment_dir = comment_data_dir_for_html(html_path)
     os.makedirs(comment_dir, exist_ok=True)
     for mid, payload in comment_data.items():
         safe_mid = str(mid)
         if not safe_mid.isdigit():
             continue
-        with open(os.path.join(comment_dir, safe_mid + ".json"), "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
-    with open(os.path.join(dashboard_data_dir_for_html(html_path), "table_rows.html"), "w", encoding="utf-8") as f:
-        f.write(rows_html)
+        body = "window.__registerCommentData({},{});".format(
+            json.dumps(safe_mid), json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+        with open(os.path.join(comment_dir, safe_mid + ".js"), "w", encoding="utf-8") as f:
+            f.write(body)
     return comment_dir, len(comment_data)
 
 # ═══════════════════════ 主程序 ═══════════════════════
@@ -8397,7 +8391,8 @@ def main():
         html_out = html_template
         with open(target_html, "w", encoding="utf-8") as f:
             f.write(html_out)
-    print("  [OK] 单文件看板完成（{:,} 字节）".format(len(html_out)))
+        write_dashboard_sidecars(comment_data, rows_html, target_html)
+    print("  [OK] 主页面完成（{:,} 字节；评论按需加载）".format(len(html_out)))
     print("\n" + "=" * 55)
     print("  生成完毕！[{}] {}".format(theme["name"], theme["desc"]))
     print("  -> {}".format(output_html))

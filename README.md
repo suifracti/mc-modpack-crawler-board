@@ -25,7 +25,7 @@
 | `多平台聚合转换器_v1.0.py` | 把 JSONL 和趋势历史转换成本地 HTML 看板 |
 | `多平台爬虫数据_v1.0.jsonl` | 当前主数据快照 |
 | `trend_history.jsonl` | 本地长期趋势历史（单一文件） |
-| `converted_output/` | 当前唯一转换结果：`点击打开.html`（不提交 GitHub） |
+| `converted_output/` | 当前转换结果：`点击打开.html` 与按需评论 `data/`（不提交 GitHub） |
 | `LOCAL_FILE_MAP.md` | 本地文件分类说明 |
 | `AI_AGENT_GUIDE.md` | 给后续 AI 协作时看的规则 |
 
@@ -33,7 +33,7 @@
 
 1. 运行爬虫，更新 `多平台爬虫数据_v1.0.jsonl` 和 `trend_history.jsonl`。
 2. 运行转换器；它会生成 `converted_output/点击打开.html`。
-3. 直接双击 `点击打开.html` 即可使用，无需 Python 服务。
+3. 直接双击 `点击打开.html` 即可使用，无需 Python 服务；分享时必须把整个 `converted_output` 文件夹一起发送。
 
 生成结果只保留当前一份；代码版本归档由 Git 提交历史负责。
 
@@ -66,7 +66,8 @@ python "多平台聚合转换器_v1.0.py" -o "ignored_local_files\tmp_check.html
 ## 注意
 
 - `ignored_local_files/browser_data/` 保存浏览器登录状态和 Cookie，不要提交到 Git。
-- 看板是单文件离线版：直接双击即可打开；评论与模组详情只在用户打开对应区域时渲染，避免一次性创建大量页面卡片。
+- 主页面可直接双击离线打开；评论数据放在同目录 `data/comments/`，仅在点击或悬浮评论时读取，解决 Windows 首次打开过慢。评论仍在补抓，显示不完整属于正常情况。
+- 反馈表单草稿会自动保存在浏览器本地，刷新或误关页面后仍可恢复；提交成功后自动清除。
 - 反馈入口：右下角有“意见反馈”。部署说明和 Cloudflare Worker / Google Apps Script 模板在 `feedback/`；部署后把 Worker 地址填入转换器顶部的 `FEEDBACK_URL`。
 - 当前评论逐条跳转依赖 MCMod 页面是否提供稳定锚点；如果站点没有给出单条评论链接，看板会只保留原页面入口。
 - 数据仅用于个人整理与学习交流，排序和评分不代表作品质量结论。
