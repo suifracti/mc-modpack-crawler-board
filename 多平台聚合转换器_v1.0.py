@@ -66,6 +66,7 @@
 #           generates, opens, and serves the dashboard.
 # v10.5.17: Flatten trend history into one file, simplify root folders, and
 #           reuse an already-running local dashboard port.
+# v10.5.18: Remove the remaining Python string-escape warning from generated JS.
 import re
 import sys
 import os
@@ -78,7 +79,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.17"
+APP_VERSION = "v10.5.18"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 GENERATED_DASHBOARD_DIR = "generated_dashboard"
 OPEN_DASHBOARD_NAME = "点击打开.html"
@@ -6603,7 +6604,7 @@ $(document).ready(function() {{
     function numFmt(n) {{
         n = Number(n || 0);
   if (n >= 100000000) return (n / 100000000).toFixed(1).replace(/\\.0$/, '') + '亿';
-        if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + '万';
+        if (n >= 10000) return (n / 10000).toFixed(1).replace(/\\.0$/, '') + '万';
         return String(n);
     }}
     function listNames(arr, limit) {{
