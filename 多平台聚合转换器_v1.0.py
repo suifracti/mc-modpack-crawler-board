@@ -82,7 +82,9 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.6.1"
+APP_VERSION = "v10.6.2"
+# 部署 Cloudflare Worker 后，将公开 Worker 地址填在这里；留空时反馈按钮会说明未配置。
+FEEDBACK_URL = ""
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 GENERATED_DASHBOARD_DIR = "converted_output"
 OPEN_DASHBOARD_NAME = "点击打开.html"
@@ -5640,6 +5642,18 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
             color: var(--text-muted);
             opacity: .55;
         }}
+        .feedback-fab {{ position: fixed; right: 24px; bottom: 24px; z-index: 99990; border: 0; border-radius: 999px; padding: 12px 17px; background: var(--primary); color: #fff; font-weight: 800; box-shadow: 0 10px 28px rgba(var(--shadow-rgb), .28); cursor: pointer; }}
+        .feedback-modal {{ position: fixed; inset: 0; z-index: 100000; display: none; align-items: center; justify-content: center; background: rgba(16,37,51,.42); padding: 18px; }}
+        .feedback-modal.show {{ display: flex; }}
+        .feedback-panel {{ width: min(480px, 100%); padding: 22px; border-radius: 18px; background: var(--glass-bg-solid); border: 1px solid var(--glass-border); box-shadow: 0 24px 70px rgba(var(--shadow-rgb), .32); }}
+        .feedback-panel h3 {{ margin: 0 0 14px; }}
+        .feedback-panel label {{ display:block; margin: 12px 0 5px; font-weight: 700; }}
+        .feedback-panel select, .feedback-panel textarea, .feedback-panel input {{ width:100%; box-sizing:border-box; border:1px solid var(--glass-border); border-radius:9px; padding:9px 10px; background:rgba(255,255,255,.78); color:#183041; font:inherit; }}
+        .feedback-panel textarea {{ min-height:120px; resize:vertical; }}
+        .feedback-actions {{ display:flex; justify-content:flex-end; gap:8px; margin-top:15px; }}
+        .feedback-actions button {{ border:0; border-radius:9px; padding:9px 14px; cursor:pointer; font-weight:700; }}
+        #feedbackSubmit {{ background:var(--primary); color:#fff; }}
+        #feedbackStatus {{ min-height:18px; margin-top:10px; font-size:.82rem; color:var(--text-secondary); }}
     </style>
 </head>
 <body>
@@ -6538,6 +6552,7 @@ $(document).ready(function() {{
     }});
     /* ═══════ 整合包介绍预览 ═══════ */
     var descData = {desc_json};
+    var feedbackUrl = {feedback_url_json};
     // 单文件离线版：评论数据随 HTML 保存，打开评论时才渲染卡片。
     var commentData = {comment_json};
     var commentLoadJobs = {{}};
@@ -7956,6 +7971,24 @@ $(document).ready(function() {{
         hideDescPopup();
         $('body').css({{ 'overflow': '', 'height': '' }});
     }});
+    function closeFeedback() {{ $('#feedbackModal').removeClass('show'); }}
+    $('#feedbackOpen').on('click', function() {{
+        $('#feedbackStatus').text('');
+        $('#feedbackModal').addClass('show');
+    }});
+    $('#feedbackCancel, #feedbackModal').on('click', function(e) {{ if (e.target === this) closeFeedback(); }});
+    $('#feedbackSubmit').on('click', function() {{
+        var content = $('#feedbackContent').val().trim();
+        if (!content) {{ $('#feedbackStatus').text('请先填写反馈内容。'); return; }}
+        if (!feedbackUrl) {{ $('#feedbackStatus').text('作者尚未配置反馈接收地址。'); return; }}
+        var $btn = $(this).prop('disabled', true).text('提交中…');
+        $('#feedbackStatus').text('');
+        fetch(feedbackUrl, {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{
+            tool: '多平台聚合看板', version: '{app_version}', type: $('#feedbackType').val(), content: content, contact: $('#feedbackContact').val().trim()
+        }}) }}).then(function(r) {{ return r.ok ? r.json().catch(function() {{ return {{ ok:true }}; }}) : Promise.reject(new Error('HTTP ' + r.status)); }}).then(function() {{
+            $('#feedbackStatus').text('已提交，感谢你的反馈！'); $('#feedbackContent, #feedbackContact').val('');
+        }}).catch(function() {{ $('#feedbackStatus').text('提交失败，请稍后重试。'); }}).finally(function() {{ $btn.prop('disabled', false).text('提交'); }});
+    }});
     $('#commentClose').on('click', function(e) {{
         e.preventDefault();
         e.stopPropagation();
@@ -8004,6 +8037,16 @@ $(document).ready(function() {{
     }}, 10); // 延迟初始化，避免打开文件时阻塞浏览器
 }});
 </script>
+<button id="feedbackOpen" class="feedback-fab" type="button">💬 意见反馈</button>
+<div id="feedbackModal" class="feedback-modal" role="dialog" aria-modal="true" aria-label="意见反馈">
+  <div class="feedback-panel">
+    <h3>意见反馈</h3>
+    <label for="feedbackType">反馈类型</label><select id="feedbackType"><option>功能建议</option><option>问题反馈</option><option>数据纠错</option><option>其他</option></select>
+    <label for="feedbackContent">反馈内容</label><textarea id="feedbackContent" placeholder="请尽量说明使用场景或复现步骤"></textarea>
+    <label for="feedbackContact">联系方式（可选）</label><input id="feedbackContact" placeholder="邮箱、QQ 或其他联系方式">
+    <div id="feedbackStatus"></div><div class="feedback-actions"><button id="feedbackCancel" type="button">取消</button><button id="feedbackSubmit" type="button">提交</button></div>
+  </div>
+</div>
 </body>
 </html>'''
 
@@ -8160,6 +8203,8 @@ def gen_pretty_html(data, theme_name="light", comment_api_base="/api"):
         total=total, total_views=total_views_str, total_comments=total_comments_str,
         desc_json=desc_json_str,
         comment_json=comment_json_str,
+        feedback_url_json=json.dumps(FEEDBACK_URL, ensure_ascii=False),
+        app_version=APP_VERSION,
         comment_api_base_json=json.dumps(comment_api_base, ensure_ascii=False),
         dashboard_api_base_json=json.dumps(comment_api_base, ensure_ascii=False),
         compare_json=compare_json_str,

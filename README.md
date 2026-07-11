@@ -67,5 +67,6 @@ python "多平台聚合转换器_v1.0.py" -o "ignored_local_files\tmp_check.html
 
 - `ignored_local_files/browser_data/` 保存浏览器登录状态和 Cookie，不要提交到 Git。
 - 看板是单文件离线版：直接双击即可打开；评论与模组详情只在用户打开对应区域时渲染，避免一次性创建大量页面卡片。
+- 反馈入口：右下角有“意见反馈”。部署说明和 Cloudflare Worker / Google Apps Script 模板在 `feedback/`；部署后把 Worker 地址填入转换器顶部的 `FEEDBACK_URL`。
 - 当前评论逐条跳转依赖 MCMod 页面是否提供稳定锚点；如果站点没有给出单条评论链接，看板会只保留原页面入口。
 - 数据仅用于个人整理与学习交流，排序和评分不代表作品质量结论。
