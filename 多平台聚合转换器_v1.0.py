@@ -82,7 +82,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.23"
+APP_VERSION = "v10.5.24"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 GENERATED_DASHBOARD_DIR = "converted_output"
 OPEN_DASHBOARD_NAME = "点击打开.html"
@@ -8256,15 +8256,22 @@ def serve_dashboard(host, port, html_path, open_browser=True):
     handler = lambda *a, **kw: DashboardHandler(*a, directory=root, **kw)
     relative_url = urllib.parse.quote(os.path.relpath(html_path, root).replace(os.sep, "/"))
     url = "http://{}:{}/{}".format(host, port, relative_url)
-    try:
-        server = ThreadingHTTPServer((host, port), handler)
-    except OSError as exc:
-        if getattr(exc, "errno", None) == 48:
-            print("\n检测到看板已经在运行，直接打开：\n  {}".format(url))
-            if open_browser:
-                webbrowser.open(url)
-            return
-        raise
+    # 旧版本可能仍占着默认端口；绝不复用它，自动找一个当前版本可用的端口。
+    server = None
+    actual_port = port
+    for candidate in range(port, port + 20):
+        try:
+            server = ThreadingHTTPServer((host, candidate), handler)
+            actual_port = candidate
+            break
+        except OSError as exc:
+            if getattr(exc, "errno", None) != 48:
+                raise
+    if server is None:
+        raise OSError("端口 {} 到 {} 均被占用，请关闭旧转换器后重试。".format(port, port + 19))
+    url = "http://{}:{}/{}".format(host, actual_port, relative_url)
+    if actual_port != port:
+        print("\n默认端口 {} 正被旧版本占用，已改用端口 {}。".format(port, actual_port))
     print("\n看板已打开：\n  {}\n\n保持此窗口运行；按 Ctrl+C 关闭看板。".format(url))
     if open_browser:
         webbrowser.open(url)
