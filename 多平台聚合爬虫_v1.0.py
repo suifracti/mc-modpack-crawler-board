@@ -729,7 +729,7 @@ def pack_to_row(pack):
     row.update(trend)
     return row
 
-def append_trend_history_snapshot(platform, raw_data, normalized_data, history_dir='trend_history'):
+def append_trend_history_snapshot(platform, raw_data, normalized_data, history_file='trend_history.jsonl'):
     """成功抓到详情后，把当天关键趋势快照追加到本地历史库。"""
     if platform != 'mcmod' or not isinstance(raw_data, dict) or not isinstance(normalized_data, dict):
         return
@@ -755,10 +755,7 @@ def append_trend_history_snapshot(platform, raw_data, normalized_data, history_d
         'votes_up': normalized_data.get('红票数', 0),
         'votes_down': normalized_data.get('黑票数', 0),
     }
-    platform_dir = os.path.join(history_dir, platform)
-    os.makedirs(platform_dir, exist_ok=True)
-    path = os.path.join(platform_dir, f'{stable_id}.jsonl')
-    with open(path, 'a', encoding='utf-8') as f:
+    with open(history_file, 'a', encoding='utf-8') as f:
         f.write(json.dumps(snapshot, ensure_ascii=False) + '\n')
 
 def now_iso():
@@ -3609,4 +3606,3 @@ if __name__ == '__main__':
     # scheduler.register('curseforge', CurseForgeAdapter())
     # scheduler.register('modrinth', ModrinthAdapter())
     asyncio.run(scheduler.run())
-

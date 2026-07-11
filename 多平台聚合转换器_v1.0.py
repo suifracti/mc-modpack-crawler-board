@@ -64,6 +64,8 @@
 #           rows plus detail payloads through the local API.
 # v10.5.16: Fold the local API server into this converter; one command now
 #           generates, opens, and serves the dashboard.
+# v10.5.17: Flatten trend history into one file, simplify root folders, and
+#           reuse an already-running local dashboard port.
 import re
 import sys
 import os
@@ -76,10 +78,10 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.5.16"
+APP_VERSION = "v10.5.17"
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 GENERATED_DASHBOARD_DIR = "generated_dashboard"
-OPEN_DASHBOARD_NAME = "打开这个看板.html"
+OPEN_DASHBOARD_NAME = "点击打开.html"
 
 def default_output_file():
     return "{}_{}.html".format(DEFAULT_OUTPUT_STEM, APP_VERSION)
@@ -92,7 +94,7 @@ FALLBACK_INPUT_FILE = "MC百科整合包数据.json"
 
 # The converter does not use browser cache or cookies. Browser state belongs to
 # the crawler only, under ignored_local_files/browser_data.
-TREND_HISTORY_DIR = "trend_history"
+TREND_HISTORY_FILE = "trend_history.jsonl"
 
 MCMOD_BASE  = "https://www.mcmod.cn/modpack/"
 
@@ -546,15 +548,13 @@ def normalize_trend_points(points):
         by_date[day] = val
     return sorted(by_date.items(), key=lambda x: x[0])
 
-def load_local_trend_history(history_dir, platform, stable_id):
-    if not history_dir or not stable_id:
-        return []
-    path = os.path.join(history_dir, platform, stable_id + ".jsonl")
-    if not os.path.exists(path):
-        return []
-    points = []
+def load_local_trend_history(history_file):
+    """Load the compact single-file trend store once, indexed by platform/id."""
+    history = {}
+    if not history_file or not os.path.exists(history_file):
+        return history
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(history_file, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -563,18 +563,21 @@ def load_local_trend_history(history_dir, platform, stable_id):
                     obj = json.loads(line)
                 except ValueError:
                     continue
-                points.append(obj)
+                key = (str(obj.get("platform") or ""), str(obj.get("stable_id") or ""))
+                if key[0] and key[1]:
+                    history.setdefault(key, []).append(obj)
     except OSError:
-        return []
-    return normalize_trend_points(points)
+        return {}
+    return {key: normalize_trend_points(points) for key, points in history.items()}
 
-def apply_local_trend_history(data, history_dir=TREND_HISTORY_DIR):
+def apply_local_trend_history(data, history_file=TREND_HISTORY_FILE):
+    history = load_local_trend_history(history_file)
     applied = 0
     for d in data:
         mid = _extract_mid(d.get("url", ""))
         if not mid:
             continue
-        local_trend = load_local_trend_history(history_dir, "mcmod", mid)
+        local_trend = history.get(("mcmod", mid), [])
         if len(local_trend) < 2:
             continue
         existing = normalize_trend_points(d.get("trend_arr") or [])
@@ -6599,7 +6602,7 @@ $(document).ready(function() {{
     }}
     function numFmt(n) {{
         n = Number(n || 0);
-        if (n >= 100000000) return (n / 100000000).toFixed(1).replace(/\.0$/, '') + '亿';
+  if (n >= 100000000) return (n / 100000000).toFixed(1).replace(/\\.0$/, '') + '亿';
         if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + '万';
         return String(n);
     }}
@@ -8247,9 +8250,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 def serve_dashboard(host, port, html_path, open_browser=True):
     root = os.path.dirname(os.path.abspath(__file__))
     handler = lambda *a, **kw: DashboardHandler(*a, directory=root, **kw)
-    server = ThreadingHTTPServer((host, port), handler)
     relative_url = urllib.parse.quote(os.path.relpath(html_path, root).replace(os.sep, "/"))
     url = "http://{}:{}/{}".format(host, port, relative_url)
+    try:
+        server = ThreadingHTTPServer((host, port), handler)
+    except OSError as exc:
+        if getattr(exc, "errno", None) == 48:
+            print("\n检测到看板已经在运行，直接打开：\n  {}".format(url))
+            if open_browser:
+                webbrowser.open(url)
+            return
+        raise
     print("\n看板已打开：\n  {}\n\n保持此窗口运行；按 Ctrl+C 关闭看板。".format(url))
     if open_browser:
         webbrowser.open(url)
@@ -8270,8 +8281,8 @@ def main():
     parser.add_argument("-t", "--theme", default="light",
                         choices=list(THEMES.keys()),
                         help="选择配色主题（默认: light）")
-    parser.add_argument("--trend-history-dir", default=TREND_HISTORY_DIR,
-                        help="本地长期趋势历史目录（默认: trend_history；不存在则自动跳过）")
+    parser.add_argument("--trend-history-file", default=TREND_HISTORY_FILE,
+                        help="本地长期趋势历史文件（默认: trend_history.jsonl）")
     parser.add_argument("-l", "--list", action="store_true",
                         help="列出所有可用主题")
     parser.add_argument("--no-serve", action="store_true", help="仅生成，不启动看板")
@@ -8300,9 +8311,9 @@ def main():
     print("  JSON记录: {} 条".format(len(raw_rows)))
     print("\n[2/3] 正在解析数据 ...")
     data = process_data(raw_rows)
-    trend_history_applied = apply_local_trend_history(data, args.trend_history_dir)
+    trend_history_applied = apply_local_trend_history(data, args.trend_history_file)
     if trend_history_applied:
-        print("  本地长期趋势: 已增强 {} 条记录（目录: {}）".format(trend_history_applied, args.trend_history_dir))
+        print("  本地长期趋势: 已增强 {} 条记录（文件: {}）".format(trend_history_applied, args.trend_history_file))
     else:
         print("  本地长期趋势: 未发现可用历史，沿用当前抓取数据")
     # [V1.0 新增] 为应对异步并发抓取导致的乱序写入，在此进行强制后处理排序
