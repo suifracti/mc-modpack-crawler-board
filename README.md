@@ -66,7 +66,7 @@ python "多平台聚合转换器_v1.0.py" -o "ignored_local_files\tmp_check.html
 ## 注意
 
 - `ignored_local_files/browser_data/` 保存浏览器登录状态和 Cookie，不要提交到 Git。
-- 主页面可直接双击离线打开；评论数据放在同目录 `data/comments/`，仅在点击或悬浮评论时读取，解决 Windows 首次打开过慢。评论仍在补抓，显示不完整属于正常情况。
+- 主页面可直接双击离线打开；评论和完整模组详情分别放在 `data/comments/`、`data/mods/`，只在用户打开对应区域时读取，降低 Windows 首次打开压力。评论仍在补抓，显示不完整属于正常情况。
 - 反馈表单草稿会自动保存在浏览器本地，刷新或误关页面后仍可恢复；提交成功后自动清除。
 - 反馈入口：右下角有“意见反馈”。部署说明和 Cloudflare Worker / Google Apps Script 模板在 `feedback/`；部署后把 Worker 地址填入转换器顶部的 `FEEDBACK_URL`。
 - 当前评论逐条跳转依赖 MCMod 页面是否提供稳定锚点；如果站点没有给出单条评论链接，看板会只保留原页面入口。

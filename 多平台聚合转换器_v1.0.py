@@ -82,7 +82,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from collections import Counter
 from datetime import date
 
-APP_VERSION = "v10.6.4"
+APP_VERSION = "v10.6.5"
 # 部署 Cloudflare Worker 后，将公开 Worker 地址填在这里；留空时反馈按钮会说明未配置。
 FEEDBACK_URL = ""
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
@@ -6297,7 +6297,12 @@ $(document).ready(function() {{
                 if (!$full.length || $full.attr('data-loaded') === '1') return;
                 var mid = $details.closest('tr').attr('data-mid') || '';
                 var groups = (window.modDetailData && window.modDetailData[mid]) || [];
-                if (!groups.length) return;
+                if (!groups.length) {{
+                    if ($full.attr('data-loading') === '1') return;
+                    $full.attr('data-loading', '1').html('<div class="tag-empty">正在读取完整模组列表…</div>');
+                    loadModDetailData(mid).then(function() {{ $full.removeAttr('data-loading'); loadFullModList($details); }});
+                    return;
+                }}
                 // 用完整分组卡片替换初始的轻量预览：打开前不创建大量 DOM，打开后外观与旧版一致。
                 $details.find('.mod-details-body > .mod-category-section, .mod-details-body > .tag-empty').remove();
                 var html = '';
@@ -6558,9 +6563,23 @@ $(document).ready(function() {{
     var commentLoadJobs = {{}};
     var commentApiBase = {comment_api_base_json};
     var compareData = {compare_json};
-    var modDetailData = {mod_detail_json};
+    var modDetailData = {{}};
+    var modDetailLoadJobs = {{}};
     window.compareData = compareData;
     window.modDetailData = modDetailData;
+    window.__registerModDetailData = function(mid, payload) {{ modDetailData[String(mid)] = payload || []; }};
+    function loadModDetailData(mid) {{
+        if (modDetailData[mid]) return Promise.resolve(modDetailData[mid]);
+        if (modDetailLoadJobs[mid]) return modDetailLoadJobs[mid];
+        modDetailLoadJobs[mid] = new Promise(function(resolve) {{
+            var script = document.createElement('script');
+            script.src = 'data/mods/' + encodeURIComponent(mid) + '.js';
+            script.onload = function() {{ resolve(modDetailData[mid] || []); script.remove(); }};
+            script.onerror = function() {{ resolve([]); script.remove(); }};
+            document.head.appendChild(script);
+        }}).finally(function() {{ delete modDetailLoadJobs[mid]; }});
+        return modDetailLoadJobs[mid];
+    }}
     var $popup = $('#pvPopup');
     var $pvTitle = $('#pvTitle');
     var $pvBody = $('#pvBody');
@@ -8210,7 +8229,7 @@ def gen_pretty_html(data, theme_name="light", comment_api_base="/api"):
         theme_pink=THEMES["pink"]["root"],
         theme_anime=THEMES["anime"]["root"],
         default_theme=theme_name,
-    ), comment_data, rows_html
+    ), comment_data, rows_html, mod_detail_data
 
 
 def dashboard_data_dir_for_html(html_path):
@@ -8222,7 +8241,7 @@ def comment_data_dir_for_html(html_path):
     return os.path.join(dashboard_data_dir_for_html(html_path), "comments")
 
 
-def write_dashboard_sidecars(comment_data, rows_html, html_path):
+def write_dashboard_sidecars(comment_data, mod_detail_data, html_path):
     """Write one local script payload per pack; file:// pages can lazy-load scripts without CORS."""
     comment_dir = comment_data_dir_for_html(html_path)
     os.makedirs(comment_dir, exist_ok=True)
@@ -8233,6 +8252,16 @@ def write_dashboard_sidecars(comment_data, rows_html, html_path):
         body = "window.__registerCommentData({},{});".format(
             json.dumps(safe_mid), json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
         with open(os.path.join(comment_dir, safe_mid + ".js"), "w", encoding="utf-8") as f:
+            f.write(body)
+    mod_dir = os.path.join(dashboard_data_dir_for_html(html_path), "mods")
+    os.makedirs(mod_dir, exist_ok=True)
+    for mid, payload in mod_detail_data.items():
+        safe_mid = str(mid)
+        if not safe_mid.isdigit():
+            continue
+        body = "window.__registerModDetailData({},{});".format(
+            json.dumps(safe_mid), json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+        with open(os.path.join(mod_dir, safe_mid + ".js"), "w", encoding="utf-8") as f:
             f.write(body)
     return comment_dir, len(comment_data)
 
@@ -8377,7 +8406,7 @@ def main():
         data[0]["tc_d"], data[0]["t7_d"], data[0]["t30_d"], data[0]["t60_d"]))
     print("\n[3/3] 生成 [{}] -> {}".format(theme["name"], output_html))
     # 单文件离线版：所有可查看内容都写入同一个 HTML。
-    html_template, comment_data, rows_html = gen_pretty_html(data, args.theme, "__COMMENT_API_BASE__")
+    html_template, comment_data, rows_html, mod_detail_data = gen_pretty_html(data, args.theme, "__COMMENT_API_BASE__")
     output_dir = os.path.dirname(output_html) or "."
     os.makedirs(output_dir, exist_ok=True)
     stable_html = os.path.join(output_dir, OPEN_DASHBOARD_NAME)
@@ -8391,7 +8420,7 @@ def main():
         html_out = html_template
         with open(target_html, "w", encoding="utf-8") as f:
             f.write(html_out)
-        write_dashboard_sidecars(comment_data, rows_html, target_html)
+        write_dashboard_sidecars(comment_data, mod_detail_data, target_html)
     print("  [OK] 主页面完成（{:,} 字节；评论按需加载）".format(len(html_out)))
     print("\n" + "=" * 55)
     print("  生成完毕！[{}] {}".format(theme["name"], theme["desc"]))
