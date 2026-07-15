@@ -146,17 +146,11 @@ Do not upload or share sensitive files.
 
 ---
 
-## 🤖 AI-Assisted Development
+## 🤖 AI-Generated Project
 
-This project was developed with AI assistance, including:
+This repository’s **code, documentation, configuration, commit messages, and upload process were produced entirely (or substantially entirely) by AI**. The human maintainer has not manually authored or personally verified every line.
 
-- Code writing
-- Documentation
-- Debugging
-- Project structure design
-
-Some content was generated or modified with AI tools.  
-AI-generated content may contain errors, so users should review and test before use.
+AI output may be wrong, incomplete, or unsafe. **Review and test before use.** Publication here is not a quality guarantee or endorsement of any specific approach.
 
 ---
 
@@ -170,6 +164,8 @@ They are provided for information organization and reference only, and do not re
 
 ## License
 
-For educational and personal learning purposes only.
+**No open-source license is granted.**
 
-All third-party content, including modpacks, mods, webpage content, and comments, belongs to their respective owners.
+This repository is published for **personal learning and technical reference only**. You may read the code for learning; commercial use, redistribution of collected datasets, or treating this project as an authorized product is not permitted by this notice.
+
+All third-party content—including modpacks, mods, webpage content, and comments—belongs to their respective owners. Nothing in this repository grants rights to those materials.
