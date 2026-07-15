@@ -99,8 +99,6 @@ converted_output/点击打开.html
 | `ignored_local_files/` | 本机临时文件、浏览器登录状态等 |
 | `README.md` | English documentation（仓库首页默认） |
 
-更细的文件归类见 `LOCAL_FILE_MAP.md`（可选看）。
-
 ---
 
 ## ⚠️ 使用说明与限制

@@ -14,10 +14,13 @@ pyrightconfig.json
 
 # Codex/Gemini/agent working notes. These are local work logs, not project files.
 .agents/
+AI_AGENT_GUIDE.md
+LOCAL_FILE_MAP.md
 
 # Local-only files moved out of the Git-managed project surface:
 # - browser_data/ contains Playwright/Chromium profile state, cookies and cache.
 # - 归档/ contains old scratch/backup scripts kept only for reference.
+# - ai_notes/ holds AI agent guides and local file maps (not for public repo).
 ignored_local_files/
 
 # Common temporary outputs

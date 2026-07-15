@@ -119,8 +119,6 @@ Workflow:
 | `ignored_local_files/` | Local temp files and browser login state |
 | `README_CN.md` | Chinese documentation |
 
-See `LOCAL_FILE_MAP.md` for a more detailed local file map.
-
 ---
 
 ## ⚠️ Notes and Limitations
