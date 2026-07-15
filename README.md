@@ -1,159 +1,175 @@
-# Minecraft 整合包数据看板
+# Minecraft Modpack Data Board
 
-[English](README_EN.md) | 中文
+English | [中文](README_CN.md)
 
-一个用于整理、搜索和分析 Minecraft 整合包信息的本地数据工具。
+A local data tool for organizing, searching, and analyzing Minecraft modpacks.
 
-本项目将 [MC百科（MCMod）](https://www.mcmod.cn/) 上的整合包相关信息整理到本地，并生成一个可直接打开的 HTML 数据看板，方便进行搜索、筛选、比较和趋势查看。
+This project collects and organizes modpack information from [MCMod (mcmod.cn)](https://www.mcmod.cn/), then generates an offline HTML dashboard for searching, filtering, comparing, and tracking trends.
 
-> 当前版本主要接入 MC百科数据。  
-> 「多平台」是未来扩展方向，目前并非已完整接入多个数据源。
-
----
-
-## ✨ 功能特点
-
-- 🔍 **快速搜索**
-  - 按名称、介绍、评论、标签、包含模组搜索整合包
-- 🏷️ **多维筛选**
-  - 分类
-  - 整合包标签
-  - 模组类型
-  - 指定模组
-  - 趋势时间范围
-- 📊 **数据排序**
-  - 综合指数
-  - 浏览量
-  - 趋势变化
-  - 社区互动数据
-- 📈 **趋势分析**
-  - 保存本地历史趋势数据
-  - 查看整合包热度变化
-- 🧩 **模组反查**
-  - 根据模组查看包含该模组的整合包
-- 💻 **离线使用**
-  - 数据保存在本地
-  - HTML 看板无需服务器即可打开
+> Currently focused on MCMod data.  
+> "Multi-platform" represents a future expansion direction, not a completed multi-source integration.
 
 ---
 
-## 📷 使用效果
+## ✨ Features
 
-打开生成的 HTML 文件即可使用本地看板：
+### 🔍 Search
 
-- 搜索整合包
-- 查看介绍
-- 浏览评论数据
-- 对比不同整合包
-- 查看趋势变化
+Search modpacks by:
+
+- Name
+- Description
+- Comments
+- Tags
+- Included mods
+
+### 🏷️ Filtering
+
+Filter by:
+
+- Category
+- Modpack tags
+- Mod types
+- Specific mods
+- Trend period
+
+### 📊 Data Analysis
+
+View and compare:
+
+- Ranking indexes
+- Views
+- Community activity
+- Trend changes
+
+### 📈 Trend Tracking
+
+Store local historical data and analyze popularity changes over time.
+
+### 🧩 Mod Reverse Search
+
+Find modpacks that contain specific mods.
+
+### 💻 Offline Dashboard
+
+All data is stored locally.  
+The generated HTML dashboard works without an online service.
 
 ---
 
-## 🚀 使用方法
+## 📷 What You Can Do
 
-环境：
+Open the generated HTML file to:
+
+- Search modpacks
+- Read descriptions
+- Browse comment data
+- Compare modpacks
+- Inspect trend changes
+
+---
+
+## 🚀 Usage
+
+Requirements:
 
 - Python 3
-- 浏览器自动化环境（用于数据采集）
+- Browser automation environment for data collection
 
-在项目目录运行：
+Run:
 
 ```powershell
-# 抓取数据（首次运行时间较长）
+# Collect data (first run may take a long time)
 python "多平台聚合爬虫_v1.0.py"
 
-# 增量刷新指定时间前未更新的数据
+# Refresh items not updated within N days
 python "多平台聚合爬虫_v1.0.py" --refresh-days 1
 
-# 强制刷新全部数据
+# Force refresh all data
 python "多平台聚合爬虫_v1.0.py" --refresh-all
 
-# 生成 HTML 看板
+# Generate the HTML dashboard
 python "多平台聚合转换器_v1.0.py"
 ```
 
-生成后打开：
+Then open:
 
 ```text
 converted_output/点击打开.html
 ```
 
-直接双击即可打开。分享时请打包整个 `converted_output/` 目录（含相邻的 `data/`），不要只发送单个 HTML。
+Double-click to open. When sharing, pack the entire `converted_output/` folder (including the adjacent `data/` directory), not just the HTML file.
 
-日常更新流程：
+Workflow:
 
-**抓取数据 → 生成看板 → 浏览器刷新**
+**Collect data → Generate dashboard → Open in browser**
 
 ---
 
-## 📂 项目结构
+## 📂 Project Structure
 
-| 文件 / 目录 | 说明 |
+| Path | Description |
 | --- | --- |
-| `多平台聚合爬虫_v1.0.py` | 数据采集脚本 |
-| `多平台聚合转换器_v1.0.py` | HTML 看板生成 |
-| `多平台爬虫数据_v1.0.jsonl` | 当前数据快照（本地生成，默认不提交） |
-| `trend_history.jsonl` | 本地长期趋势历史（本地生成，默认不提交） |
-| `converted_output/` | 生成的看板与按需加载数据（本地生成，默认不提交） |
-| `feedback/` | 意见反馈部署模板 |
-| `ignored_local_files/` | 本机临时文件、浏览器登录状态等 |
-| `README_EN.md` | English documentation |
+| `多平台聚合爬虫_v1.0.py` | Data collection script |
+| `多平台聚合转换器_v1.0.py` | HTML dashboard generator |
+| `多平台爬虫数据_v1.0.jsonl` | Current data snapshot (local, usually not committed) |
+| `trend_history.jsonl` | Local long-term trend history (local, usually not committed) |
+| `converted_output/` | Generated dashboard and on-demand data (local, usually not committed) |
+| `feedback/` | Feedback deployment templates |
+| `ignored_local_files/` | Local temp files and browser login state |
+| `README_CN.md` | Chinese documentation |
 
-更细的文件归类见 `LOCAL_FILE_MAP.md`（可选看）。
-
----
-
-## ⚠️ 使用说明与限制
-
-- 本项目不是 MC百科官方工具，与 MC百科（MCMod）、Minecraft 官方或任何整合包作者没有合作关系。
-- 数据采集脚本未获得第三方数据源的官方授权。
-- 建议用于个人学习、本地整理和低频增量更新。
-- 请勿进行高频访问、绕过访问限制、公开分发完整抓取数据或用于商业用途。
-- 使用者应自行评估运行环境、数据来源和相关风险。
+See `LOCAL_FILE_MAP.md` for a more detailed local file map.
 
 ---
 
-## 🔒 隐私说明
+## ⚠️ Notes and Limitations
 
-部分目录可能包含：
-
-- 浏览器登录状态
-- Cookie
-- Token
-- 本地配置
-
-请勿上传或分享包含个人账号信息的文件。
+- This project is not an official tool of MCMod, Minecraft, Mojang, Microsoft, or any modpack author.
+- The data collection scripts are not officially authorized by third-party data providers.
+- Recommended usage: personal learning, local organization, and low-frequency updates.
+- Do not perform high-frequency crawling, bypass access restrictions, redistribute complete datasets, or use collected data commercially.
+- Users are responsible for evaluating their own usage environment and related risks.
 
 ---
 
-## 🤖 AI 辅助开发说明
+## 🔒 Privacy
 
-本项目开发过程中使用了 AI 工具辅助完成：
+Some local files may contain:
 
-- 代码编写
-- 文档整理
-- 调试分析
-- 项目结构设计
+- Browser sessions
+- Cookies
+- Tokens
+- Personal configuration
 
-部分内容由 AI 生成或修改。由于 AI 输出可能存在错误，使用前建议自行检查和测试。
+Do not upload or share sensitive files.
 
 ---
 
-## 📄 数据与评价说明
+## 🤖 AI-Assisted Development
 
-本项目展示的数据：
+This project was developed with AI assistance, including:
 
-- 排序
-- 指数
-- 趋势
-- 评论整理
+- Code writing
+- Documentation
+- Debugging
+- Project structure design
 
-均为本地数据处理结果，仅用于信息整理和参考，不代表对任何整合包作品质量的官方评价。
+Some content was generated or modified with AI tools.  
+AI-generated content may contain errors, so users should review and test before use.
+
+---
+
+## 📄 Data Disclaimer
+
+All rankings, scores, trends, and comment summaries are locally processed results.
+
+They are provided for information organization and reference only, and do not represent official evaluations of any modpack.
 
 ---
 
 ## License
 
-本项目仅用于学习交流。
+For educational and personal learning purposes only.
 
-第三方内容（包括但不限于整合包、模组、网页内容、评论等）的版权归原作者及相关权利方所有。
+All third-party content, including modpacks, mods, webpage content, and comments, belongs to their respective owners.
