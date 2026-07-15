@@ -84,6 +84,7 @@ from datetime import date
 
 APP_VERSION = "v10.6.6"
 # 部署 Cloudflare Worker 后，将公开 Worker 地址填在这里；留空时反馈按钮会说明未配置。
+# 不要把个人域名/私有 Worker 地址提交到公开仓库；本机可在本地改此值，勿 push。
 FEEDBACK_URL = ""
 DEFAULT_OUTPUT_STEM = "\u591a\u5e73\u53f0\u805a\u5408\u770b\u677f_V1.0"
 GENERATED_DASHBOARD_DIR = "converted_output"
