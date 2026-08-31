@@ -67,6 +67,23 @@ Open the generated HTML file to:
 - Compare modpacks
 - Inspect trend changes
 
+### Dashboard Screenshots
+
+<table>
+<tr>
+<td><img src="docs/screenshots/user-01-overview.png" alt="Dashboard overview" width="520"></td>
+<td><img src="docs/screenshots/user-02-description.png" alt="Modpack description" width="320"></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/user-03-comments.png" alt="Comment details" width="420"></td>
+<td><img src="docs/screenshots/user-04-mod-list.png" alt="Included mod list" width="420"></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/user-05-trend.png" alt="Trend chart" width="260"></td>
+<td>See the complete screenshot index in <a href="docs/screenshots/README.md">docs/screenshots/README.md</a>.</td>
+</tr>
+</table>
+
 ---
 
 ## 🚀 Usage

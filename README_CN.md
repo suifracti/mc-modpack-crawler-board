@@ -47,6 +47,23 @@
 - 对比不同整合包
 - 查看趋势变化
 
+### 看板截图
+
+<table>
+<tr>
+<td><img src="docs/screenshots/user-01-overview.png" alt="看板总览" width="520"></td>
+<td><img src="docs/screenshots/user-02-description.png" alt="整合包百科介绍" width="320"></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/user-03-comments.png" alt="评论详情" width="420"></td>
+<td><img src="docs/screenshots/user-04-mod-list.png" alt="包含模组列表" width="420"></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/user-05-trend.png" alt="趋势图" width="260"></td>
+<td>完整截图索引：<a href="docs/screenshots/README.md">docs/screenshots/README.md</a></td>
+</tr>
+</table>
+
 ---
 
 ## 🚀 使用方法

@@ -1016,7 +1016,7 @@ def gen_row_pretty(d, idx=0):
         cover_html = (
             '<button type="button" class="modpack-cover-thumb image-thumb" '
             'data-image-url="{cover}" title="{title} 封面（悬停 1 秒放大）" aria-label="查看整合包封面">'
-            '<img src="{cover}" alt="{title} 封面" loading="lazy">'
+            '<img src="{cover}" alt="{title} 封面" loading="lazy" referrerpolicy="no-referrer">'
             '</button>'
         ).format(cover=esc_attr(cover_image), title=esc_attr(title_cn or d.get("title", "")))
     type_name = d.get("modpack_type") or "未标明"
@@ -1595,6 +1595,7 @@ PRETTY_TEMPLATE = '''<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
     <title>{title}</title>
     <!-- ★ 防闪烁 (Anti-FOUC)：在渲染 DOM 前立即加载保存的主题 -->
     <script>
@@ -6806,7 +6807,7 @@ $(document).ready(function() {{
             var raw = (typeof img === 'string') ? img : (img.url || img.src || '');
             var url = normalizeImageUrlJs(raw);
             if (!url) return;
-            html += '<img class="inline-emotion" src="' + escAttrJs(url) + '" alt="表情" loading="lazy">';
+            html += '<img class="inline-emotion" src="' + escAttrJs(url) + '" alt="表情" loading="lazy" referrerpolicy="no-referrer">';
         }});
         html += '</span>';
         return html;
@@ -6822,7 +6823,7 @@ $(document).ready(function() {{
             var alt = (typeof img === 'string') ? '' : (img.alt || img.title || '');
             var caption = alt || ('图片 ' + (idx + 1));
             html += '<a class="image-thumb" href="' + escAttrJs(url) + '" target="_blank" rel="noreferrer" title="' + escAttrJs(caption) + '">';
-            html += '<img src="' + escAttrJs(url) + '" alt="' + escAttrJs(caption) + '" loading="lazy">';
+            html += '<img src="' + escAttrJs(url) + '" alt="' + escAttrJs(caption) + '" loading="lazy" referrerpolicy="no-referrer">';
             html += '<span class="image-caption">' + escHtml(caption, true) + '</span></a>';
         }});
         html += '</div>';
