@@ -20,11 +20,8 @@
     <link href="assets/css/dashboard.css" rel="stylesheet">
 </head>
 <body>
-<!-- 动画背景 -->
-<div class="bg-layer"></div>
-<div class="orb orb-1"></div>
-<div class="orb orb-2"></div>
-<div class="orb orb-3"></div>
+<!-- 精密底色与工坊网格纹理 -->
+<div class="bg-layer" aria-hidden="true"></div>
 
 <div class="app-layout">
     <!-- 仅保活 DataTables Select2 多选解析引擎所需的底层隐藏标签，无任何冲突ID -->
@@ -43,14 +40,14 @@
         </select>
     </div>
 
-    <!-- 全宽沉浸式顶栏 Full-Width Sticky Navbar (现代游戏官网一体化) -->
+    <!-- 全宽工坊置顶指令栏 Sticky Navbar -->
     <header class="topbar">
         <div class="topbar-inner">
             <div class="topbar-left">
                 <a href="#all" class="topbar-brand" onclick="switchPlatformTab('all'); return false;" title="返回全平台总览">
-                    <span class="brand-cube">📦</span>
+                    <span class="brand-cube">⛏️</span>
                     <span class="brand-title">我的世界整合包聚合</span>
-                    <span class="brand-badge">PRO</span>
+                    <span class="brand-badge">73,521 款全收录</span>
                 </a>
             </div>
 
@@ -86,12 +83,12 @@
                 <!-- 标签数量显隐独立开关 -->
                 <button type="button" class="top-action-btn" id="toggleTagCountsBtn" title="切换所有标签后的数量显示与隐藏">🏷️ <span id="toggleTagCountsLabel">标签数量</span></button>
                 <!-- 顶栏快捷主题微调 -->
-                <div class="top-theme-pills" title="快速切换色彩主题">
-                    <button type="button" class="top-tdot active" data-theme="eye" title="🌿 护眼森绿">🌿</button>
-                    <button type="button" class="top-tdot" data-theme="dark" title="🌙 极夜暗黑">🌙</button>
-                    <button type="button" class="top-tdot" data-theme="warm" title="☕ 温暖木质">☕</button>
-                    <button type="button" class="top-tdot" data-theme="light" title="❄️ 冷白素雅">❄️</button>
-                    <button type="button" class="top-tdot" data-theme="pink" title="🌸 樱粉霓光">🌸</button>
+                <div class="top-theme-pills" role="radiogroup" aria-label="快速切换色彩主题">
+                    <button type="button" class="top-tdot active" data-theme="dark" title="🌙 极夜暗黑">🌙</button>
+                    <button type="button" class="top-tdot" data-theme="light" title="☀️ 石英明亮">☀️</button>
+                    <button type="button" class="top-tdot" data-theme="eye" title="🌿 护眼青竹">🌿</button>
+                    <button type="button" class="top-tdot" data-theme="warm" title="☕ 原木质感">☕</button>
+                    <button type="button" class="top-tdot" data-theme="pink" title="🌸 樱花霓光">🌸</button>
                 </div>
             </div>
         </div>
@@ -100,16 +97,14 @@
     <!-- 主区域 Main Content (1560px 黄金居中，单轴流视线) -->
     <main class="main-content">
 
-        <!-- Hero 欢迎与宏观统计卡片 -->
-        
-        <!-- ═══════════════ [新增] 全平台综合总览视图 ═══════════════ -->
+        <!-- ═══════════════ 全平台综合总览视图 ═══════════════ -->
         <div id="view-all" class="tab-view active">
         <!-- 跨平台全局穿透联合搜索 (居顶命令中心) -->
         <div class="cross-search-section">
             <div class="csearch-top-row">
                 <div class="csearch-title-group">
-                    <span class="csearch-badge">全网穿透联合检索</span>
-                    <h2 class="csearch-heading">跨平台全局极速搜索</h2>
+                    <h2 class="csearch-heading">全域整合包联合搜索</h2>
+                    <p class="csearch-sub">一键穿透 6 大生态 73,500+ 款模组包，支持游戏版本、模组列表、玩法流派与作者跨平台精准检索</p>
                 </div>
                 <div class="csearch-platforms-hint">
                     <span class="cplat-pill" style="--cp-c:#f59e0b;">📦 MC百科</span>
@@ -124,23 +119,39 @@
             <!-- 搜索主输入框 -->
             <div class="cross-search-input-wrap">
                 <span class="cross-search-icon">🔍</span>
-                <input type="text" id="crossSearchInput" class="cross-search-input" placeholder="输入模组包名称、UP主/作者、玩法类型、模组名进行全网联合检索..." autocomplete="off">
+                <input type="text" id="crossSearchInput" class="cross-search-input" placeholder="输入模组包名称、游戏版本 (如 1.20.1)、模组名 (如 机械动力)、作者进行全网联合检索..." autocomplete="off">
                 <button type="button" id="crossSearchClear" class="cross-search-clear" title="清空搜索 (Esc)" style="display:none;">✕</button>
                 <div class="cross-search-kbd" title="快捷键聚焦搜索"><kbd>Ctrl</kbd> <kbd>K</kbd></div>
             </div>
 
-            <!-- 热门快搜标签条 -->
-            <div class="cross-hot-tags">
-                <span class="hot-label">🔥 热门快搜：</span>
-                <button type="button" class="hot-chip" data-query="RLCraft">RLCraft</button>
-                <button type="button" class="hot-chip" data-query="机械动力">机械动力</button>
-                <button type="button" class="hot-chip" data-query="脆骨症">脆骨症</button>
-                <button type="button" class="hot-chip" data-query="Fabulously Optimized">极速提帧</button>
-                <button type="button" class="hot-chip" data-query="低配光影">低配光影</button>
-                <button type="button" class="hot-chip" data-query="拔刀剑">拔刀剑</button>
-                <button type="button" class="hot-chip" data-query="宝可梦">宝可梦</button>
-                <button type="button" class="hot-chip" data-query="空岛">空岛生存</button>
-                <button type="button" class="hot-chip" data-query="All the Mods">ATM 终极大作</button>
+            <!-- 快速筛选芯片双轨栏 -->
+            <div class="cross-chips-deck">
+                <div class="chip-deck-row">
+                    <span class="deck-row-lbl">🎮 核心版本：</span>
+                    <div class="deck-chips-group">
+                        <button type="button" class="hot-chip chip-ver" data-query="1.20.1">1.20.1</button>
+                        <button type="button" class="hot-chip chip-ver" data-query="1.16.5">1.16.5</button>
+                        <button type="button" class="hot-chip chip-ver" data-query="1.12.2">1.12.2</button>
+                        <button type="button" class="hot-chip chip-ver" data-query="1.7.10">1.7.10</button>
+                        <button type="button" class="hot-chip chip-ver" data-query="1.21">1.21</button>
+                        <button type="button" class="hot-chip chip-ver" data-query="1.19.2">1.19.2</button>
+                    </div>
+                </div>
+                <div class="chip-deck-row">
+                    <span class="deck-row-lbl">🔥 热门流派：</span>
+                    <div class="deck-chips-group">
+                        <button type="button" class="hot-chip chip-theme" data-query="机械动力">机械动力 (Create)</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="拔刀剑">拔刀剑 (SlashBlade)</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="宝可梦">宝可梦 (Cobblemon)</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="科技">科技工业</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="魔法">魔法冒险</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="Fabulously Optimized">极速提帧</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="空岛">空岛生存</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="脆骨症">脆骨症</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="RLCraft">RLCraft</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="All the Mods">ATM 终极大作</button>
+                    </div>
+                </div>
             </div>
 
             <!-- 6 平台实时结果展开抽屉 (输入时展开，清空时收起) -->
@@ -148,42 +159,42 @@
                 <div class="cross-col" style="--col-theme: #f59e0b;">
                     <div class="cross-col-header">
                         <span>📦 MC百科 权威词条</span>
-                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('mcmod')" class="col-more">查看全部 ➔</a>
+                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('mcmod')" class="col-more">查看全部</a>
                     </div>
                     <div id="crossMcmodResults"></div>
                 </div>
                 <div class="cross-col" style="--col-theme: #fb7299;">
                     <div class="cross-col-header">
                         <span>📺 B站自制 视频与直链</span>
-                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('bilibili')" class="col-more">查看全部 ➔</a>
+                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('bilibili')" class="col-more">查看全部</a>
                     </div>
                     <div id="crossBiliResults"></div>
                 </div>
                 <div class="cross-col" style="--col-theme: #0284c7;">
                     <div class="cross-col-header">
                         <span>💎 BBSMC 优质开源库</span>
-                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('bbsmc')" class="col-more">查看全部 ➔</a>
+                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('bbsmc')" class="col-more">查看全部</a>
                     </div>
                     <div id="crossBbsmcResults"></div>
                 </div>
                 <div class="cross-col" style="--col-theme: #059669;">
                     <div class="cross-col-header">
                         <span>🍃 XYEBBS 像素世界</span>
-                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('xyebbs')" class="col-more">查看全部 ➔</a>
+                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('xyebbs')" class="col-more">查看全部</a>
                     </div>
                     <div id="crossXyebbsResults"></div>
                 </div>
                 <div class="cross-col" style="--col-theme: #10b981;">
                     <div class="cross-col-header">
                         <span>🌐 Modrinth 极速开源包</span>
-                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('modrinth')" class="col-more">查看全部 ➔</a>
+                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('modrinth')" class="col-more">查看全部</a>
                     </div>
                     <div id="crossModrinthResults"></div>
                 </div>
                 <div class="cross-col" style="--col-theme: #ea580c;">
                     <div class="cross-col-header">
                         <span>🔥 CurseForge 热门大作</span>
-                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('curseforge')" class="col-more">查看全部 ➔</a>
+                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('curseforge')" class="col-more">查看全部</a>
                     </div>
                     <div id="crossCurseforgeResults"></div>
                 </div>
@@ -242,7 +253,7 @@
                     <span class="showcase-tag-chip" onclick="jumpToMcmodSearch('魔法')">✨ 魔法神秘</span>
                 </div>
                 <button type="button" class="showcase-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706);" onclick="switchPlatformTab('mcmod')">
-                    🚀 进入 MC百科技术看板 ➔
+                    浏览全部 1,417 款深度词条与指数走势
                 </button>
             </div>
 
@@ -296,7 +307,7 @@
                     <span class="showcase-tag-chip" onclick="jumpToBiliSearch('网盘')">⚡ 直链网盘</span>
                 </div>
                 <button type="button" class="showcase-btn" style="background: linear-gradient(135deg, #fb7299, #e11d48);" onclick="switchPlatformTab('bilibili')">
-                    🚀 进入 B站自制发布流 ➔
+                    查看 935 款自制整合包与网盘直链
                 </button>
             </div>
 
@@ -350,7 +361,7 @@
                     <span class="showcase-tag-chip" onclick="jumpToBbsmcSearch('冒险')">🗺️ 探险冒险</span>
                 </div>
                 <button type="button" class="showcase-btn" style="background: linear-gradient(135deg, #0284c7, #0369a1);" onclick="switchPlatformTab('bbsmc')">
-                    🚀 进入 BBSMC 开放资源专区 ➔
+                    检索全部 1,802 款开源社区资源
                 </button>
             </div>
 
@@ -404,7 +415,7 @@
                     <span class="showcase-tag-chip" onclick="jumpToXyebbsSearch('冒险')">🧭 冒险探索</span>
                 </div>
                 <button type="button" class="showcase-btn" style="background: linear-gradient(135deg, #059669, #047857);" onclick="switchPlatformTab('xyebbs')">
-                    🚀 进入 XYEBBS 像素世界 ➔
+                    探索全部 5,175 款像素世界资源
                 </button>
             </div>
 
@@ -458,7 +469,7 @@
                     <span class="showcase-tag-chip" onclick="jumpToModrinthSearch('Multiplayer')">🌐 联机友好</span>
                 </div>
                 <button type="button" class="showcase-btn" style="background: linear-gradient(135deg, #10b981, #059669);" onclick="switchPlatformTab('modrinth')">
-                    🚀 进入 Modrinth 开源专区 ➔
+                    极速直链下载 18,328 款开源大作
                 </button>
             </div>
 
@@ -512,7 +523,7 @@
                     <span class="showcase-tag-chip" onclick="jumpToCurseforgeSearch('Skyblock')">☁️ 空岛科技</span>
                 </div>
                 <button type="button" class="showcase-btn" style="background: linear-gradient(135deg, #ea580c, #c2410c);" onclick="switchPlatformTab('curseforge')">
-                    🚀 进入 CurseForge 热门专区 ➔
+                    检索全部 45,797 款全球热门包
                 </button>
             </div>
         </div>

@@ -1264,7 +1264,7 @@ $(document).ready(function() {
                 mcHtml += '<span>👁️ ' + (item.views_display || item.views || 0) + '</span>';
                 mcHtml += '    </div>';
                 mcHtml += '    <div class="cross-item-actions">';
-                mcHtml += '      <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="mcmod" data-query="' + safeTitle + '" title="在站内筛选查看该项目">站内 ➔</button>';
+                mcHtml += '      <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="mcmod" data-query="' + safeTitle + '" title="在站内筛选查看该项目">站内查看</button>';
                 mcHtml += '      <a href="' + extUrl + '" target="_blank" rel="noopener noreferrer" class="cross-action-btn cross-btn-ext" onclick="event.stopPropagation();" title="在新标签页直接打开原站网页">原站 ↗</a>';
                 mcHtml += '    </div>';
                 mcHtml += '  </div>';
@@ -1312,7 +1312,7 @@ $(document).ready(function() {
                     }
                     bHtml += '    </div>';
                     bHtml += '    <div class="cross-item-actions">';
-                    bHtml += '      <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="bilibili" data-query="' + safeTitle + '" title="在站内筛选查看该项目">站内 ➔</button>';
+                    bHtml += '      <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="bilibili" data-query="' + safeTitle + '" title="在站内筛选查看该项目">站内查看</button>';
                     bHtml += '      <a href="' + bExtUrl + '" target="_blank" rel="noopener noreferrer" class="cross-action-btn cross-btn-ext" onclick="event.stopPropagation();" title="在新标签页直接打开 B站 视频">原站 ↗</a>';
                     bHtml += '    </div>';
                     bHtml += '  </div>';
@@ -1359,7 +1359,7 @@ $(document).ready(function() {
                     bbHtml += '<span>📥 ' + dlStr + '</span>';
                     bbHtml += '    </div>';
                     bbHtml += '    <div class="cross-item-actions">';
-                    bbHtml += '      <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="bbsmc" data-query="' + safeTitle + '" title="在站内筛选查看该项目">站内 ➔</button>';
+                    bbHtml += '      <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="bbsmc" data-query="' + safeTitle + '" title="在站内筛选查看该项目">站内查看</button>';
                     bbHtml += '      <a href="' + bbExtUrl + '" target="_blank" rel="noopener noreferrer" class="cross-action-btn cross-btn-ext" onclick="event.stopPropagation();" title="在新标签页直接打开 BBSMC 原始页面">原站 ↗</a>';
                     bbHtml += '    </div>';
                     bbHtml += '  </div>';
@@ -1406,7 +1406,7 @@ $(document).ready(function() {
                     xpHtml += '<span>📥 ' + dlStr + '</span>';
                     xpHtml += '    </div>';
                     xpHtml += '    <div class="cross-item-actions">';
-                    xpHtml += '      <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="xyebbs" data-query="' + safeTitle + '" title="在站内筛选查看该项目">站内 ➔</button>';
+                    xpHtml += '      <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="xyebbs" data-query="' + safeTitle + '" title="在站内筛选查看该项目">站内查看</button>';
                     xpHtml += '      <a href="' + xpExtUrl + '" target="_blank" rel="noopener noreferrer" class="cross-action-btn cross-btn-ext" onclick="event.stopPropagation();" title="在新标签页直接打开 XYEBBS 原始帖子">原站 ↗</a>';
                     xpHtml += '    </div>';
                     xpHtml += '  </div>';
@@ -1453,7 +1453,7 @@ $(document).ready(function() {
                     mHtml += '<span>📥 ' + dlStr + '</span>';
                     mHtml += '    </div>';
                     mHtml += '    <div class="cross-item-actions">';
-                    mHtml += '      <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="modrinth" data-query="' + safeTitle + '" title="在站内筛选查看该项目">站内 ➔</button>';
+                    mHtml += '      <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="modrinth" data-query="' + safeTitle + '" title="在站内筛选查看该项目">站内查看</button>';
                     mHtml += '      <a href="' + mpExtUrl + '" target="_blank" rel="noopener noreferrer" class="cross-action-btn cross-btn-ext" onclick="event.stopPropagation();" title="在新标签页直接打开 Modrinth 原始页面">原站 ↗</a>';
                     mHtml += '    </div>';
                     mHtml += '  </div>';
@@ -1500,7 +1500,7 @@ $(document).ready(function() {
                     cfHtml += '<span>📥 ' + dlStr + '</span>';
                     cfHtml += '    </div>';
                     cfHtml += '    <div class="cross-item-actions">';
-                    cfHtml += '      <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="curseforge" data-query="' + safeTitle + '" title="在站内筛选查看该项目">站内 ➔</button>';
+                    cfHtml += '      <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="curseforge" data-query="' + safeTitle + '" title="在站内筛选查看该项目">站内查看</button>';
                     cfHtml += '      <a href="' + cpExtUrl + '" target="_blank" rel="noopener noreferrer" class="cross-action-btn cross-btn-ext" onclick="event.stopPropagation();" title="在新标签页直接打开 CurseForge 原始页面">原站 ↗</a>';
                     cfHtml += '    </div>';
                     cfHtml += '  </div>';
@@ -6954,7 +6954,7 @@ $(document).ready(function() {
             html += '    ' + diffDetailHtml;
             html += '  </div>';
             html += '  <div style="display:flex; align-items:center; gap:8px;">';
-            html += '    <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="' + item.platform + '" data-query="' + safeTitle + '" title="在站内筛选">站内 ➔</button>';
+            html += '    <button type="button" class="cross-action-btn cross-btn-in js-jump-platform-search" data-platform="' + item.platform + '" data-query="' + safeTitle + '" title="在站内筛选">站内查看</button>';
             if (item.url) {
                 html += '    <a href="' + auditEsc(item.url) + '" target="_blank" rel="noopener noreferrer" class="cross-action-btn cross-btn-ext" title="在新标签页打开原页面">原站 ↗</a>';
             }
