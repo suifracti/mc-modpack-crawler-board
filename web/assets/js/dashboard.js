@@ -4152,6 +4152,7 @@ $(document).ready(function() {
         "columns": [
             {
                 "data": "c0",
+                "type": "string",
                 "orderSequence": ["asc", "desc"],
                 "render": function(data, type, row) {
                     if (type === 'sort' || type === 'order') return row.sort_col0;
@@ -4161,6 +4162,7 @@ $(document).ready(function() {
             },
             {
                 "data": "c1",
+                "type": "num",
                 "orderSequence": ["desc", "asc"],
                 "render": function(data, type, row) {
                     if (type === 'sort' || type === 'order') return row.sort_col1;
@@ -4169,6 +4171,7 @@ $(document).ready(function() {
             },
             {
                 "data": "c2",
+                "type": "num",
                 "orderSequence": ["desc", "asc"],
                 "render": function(data, type, row) {
                     if (type === 'sort' || type === 'order') return row.sort_col2;
@@ -4177,6 +4180,7 @@ $(document).ready(function() {
             },
             {
                 "data": "c3",
+                "type": "num",
                 "orderSequence": ["desc", "asc"],
                 "render": function(data, type, row) {
                     if (type === 'sort' || type === 'order') return row.sort_col3;
@@ -4185,6 +4189,7 @@ $(document).ready(function() {
             },
             {
                 "data": "c4",
+                "type": "num",
                 "orderSequence": ["desc", "asc"],
                 "render": function(data, type, row) {
                     if (type === 'sort' || type === 'order') return row.sort_col4;
@@ -4193,6 +4198,7 @@ $(document).ready(function() {
             },
             {
                 "data": "c5",
+                "type": "num",
                 "orderSequence": ["desc", "asc"],
                 "render": function(data, type, row) {
                     if (type === 'sort' || type === 'order') return row.sort_col5;
@@ -4202,6 +4208,7 @@ $(document).ready(function() {
             },
             {
                 "data": "c6",
+                "type": "num",
                 "orderSequence": ["desc", "asc"],
                 "render": function(data, type, row) {
                     if (type === 'sort' || type === 'order') return row.sort_col6;
@@ -4286,13 +4293,13 @@ $(document).ready(function() {
             }
         },
         "columnDefs": [
-            { "width": "220px", "targets": 0 },
-            { "width": "150px", "targets": 1 },
-            { "width": "118px", "targets": 2 },
-            { "width": "112px", "targets": 3 },
-            { "width": "104px", "targets": 4 },
-            { "width": "220px", "targets": 5 },
-            { "width": "calc(100vw - 900px)", "targets": 6 },
+            { "width": "220px", "type": "string", "targets": 0 },
+            { "width": "150px", "type": "num", "targets": 1 },
+            { "width": "118px", "type": "num", "targets": 2 },
+            { "width": "112px", "type": "num", "targets": 3 },
+            { "width": "104px", "type": "num", "targets": 4 },
+            { "width": "220px", "type": "num", "targets": 5 },
+            { "width": "calc(100vw - 900px)", "type": "num", "targets": 6 },
             { "orderable": true,  "targets": [0,1,2,3,4,5,6] }
         ],
         "initComplete": function() {
@@ -4484,15 +4491,29 @@ $(document).ready(function() {
             }
             function refreshActiveSortColumn() {
                 var order = api.order();
-                var colIdx = order && order.length ? order[0][0] : 2;
+                var colIdx = order && order.length ? order[0][0] : 1;
                 var dir = order && order.length ? order[0][1] : 'desc';
+
                 $wrapper.find('th, td').removeClass('dt-active-sort');
-                $wrapper.find('.dataTables_scrollHead th').eq(colIdx).addClass('dt-active-sort').attr('data-order-dir', dir);
+                var $activeTh = $wrapper.find('.dataTables_scrollHead th').eq(colIdx).addClass('dt-active-sort').attr('data-order-dir', dir);
                 $sortStrip.find('.sort-strip-seg').removeClass('active').attr('data-order-dir', '');
                 $sortStrip.find('.sort-strip-seg[data-col="' + colIdx + '"]').addClass('active').attr('data-order-dir', dir);
                 $wrapper.find('.dataTables_scrollBody tbody tr').each(function() {
                     $(this).children('td').eq(colIdx).addClass('dt-active-sort');
                 });
+
+                // ★ 清理所有列上的活跃排序标记与方向箭头
+                $wrapper.find('.header-sort-switcher .sort-option').removeClass('is-sorting');
+                $wrapper.find('.header-sort-switcher .sort-dir-arrow').remove();
+
+                // ★ 仅在当前处于活跃排序列的选中项上添加 is-sorting 和方向箭头
+                var $activeOpt = $activeTh.find('.sort-option.active');
+                if (!$activeOpt.length) {
+                    $activeOpt = $activeTh.find('.sort-option').first().addClass('active');
+                }
+                $activeOpt.addClass('is-sorting');
+                var arrowIcon = dir === 'asc' ? '▲' : '▼';
+                $activeOpt.append('<span class="sort-dir-arrow ms-1" style="font-size:0.62em;line-height:1;display:inline-block;vertical-align:middle;">' + arrowIcon + '</span>');
             }
             function sortByColumn(colIdx) {
                 if (colIdx < 0 || colIdx > 6) return;
@@ -4500,38 +4521,87 @@ $(document).ready(function() {
                 var currentIdx = current && current.length ? current[0][0] : -1;
                 var currentDir = current && current.length ? current[0][1] : 'desc';
                 var nextDir = (currentIdx === colIdx && currentDir === 'asc') ? 'desc' : 'asc';
-                api.order([colIdx, nextDir]).draw();
+
+                var settings = api.settings()[0];
+                if (colIdx === 0) {
+                    var isViews = $wrapper.find('.header-sort-switcher[data-col="0"] .sort-option.active').attr('data-subkey') === 'views';
+                    var t0 = isViews ? 'num' : 'string';
+                    settings.aoColumns[0].sType = t0;
+                    settings.aoColumns[0]._sManualType = t0;
+                } else {
+                    settings.aoColumns[colIdx].sType = 'num';
+                    settings.aoColumns[colIdx]._sManualType = 'num';
+                }
+                settings.aoData.forEach(function(d) { d._aSortData = null; });
+
+                api.order([[colIdx, nextDir]]).draw();
                 refreshActiveSortColumn();
             }
             $wrapper.on('click', '.sort-option', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
+                e.stopImmediatePropagation();
                 var $opt = $(this);
                 var $switcher = $opt.closest('.header-sort-switcher');
-                var colIdx = parseInt($switcher.attr('data-col'));
-                if ($opt.hasClass('active')) {
-                    sortByColumn(colIdx);
-                    return;
-                }
-                $switcher.find('.sort-option').removeClass('active');
-                $opt.addClass('active');
+                var colIdx = parseInt($switcher.attr('data-col'), 10);
                 var subKey = $opt.attr('data-subkey');
-                var sortProp = 'sort_col' + colIdx;
-                (window.tableRowsData || []).forEach(function(r) {
-                    var raw = r[subKey + '_n'] !== undefined ? r[subKey + '_n'] : (r[subKey] !== undefined ? r[subKey] : 0);
-                    r[sortProp] = (subKey === 'name' || typeof raw === 'string') ? (raw || '') : (parseFloat(raw) || 0);
-                });
-                api.rows().invalidate('data');
+
                 var order = api.order();
                 var currentIdx = order && order.length ? order[0][0] : -1;
                 var currentDir = order && order.length ? order[0][1] : 'desc';
-                if (currentIdx === colIdx) {
-                    api.order([colIdx, currentDir]).draw();
-                } else {
-                    api.order([colIdx, 'desc']).draw();
+
+                // 如果点击的就是当前排序列正在生效的选项，直接翻转升降序
+                if (currentIdx === colIdx && $opt.hasClass('active')) {
+                    sortByColumn(colIdx);
+                    return;
                 }
+
+                // 切换同组内的活跃小项
+                $switcher.find('.sort-option').removeClass('active is-sorting');
+                $opt.addClass('active');
+
+                var sortProp = 'sort_col' + colIdx;
+                var settings = api.settings()[0];
+
+                if (colIdx === 0) {
+                    var sType = (subKey === 'views' ? 'num' : 'string');
+                    settings.aoColumns[0].sType = sType;
+                    settings.aoColumns[0]._sManualType = sType;
+                } else {
+                    settings.aoColumns[colIdx].sType = 'num';
+                    settings.aoColumns[colIdx]._sManualType = 'num';
+                }
+
+                // 重新计算并缓存该列的所有行排序权重
+                (window.tableRowsData || []).forEach(function(r) {
+                    var raw = 0;
+                    if (colIdx === 0) {
+                        raw = (subKey === 'name') ? (r.name_order || r.title || '') : (r.views_n !== undefined ? r.views_n : 0);
+                    } else if (colIdx === 5 || subKey === 'tag_count') {
+                        raw = r.tag_count !== undefined ? r.tag_count : 0;
+                    } else if (colIdx === 6 || subKey === 'mod_count') {
+                        raw = r.mod_count !== undefined ? r.mod_count : 0;
+                    } else if (subKey === 'days') {
+                        raw = r.days_n !== undefined ? r.days_n : (r.days !== undefined ? r.days : 0);
+                    } else {
+                        raw = r[subKey + '_n'] !== undefined ? r[subKey + '_n'] : (r[subKey] !== undefined ? r[subKey] : 0);
+                    }
+                    r[sortProp] = (colIdx === 0 && subKey === 'name') ? (raw || '') : (parseFloat(raw) || 0);
+                });
+
+                // ★ 清空所有行的内部排序缓存，防止 DataTables 沿用旧缓存
+                settings.aoData.forEach(function(d) {
+                    d._aSortData = null;
+                });
+                api.rows().invalidate('data');
+
+                // 默认方向：名称默认升序 (A-Z)，其余所有数值指标默认降序 (大到小)
+                var targetDir = (colIdx === 0 && subKey === 'name') ? 'asc' : 'desc';
+                api.order([[colIdx, targetDir]]).draw();
+                refreshActiveSortColumn();
             });
             $wrapper.on('click', '.dataTables_scrollHead th', function(e) {
+                if ($(e.target).closest('.sort-option').length) return;
                 var colIdx = $(this).index();
                 e.preventDefault();
                 e.stopImmediatePropagation();
