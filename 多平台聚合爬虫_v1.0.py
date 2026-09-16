@@ -89,7 +89,10 @@
 ====================================================================
 """
 import asyncio
-from playwright.async_api import async_playwright
+try:
+    from playwright.async_api import async_playwright
+except ImportError:
+    async_playwright = None
 import json
 import os
 import random
@@ -3504,6 +3507,12 @@ class Scheduler:
         self._load_progress()
 
         # ② 启动 Playwright
+        if async_playwright is None:
+            print("\n❌ 未检测到 Playwright 运行库。")
+            print("💡 MC百科采集基于 Playwright 无头浏览器环境，请在终端运行安装：")
+            print("   pip install playwright")
+            print("   playwright install chromium\n")
+            return
         self.playwright = await async_playwright().start()
         playwright = self.playwright
 
@@ -3583,26 +3592,198 @@ class Scheduler:
         await playwright.stop()
 
 
+
+class BilibiliAdapter(BaseAdapter):
+    """
+    哔哩哔哩 (bilibili.com) 自制整合包发布采集适配器。
+    特性：免登录、WBI API 毫秒级高并发、自动解析各类网盘直达链接、提取码与交流群号。
+    """
+    name = 'bilibili'
+    concurrency = 1
+
+    def __init__(self, until_date=None, max_pages=50, max_total=2000):
+        self.until_date = until_date
+        self.max_pages = max_pages
+        self.max_total = max_total
+
+    def run_direct(self):
+        try:
+            from bilibili_crawler import crawl_bilibili_modpacks
+        except ImportError:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from bilibili_crawler import crawl_bilibili_modpacks
+        return crawl_bilibili_modpacks(until_date=self.until_date, max_pages_per_kw=self.max_pages, max_total=self.max_total)
+
+
+def run_converter():
+    print("\n" + "=" * 65)
+    print("  🚀 正在调用多平台聚合转换器更新 HTML 数据看板...")
+    print("=" * 65)
+    conv_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "多平台聚合转换器_v1.0.py")
+    if os.path.exists(conv_script):
+        import subprocess
+        subprocess.run([sys.executable, "-X", "utf8", conv_script])
+    else:
+        print(f"⚠️ 找不到转换器脚本: {conv_script}")
+
+
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description='多平台整合包数据采集引擎')
-    parser.add_argument('--refresh-days', type=int, default=None,
-                        help='增量刷新：只重新抓取超过 N 天未更新，或旧数据缺少时间戳的目标。例：--refresh-days 1')
-    parser.add_argument('--refresh-all', action='store_true',
-                        help='强制刷新列表中匹配到的所有目标；谨慎使用，会接近重新抓一遍。')
-    parser.add_argument('--repair-comments', action='store_true',
-                        help='兼容旧命令；现在默认就会补抓缺失或明显异常的评论详情。')
-    parser.add_argument('--comment-mode', choices=['full', 'first-page'], default='full',
-                        help='评论抓取范围：full=完整抓取（默认）；first-page=只抓第一页主评论与当前可见回复。')
-    args = parser.parse_args()
-    COMMENT_FETCH_MODE = args.comment_mode
-    print('[评论模式] {}'.format('完整抓取（全局串行、安全平衡档）' if COMMENT_FETCH_MODE == 'full' else '仅抓第一页主评论'))
-    if args.repair_comments:
-        REPAIR_EMPTY_COMMENT_DETAILS = True
+    import sys
+    import subprocess
 
-    scheduler = Scheduler(refresh_days=args.refresh_days, refresh_all=args.refresh_all)
-    scheduler.register('mcmod', MCModAdapter())
-    # 将来扩展其他平台只需：
-    # scheduler.register('curseforge', CurseForgeAdapter())
-    # scheduler.register('modrinth', ModrinthAdapter())
-    asyncio.run(scheduler.run())
+    parser = argparse.ArgumentParser(description='我的世界整合包全网全量数据采集引擎 v3.0 (六大平台聚合版)')
+    parser.add_argument('--platform', choices=['all', 'mcmod', 'bilibili', 'bbsmc', 'xyebbs', 'modrinth', 'curseforge'], default=None,
+                        help='选择要抓取的平台：bilibili, mcmod, bbsmc, xyebbs, modrinth, curseforge, all (六大平台全部采集)。')
+    parser.add_argument('--until', default=None,
+                        help='B站采集截止日期 (YYYY-MM-DD，回车或留空默认全量抓取)')
+    parser.add_argument('--bili-pages', type=int, default=30,
+                        help='B站每个关键词最大搜索页数 (默认: 30)')
+    parser.add_argument('--bili-max', type=int, default=2000,
+                        help='B站最多处理候选视频数 (默认: 2000)')
+    parser.add_argument('--bili-login', action='store_true',
+                        help='启动哔哩哔哩扫码登录')
+    parser.add_argument('--auto-convert', action='store_true',
+                        help='抓取完成后自动调用转换器生成/更新 HTML 看板')
+    args = parser.parse_args()
+
+    selected_platform = args.platform
+    until_date = args.until
+    bili_pages = args.bili_pages
+    bili_max = args.bili_max
+    auto_convert = args.auto_convert
+
+    if args.bili_login:
+        try:
+            from bilibili_crawler import BiliAuth
+        except ImportError:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from bilibili_crawler import BiliAuth
+        BiliAuth.login_qr_interactive()
+        sys.exit(0)
+
+    # 交互式选择菜单（未在命令行传入 --platform 时进入）
+    if selected_platform is None:
+        if sys.stdin.isatty():
+            print("\n" + "=" * 68)
+            print("  🎮 我的世界整合包全网全量数据采集引擎 v3.0 (六大平台终极聚合版)")
+            print("=" * 68)
+            print("【请选择要执行的抓取任务 / 平台功能】")
+            print("  [1] 抓取 哔哩哔哩 (bilibili.com) 自制整合包 (8线程深挖/网盘/AI字幕)")
+            print("  [2] 抓取 MC百科 (mcmod.cn) 权威整合包库 (100% 穷尽 1,484 款)")
+            print("  [3] 抓取 BBSMC (bbsmc.cn) 社区精选整合包 (1,802 款)")
+            print("  [4] 抓取 XYEBBS (xyebbs.com) 像素世界全量库 (5,175 款)")
+            print("  [5] 抓取 Modrinth (modrinth.com) 全球开源整合包 (18,328 款)")
+            print("  [6] 抓取 CurseForge (curseforge.com) 国际顶级大作 (45,797 款)")
+            print("  [7] 🚀 一键全网六大平台全量连续采集并自动生成看板")
+            print("  [8] 仅重新编译 HTML 数据看板 (运行转换器)")
+            print("  [9] 哔哩哔哩扫码登录 / 账号状态管理")
+            print("  [q] 退出")
+            print("-" * 68)
+            try:
+                choice = input("👉 请输入选项编号 [1/2/3/4/5/6/7/8/9/q，默认 7]: ").strip() or "7"
+            except (EOFError, KeyboardInterrupt):
+                choice = "7"
+
+            if choice == '1':
+                selected_platform = 'bilibili'
+            elif choice == '2':
+                selected_platform = 'mcmod'
+            elif choice == '3':
+                selected_platform = 'bbsmc'
+            elif choice == '4':
+                selected_platform = 'xyebbs'
+            elif choice == '5':
+                selected_platform = 'modrinth'
+            elif choice == '6':
+                selected_platform = 'curseforge'
+            elif choice == '7':
+                selected_platform = 'all'
+                auto_convert = True
+            elif choice == '8':
+                run_converter()
+                sys.exit(0)
+            elif choice == '9':
+                try:
+                    from bilibili_crawler import BiliAuth
+                except ImportError:
+                    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+                    from bilibili_crawler import BiliAuth
+                BiliAuth.login_qr_interactive()
+                sys.exit(0)
+            elif choice.lower() == 'q':
+                print("👋 已退出。")
+                sys.exit(0)
+            else:
+                print(f"⚠️ 未知选项 '{choice}'，默认执行全平台采集。")
+                selected_platform = 'all'
+                auto_convert = True
+        else:
+            selected_platform = 'all'
+            auto_convert = True
+
+    py_exe = sys.executable
+
+    def exec_crawler(script_name, script_args=None):
+        cmd = [py_exe, "-u", script_name] + (script_args or [])
+        print(f"\n>> 正在执行: {' '.join(cmd)}")
+        subprocess.run(cmd, check=True)
+
+    # 1. 哔哩哔哩
+    if selected_platform in ('bilibili', 'all'):
+        print("\n" + "=" * 65)
+        print("  🚀 [1/6] 开始执行 [哔哩哔哩] 自制整合包采集任务...")
+        print("=" * 65)
+        b_args = ["-p", str(bili_pages), "-m", str(bili_max)]
+        if until_date:
+            b_args += ["-u", str(until_date)]
+        exec_crawler("bilibili_crawler.py", b_args)
+
+    # 2. MC百科
+    if selected_platform in ('mcmod', 'all'):
+        print("\n" + "=" * 65)
+        print("  🚀 [2/6] 开始执行 [MC百科] 全量深度采集任务...")
+        print("=" * 65)
+        exec_crawler("mcmod_full_crawler.py")
+
+    # 3. BBSMC
+    if selected_platform in ('bbsmc', 'all'):
+        print("\n" + "=" * 65)
+        print("  🚀 [3/6] 开始执行 [BBSMC] 社区整合包采集任务...")
+        print("=" * 65)
+        exec_crawler("bbsmc_crawler.py")
+
+    # 4. XYEBBS
+    if selected_platform in ('xyebbs', 'all'):
+        print("\n" + "=" * 65)
+        print("  🚀 [4/6] 开始执行 [XYEBBS] 像素世界资源采集任务...")
+        print("=" * 65)
+        exec_crawler("xyebbs_crawler.py")
+
+    # 5. Modrinth
+    if selected_platform in ('modrinth', 'all'):
+        print("\n" + "=" * 65)
+        print("  🚀 [5/6] 开始执行 [Modrinth] 全球开源整合包全量采集任务...")
+        print("=" * 65)
+        exec_crawler("modrinth_crawler.py")
+
+    # 6. CurseForge
+    if selected_platform in ('curseforge', 'all'):
+        print("\n" + "=" * 65)
+        print("  🚀 [6/6] 开始执行 [CurseForge] 超级多维正交切片全量采集任务...")
+        print("=" * 65)
+        exec_crawler("curseforge_full_crawler.py")
+
+    # 7. 编译或更新看板
+    if auto_convert:
+        print("\n" + "=" * 65)
+        print("  🚀 正在编译并更新全网六大平台终极聚合看板...")
+        print("=" * 65)
+        run_converter()
+    elif sys.stdin.isatty():
+        try:
+            ask = input("\n>> 采集完成！是否立即生成/更新 HTML 数据看板 (converted_output/点击打开.html)? [Y/n]: ").strip().lower()
+            if ask in ('', 'y', 'yes'):
+                run_converter()
+        except (EOFError, KeyboardInterrupt):
+            pass

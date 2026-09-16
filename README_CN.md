@@ -76,16 +76,19 @@
 在项目目录运行：
 
 ```powershell
-# 抓取数据（首次运行时间较长）
+# 运行主爬虫（提供交互式数字菜单，选择抓取 B站自制 / MC百科 / 全平台）
 python "多平台聚合爬虫_v1.0.py"
 
-# 增量刷新指定时间前未更新的数据
-python "多平台聚合爬虫_v1.0.py" --refresh-days 1
+# 命令行直接采集 B站自制整合包（免登录、秒级响应，支持指定截止日期与页数）
+python "多平台聚合爬虫_v1.0.py" --platform bilibili --until 2026-08-01
 
-# 强制刷新全部数据
-python "多平台聚合爬虫_v1.0.py" --refresh-all
+# 命令行采集 MC百科 整合包数据（增量刷新 / 全量刷新）
+python "多平台聚合爬虫_v1.0.py" --platform mcmod --refresh-days 1
 
-# 生成 HTML 看板
+# 全平台连续采集，并在完成后自动生成/更新 HTML 看板
+python "多平台聚合爬虫_v1.0.py" --platform all --auto-convert
+
+# 单独生成/更新 HTML 看板
 python "多平台聚合转换器_v1.0.py"
 ```
 
