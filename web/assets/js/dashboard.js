@@ -3137,15 +3137,15 @@ $(document).ready(function() {
     // 主题切换 (侧边栏 + 顶栏双向同步)
     $(document).on('click', '.theme-dot, .top-tdot', function() {
         var theme = $(this).data('theme');
-        $('.theme-dot, .top-tdot').removeClass('active');
-        $('.theme-dot[data-theme="' + theme + '"], .top-tdot[data-theme="' + theme + '"]').addClass('active');
+        $('.theme-dot, .top-tdot, .theme-btn').removeClass('active');
+        $('.theme-dot[data-theme="' + theme + '"], .top-tdot[data-theme="' + theme + '"], .theme-btn[data-theme="' + theme + '"]').addClass('active');
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('mcmod-theme-v2', theme);
     });
 
     // 恢复保存的主题
-    var savedTheme = localStorage.getItem('mcmod-theme-v2') || 'eye';
-    $('.theme-dot[data-theme="' + savedTheme + '"], .top-tdot[data-theme="' + savedTheme + '"]').addClass('active');
+    var savedTheme = localStorage.getItem('mcmod-theme-v2') || 'light';
+    $('.theme-dot[data-theme="' + savedTheme + '"], .top-tdot[data-theme="' + savedTheme + '"], .theme-btn[data-theme="' + savedTheme + '"]').addClass('active');
     document.documentElement.setAttribute('data-theme', savedTheme);
 
     function showToast(msg) {
