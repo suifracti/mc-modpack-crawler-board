@@ -47,19 +47,5 @@ trend_history
 1.txt
 scratch_chrome_user_data*
 
-# Temporary test and verification screenshots
-docs/screenshots/temp_*
-docs/screenshots/test_*
-docs/screenshots/verify_*
-docs/screenshots/overhaul_*
-docs/screenshots/topbar_*
-docs/screenshots/v[0-9]*
-docs/screenshots/*_preview.png
-docs/screenshots/*_expanded.png
-docs/screenshots/*_modal_*.png
-docs/screenshots/production_*.png
-docs/screenshots/centered_*.png
-docs/screenshots/audit_*.png
-docs/screenshots/view_*.png
-docs/screenshots/bilibili_modern_*.png
-docs/screenshots/mcmod_*.png
+# Screenshots
+docs/screenshots/
