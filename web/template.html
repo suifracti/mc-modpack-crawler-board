@@ -1424,7 +1424,7 @@
     <div class="version-modal-card">
         <div class="version-modal-header">
             <div class="version-modal-header-left">
-                <span class="version-modal-badge">📜 版本发布与更新日志</span>
+                <span class="version-modal-badge" id="versionModalPlatBadge">📜 版本发布与更新日志</span>
                 <h3 class="version-modal-title" id="versionModalTitle">整合包更新日志</h3>
                 <div class="version-modal-meta" id="versionModalMeta">
                     <span id="versionModalVer" class="version-meta-tag">最新版本: --</span>
@@ -1433,16 +1433,36 @@
                 </div>
             </div>
             <div class="version-modal-header-right">
-                <a id="versionModalExtLink" href="#" target="_blank" rel="noreferrer" class="version-modal-ext-btn" title="在新标签页打开官方原网页">在新窗口打开 ↗</a>
+                <a id="versionModalExtLink" href="#" target="_blank" rel="noreferrer" class="version-modal-ext-btn" title="在新标签页打开官方原网页">官方原站 ↗</a>
                 <button type="button" class="hover-close version-modal-close-btn" id="versionModalClose" title="关闭 (Esc)">✕</button>
             </div>
         </div>
-        <div class="version-modal-body" style="padding: 24px; overflow-y: auto; flex: 1;">
+        <!-- 模态窗分栏导航 (对齐主流资源站规范) -->
+        <div class="version-modal-nav-bar" role="tablist">
+            <button type="button" class="vmodal-tab-btn active" data-vtab="changelog" id="vTabChangelog">
+                <span>📜</span> 版本更新日志 <span class="vmodal-tab-badge" id="vBadgeChangelog">0</span>
+            </button>
+            <button type="button" class="vmodal-tab-btn" data-vtab="downloads" id="vTabDownloads">
+                <span>📥</span> 历史下载矩阵 <span class="vmodal-tab-badge" id="vBadgeDownloads">0</span>
+            </button>
+            <button type="button" class="vmodal-tab-btn" data-vtab="discussions" id="vTabDiscussions">
+                <span>💬</span> 讨论与评论 <span class="vmodal-tab-badge" id="vBadgeDiscussions">0</span>
+            </button>
+            <button type="button" class="vmodal-tab-btn" data-vtab="overview" id="vTabOverview">
+                <span>ⓘ</span> 综合概览
+            </button>
+        </div>
+        <div class="version-modal-body" style="padding: 20px 24px; overflow-y: auto; flex: 1;">
             <div id="versionModalLoading" class="version-modal-loading" style="display:none;">
                 <div class="version-modal-spinner"></div>
-                <span>正在加载...</span>
+                <span id="versionModalLoadingText">正在加载官方版本与更新日志...</span>
             </div>
-            <div id="versionModalBodyInner"></div>
+            <!-- 各 Tab 视图容器 -->
+            <div id="vPaneChangelog" class="vmodal-pane active"></div>
+            <div id="vPaneDownloads" class="vmodal-pane" style="display:none;"></div>
+            <div id="vPaneDiscussions" class="vmodal-pane" style="display:none;"></div>
+            <div id="vPaneOverview" class="vmodal-pane" style="display:none;"></div>
+            <div id="versionModalBodyInner" style="display:none;"></div>
         </div>
     </div>
 </div>

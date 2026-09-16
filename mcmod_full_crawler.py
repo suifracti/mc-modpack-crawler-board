@@ -450,7 +450,21 @@ def parse_metrics_only(html):
     com_m = re.search(r'评论[：:\s]*(\d+)', html)
     com_n = int(com_m.group(1)) if com_m else 0
 
+    # 标题与更名检测 (提取最新标题以支持增量改名识别)
+    t_m = re.search(r'<title>(.*?)</title>', html)
+    full_title = t_m.group(1).split(' - MC百科')[0].strip() if t_m else None
+    title_cn, title_en = "", ""
+    if full_title:
+        title_cn = full_title
+        if ' (' in full_title and full_title.endswith(')'):
+            p = full_title.rsplit(' (', 1)
+            title_cn = p[0].strip()
+            title_en = p[1][:-1].strip()
+
     return {
+        "full_title": full_title,
+        "title_cn": title_cn,
+        "title_en": title_en,
         "views_n": views_n,
         "views_d": views_d,
         "lat_n": lat_n,
@@ -568,6 +582,24 @@ def update_table_row_metrics(row, m=None, new_trend_points=None, version_info=No
     """更新存量行的指标、走势图表与真实版本数据"""
     # 1. 基础浏览量与指数更新
     if m:
+        # 0. 增量更名检测与历史别名记录
+        new_title = m.get("full_title")
+        if new_title and row.get("title") and new_title != row["title"]:
+            old_title = row["title"]
+            former = list(row.get("former_titles") or [])
+            if old_title not in former:
+                former.append(old_title)
+            row["former_titles"] = former
+            row["title"] = new_title
+            row["title_cn"] = m.get("title_cn", new_title)
+            row["title_en"] = m.get("title_en", "")
+            row["name_order"] = (m.get("title_cn") or new_title).lower()
+            c0 = row.get("c0", "")
+            if c0:
+                c0 = re.sub(r'(<a class="modpack-title-link"[^>]*>).*?(</a>)', r'\g<1>' + re.escape(new_title) + r'\2', c0)
+                row["c0"] = c0
+            print(f"  🔄 [更名捕获] #{row.get('mid')} 标题已变更: '{old_title}' -> '{new_title}' (已保留历史别名检索)")
+
         if m.get("views_n") is not None and m["views_n"] > 0:
             row["views_n"] = m["views_n"]
             c0 = row.get("c0", "")
@@ -932,6 +964,12 @@ def refresh_metrics(rows, compare_data, concurrency=6, limit=None):
                         app["favorite"] = metrics["fav_n"]
                     if metrics.get("com_n", 0) > 0:
                         app["comments"] = metrics["com_n"]
+                    if row.get("former_titles"):
+                        app["former_titles"] = row["former_titles"]
+                    if row.get("title") and row["title"] != app.get("title"):
+                        app["title"] = row["title"]
+                        app["title_cn"] = row.get("title_cn", row["title"])
+                        app["title_en"] = row.get("title_en", "")
                 updated += 1
 
             if done % 50 == 0 or done == total:
@@ -1075,14 +1113,15 @@ def main():
     )
     parser.add_argument(
         "--mode",
-        choices=["new", "trend", "metrics", "all"],
+        choices=["new", "trend", "metrics", "all", "sync-titles"],
         default="new",
         help=(
             "运行模式：\n"
-            "  new     - 仅向上探测全新整合包 (含走势与版本日志，秒级完成，默认)\n"
-            "  trend   - 并发刷新存量整合包走势（执行无限时间线缝合）与版本更新日志\n"
-            "  metrics - 多线程定向刷新存量整合包基础指标 (浏览量/指数/投票等)\n"
-            "  all     - 串联执行：先探测新包，再全量刷新指标与缝合走势"
+            "  new         - 仅向上探测全新整合包 (含走势与版本日志，秒级完成，默认)\n"
+            "  trend       - 并发刷新存量整合包走势（执行无限时间线缝合）与版本更新日志\n"
+            "  metrics     - 多线程定向刷新存量整合包基础指标 (浏览量/指数/投票等)\n"
+            "  sync-titles - 并发扫描存量整合包更名情况，更新标题并记录历史别名 (解决更名后搜不到问题)\n"
+            "  all         - 串联执行：先探测新包，再全量刷新指标与缝合走势"
         )
     )
     parser.add_argument(
@@ -1193,7 +1232,7 @@ def main():
     if args.mode in ("new", "all"):
         new_count = probe_new_modpacks(rows, compare_data, max_404=args.max_404, recheck_holes=args.recheck_holes)
 
-    if args.mode in ("metrics", "all"):
+    if args.mode in ("metrics", "all", "sync-titles"):
         updated_metrics_count = refresh_metrics(rows, compare_data, concurrency=args.concurrency, limit=args.limit)
 
     if args.mode in ("trend", "all"):

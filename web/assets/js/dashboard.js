@@ -285,7 +285,15 @@ $(document).ready(function() {
             links: links,
             typeName: typeParts.join(' · ') || '未标注分类',
             verLabel: lab.verLabel, countLabel: lab.countLabel, countUnit: lab.countUnit,
-            typeLabel: lab.typeLabel, countTagLabel: lab.countTagLabel, countTagUnit: lab.countTagUnit
+            typeLabel: lab.typeLabel, countTagLabel: lab.countTagLabel, countTagUnit: lab.countTagUnit,
+            id: p.id || p.project_id || '',
+            slug: p.slug || '',
+            author: p.author || '',
+            description: p.description || '',
+            versions_data: p.versions_data || [],
+            releases_data: p.releases_data || [],
+            comments_data: p.comments_data || [],
+            rawPack: p
         };
     }
 
@@ -1238,7 +1246,8 @@ $(document).ready(function() {
         var mcRows = window.tableRowsData || [];
         for (var i = 0; i < mcRows.length; i++) {
             var r = mcRows[i];
-            var searchTxt = ((r.title || '') + ' ' + (r.title_en || '') + ' ' + (r.category || '') + ' ' + (r.tags_search || '') + ' ' + (r.c6 || '')).toLowerCase();
+            var formerTxt = Array.isArray(r.former_titles) ? r.former_titles.join(' ') : (r.former_titles || '');
+            var searchTxt = ((r.title || '') + ' ' + (r.title_en || '') + ' ' + formerTxt + ' ' + (r.category || '') + ' ' + (r.tags_search || '') + ' ' + (r.c6 || '')).toLowerCase();
             if (searchTxt.indexOf(query) !== -1) {
                 mcMatches.push(r);
                 if (mcMatches.length >= 4) break;
@@ -2179,6 +2188,22 @@ $(document).ready(function() {
         }
     }
 
+    function cleanVerChipTag(ver, packTitle) {
+        if (!ver) return '';
+        var v = String(ver).trim();
+        if (!v) return '';
+        if (packTitle) {
+            var pt = String(packTitle).trim().toLowerCase();
+            if (v.toLowerCase() === pt || pt.indexOf(v.toLowerCase()) !== -1 || v.toLowerCase().indexOf(pt) !== -1) {
+                return '';
+            }
+        }
+        if (/^[0-9]/.test(v)) return 'v' + v + ' · ';
+        if (/^v[0-9]/i.test(v)) return 'v' + v.replace(/^v/i, '') + ' · ';
+        if (v.length <= 16 && !/[：:]/.test(v)) return v + ' · ';
+        return '';
+    }
+
     function renderBbsmcCard(p) {
         registerPackForModal(p);
         var safeTitle = $('<div>').text(p.title || '').html();
@@ -2212,11 +2237,21 @@ $(document).ready(function() {
 
         var dlZoneHtml = '<div class="bbsmc-download-zone">';
         var links = p.download_links || [];
-        var visibleLinks = links.slice(0, 4);
-        var hiddenLinks = links.slice(4);
+        var seenUrls = {};
+        var uniqueLinks = [];
+        links.forEach(function(l) {
+            if (l && l.url && !seenUrls[l.url]) {
+                seenUrls[l.url] = true;
+                uniqueLinks.push(l);
+            }
+        });
 
-        visibleLinks.forEach(function(l) {
-            if (l && l.url) {
+        var visibleLinks = uniqueLinks.slice(0, 3);
+        var hiddenLinks = uniqueLinks.slice(3);
+
+        if (visibleLinks.length > 0) {
+            dlZoneHtml += '<div class="card-dl-chips">';
+            visibleLinks.forEach(function(l) {
                 var lName = (l.name || '直接下载').trim();
                 var u = l.url.toLowerCase();
                 var lClass = 'pan-btn-other';
@@ -2233,27 +2268,28 @@ $(document).ready(function() {
                 } else if (lName.indexOf('迅雷') !== -1 || u.indexOf('pan.xunlei.com') !== -1) {
                     lClass = 'pan-btn-xunlei';
                 }
-                var vTag = l.version ? ' (' + l.version + ')' : '';
-                dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="bili-pan-btn ' + lClass + '" title="' + lName + vTag + '">💾 ' + lName + ' ↗</a>';
-            }
-        });
+                var vTag = cleanVerChipTag(l.version, p.title);
+                var displayLabel = '💾 ' + vTag + lName + ' ↗';
+                dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="card-dl-btn ' + lClass + '" title="' + escHtml(lName + (l.version ? (' (' + l.version + ')') : ''), true) + '">' + escHtml(displayLabel) + '</a>';
+            });
+            dlZoneHtml += '</div>';
+        }
 
         if (hiddenLinks.length > 0) {
-            dlZoneHtml += '<details class="bbsmc-more-links"><summary class="bbsmc-more-summary">展开更多历史下载 (' + hiddenLinks.length + ') ▾</summary><div class="bbsmc-more-body">';
+            dlZoneHtml += '<details class="card-more-details"><summary class="card-more-summary">展开更多历史下载 (' + hiddenLinks.length + ') ▾</summary><div class="card-more-chips">';
             hiddenLinks.forEach(function(l) {
-                if (l && l.url) {
-                    var lName = (l.name || '直接下载').trim();
-                    var vTag = l.version ? ' (' + l.version + ')' : '';
-                    dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="bili-pan-btn pan-btn-other" style="font-size:0.75rem;" title="' + lName + vTag + '">💾 ' + lName + ' ↗</a>';
-                }
+                var lName = (l.name || '直接下载').trim();
+                var vTag = cleanVerChipTag(l.version, p.title);
+                var displayLabel = '💾 ' + vTag + lName + ' ↗';
+                dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="card-dl-btn pan-btn-other" style="font-size:0.73rem;" title="' + escHtml(lName, true) + '">' + escHtml(displayLabel) + '</a>';
             });
             dlZoneHtml += '</div></details>';
         }
 
-        dlZoneHtml += '<div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">' +
-            '<button type="button" class="bili-pan-btn pan-btn-other js-open-plat-version-modal" data-platform="bbsmc" data-vkey="' + p.url + '" data-title="' + safeTitle + '" data-ver="' + (p.mc_version || '') + '" data-date="' + (p.date_modified || '') + '" data-url="' + p.url + '" data-author="' + safeAuthor + '" data-downloads="' + dlStr + '" style="font-size:0.75rem; background:rgba(0,175,92,0.12); color:#00af5c; border-color:rgba(0,175,92,0.3);">📜 版本详情 ↗</button>' +
-            '<a href="' + p.url + '" target="_blank" rel="noreferrer" class="bili-pan-btn pan-btn-other" style="background:transparent; border-color:var(--line); color:var(--text-secondary); font-size:0.75rem;">🔗 打开 BBSMC 原页面 ↗</a></div>';
-        dlZoneHtml += '</div>';
+        dlZoneHtml += '<div class="card-action-bar">' +
+            '<button type="button" class="card-action-btn btn-vmodal js-open-plat-version-modal" data-platform="bbsmc" data-vkey="' + p.url + '" data-title="' + safeTitle + '" data-ver="' + (p.mc_version || '') + '" data-date="' + (p.date_modified || '') + '" data-url="' + p.url + '" data-author="' + safeAuthor + '" data-downloads="' + dlStr + '">📜 完整版本与更新日志 ↗</button>' +
+            '<a href="' + p.url + '" target="_blank" rel="noreferrer" class="card-action-btn">🔗 原站 ↗</a>' +
+        '</div></div>';
 
 
         return '<div class="bbsmc-pack-card">' +
@@ -2421,11 +2457,21 @@ $(document).ready(function() {
 
         var dlZoneHtml = '<div class="xyebbs-download-zone">';
         var links = p.download_links || [];
-        var visibleLinks = links.slice(0, 4);
-        var hiddenLinks = links.slice(4);
+        var seenUrls = {};
+        var uniqueLinks = [];
+        links.forEach(function(l) {
+            if (l && l.url && !seenUrls[l.url]) {
+                seenUrls[l.url] = true;
+                uniqueLinks.push(l);
+            }
+        });
 
-        visibleLinks.forEach(function(l) {
-            if (l && l.url) {
+        var visibleLinks = uniqueLinks.slice(0, 3);
+        var hiddenLinks = uniqueLinks.slice(3);
+
+        if (visibleLinks.length > 0) {
+            dlZoneHtml += '<div class="card-dl-chips">';
+            visibleLinks.forEach(function(l) {
                 var lName = (l.name || '直接下载').trim();
                 var u = (l.url || '').toLowerCase();
                 var t = ((l && l.type) || '').toLowerCase();
@@ -2441,27 +2487,28 @@ $(document).ready(function() {
                 } else if (lName.indexOf('蓝奏') !== -1 || u.indexOf('lanzou') !== -1 || t.indexOf('lanzou') !== -1) {
                     lClass = 'pan-btn-lanzou';
                 }
-                var vTag = l.label ? ' (' + l.label + ')' : (l.version ? ' (' + l.version + ')' : '');
-                dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="bili-pan-btn ' + lClass + '" title="' + lName + vTag + '">💾 ' + lName + ' ↗</a>';
-            }
-        });
+                var vTag = cleanVerChipTag(l.label || l.version, p.title);
+                var displayLabel = '💾 ' + vTag + lName + ' ↗';
+                dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="card-dl-btn ' + lClass + '" title="' + escHtml(lName + (vTag ? (' (' + vTag + ')') : ''), true) + '">' + escHtml(displayLabel) + '</a>';
+            });
+            dlZoneHtml += '</div>';
+        }
 
         if (hiddenLinks.length > 0) {
-            dlZoneHtml += '<details class="xyebbs-more-links"><summary class="xyebbs-more-summary">展开更多历史下载 (' + hiddenLinks.length + ') ▾</summary><div class="xyebbs-more-body">';
+            dlZoneHtml += '<details class="card-more-details"><summary class="card-more-summary">展开更多历史下载 (' + hiddenLinks.length + ') ▾</summary><div class="card-more-chips">';
             hiddenLinks.forEach(function(l) {
-                if (l && l.url) {
-                    var lName = (l.name || '直接下载').trim();
-                    var vTag = l.label ? ' (' + l.label + ')' : (l.version ? ' (' + l.version + ')' : '');
-                    dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="bili-pan-btn pan-btn-other" style="font-size:0.75rem;" title="' + lName + vTag + '">💾 ' + lName + ' ↗</a>';
-                }
+                var lName = (l.name || '直接下载').trim();
+                var vTag = cleanVerChipTag(l.label || l.version, p.title);
+                var displayLabel = '💾 ' + vTag + lName + ' ↗';
+                dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="card-dl-btn pan-btn-other" style="font-size:0.73rem;" title="' + escHtml(lName, true) + '">' + escHtml(displayLabel) + '</a>';
             });
             dlZoneHtml += '</div></details>';
         }
 
-        dlZoneHtml += '<div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">' +
-            '<button type="button" class="bili-pan-btn pan-btn-other js-open-plat-version-modal" data-platform="xyebbs" data-vkey="' + p.url + '" data-title="' + safeTitle + '" data-ver="' + (p.mc_version || '') + '" data-date="' + (p.date_modified || '') + '" data-url="' + (p.url || '#') + '" data-author="' + safeAuthor + '" data-downloads="' + dlStr + '" style="font-size:0.75rem; background:rgba(22,163,74,0.12); color:#16a34a; border-color:rgba(22,163,74,0.3);">📜 版本详情 ↗</button>' +
-            '<a href="' + (p.url || '#') + '" target="_blank" rel="noreferrer" class="bili-pan-btn pan-btn-other" style="background:transparent; border-color:var(--line); color:var(--text-secondary); font-size:0.75rem;">🔗 打开 XYEBBS 原页面 ↗</a></div>';
-        dlZoneHtml += '</div>';
+        dlZoneHtml += '<div class="card-action-bar">' +
+            '<button type="button" class="card-action-btn btn-vmodal js-open-plat-version-modal" data-platform="xyebbs" data-vkey="' + p.url + '" data-title="' + safeTitle + '" data-ver="' + (p.mc_version || '') + '" data-date="' + (p.date_modified || '') + '" data-url="' + (p.url || '#') + '" data-author="' + safeAuthor + '" data-downloads="' + dlStr + '">📜 完整版本与更新日志 ↗</button>' +
+            '<a href="' + (p.url || '#') + '" target="_blank" rel="noreferrer" class="card-action-btn">🔗 原站 ↗</a>' +
+        '</div></div>';
 
 
         return '<div class="xyebbs-pack-card">' +
@@ -4079,10 +4126,20 @@ $(document).ready(function() {
                     result.basic = true; break;
                 }
             }
-            result.title = String(data[0] || '').toLowerCase().indexOf(kw) !== -1;
+            var formerTxt = '';
+            var mid = $(tr).find('a.modpack-link').data('mid');
+            if (mid && window.tableRowsData) {
+                for (var ri = 0; ri < window.tableRowsData.length; ri++) {
+                    if (String(window.tableRowsData[ri].mid) === String(mid)) {
+                        var ft = window.tableRowsData[ri].former_titles;
+                        formerTxt = Array.isArray(ft) ? ft.join(' ').toLowerCase() : String(ft || '').toLowerCase();
+                        break;
+                    }
+                }
+            }
+            result.title = String(data[0] || '').toLowerCase().indexOf(kw) !== -1 || (formerTxt && formerTxt.indexOf(kw) !== -1);
             result.cat = String(data[6] || '').toLowerCase().indexOf(kw) !== -1 ||
                          String(data[7] || '').toLowerCase().indexOf(kw) !== -1;
-            var mid = $(tr).find('a.modpack-link').data('mid');
             if (mid) {
                 result.desc = textHasKeyword(getDescText(descData[mid]), keyword);
                 result.commentIndex = findCommentMatch(commentData[mid], keyword);
@@ -4102,7 +4159,8 @@ $(document).ready(function() {
             var result = { basic: false, title: false, cat: false, desc: false, comment: false, commentIndex: -1 };
             if (!keyword) return result;
             var kw = keyword.toLowerCase();
-            result.title = (rowData.title || '').toLowerCase().indexOf(kw) !== -1;
+            var formerTxt = Array.isArray(rowData.former_titles) ? rowData.former_titles.join(' ').toLowerCase() : String(rowData.former_titles || '').toLowerCase();
+            result.title = (rowData.title || '').toLowerCase().indexOf(kw) !== -1 || (formerTxt && formerTxt.indexOf(kw) !== -1);
             result.cat = (rowData.cat_search || '').toLowerCase().indexOf(kw) !== -1 ||
                          (rowData.pack_search || '').toLowerCase().indexOf(kw) !== -1;
             var mid = rowData.mid;
@@ -5922,6 +5980,76 @@ $(document).ready(function() {
             '</div>' + rows + '</div>';
     }
 
+    // ───── 简易安全 Markdown 渲染器 ─────
+    function renderSimpleMarkdown(md) {
+        if (!md) return '';
+        var text = String(md);
+        var escapeMap = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+        text = text.replace(/[&<>"']/g, function(s) { return escapeMap[s]; });
+
+        text = text.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, function(m, lang, code) {
+            return '<pre class="vmodal-code-block" style="background:var(--bg-surface); padding:10px 14px; border-radius:6px; overflow-x:auto; font-size:0.82rem; border:1px solid var(--border-subtle); margin:8px 0;"><code>' + code.trim() + '</code></pre>';
+        });
+
+        text = text.replace(/`([^`]+)`/g, '<code style="background:var(--bg-surface); padding:1px 5px; border-radius:4px; font-size:0.82rem; color:var(--accent-amber);">$1</code>');
+
+        text = text.replace(/^#### (.*?)$/gm, '<h4 style="font-size:0.95rem; font-weight:700; margin:10px 0 4px; color:var(--accent-primary);">$1</h4>');
+        text = text.replace(/^### (.*?)$/gm, '<h3 style="font-size:1.02rem; font-weight:700; margin:12px 0 6px; color:var(--accent-primary);">$1</h3>');
+        text = text.replace(/^## (.*?)$/gm, '<h2 style="font-size:1.1rem; font-weight:700; margin:14px 0 8px; color:var(--accent-primary);">$1</h2>');
+        text = text.replace(/^# (.*?)$/gm, '<h1 style="font-size:1.2rem; font-weight:700; margin:16px 0 10px; color:var(--accent-primary);">$1</h1>');
+
+        text = text.replace(/^> (.*?)$/gm, '<blockquote style="border-left:3px solid var(--accent-primary); padding-left:10px; margin:6px 0; color:var(--text-muted); font-style:italic;">$1</blockquote>');
+
+        text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        text = text.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+        text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        text = text.replace(/_([^_]+)_/g, '<em>$1</em>');
+        text = text.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+
+        text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer" style="color:var(--accent-primary); text-decoration:underline;">$1 ↗</a>');
+
+        text = text.replace(/^\s*[-*+]\s+(.*?)$/gm, '<li style="margin-bottom:3px;">$1</li>');
+        text = text.replace(/(<li style="margin-bottom:3px;">.*<\/li>(\n|$))+/g, '<ul style="padding-left:20px; margin:6px 0;">$&</ul>');
+
+        text = text.replace(/^\s*\d+\.\s+(.*?)$/gm, '<li class="vmodal-oli" style="margin-bottom:3px;">$1</li>');
+        text = text.replace(/(<li class="vmodal-oli" style="margin-bottom:3px;">.*<\/li>(\n|$))+/g, '<ol style="padding-left:20px; margin:6px 0;">$&</ol>');
+
+        var lines = text.split('\n');
+        var res = [];
+        for (var i = 0; i < lines.length; i++) {
+            var l = lines[i];
+            if (/^<(h[1-4]|ul|ol|pre|blockquote|\/ul|\/ol|\/pre|\/blockquote)/.test(l.trim())) {
+                res.push(l);
+            } else if (l.trim() === '') {
+                res.push('<div style="height:6px;"></div>');
+            } else {
+                res.push('<p style="margin:3px 0; line-height:1.6;">' + l + '</p>');
+            }
+        }
+        return res.join('\n');
+    }
+
+    function formatVFileSize(bytes) {
+        if (!bytes || isNaN(bytes) || bytes <= 0) return '';
+        var b = Number(bytes);
+        if (b >= 1073741824) return (b / 1073741824).toFixed(2) + ' GB';
+        if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB';
+        if (b >= 1024) return (b / 1024).toFixed(0) + ' KB';
+        return b + ' B';
+    }
+
+    function getVPanClass(str) {
+        str = String(str || '').toLowerCase();
+        if (str.indexOf('quark') !== -1 || str.indexOf('夸克') !== -1) return 'pan-btn-quark';
+        if (str.indexOf('baidu') !== -1 || str.indexOf('百度') !== -1) return 'pan-btn-baidu';
+        if (str.indexOf('123') !== -1) return 'pan-btn-pan123';
+        if (str.indexOf('xunlei') !== -1 || str.indexOf('迅雷') !== -1) return 'pan-btn-xunlei';
+        if (str.indexOf('lanzou') !== -1 || str.indexOf('蓝奏') !== -1) return 'pan-btn-lanzou';
+        if (str.indexOf('modrinth') !== -1) return 'pan-btn-modrinth';
+        if (str.indexOf('curseforge') !== -1) return 'pan-btn-curseforge';
+        return 'pan-btn-other';
+    }
+
     function openVersionModal(mid, title, ver, date, count, row, extra) {
         extra = extra || {};
         var plat = extra.platform || (mid ? 'mcmod' : 'bilibili');
@@ -5941,15 +6069,10 @@ $(document).ready(function() {
         date = date || extra.date || (row && row.last_update_date) || '暂无记录';
         var relDate = extra.date_created || (row && row.release_date) || date || '暂无记录';
         count = count || extra.count || (row && row.version_count) || (extra.items ? extra.items.length : 1);
-        // 各平台可用字段不同：没有的字段一律不编造，改用下面这组可选覆盖项改写卡片标签，
-        // 让非 MCMod 平台也能复用同一个弹窗（例如把「最新发布版本」改成「最新支持版本」）。
         var mcVers = extra.mcVers || extra.ver || ((row && row.mc_versions && row.mc_versions.length) ? row.mc_versions.join(', ') : ((row && row.mc_version) || '通用 / 未指定'));
-        // 版本列表（数组形态）：用于下方的「版本支持分布」可视化。
-        // 只取数据里真实存在的版本，不做任何推断补全。
         var mcVersList = extra.mcVersList || (row && row.mc_versions) || [];
         if ((!mcVersList || !mcVersList.length) && extra.mcVersListRaw) mcVersList = extra.mcVersListRaw;
         var mcStrip = buildMcVersionStrip(mcVersList);
-        // modCount 只在数据里真的有「模组数量」时才显示；没有就留空，绝不编造。
         var modCount = extra.modCount || ((row && row.mod_count) ? (row.mod_count + ' 款') : '');
         var typeName = extra.typeName || (row && row.type_name) || '优质模组包';
         var targetUrl = extra.url || ('https://www.mcmod.cn/modpack/version/' + mid + '.html');
@@ -5963,7 +6086,6 @@ $(document).ready(function() {
                        (plat === 'xyebbs' ? 'XYEBBS社区' :
                        (plat === 'modrinth' ? 'Modrinth国际服' :
                        (plat === 'curseforge' ? 'CurseForge全球服' : 'MC百科权威'))));
-        // 提示语里的站点名与按钮文案同样按平台参数化，不再写死 MC百科。
         var siteShort = plat === 'bilibili' ? '哔哩哔哩' :
                         (plat === 'bbsmc' ? 'BBSMC' :
                         (plat === 'xyebbs' ? 'XYEBBS' :
@@ -5978,108 +6100,463 @@ $(document).ready(function() {
         $vCount.text((extra.countTagLabel || '累计发布') + ': ' + (count ? fmtBigNum(count) : 1) + (extra.countTagUnit || ' 个版本'));
         $vExtLink.attr('href', targetUrl);
 
-        var modalHtml = '<div class="version-details-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:20px;">' +
-            '<div class="vcard-metric" style="background:var(--glass-bg, rgba(255,255,255,0.05)); border:1px solid var(--glass-border, #e2e8f0); border-radius:12px; padding:16px;">' +
-                '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">' + lblVer + '</div>' +
-                '<div style="font-size:1.25rem; font-weight:700; color:var(--primary);">' + escHtml(ver) + '</div>' +
-            '</div>' +
-            '<div class="vcard-metric" style="background:var(--glass-bg, rgba(255,255,255,0.05)); border:1px solid var(--glass-border, #e2e8f0); border-radius:12px; padding:16px;">' +
-                '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">📅 最近更新时间</div>' +
-                '<div style="font-size:1.1rem; font-weight:700; color:var(--text);">' + escHtml(date) + '</div>' +
-            '</div>' +
-            '<div class="vcard-metric" style="background:var(--glass-bg, rgba(255,255,255,0.05)); border:1px solid var(--glass-border, #e2e8f0); border-radius:12px; padding:16px;">' +
-                '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">🚀 首次发布日期</div>' +
-                '<div style="font-size:1.1rem; font-weight:700; color:var(--text);">' + escHtml(relDate) + '</div>' +
-            '</div>' +
-            '<div class="vcard-metric" style="background:var(--glass-bg, rgba(255,255,255,0.05)); border:1px solid var(--glass-border, #e2e8f0); border-radius:12px; padding:16px;">' +
-                '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">' + lblCount + '</div>' +
-                '<div style="font-size:1.25rem; font-weight:700; color:var(--accent, #8b5cf6);">' + (count ? (fmtBigNum(count) + countUnit) : '未知') + '</div>' +
-            '</div>' +
-            (extra.skipMcVersCard ? '' : ('<div class="vcard-metric" style="background:var(--glass-bg, rgba(255,255,255,0.05)); border:1px solid var(--glass-border, #e2e8f0); border-radius:12px; padding:16px;">' +
-                '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">🎮 Minecraft 支持版本</div>' +
-                '<div style="font-size:1.05rem; font-weight:700; color:var(--emerald, #059669);">' + (mcStrip ? (mcVersList.length + ' 个具体版本') : escHtml(mcVers)) + '</div>' +
-            '</div>')) +
-            '<div class="vcard-metric" style="background:var(--glass-bg, rgba(255,255,255,0.05)); border:1px solid var(--glass-border, #e2e8f0); border-radius:12px; padding:16px;">' +
-                '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">' + lblType + '</div>' +
-                '<div style="font-size:1.05rem; font-weight:700; color:var(--text);">' + escHtml(typeName) + (modCount ? ' · ' + escHtml(modCount) : '') + '</div>' +
-            '</div>' +
-        '</div>' +
-        mcStrip +
-        '<div class="vcard-notice" style="background:rgba(37,99,235,0.08); border-left:4px solid var(--primary); padding:14px 18px; border-radius:0 10px 10px 0; margin-bottom:20px; font-size:0.88rem; line-height:1.6; color:var(--text);">' +
-            '<b>🛡️ 本地离线安全保护说明：</b><br>' +
-            noticeText +
-        '</div>' +
-        '<div style="text-align:center; padding:15px 0;">' +
-            '<a href="' + targetUrl + '" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:8px; padding:10px 24px; font-size:0.95rem; font-weight:700; border-radius:10px; text-decoration:none; box-shadow:0 4px 14px rgba(37,99,235,0.3);">' +
-                '<span>' + escHtml(btnLabel) + '</span>' +
-            '</a>' +
-        '</div>';
+        // 重置各 Pane 内容和 Loading
+        $('#versionModalLoading').hide();
+        var $pChangelog = $('#vPaneChangelog').empty();
+        var $pDownloads = $('#vPaneDownloads').empty();
+        var $pDiscussions = $('#vPaneDiscussions').empty();
+        var $pOverview = $('#vPaneOverview').empty();
 
-        if (extra.items && extra.items.length > 0) {
-            modalHtml += '<div style="margin-top:20px; border-top:1px solid var(--border-color, rgba(255,255,255,0.1)); padding-top:16px;">' +
-                '<h4 style="font-size:1rem; font-weight:700; margin:0 0 12px; color:var(--text);">📜 该整合包关联的全部发布与迭代历史视频 (' + extra.items.length + ' 期)</h4>' +
-                '<div style="display:flex; flex-direction:column; gap:10px; max-height:260px; overflow-y:auto; padding-right:6px;">';
-            extra.items.forEach(function(it, idx) {
-                var isLatest = idx === 0 ? '<span style="background:rgba(251,114,153,0.2); color:#fb7299; border:1px solid rgba(251,114,153,0.3); border-radius:4px; font-size:11px; padding:1px 6px; font-weight:700;">最新发布</span>' : '';
-                modalHtml += '<div style="display:flex; align-items:center; justify-content:space-between; background:var(--surface, rgba(255,255,255,0.04)); border:1px solid var(--border, rgba(255,255,255,0.08)); border-radius:8px; padding:10px 12px; gap:10px;">' +
-                    '<div style="flex:1; min-width:0;">' +
-                        '<div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">' + isLatest + '<span style="font-size:12px; color:var(--text-muted);">' + (it.pub_time || '') + '</span></div>' +
-                        '<a href="' + it.url + '" target="_blank" rel="noreferrer" style="font-size:13px; font-weight:700; color:var(--text); text-decoration:none;" title="' + escHtml(it.title) + '">' + escHtml(it.title) + '</a>' +
-                    '</div>' +
-                    '<a href="' + it.url + '" target="_blank" rel="noreferrer" class="bili-pan-btn pan-btn-other" style="font-size:11px; padding:4px 10px; text-decoration:none;">在新窗口观看 ↗</a>' +
-                '</div>';
-            });
-            modalHtml += '</div></div>';
+        // 1. 渲染 Overview Pane (综合概览)
+        var formerTitlesHtml = '';
+        var fTitles = (row && row.former_titles) || (extra.rawPack && extra.rawPack.former_titles) || [];
+        if (fTitles && fTitles.length > 0) {
+            formerTitlesHtml = '<div style="background:rgba(245,158,11,0.08); border-left:4px solid var(--accent-amber); padding:10px 14px; border-radius:0 8px 8px 0; margin-bottom:16px; font-size:0.86rem; color:var(--text-primary);">' +
+                '<b>🏷️ 该整合包曾用名（历史别名）：</b> ' + escHtml(fTitles.join('、 ')) +
+                '<span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">(全局搜索旧名称依然可精准命中)</span>' +
+            '</div>';
         }
 
-        if (extra.links && extra.links.length > 0) {
-            var hasVersionedLinks = false;
-            for (var lki = 0; lki < extra.links.length; lki++) {
-                if (extra.links[lki] && (extra.links[lki].version || extra.links[lki].label)) {
-                    hasVersionedLinks = true;
-                    break;
+        var overviewHtml = formerTitlesHtml +
+            '<div class="version-details-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:18px;">' +
+                '<div class="vcard-metric" style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:12px; padding:14px;">' +
+                    '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">' + lblVer + '</div>' +
+                    '<div style="font-size:1.15rem; font-weight:700; color:var(--accent-primary);">' + escHtml(ver) + '</div>' +
+                '</div>' +
+                '<div class="vcard-metric" style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:12px; padding:14px;">' +
+                    '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">📅 最近更新时间</div>' +
+                    '<div style="font-size:1.05rem; font-weight:700; color:var(--text-primary);">' + escHtml(date) + '</div>' +
+                '</div>' +
+                '<div class="vcard-metric" style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:12px; padding:14px;">' +
+                    '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">🚀 首次发布日期</div>' +
+                    '<div style="font-size:1.05rem; font-weight:700; color:var(--text-primary);">' + escHtml(relDate) + '</div>' +
+                '</div>' +
+                '<div class="vcard-metric" style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:12px; padding:14px;">' +
+                    '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">' + lblCount + '</div>' +
+                    '<div style="font-size:1.15rem; font-weight:700; color:var(--accent-secondary, #8b5cf6);">' + (count ? (fmtBigNum(count) + countUnit) : '未知') + '</div>' +
+                '</div>' +
+                (extra.skipMcVersCard ? '' : ('<div class="vcard-metric" style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:12px; padding:14px;">' +
+                    '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">🎮 Minecraft 支持版本</div>' +
+                    '<div style="font-size:1.02rem; font-weight:700; color:var(--emerald, #059669);">' + (mcStrip ? (mcVersList.length + ' 个具体版本') : escHtml(mcVers)) + '</div>' +
+                '</div>')) +
+                '<div class="vcard-metric" style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:12px; padding:14px;">' +
+                    '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">' + lblType + '</div>' +
+                    '<div style="font-size:1.02rem; font-weight:700; color:var(--text-primary);">' + escHtml(typeName) + (modCount ? ' · ' + escHtml(modCount) : '') + '</div>' +
+                '</div>' +
+            '</div>' +
+            mcStrip +
+            '<div class="vcard-notice" style="background:rgba(37,99,235,0.08); border-left:4px solid var(--primary); padding:14px 18px; border-radius:0 10px 10px 0; margin-bottom:20px; font-size:0.86rem; line-height:1.6; color:var(--text-primary);">' +
+                '<b>🛡️ 本地离线安全保护说明：</b><br>' +
+                noticeText +
+            '</div>' +
+            '<div style="text-align:center; padding:12px 0;">' +
+                '<a href="' + targetUrl + '" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:8px; padding:9px 22px; font-size:0.92rem; font-weight:700; border-radius:8px; text-decoration:none;">' +
+                    '<span>' + escHtml(btnLabel) + '</span>' +
+                '</a>' +
+            '</div>';
+        $pOverview.html(overviewHtml);
+
+        // 渲染具体平台内容处理器
+        function renderBbsmcPanes(vList) {
+            vList = vList || [];
+            $('#vBadgeChangelog').text(vList.length);
+            var totalFiles = 0;
+            vList.forEach(function(v) { totalFiles += (v.files ? v.files.length : 1); });
+            $('#vBadgeDownloads').text(totalFiles);
+            $('#vBadgeDiscussions').text(1);
+
+            // 1. Changelog timeline
+            if (vList.length === 0) {
+                $pChangelog.html('<div class="vmodal-ver-card" style="text-align:center; padding:30px; color:var(--text-muted);">暂无版本日志数据</div>');
+            } else {
+                var cHtml = '<div class="vmodal-changelog-timeline">';
+                vList.forEach(function(v) {
+                    var vNum = v.version_number || '未知版本';
+                    var vName = v.name || ('版本 ' + vNum);
+                    var vDate = v.date_published ? String(v.date_published).substring(0, 10) : '未知日期';
+                    var vDl = (typeof v.downloads === 'number') ? fmtBigNum(v.downloads) : '0';
+                    var gvStr = (v.game_versions && v.game_versions.length) ? ('MC ' + v.game_versions.join(', ')) : '';
+                    var ldStr = (v.loaders && v.loaders.length) ? v.loaders.join(', ') : '';
+
+                    var filesBtnHtml = '';
+                    if (v.files && v.files.length > 0) {
+                        filesBtnHtml += '<div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:8px;">';
+                        v.files.forEach(function(f) {
+                            var fSize = formatVFileSize(f.size);
+                            var fName = f.filename || '下载整合包';
+                            filesBtnHtml += '<a href="' + f.url + '" target="_blank" rel="noreferrer" class="card-dl-btn pan-btn-other" style="font-size:0.78rem; padding:4px 10px;">💾 ' + escHtml(fName) + (fSize ? ' (' + fSize + ')' : '') + ' ↗</a>';
+                        });
+                        filesBtnHtml += '</div>';
+                    }
+
+                    cHtml += '<div class="vmodal-ver-card">' +
+                        '<div class="vmodal-ver-head">' +
+                            '<div class="vmodal-ver-title">' +
+                                '<span class="vmodal-ver-tag">🏷️ ' + escHtml(vNum) + '</span>' +
+                                '<span>' + escHtml(vName) + '</span>' +
+                            '</div>' +
+                            '<div class="vmodal-ver-meta">' +
+                                '<span>📅 ' + escHtml(vDate) + '</span>' +
+                                '<span>📥 下载: ' + vDl + '</span>' +
+                                (gvStr ? ('<span>🎮 ' + escHtml(gvStr) + '</span>') : '') +
+                                (ldStr ? ('<span>🧩 ' + escHtml(ldStr) + '</span>') : '') +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="vmodal-changelog-body">' +
+                            renderSimpleMarkdown(v.changelog || '该版本未提供更新日志说明。') +
+                        '</div>' +
+                        filesBtnHtml +
+                    '</div>';
+                });
+                cHtml += '</div>';
+                $pChangelog.html(cHtml);
+            }
+
+            // 2. Downloads Table (对齐用户截图 1)
+            var dtHtml = '<div class="vmodal-dl-top-bar">' +
+                '<div style="font-weight:700; color:var(--text-primary); font-size:0.9rem;">📥 历史发布版本与下载矩阵 (共 ' + vList.length + ' 个版本)</div>' +
+                '<input type="text" class="vmodal-dl-search" placeholder="🔍 快速搜索版本号、MC版本或加载器...">' +
+            '</div>' +
+            '<div class="vmodal-dl-table-wrap">' +
+                '<table class="vmodal-dl-table">' +
+                    '<thead>' +
+                        '<tr>' +
+                            '<th>版本号</th>' +
+                            '<th>游戏版本</th>' +
+                            '<th>加载器</th>' +
+                            '<th>发布日期</th>' +
+                            '<th>下载量 / 大小</th>' +
+                            '<th>下载通道 / 操作</th>' +
+                        '</tr>' +
+                    '</thead>' +
+                    '<tbody>';
+
+            vList.forEach(function(v) {
+                var vNum = v.version_number || '--';
+                var gvStr = (v.game_versions && v.game_versions.length) ? v.game_versions.join(', ') : '--';
+                var ldStr = (v.loaders && v.loaders.length) ? v.loaders.join(', ') : '--';
+                var vDate = v.date_published ? String(v.date_published).substring(0, 10) : '--';
+                var vDl = (typeof v.downloads === 'number') ? (fmtBigNum(v.downloads) + '次') : '--';
+                var firstFile = (v.files && v.files[0]) ? v.files[0] : null;
+                var sizeStr = firstFile ? formatVFileSize(firstFile.size) : '';
+
+                var opBtns = '';
+                if (v.files && v.files.length > 0) {
+                    v.files.forEach(function(f) {
+                        opBtns += '<a href="' + f.url + '" target="_blank" rel="noreferrer" class="card-dl-btn pan-btn-other" style="font-size:0.75rem; margin-right:4px; margin-bottom:4px;">💾 极速下载 ↗</a>';
+                    });
+                } else {
+                    opBtns = '<a href="' + targetUrl + '" target="_blank" rel="noreferrer" class="card-dl-btn pan-btn-other" style="font-size:0.75rem;">🔗 原站下载 ↗</a>';
+                }
+
+                dtHtml += '<tr>' +
+                    '<td><span class="vmodal-ver-tag">' + escHtml(vNum) + '</span></td>' +
+                    '<td>' + escHtml(gvStr) + '</td>' +
+                    '<td>' + escHtml(ldStr) + '</td>' +
+                    '<td>' + escHtml(vDate) + '</td>' +
+                    '<td>' + escHtml(vDl) + (sizeStr ? (' · <span style="font-size:0.75rem; color:var(--text-muted);">' + sizeStr + '</span>') : '') + '</td>' +
+                    '<td>' + opBtns + '</td>' +
+                '</tr>';
+            });
+            dtHtml += '</tbody></table></div>';
+            $pDownloads.html(dtHtml);
+
+            // 3. Discussions Pane
+            var discHtml = '<div class="vmodal-ver-card">' +
+                '<h4 style="margin:0 0 8px; color:var(--text-primary); font-size:1rem;">💬 BBSMC 社区讨论与反馈</h4>' +
+                '<p style="font-size:0.86rem; color:var(--text-secondary); line-height:1.6; margin-bottom:14px;">' +
+                    '您可以在 BBSMC 开放平台与整合包创作者及社区玩家直接交流、提交问题反馈或阅读玩家评测。' +
+                '</p>' +
+                '<a href="' + targetUrl + '" target="_blank" rel="noreferrer" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:6px; padding:8px 18px; font-weight:700; border-radius:8px; text-decoration:none;">' +
+                    '<span>在新标签页打开 BBSMC 官方讨论区 ↗</span>' +
+                '</a>' +
+            '</div>';
+            $pDiscussions.html(discHtml);
+        }
+
+        function renderXyebbsPanes(rList) {
+            rList = rList || [];
+            $('#vBadgeChangelog').text(rList.length);
+            var totalLinks = 0;
+            rList.forEach(function(r) { totalLinks += (r.links ? r.links.length : 1); });
+            $('#vBadgeDownloads').text(totalLinks);
+            $('#vBadgeDiscussions').text(1);
+
+            // 1. Changelog timeline
+            if (rList.length === 0) {
+                $pChangelog.html('<div class="vmodal-ver-card" style="text-align:center; padding:30px; color:var(--text-muted);">暂无版本更新日志数据</div>');
+            } else {
+                var cHtml = '<div class="vmodal-changelog-timeline">';
+                rList.forEach(function(r) {
+                    var rLabel = r.label || 'Release';
+                    var rName = r.name || rLabel;
+                    var rDate = r.createDate ? String(r.createDate).substring(0, 10) : '未知日期';
+                    var rDl = (typeof r.downloadCount === 'number') ? fmtBigNum(r.downloadCount) : '0';
+
+                    var linksBtnHtml = '';
+                    if (r.links && r.links.length > 0) {
+                        linksBtnHtml += '<div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:8px;">';
+                        r.links.forEach(function(l) {
+                            var lType = (l.type || l.linkType || '').toUpperCase();
+                            var defaultName = lType === 'QUARK' ? '夸克网盘' : (lType === 'BAIDU' ? '百度网盘' : (lType.indexOf('123') !== -1 ? '123云盘' : (lType === 'LANZOU' ? '蓝奏云' : (lType === 'XUNLEI' ? '迅雷云盘' : '极速下载'))));
+                            var lName = (l.name || defaultName).trim();
+                            var pCls = getVPanClass(l.type || l.linkType || l.name);
+                            var codeStr = (l.code || l.info) ? (' 提取码: ' + (l.code || l.info)) : '';
+                            linksBtnHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="card-dl-btn ' + pCls + '" style="font-size:0.78rem; padding:4px 10px;" title="' + escHtml(lName + codeStr, true) + '">💾 ' + escHtml(lName) + ' ↗</a>';
+                        });
+                        linksBtnHtml += '</div>';
+                    }
+
+                    cHtml += '<div class="vmodal-ver-card">' +
+                        '<div class="vmodal-ver-head">' +
+                            '<div class="vmodal-ver-title">' +
+                                '<span class="vmodal-ver-tag">🏷️ ' + escHtml(rLabel) + '</span>' +
+                                '<span>' + escHtml(rName) + '</span>' +
+                            '</div>' +
+                            '<div class="vmodal-ver-meta">' +
+                                '<span>📅 ' + escHtml(rDate) + '</span>' +
+                                '<span>📥 下载: ' + rDl + '</span>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="vmodal-changelog-body">' +
+                            renderSimpleMarkdown(r.notes || '该版本未提供更新日志说明。') +
+                        '</div>' +
+                        linksBtnHtml +
+                    '</div>';
+                });
+                cHtml += '</div>';
+                $pChangelog.html(cHtml);
+            }
+
+            // 2. Downloads Table (XYEBBS)
+            var dtHtml = '<div class="vmodal-dl-top-bar">' +
+                '<div style="font-weight:700; color:var(--text-primary); font-size:0.9rem;">📥 历史发布版本与下载矩阵 (共 ' + rList.length + ' 个版本)</div>' +
+                '<input type="text" class="vmodal-dl-search" placeholder="🔍 快速搜索版本号或下载渠道...">' +
+            '</div>' +
+            '<div class="vmodal-dl-table-wrap">' +
+                '<table class="vmodal-dl-table">' +
+                    '<thead>' +
+                        '<tr>' +
+                            '<th>版本号</th>' +
+                            '<th>发布日期</th>' +
+                            '<th>下载量</th>' +
+                            '<th>下载渠道 / 网盘直达</th>' +
+                        '</tr>' +
+                    '</thead>' +
+                    '<tbody>';
+
+            rList.forEach(function(r) {
+                var rLabel = r.label || '--';
+                var rDate = r.createDate ? String(r.createDate).substring(0, 10) : '--';
+                var rDl = (typeof r.downloadCount === 'number') ? (fmtBigNum(r.downloadCount) + '次') : '--';
+
+                var opBtns = '';
+                if (r.links && r.links.length > 0) {
+                    r.links.forEach(function(l) {
+                        var lType = (l.type || l.linkType || '').toUpperCase();
+                        var defaultName = lType === 'QUARK' ? '夸克网盘' : (lType === 'BAIDU' ? '百度网盘' : (lType.indexOf('123') !== -1 ? '123云盘' : (lType === 'LANZOU' ? '蓝奏云' : (lType === 'XUNLEI' ? '迅雷云盘' : '极速下载'))));
+                        var lName = (l.name || defaultName).trim();
+                        var pCls = getVPanClass(l.type || l.linkType || l.name);
+                        opBtns += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="card-dl-btn ' + pCls + '" style="font-size:0.75rem; margin-right:6px; margin-bottom:4px;">💾 ' + escHtml(lName) + ' ↗</a>';
+                    });
+                } else {
+                    opBtns = '<a href="' + targetUrl + '" target="_blank" rel="noreferrer" class="card-dl-btn pan-btn-other" style="font-size:0.75rem;">🔗 原站下载 ↗</a>';
+                }
+
+                dtHtml += '<tr>' +
+                    '<td><span class="vmodal-ver-tag">' + escHtml(rLabel) + '</span></td>' +
+                    '<td>' + escHtml(rDate) + '</td>' +
+                    '<td>' + escHtml(rDl) + '</td>' +
+                    '<td>' + opBtns + '</td>' +
+                '</tr>';
+            });
+            dtHtml += '</tbody></table></div>';
+            $pDownloads.html(dtHtml);
+
+            // 3. Discussions Pane
+            var discHtml = '<div class="vmodal-ver-card">' +
+                '<h4 style="margin:0 0 8px; color:var(--text-primary); font-size:1rem;">💬 XYEBBS 社区讨论与互动</h4>' +
+                '<p style="font-size:0.86rem; color:var(--text-secondary); line-height:1.6; margin-bottom:14px;">' +
+                    'XYEBBS 整合包专区提供了完整的玩家交流帖，您可直接前往原贴与作者互动或查看安装指引。' +
+                '</p>' +
+                '<a href="' + targetUrl + '" target="_blank" rel="noreferrer" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:6px; padding:8px 18px; font-weight:700; border-radius:8px; text-decoration:none;">' +
+                    '<span>在新标签页打开 XYEBBS 原贴交流 ↗</span>' +
+                '</a>' +
+            '</div>';
+            $pDiscussions.html(discHtml);
+        }
+
+        // 依据平台调度数据与实时加载
+        var defaultTab = 'changelog';
+
+        if (plat === 'bbsmc') {
+            var vData = extra.versions_data || (extra.rawPack && extra.rawPack.versions_data) || [];
+            if (vData.length > 0) {
+                renderBbsmcPanes(vData);
+            } else {
+                // 实时 CORS Fetch
+                var bbsSlug = extra.slug || extra.id;
+                if (!bbsSlug && extra.url) {
+                    var m = extra.url.match(/modpack\/([^\/\?#]+)/);
+                    if (m) bbsSlug = m[1];
+                }
+                if (bbsSlug) {
+                    $('#versionModalLoading').show();
+                    $('#versionModalLoadingText').text('正在从 BBSMC 官方实时同步版本与更新日志...');
+                    fetch('https://api.bbsmc.net/v2/project/' + encodeURIComponent(bbsSlug) + '/version')
+                        .then(function(res) { return res.json(); })
+                        .then(function(vList) {
+                            $('#versionModalLoading').hide();
+                            if (Array.isArray(vList) && vList.length > 0) {
+                                extra.versions_data = vList;
+                                if (extra.rawPack) extra.rawPack.versions_data = vList;
+                                renderBbsmcPanes(vList);
+                            } else {
+                                renderBbsmcPanes([]);
+                            }
+                        })
+                        .catch(function(err) {
+                            $('#versionModalLoading').hide();
+                            console.warn('BBSMC fetch failed', err);
+                            renderBbsmcPanes([]);
+                        });
+                } else {
+                    renderBbsmcPanes([]);
                 }
             }
-
-            if (hasVersionedLinks) {
-                modalHtml += '<div style="margin-top:20px; border-top:1px solid var(--border-color, rgba(255,255,255,0.1)); padding-top:16px;">' +
-                    '<h4 style="font-size:1rem; font-weight:700; margin:0 0 12px; color:var(--text); display:flex; align-items:center; justify-content:space-between;">' +
-                        '<span>📦 历史版本发布与下载通道 (' + extra.links.length + ' 个)</span>' +
-                        '<span style="font-size:11px; font-weight:500; color:var(--text-muted);">按发布通道与版本号整理 · 点击直达下载</span>' +
-                    '</h4>' +
-                    '<div style="display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto; padding-right:4px;">';
-                extra.links.forEach(function(l) {
-                    if (l && l.url) {
-                        var lName = (l.name || '官方通道').trim();
-                        var verTag = (l.version || l.label || '通用版本').trim();
-                        var sizeInfo = l.size ? (' · <span style="font-size:11px; color:var(--text-muted);">' + escHtml(l.size, true) + '</span>') : '';
-                        modalHtml += '<div style="display:flex; align-items:center; justify-content:space-between; background:var(--surface, rgba(255,255,255,0.04)); border:1px solid var(--border, rgba(255,255,255,0.08)); border-radius:8px; padding:8px 12px; gap:10px;">' +
-                            '<div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">' +
-                                '<span class="version-meta-tag" style="background:rgba(var(--primary-rgb, 59, 130, 246), 0.15); color:var(--primary); font-weight:700; font-size:11px; padding:2px 8px; border-radius:6px; flex-shrink:0;">🏷️ ' + escHtml(verTag, true) + '</span>' +
-                                '<span style="font-size:12px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + escHtml(lName, true) + '</span>' +
-                                sizeInfo +
-                            '</div>' +
-                            '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="bili-pan-btn pan-btn-other" style="font-size:11px; padding:4px 10px; text-decoration:none; flex-shrink:0;">💾 极速下载 ↗</a>' +
-                        '</div>';
-                    }
-                });
-                modalHtml += '</div></div>';
+        } else if (plat === 'xyebbs') {
+            var rData = extra.releases_data || (extra.rawPack && extra.rawPack.releases_data) || [];
+            if (rData.length > 0) {
+                renderXyebbsPanes(rData);
             } else {
-                modalHtml += '<div style="margin-top:20px; border-top:1px solid var(--border-color, rgba(255,255,255,0.1)); padding-top:16px;">' +
-                    '<h4 style="font-size:1rem; font-weight:700; margin:0 0 12px; color:var(--text);">💾 关联下载与历史资源通道 (' + extra.links.length + ' 个)</h4>' +
-                    '<div style="display:flex; flex-wrap:wrap; gap:8px;">';
-                extra.links.forEach(function(l) {
-                    if (l && l.url) {
-                        var lName = (l.name || '直接下载').trim();
-                        var vTag = l.version ? ' (' + l.version + ')' : '';
-                        modalHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="bili-pan-btn pan-btn-other" style="font-size:12px; padding:6px 12px; text-decoration:none;">💾 ' + escHtml(lName + vTag) + ' ↗</a>';
-                    }
-                });
-                modalHtml += '</div></div>';
+                // 实时 CORS Fetch
+                var xyeId = extra.id || (extra.rawPack && (extra.rawPack.project_id || extra.rawPack.id));
+                if (!xyeId && extra.url) {
+                    var xm = extra.url.match(/res-id\/([^\/\?#]+)/);
+                    if (xm) xyeId = xm[1];
+                }
+                if (xyeId) {
+                    $('#versionModalLoading').show();
+                    $('#versionModalLoadingText').text('正在从 XYEBBS 官方实时同步版本与更新日志...');
+                    fetch('https://resource-api.xyeidc.com/client/resources/' + encodeURIComponent(xyeId) + '/releases?includes=links')
+                        .then(function(res) { return res.json(); })
+                        .then(function(resData) {
+                            $('#versionModalLoading').hide();
+                            var rList = Array.isArray(resData) ? resData : ((resData && resData.data && Array.isArray(resData.data.data)) ? resData.data.data : ((resData && Array.isArray(resData.data)) ? resData.data : []));
+                            if (rList && rList.length > 0) {
+                                extra.releases_data = rList;
+                                if (extra.rawPack) extra.rawPack.releases_data = rList;
+                                renderXyebbsPanes(rList);
+                            } else {
+                                renderXyebbsPanes([]);
+                            }
+                        })
+                        .catch(function(err) {
+                            $('#versionModalLoading').hide();
+                            console.warn('XYEBBS fetch failed', err);
+                            renderXyebbsPanes([]);
+                        });
+                } else {
+                    renderXyebbsPanes([]);
+                }
             }
+        } else if (plat === 'bilibili') {
+            $('#vBadgeChangelog').text(extra.items ? extra.items.length : 0);
+            $('#vBadgeDownloads').text(extra.links ? extra.links.length : 0);
+            $('#vBadgeDiscussions').text(1);
+
+            // B站 视频集列表
+            if (extra.items && extra.items.length > 0) {
+                var bHtml = '<div class="vmodal-changelog-timeline">';
+                extra.items.forEach(function(it, idx) {
+                    var isLatest = idx === 0 ? '<span class="vmodal-ver-tag" style="background:rgba(251,114,153,0.2); color:#fb7299; border-color:rgba(251,114,153,0.3);">最新发布</span>' : '';
+                    bHtml += '<div class="vmodal-ver-card" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">' +
+                        '<div style="flex:1; min-width:0;">' +
+                            '<div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">' + isLatest + '<span style="font-size:0.75rem; color:var(--text-muted);">' + (it.pub_time || '') + '</span></div>' +
+                            '<a href="' + it.url + '" target="_blank" rel="noreferrer" style="font-size:0.9rem; font-weight:700; color:var(--text-primary); text-decoration:none;">' + escHtml(it.title) + '</a>' +
+                        '</div>' +
+                        '<a href="' + it.url + '" target="_blank" rel="noreferrer" class="card-dl-btn pan-btn-other" style="font-size:0.75rem;">在新窗口观看 ↗</a>' +
+                    '</div>';
+                });
+                bHtml += '</div>';
+                $pChangelog.html(bHtml);
+            } else {
+                $pChangelog.html('<div class="vmodal-ver-card" style="text-align:center; padding:24px; color:var(--text-muted);">暂无关联视频记录</div>');
+            }
+
+            // B站 下载链接
+            if (extra.links && extra.links.length > 0) {
+                var blHtml = '<div style="display:flex; flex-wrap:wrap; gap:8px;">';
+                extra.links.forEach(function(l) {
+                    var lName = (l.name || '网盘下载').trim();
+                    var pCls = getVPanClass(l.type || lName);
+                    blHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="card-dl-btn ' + pCls + '" style="font-size:0.8rem; padding:6px 12px;">💾 ' + escHtml(lName) + ' ↗</a>';
+                });
+                blHtml += '</div>';
+                $pDownloads.html(blHtml);
+            } else {
+                $pDownloads.html('<div class="vmodal-ver-card" style="text-align:center; padding:24px; color:var(--text-muted);">作者未在简介中登记独立下载链接，可直接点击视频在播放页简介/置顶评论中获取。</div>');
+            }
+
+            $pDiscussions.html('<div class="vmodal-ver-card"><p>前往 Bilibili 原视频评论区参与交流互动：</p><a href="' + targetUrl + '" target="_blank" rel="noreferrer" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:6px; padding:8px 18px; font-weight:700; border-radius:8px; text-decoration:none;"><span>直达 B站 视频页 ↗</span></a></div>');
+        } else {
+            // MCMod / Modrinth / CurseForge
+            var dlLinks = extra.links || [];
+            $('#vBadgeChangelog').text(count || 1);
+            $('#vBadgeDownloads').text(dlLinks.length || 1);
+            $('#vBadgeDiscussions').text(1);
+
+            $pChangelog.html('<div class="vmodal-ver-card">' +
+                '<div class="vmodal-ver-head">' +
+                    '<div class="vmodal-ver-title">' +
+                        '<span class="vmodal-ver-tag">🏷️ ' + escHtml(ver) + '</span>' +
+                        '<span>' + escHtml(title) + '</span>' +
+                    '</div>' +
+                    '<div class="vmodal-ver-meta">' +
+                        '<span>📅 更新时间: ' + escHtml(date) + '</span>' +
+                        '<span>📦 累计收录: ' + (count ? fmtBigNum(count) : 1) + ' 个历史版本</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="vmodal-changelog-body">' +
+                    '<p><b>📌 官方版本库与更新改动说明：</b></p>' +
+                    '<p>' + siteShort + ' 提供了详尽的整合包版本发布树与前置模组依赖变动清单。为防止原站跨域防护拦截，您可点击下方按钮在新标签页中安全查看官方原版历史发布与改动细节：</p>' +
+                    '<div style="margin-top:14px;">' +
+                        '<a href="' + targetUrl + '" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:6px; padding:8px 18px; font-weight:700; border-radius:8px; text-decoration:none;"><span>在新标签页打开 ' + siteShort + ' 官方版本页面 ↗</span></a>' +
+                    '</div>' +
+                '</div>' +
+            '</div>');
+
+            if (dlLinks.length > 0) {
+                var mcdlHtml = '<div style="display:flex; flex-wrap:wrap; gap:8px;">';
+                dlLinks.forEach(function(l) {
+                    var lName = (l.name || '直接下载').trim();
+                    var pCls = getVPanClass(l.type || lName);
+                    mcdlHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="card-dl-btn ' + pCls + '" style="font-size:0.8rem; padding:6px 12px;">💾 ' + escHtml(lName) + ' ↗</a>';
+                });
+                mcdlHtml += '</div>';
+                $pDownloads.html(mcdlHtml);
+            } else {
+                $pDownloads.html('<div class="vmodal-ver-card">' +
+                    '<h4 style="margin:0 0 8px; color:var(--text-primary);">📥 官方下载通道</h4>' +
+                    '<p style="font-size:0.86rem; color:var(--text-secondary); line-height:1.6; margin-bottom:14px;">该整合包支持在 ' + siteShort + ' 原站免费直连下载其客户端或服务端构建包。</p>' +
+                    '<a href="' + targetUrl + '" target="_blank" rel="noreferrer" class="card-dl-btn pan-btn-other" style="font-size:0.82rem; padding:6px 14px;">🔗 前往 ' + siteShort + ' 获取完整下载文件 ↗</a>' +
+                '</div>');
+            }
+
+            $pDiscussions.html('<div class="vmodal-ver-card">' +
+                '<h4 style="margin:0 0 8px; color:var(--text-primary);">💬 ' + siteShort + ' 讨论区</h4>' +
+                '<p style="font-size:0.86rem; color:var(--text-secondary); line-height:1.6; margin-bottom:14px;">在 ' + siteShort + ' 官方社区查看玩家评论或向模组作者反馈。</p>' +
+                '<a href="' + targetUrl + '" target="_blank" rel="noreferrer" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:6px; padding:8px 18px; font-weight:700; border-radius:8px; text-decoration:none;"><span>直达原站参与讨论 ↗</span></a>' +
+            '</div>');
         }
 
-        $vBodyInner.html(modalHtml);
+        // 默认激活 Tab 状态
+        $('.vmodal-tab-btn').removeClass('active');
+        $('.vmodal-pane').hide().removeClass('active');
+
+        $('#vTab' + defaultTab.charAt(0).toUpperCase() + defaultTab.slice(1)).addClass('active');
+        $('#vPane' + defaultTab.charAt(0).toUpperCase() + defaultTab.slice(1)).show().addClass('active');
+
         $vModal.css('display', 'flex');
         setTimeout(function() { $vModal.addClass('show'); }, 10);
     }
@@ -6090,6 +6567,31 @@ $(document).ready(function() {
             $vModal.hide();
         }, 220);
     }
+
+    /* 模态窗分栏导航切换事件绑定 */
+    $(document).on('click', '.vmodal-tab-btn', function(e) {
+        e.preventDefault();
+        var tab = $(this).data('vtab');
+        if (!tab) return;
+        $('.vmodal-tab-btn').removeClass('active');
+        $(this).addClass('active');
+        $('.vmodal-pane').hide().removeClass('active');
+        $('#vPane' + tab.charAt(0).toUpperCase() + tab.slice(1)).show().addClass('active');
+    });
+
+    /* 历史下载矩阵快速模糊搜索事件绑定 */
+    $(document).on('input', '.vmodal-dl-search', function() {
+        var kw = $(this).val().trim().toLowerCase();
+        var $rows = $(this).closest('.vmodal-pane').find('.vmodal-dl-table tbody tr');
+        $rows.each(function() {
+            var txt = $(this).text().toLowerCase();
+            if (!kw || txt.indexOf(kw) !== -1) {
+                $(this).show();
+            } else {
+                $(this).hide();
+            }
+        });
+    });
 
     /* 全平台通用悬浮预览与版本模态窗事件绑定 */
     $(document).on('mouseenter', '.js-open-unified-preview', function() {
