@@ -318,6 +318,7 @@ td:nth-child(7),
     justify-content: center;
     align-items: center;
     min-width: 0;
+    overflow: hidden;
 }
 
 .topbar-platform-nav {
@@ -329,6 +330,17 @@ td:nth-child(7),
     padding: 3px;
     gap: 3px;
     box-shadow: var(--shadow-sm);
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    flex-shrink: 1;
+}
+
+.topbar-platform-nav::-webkit-scrollbar {
+    display: none;
 }
 
 .top-plat-btn {
@@ -368,12 +380,16 @@ td:nth-child(7),
 .top-plat-btn[data-tab="curseforge"].active { background: #EA580C !important; }
 
 .top-plat-btn .pnav-badge {
+    display: none;
     font-size: 0.65rem;
     font-weight: 600;
     padding: 1px 4px;
     border-radius: 4px;
     background: rgba(255, 255, 255, 0.08);
     color: var(--text-muted);
+}
+.top-plat-btn#topNavDiff .pnav-badge {
+    display: inline-block;
 }
 .top-plat-btn.active .pnav-badge {
     background: rgba(255, 255, 255, 0.28);
@@ -1348,9 +1364,45 @@ td:nth-child(7),
 }
 
 /* ── 11. 响应式适配 ── */
+@media (max-width: 1440px) {
+    .topbar-inner {
+        padding: 0 12px;
+        gap: 10px;
+    }
+    .brand-badge {
+        display: none !important;
+    }
+    .top-plat-btn .pnav-badge {
+        display: none !important;
+    }
+    .top-plat-btn {
+        padding: 4px 8px;
+        gap: 5px;
+        font-size: 0.78rem;
+    }
+}
+
 @media (max-width: 1400px) {
     .cross-results-grid {
         grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 1200px) {
+    .topbar-inner {
+        padding: 0 10px;
+        gap: 8px;
+    }
+    .top-plat-btn {
+        padding: 3px 6px;
+        font-size: 0.75rem;
+    }
+    .top-action-btn {
+        padding: 0 6px;
+        font-size: 0.74rem;
+    }
+    .top-tdot {
+        padding: 0 5px;
     }
 }
 
@@ -1361,15 +1413,21 @@ td:nth-child(7),
     .cross-results-grid {
         grid-template-columns: repeat(2, 1fr);
     }
-    .topbar-platform-nav {
-        overflow-x: auto;
-        max-width: 600px;
+    .topbar-center {
+        justify-content: flex-start;
+    }
+    .brand-title {
+        font-size: 0.88rem;
     }
 }
 
 @media (max-width: 768px) {
     .topbar-inner {
-        padding: 0 12px;
+        padding: 0 8px;
+        gap: 6px;
+    }
+    .brand-title {
+        display: none;
     }
     .cross-results-grid {
         grid-template-columns: 1fr;
