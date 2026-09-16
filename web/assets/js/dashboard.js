@@ -4520,7 +4520,14 @@ $(document).ready(function() {
                 var current = api.order();
                 var currentIdx = current && current.length ? current[0][0] : -1;
                 var currentDir = current && current.length ? current[0][1] : 'desc';
-                var nextDir = (currentIdx === colIdx && currentDir === 'asc') ? 'desc' : 'asc';
+                var nextDir;
+                if (currentIdx === colIdx) {
+                    nextDir = (currentDir === 'desc') ? 'asc' : 'desc';
+                } else {
+                    var $activeOpt = $wrapper.find('.header-sort-switcher[data-col="' + colIdx + '"] .sort-option.active');
+                    var subKey = $activeOpt.attr('data-subkey');
+                    nextDir = (colIdx === 0 && subKey === 'name') ? 'asc' : 'desc';
+                }
 
                 var settings = api.settings()[0];
                 if (colIdx === 0) {
