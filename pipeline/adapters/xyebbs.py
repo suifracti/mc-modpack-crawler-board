@@ -121,16 +121,27 @@ class XyebbsAdapter(BaseAdapter):
             ))
 
         # 5. Download Links
+        import urllib.parse
         download_links = []
         has_server_link = False
         server_evidence = ""
+        server_raw_value = ""
+
         for dl in (raw_item.get("download_links") or []):
             if isinstance(dl, dict) and dl.get("url"):
                 l_name = dl.get("name") or "下载"
-                is_server = bool(re.search(r'(?:服务端|server|开服)', l_name, re.IGNORECASE))
-                if is_server:
+                dl_texts = " ".join([
+                    str(dl.get("name") or ""),
+                    str(dl.get("filename") or ""),
+                    str(dl.get("version") or ""),
+                    urllib.parse.unquote(str(dl.get("url") or ""))
+                ])
+                m_srv = self.SERVER_FILE_REGEX.search(dl_texts)
+                is_server = bool(m_srv)
+                if is_server and not has_server_link:
                     has_server_link = True
-                    server_evidence = l_name
+                    server_evidence = dl.get("filename") or l_name
+                    server_raw_value = m_srv.group(0)
 
                 download_links.append(CanonicalDownloadLink(
                     source_item_id=source_item_id,
@@ -156,49 +167,84 @@ class XyebbsAdapter(BaseAdapter):
             comments_count=raw_item.get("comments")
         )
 
-        # 8. Environment Claims
-        claims = [
-            CanonicalEnvironmentClaim(
+        # 8. Environment Claims (Phase 1.1 Strict Semantics)
+        claims = []
+        full_text = f"{title} {raw_item.get('description') or ''}"
+
+        # Client Claim
+        m_c_neg = self.SERVER_TEXT_NEG_REGEX.search(full_text)
+        if m_c_neg and "客户端" in m_c_neg.group(0):
+            claims.append(CanonicalEnvironmentClaim(
                 pack_id=pack_id,
                 source_item_id=source_item_id,
                 side="client",
                 status="supported",
-                certainty="confirmed",
-                evidence_type="platform_field",
-                evidence_text="XYEBBS社区模组包默认支持单人客户端游玩",
-                raw_value="client: supported",
-                source_field="xyebbs:thread",
+                certainty="inferred",
+                evidence_type="text_rule",
+                evidence_text=self.extract_snippet(full_text, m_c_neg),
+                raw_value=m_c_neg.group(0),
+                source_field="description",
                 source_url=url,
                 observed_at=now_str
-            )
-        ]
+            ))
+        else:
+            claims.append(self.create_unknown_claim(
+                pack_id, source_item_id, "client",
+                "XYEBBS未提供结构化客户端运行环境字段",
+                url, now_str
+            ))
+
+        # Server Claim
+        m_s_neg = self.SERVER_TEXT_NEG_REGEX.search(full_text)
+        m_s_pos = self.SERVER_TEXT_POS_REGEX.search(full_text)
+
         if has_server_link:
             claims.append(CanonicalEnvironmentClaim(
                 pack_id=pack_id,
                 source_item_id=source_item_id,
                 side="server",
                 status="supported",
-                certainty="inferred",
+                certainty="strong_inferred",
                 evidence_type="file_name",
                 evidence_text=f"网盘链接名称包含服务端: {server_evidence}",
-                raw_value="server: supported",
+                raw_value=server_raw_value or "服务端",
                 source_field="download_links[].name",
                 source_url=url,
                 observed_at=now_str
             ))
-        else:
+        elif m_s_neg:
             claims.append(CanonicalEnvironmentClaim(
                 pack_id=pack_id,
                 source_item_id=source_item_id,
                 side="server",
                 status="unsupported",
-                certainty="weak_inferred",
-                evidence_type="file_name",
-                evidence_text="下载链接未提及服务端",
-                raw_value="server: none",
-                source_field="download_links",
+                certainty="inferred",
+                evidence_type="text_rule",
+                evidence_text=self.extract_snippet(full_text, m_s_neg),
+                raw_value=m_s_neg.group(0),
+                source_field="description",
                 source_url=url,
                 observed_at=now_str
+            ))
+        elif m_s_pos:
+            claims.append(CanonicalEnvironmentClaim(
+                pack_id=pack_id,
+                source_item_id=source_item_id,
+                side="server",
+                status="supported",
+                certainty="inferred",
+                evidence_type="text_rule",
+                evidence_text=self.extract_snippet(full_text, m_s_pos),
+                raw_value=m_s_pos.group(0),
+                source_field="description",
+                source_url=url,
+                observed_at=now_str
+            ))
+        else:
+            claims.append(self.create_unknown_claim(
+                pack_id, source_item_id, "server",
+                "XYEBBS帖子未提供服务端下载且正文未声明开服支持",
+                url, now_str
             ))
 
         return CanonicalPackBundle(

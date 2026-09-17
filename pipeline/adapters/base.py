@@ -8,10 +8,35 @@ import json
 import os
 import re
 from typing import Dict, Any, List, Optional, Tuple, Iterator
-from pipeline.models.canonical import CanonicalPackBundle
+from pipeline.models.canonical import CanonicalPackBundle, CanonicalEnvironmentClaim
+
+# Common regular expressions for Phase 1.1 semantic classification
+SERVER_FILE_REGEX = re.compile(
+    r'(?:服务端|服务器端|开服包|server\s*pack|serverpack|server-pack|dedicated\s*server\s*files?)',
+    re.I,
+)
+
+# Negative declarations: explicitly unsupported / client only
+SERVER_TEXT_NEG_REGEX = re.compile(
+    r'(?:仅(?:限)?客户端|纯客户端|不支持服务端|(?:不提供|未提供|不包含|未包含|暂无|没有|无)服务端|'
+    r'不能(?:用于)?开服|不可用于服务端|禁止开服|无法开服|单人限定|'
+    r'client\s*only|no\s*server\s*(?:pack|support)|server\s*(?:not\s*supported|unsupported)|singleplayer\s*only)',
+    re.I,
+)
+
+# Positive declarations: explicitly supported
+SERVER_TEXT_POS_REGEX = re.compile(
+    r'(?<!不)(?<!未)(?<!无)(?<!没有)(?<!暂无)(?:(?:已)?提供服务端|包含服务端|支持开服|提供开服端|包含开服包|官方开服端|服务端下载|附带服务端|'
+    r'server\s*pack\s*(?:is|included|available|download)|official\s*server\s*pack|server\s*files\s*(?:included|available))',
+    re.I,
+)
+
 
 class BaseAdapter(abc.ABC):
     platform_name: str = ""
+    SERVER_FILE_REGEX = SERVER_FILE_REGEX
+    SERVER_TEXT_NEG_REGEX = SERVER_TEXT_NEG_REGEX
+    SERVER_TEXT_POS_REGEX = SERVER_TEXT_POS_REGEX
 
     def __init__(self, workspace_root: Optional[str] = None):
         self.workspace_root = workspace_root or os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -58,7 +83,38 @@ class BaseAdapter(abc.ABC):
         if not title:
             return ""
         s = title.strip().lower()
-        # Remove typical bracket wrappers for sorting/matching
         s = re.sub(r'^[\[【\(（][^】\]\)）]+[】\]\)）]\s*', '', s)
         s = re.sub(r'\s+', ' ', s)
         return s.strip() or title.strip().lower()
+
+    @staticmethod
+    def extract_snippet(text: str, match: re.Match, window: int = 30) -> str:
+        if not text or not match:
+            return ""
+        start = max(0, match.start() - window)
+        end = min(len(text), match.end() + window)
+        snippet = text[start:end].replace('\n', ' ').strip()
+        return snippet
+
+    @staticmethod
+    def create_unknown_claim(
+        pack_id: str,
+        source_item_id: str,
+        side: str,
+        evidence_text: str,
+        url: str,
+        observed_at: str,
+    ) -> CanonicalEnvironmentClaim:
+        return CanonicalEnvironmentClaim(
+            pack_id=pack_id,
+            source_item_id=source_item_id,
+            side=side,
+            status="unknown",
+            certainty="unknown",
+            evidence_type="platform_field",
+            evidence_text=evidence_text,
+            raw_value=None,
+            source_field=None,
+            source_url=url,
+            observed_at=observed_at,
+        )

@@ -171,36 +171,70 @@ class MCModAdapter(BaseAdapter):
             trend_latest=raw_item.get("trend_latest")
         )
 
-        # 7. Environment Claims
-        claims = [
-            CanonicalEnvironmentClaim(
+        # 7. Environment Claims (Phase 1.1 Strict Semantics)
+        claims = []
+        full_text = f"{title} {summary or ''}"
+
+        # Client Claim
+        m_c_neg = self.SERVER_TEXT_NEG_REGEX.search(full_text)
+        if m_c_neg and "客户端" in m_c_neg.group(0):
+            claims.append(CanonicalEnvironmentClaim(
                 pack_id=pack_id,
                 source_item_id=source_item_id,
                 side="client",
                 status="supported",
-                certainty="confirmed",
-                evidence_type="platform_field",
-                evidence_text="MC百科整合包默认支持单人客户端运行",
-                raw_value="client: supported",
-                source_field="mcmod:mold",
+                certainty="inferred",
+                evidence_type="text_rule",
+                evidence_text=self.extract_snippet(full_text, m_c_neg),
+                raw_value=m_c_neg.group(0),
+                source_field="description",
                 source_url=url,
                 observed_at=now_str
-            )
-        ]
-        has_server = bool(raw_item.get("has_server"))
-        claims.append(CanonicalEnvironmentClaim(
-            pack_id=pack_id,
-            source_item_id=source_item_id,
-            side="server",
-            status="supported" if has_server else "unsupported",
-            certainty="inferred" if has_server else "weak_inferred",
-            evidence_type="text_rule",
-            evidence_text="MC百科详情/更新记录标注包含服务端关键词" if has_server else "MC百科页面未标记专用开服包",
-            raw_value=str(has_server),
-            source_field="description/has_server",
-            source_url=url,
-            observed_at=now_str
-        ))
+            ))
+        else:
+            claims.append(self.create_unknown_claim(
+                pack_id, source_item_id, "client",
+                "MC百科未提供结构化客户端运行环境字段",
+                url, now_str
+            ))
+
+        # Server Claim
+        m_s_neg = self.SERVER_TEXT_NEG_REGEX.search(full_text)
+        m_s_pos = self.SERVER_TEXT_POS_REGEX.search(full_text)
+        if m_s_neg:
+            claims.append(CanonicalEnvironmentClaim(
+                pack_id=pack_id,
+                source_item_id=source_item_id,
+                side="server",
+                status="unsupported",
+                certainty="inferred",
+                evidence_type="text_rule",
+                evidence_text=self.extract_snippet(full_text, m_s_neg),
+                raw_value=m_s_neg.group(0),
+                source_field="description",
+                source_url=url,
+                observed_at=now_str
+            ))
+        elif m_s_pos:
+            claims.append(CanonicalEnvironmentClaim(
+                pack_id=pack_id,
+                source_item_id=source_item_id,
+                side="server",
+                status="supported",
+                certainty="inferred",
+                evidence_type="text_rule",
+                evidence_text=self.extract_snippet(full_text, m_s_pos),
+                raw_value=m_s_pos.group(0),
+                source_field="description",
+                source_url=url,
+                observed_at=now_str
+            ))
+        else:
+            claims.append(self.create_unknown_claim(
+                pack_id, source_item_id, "server",
+                "MC百科页面与描述未提供服务端支持证据或声明",
+                url, now_str
+            ))
 
         return CanonicalPackBundle(
             pack=pack,

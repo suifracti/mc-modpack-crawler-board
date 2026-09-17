@@ -120,59 +120,92 @@ class CurseForgeAdapter(BaseAdapter):
             followers=raw_item.get("followers")
         )
 
-        # 7. Environment Claims
-        # Client is confirmed platform standard
-        claims = [
-            CanonicalEnvironmentClaim(
+        # 7. Environment Claims (Phase 1.1 Strict Semantics)
+        claims = []
+        text_corpus = f"{title} {raw_item.get('description') or ''}"
+
+        # Client Claim
+        m_c_neg = self.SERVER_TEXT_NEG_REGEX.search(text_corpus)
+        if m_c_neg and ("client only" in m_c_neg.group(0).lower() or "客户端" in m_c_neg.group(0)):
+            claims.append(CanonicalEnvironmentClaim(
                 pack_id=pack_id,
                 source_item_id=source_item_id,
                 side="client",
                 status="supported",
-                certainty="confirmed",
-                evidence_type="platform_field",
-                evidence_text="CurseForge整合包默认提供客户端构建并支持客户端导入",
-                raw_value="client: supported",
-                source_field="curseforge:modpack",
-                source_url=url,
-                observed_at=now_str
-            )
-        ]
-
-        # Check for heuristic server keyword match in text
-        text_corpus = f"{title} {raw_item.get('description') or ''}"
-        m = SERVER_KEYWORD_REGEX.search(text_corpus)
-        if m:
-            matched_word = m.group(0)
-            start = max(0, m.start() - 20)
-            end = min(len(text_corpus), m.end() + 20)
-            snippet = text_corpus[start:end].replace('\n', ' ').strip()
-
-            claims.append(CanonicalEnvironmentClaim(
-                pack_id=pack_id,
-                source_item_id=source_item_id,
-                side="server",
-                status="supported",
-                certainty="weak_inferred",  # 显式标明为弱推断，绝不混淆为 confirmed
+                certainty="inferred",
                 evidence_type="text_rule",
-                evidence_text=f"标题或描述匹配到关键词 '{matched_word}': ...{snippet}...",
-                raw_value=matched_word,
+                evidence_text=self.extract_snippet(text_corpus, m_c_neg),
+                raw_value=m_c_neg.group(0),
                 source_field="title/description",
                 source_url=url,
                 observed_at=now_str
             ))
         else:
+            claims.append(self.create_unknown_claim(
+                pack_id, source_item_id, "client",
+                "CurseForge未提供结构化客户端兼容性字段",
+                url, now_str
+            ))
+
+        # Server Claim
+        server_file_hit = None
+        for dl in download_links:
+            dl_str = f"{dl.label} {dl.url}"
+            m_f = self.SERVER_FILE_REGEX.search(dl_str)
+            if m_f:
+                server_file_hit = (m_f.group(0), dl_str[:80])
+                break
+
+        m_s_neg = self.SERVER_TEXT_NEG_REGEX.search(text_corpus)
+        m_s_pos = self.SERVER_TEXT_POS_REGEX.search(text_corpus)
+
+        if server_file_hit:
             claims.append(CanonicalEnvironmentClaim(
                 pack_id=pack_id,
                 source_item_id=source_item_id,
                 side="server",
-                status="unknown",
-                certainty="unknown",
-                evidence_type="platform_field",
-                evidence_text="CurseForge mods/search 搜索接口未提供 serverPackFileId，文本无开服关键词",
-                raw_value="null",
-                source_field="curseforge:search_api",
+                status="supported",
+                certainty="strong_inferred",
+                evidence_type="file_name",
+                evidence_text=f"下载文件名称包含服务端: {server_file_hit[1]}",
+                raw_value=server_file_hit[0],
+                source_field="download_links[].name",
                 source_url=url,
                 observed_at=now_str
+            ))
+        elif m_s_neg:
+            claims.append(CanonicalEnvironmentClaim(
+                pack_id=pack_id,
+                source_item_id=source_item_id,
+                side="server",
+                status="unsupported",
+                certainty="inferred",
+                evidence_type="text_rule",
+                evidence_text=self.extract_snippet(text_corpus, m_s_neg),
+                raw_value=m_s_neg.group(0),
+                source_field="title/description",
+                source_url=url,
+                observed_at=now_str
+            ))
+        elif m_s_pos:
+            claims.append(CanonicalEnvironmentClaim(
+                pack_id=pack_id,
+                source_item_id=source_item_id,
+                side="server",
+                status="supported",
+                certainty="inferred",
+                evidence_type="text_rule",
+                evidence_text=self.extract_snippet(text_corpus, m_s_pos),
+                raw_value=m_s_pos.group(0),
+                source_field="title/description",
+                source_url=url,
+                observed_at=now_str
+            ))
+        else:
+            claims.append(self.create_unknown_claim(
+                pack_id, source_item_id, "server",
+                "CurseForge搜索接口未提供开服端包且文本无明确开服声明",
+                url, now_str
             ))
 
         return CanonicalPackBundle(

@@ -46,8 +46,9 @@ class ModrinthAdapter(BaseAdapter):
         )
 
         # 2. Source Item
-        client_side = raw_item.get("client_side") or raw_item.get("source_meta", {}).get("client_side") or "required"
-        server_side = raw_item.get("server_side") or raw_item.get("source_meta", {}).get("server_side") or "unknown"
+        meta = raw_item.get("source_meta") or {}
+        client_side = meta.get("client_side") or raw_item.get("client_side") or "unknown"
+        server_side = meta.get("server_side") or raw_item.get("server_side") or "unknown"
         
         extra_dict = {
             "slug": raw_item.get("slug"),
@@ -133,7 +134,7 @@ class ModrinthAdapter(BaseAdapter):
                 evidence_type="platform_field",
                 evidence_text=f"Modrinth 官方 API 字段: client_side={client_side}",
                 raw_value=client_side,
-                source_field="client_side",
+                source_field="source_meta.client_side",
                 source_url=url,
                 observed_at=now_str
             ),
@@ -146,7 +147,7 @@ class ModrinthAdapter(BaseAdapter):
                 evidence_type="platform_field",
                 evidence_text=f"Modrinth 官方 API 字段: server_side={server_side}",
                 raw_value=server_side,
-                source_field="server_side",
+                source_field="source_meta.server_side",
                 source_url=url,
                 observed_at=now_str
             )

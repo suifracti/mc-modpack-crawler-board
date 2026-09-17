@@ -106,16 +106,27 @@ class BbsmcAdapter(BaseAdapter):
             ))
 
         # 4. Download Links
+        import urllib.parse
         download_links = []
         has_server_file = False
         server_evidence_text = ""
+        server_raw_value = ""
+
         for dl in (raw_item.get("download_links") or []):
             if isinstance(dl, dict) and dl.get("url"):
                 l_name = dl.get("name") or "下载"
-                is_server = bool(re.search(r'(?:服务端|server|开服)', l_name, re.IGNORECASE))
-                if is_server:
+                dl_texts = " ".join([
+                    str(dl.get("name") or ""),
+                    str(dl.get("filename") or ""),
+                    str(dl.get("version") or ""),
+                    urllib.parse.unquote(str(dl.get("url") or ""))
+                ])
+                m_srv = self.SERVER_FILE_REGEX.search(dl_texts)
+                is_server = bool(m_srv)
+                if is_server and not has_server_file:
                     has_server_file = True
-                    server_evidence_text = l_name
+                    server_evidence_text = dl.get("filename") or l_name
+                    server_raw_value = m_srv.group(0)
 
                 download_links.append(CanonicalDownloadLink(
                     source_item_id=source_item_id,
@@ -139,49 +150,84 @@ class BbsmcAdapter(BaseAdapter):
             followers=raw_item.get("followers")
         )
 
-        # 7. Environment Claims
-        claims = [
-            CanonicalEnvironmentClaim(
+        # 7. Environment Claims (Phase 1.1 Strict Semantics)
+        claims = []
+        full_text = f"{title} {raw_item.get('description') or ''}"
+
+        # Client Claim
+        m_c_neg = self.SERVER_TEXT_NEG_REGEX.search(full_text)
+        if m_c_neg and "客户端" in m_c_neg.group(0):
+            claims.append(CanonicalEnvironmentClaim(
                 pack_id=pack_id,
                 source_item_id=source_item_id,
                 side="client",
                 status="supported",
-                certainty="confirmed",
-                evidence_type="platform_field",
-                evidence_text="BBSMC开源整合包默认支持单人客户端运行",
-                raw_value="client: supported",
-                source_field="bbsmc:modpack",
+                certainty="inferred",
+                evidence_type="text_rule",
+                evidence_text=self.extract_snippet(full_text, m_c_neg),
+                raw_value=m_c_neg.group(0),
+                source_field="description",
                 source_url=url,
                 observed_at=now_str
-            )
-        ]
+            ))
+        else:
+            claims.append(self.create_unknown_claim(
+                pack_id, source_item_id, "client",
+                "BBSMC未提供结构化客户端运行环境字段",
+                url, now_str
+            ))
+
+        # Server Claim
+        m_s_neg = self.SERVER_TEXT_NEG_REGEX.search(full_text)
+        m_s_pos = self.SERVER_TEXT_POS_REGEX.search(full_text)
+
         if has_server_file:
             claims.append(CanonicalEnvironmentClaim(
                 pack_id=pack_id,
                 source_item_id=source_item_id,
                 side="server",
                 status="supported",
-                certainty="inferred",
+                certainty="strong_inferred",
                 evidence_type="file_name",
                 evidence_text=f"下载文件名称包含服务端: {server_evidence_text}",
-                raw_value="server: supported",
-                source_field="download_links[].name",
+                raw_value=server_raw_value or "服务端",
+                source_field="download_links[].filename",
                 source_url=url,
                 observed_at=now_str
             ))
-        else:
+        elif m_s_neg:
             claims.append(CanonicalEnvironmentClaim(
                 pack_id=pack_id,
                 source_item_id=source_item_id,
                 side="server",
                 status="unsupported",
-                certainty="weak_inferred",
-                evidence_type="file_name",
-                evidence_text="下载文件列表中未检索到服务端包",
-                raw_value="server: none",
-                source_field="download_links",
+                certainty="inferred",
+                evidence_type="text_rule",
+                evidence_text=self.extract_snippet(full_text, m_s_neg),
+                raw_value=m_s_neg.group(0),
+                source_field="description",
                 source_url=url,
                 observed_at=now_str
+            ))
+        elif m_s_pos:
+            claims.append(CanonicalEnvironmentClaim(
+                pack_id=pack_id,
+                source_item_id=source_item_id,
+                side="server",
+                status="supported",
+                certainty="inferred",
+                evidence_type="text_rule",
+                evidence_text=self.extract_snippet(full_text, m_s_pos),
+                raw_value=m_s_pos.group(0),
+                source_field="description",
+                source_url=url,
+                observed_at=now_str
+            ))
+        else:
+            claims.append(self.create_unknown_claim(
+                pack_id, source_item_id, "server",
+                "BBSMC开源项目未检索到服务端文件且简介未声明开服支持",
+                url, now_str
             ))
 
         return CanonicalPackBundle(
