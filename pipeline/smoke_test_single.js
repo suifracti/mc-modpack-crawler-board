@@ -138,7 +138,24 @@ class EdgeCDPClient {
     await sendCDP('Page.enable');
 
     const evaluate = async (expr) => {
-      const evalRes = await sendCDP('Runtime.evaluate', { expression: expr, returnByValue: true });
+      // Phase 3F.2 harness fix.
+      //
+      // `awaitPromise: true` is required: three MCMod behaviours resolve their
+      // result through `new Promise(...)` + setTimeout. Without it the CDP result
+      // is the unresolved Promise object and no primitive value comes back.
+      //
+      // `returnByValue` must NOT be passed. Several behaviours end with a legacy
+      // DataTables call, e.g.
+      //     if (window.table) window.table.search('RLCraft').draw();
+      // whose *completion value* is the DataTables API object - a large cyclic
+      // object graph. With `returnByValue: true` the renderer main thread blocks
+      // forever trying to serialize it, the CDP response never arrives, and every
+      // subsequent evaluate hangs as well (reproduced: the identical work completes
+      // in 93 ms when the completion value is a primitive, and never returns
+      // otherwise). Primitives are still delivered in `result.value` without
+      // `returnByValue`, and every value this suite consumes (booleans / numbers /
+      // strings) is a primitive, so no behaviour assertion is weakened.
+      const evalRes = await sendCDP('Runtime.evaluate', { expression: expr, awaitPromise: true });
       return evalRes.result ? evalRes.result.value : undefined;
     };
 
