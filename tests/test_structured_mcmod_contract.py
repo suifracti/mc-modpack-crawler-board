@@ -159,11 +159,20 @@ def test_contract():
                 assert claim["rawValue"] is None, f"Item {mid} no_evidence must have rawValue=null"
 
         # Scan text fields for injected UI HTML
-        for field in ["title", "chineseName", "englishName", "author", "typeName", "modSearchText", "modCategorySearch"]:
+        for field in ["title", "chineseName", "englishName", "author", "typeName", "modCategorySearch"]:
             val = item.get(field)
             if val and isinstance(val, str):
                 match = html_pattern.search(val)
                 assert not match, f"UI HTML tag found in field {field} for mid={mid}: {match.group(0)}"
+
+        # Phase 3G-D.1: `modSearchText` was replaced by the structured
+        # `includedModNames: string[]` provenance array. Scan each element.
+        assert "includedModNames" in item, f"mid={mid} missing structured includedModNames"
+        assert isinstance(item["includedModNames"], list), f"mid={mid} includedModNames must be a list"
+        for nm in item["includedModNames"]:
+            assert isinstance(nm, str), f"mid={mid} includedModNames element must be a string"
+            match = html_pattern.search(nm)
+            assert not match, f"UI HTML tag found in includedModNames for mid={mid}: {match.group(0)}"
 
     print("  [PASS] Records = 1484")
     print("  [PASS] Unique mid = 1484")

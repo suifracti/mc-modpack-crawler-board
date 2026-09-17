@@ -4,6 +4,7 @@
  */
 import type { McmodPack } from '../../domain/types';
 import { deriveLegacyHasServer, resolvePrimaryClaim } from '../../domain/types';
+import { joinMcmodModNames } from './selectors';
 import type { McmodStructuredItem } from './types';
 
 export function mapStructuredMcmodToPack(dto: McmodStructuredItem): McmodPack {
@@ -47,6 +48,7 @@ export function mapStructuredMcmodToPack(dto: McmodStructuredItem): McmodPack {
     updatedAt: dto.modifiedAt || dto.publishedAt,
     categorySearch: dto.categories ? dto.categories.join(', ') : '',
     tagsSearch: dto.tags ? dto.tags.join(', ') : '',
-    modsSearch: dto.modSearchText || '',
+    modsSearch: joinMcmodModNames(dto),
+    includedModNames: dto.includedModNames || [],
   };
 }

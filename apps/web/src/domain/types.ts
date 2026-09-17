@@ -191,6 +191,12 @@ export interface McmodPack extends BasePack {
   trendPoints?: McmodTrendPoint[];
   tagsSearch?: string;
   categorySearch?: string;
+  /**
+   * Structured mod-name provenance for Match Reason (Phase 3G-D.1).
+   * Exact canonical `included_mods.mod_name` values, never reverse-parsed
+   * from a flat search string.
+   */
+  includedModNames?: string[];
   modSearchText?: string;
   modsSearch?: string;
 }

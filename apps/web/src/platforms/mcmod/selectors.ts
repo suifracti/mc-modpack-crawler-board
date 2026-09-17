@@ -4,6 +4,18 @@
  */
 import type { McmodStructuredItem } from './types';
 
+/**
+ * Flat search text for the included-mods column (Phase 3G-D.1).
+ *
+ * Derived FORWARD from the structured provenance array. This is byte-identical
+ * to the legacy payload value `", ".join(all_mod_names)` for all 1484 packs, so
+ * matching behaviour is unchanged — but nothing ever has to reverse-parse an
+ * ambiguous flat string back into mod names again.
+ */
+export function joinMcmodModNames(pack: Pick<McmodStructuredItem, 'includedModNames'>): string {
+  return (pack.includedModNames || []).join(', ');
+}
+
 export function buildMcmodSearchText(pack: McmodStructuredItem): string {
   const parts: string[] = [];
 
@@ -24,7 +36,8 @@ export function buildMcmodSearchText(pack: McmodStructuredItem): string {
   if (pack.mcVersions && pack.mcVersions.length) {
     parts.push(pack.mcVersions.join(' '));
   }
-  if (pack.modSearchText) parts.push(pack.modSearchText);
+  const modNames = joinMcmodModNames(pack);
+  if (modNames) parts.push(modNames);
   if (pack.modCategorySearch) parts.push(pack.modCategorySearch);
 
   return parts.join(' ').toLowerCase();

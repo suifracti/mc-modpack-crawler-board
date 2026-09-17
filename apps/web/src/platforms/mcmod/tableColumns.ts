@@ -11,6 +11,7 @@ import {
   renderTagsCell,
   renderModsCell,
 } from './renderer';
+import { joinMcmodModNames } from './selectors';
 import type { McmodStructuredItem } from './types';
 
 export function getMcmodTableColumns(): unknown[] {
@@ -97,7 +98,7 @@ export function getMcmodTableColumns(): unknown[] {
           return row.includedModsCount || 0;
         }
         if (type === 'filter' || type === 'search') {
-          return row.modSearchText || '';
+          return joinMcmodModNames(row);
         }
         return renderModsCell(row);
       },
@@ -182,7 +183,7 @@ export function attachMcmodRowAttributes(
 
   $tds.eq(6)
     .addClass('td-mods')
-    .attr('data-search', rowData.modSearchText || '')
+    .attr('data-search', joinMcmodModNames(rowData))
     .attr('data-count', rowData.includedModsCount || 0)
     .attr('data-order', rowData.includedModsCount || 0);
 }

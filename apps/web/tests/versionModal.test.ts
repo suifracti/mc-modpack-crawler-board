@@ -132,7 +132,7 @@ describe('Version Modal Subsystem', () => {
         includedModsCount: 50,
         modCategories: [],
         previewMods: [],
-        modSearchText: '',
+        includedModNames: [],
         modCategorySearch: '',
         environmentClaims: [],
         has_server: true,

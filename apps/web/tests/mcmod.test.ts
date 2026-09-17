@@ -129,7 +129,7 @@ describe('MCMod Structured Mapper', () => {
     previewMods: [
       { name: 'JEI', title: 'Just Enough Items', version: '4.15.0', url: 'https://www.mcmod.cn/class/284.html', categoryKey: 'cat0', categoryName: '核心/前置' },
     ],
-    modSearchText: 'JEI, Lycanites Mobs, Ice and Fire',
+    includedModNames: ['JEI', 'Lycanites Mobs', 'Ice and Fire'],
     modCategorySearch: '核心/前置, 冒险/探索',
     trendPoints: [
       { date: '2026-07-01', viewsDelta: 100 },
@@ -232,7 +232,7 @@ describe('MCMod TypeScript Cell Renderers', () => {
     previewMods: [
       { name: 'Create', title: '机械动力', version: '0.5.1', url: 'https://www.mcmod.cn/class/2422.html', categoryKey: 'cat0', categoryName: '科技' },
     ],
-    modSearchText: 'Create, JEI',
+    includedModNames: ['Create', 'JEI'],
     modCategorySearch: '科技, 辅助',
     trendPoints: [
       { date: '2026-08-01', viewsDelta: 100 },

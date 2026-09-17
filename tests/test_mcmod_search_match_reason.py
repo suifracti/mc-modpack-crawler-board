@@ -55,7 +55,7 @@ class TestMcmodSearchMatchReason(unittest.TestCase):
                 r.get("typeName") or "",
                 former,
                 " ".join(r.get("categories") or []),
-                r.get("modSearchText") or ""
+                ", ".join(r.get("includedModNames") or [])
             ]).lower()
             if "rlcraft" in target:
                 client_matches.append(r["mid"])

@@ -4214,7 +4214,11 @@ function showToast(msg) {
                 result.commentIndex = findCommentMatch(commentData[mid], keyword);
                 result.comment = result.commentIndex >= 0;
             }
-            result.basic = result.title || result.cat || ((rowData.modSearchText || rowData.mods_search || '').toLowerCase().indexOf(kw) !== -1);
+            // Phase 3G-D.1: forward-derive the flat search text from the structured
+            // provenance array first; `modSearchText` / `mods_search` remain only as
+            // backward-compat fallbacks for the legacy non-structured shape.
+            var modsTxt = (Array.isArray(rowData.includedModNames) ? rowData.includedModNames.join(', ') : '') || rowData.modSearchText || rowData.mods_search || '';
+            result.basic = result.title || result.cat || (modsTxt.toLowerCase().indexOf(kw) !== -1);
             return result;
         }
 
@@ -4327,7 +4331,10 @@ function showToast(msg) {
                     "orderSequence": ["desc", "asc"],
                     "render": function(data, type, row) {
                         if (type === 'sort' || type === 'order') return row.sort_col6;
-                        if (type === 'filter' || type === 'search') return row.modSearchText || row.mods_search || '';
+                        // Phase 3G-D.1: structured provenance first (forward-derived flat text),
+                        // legacy `modSearchText` only kept as a backward-compat fallback for the
+                        // non-structured `tableRowsData` shape.
+                        if (type === 'filter' || type === 'search') return (Array.isArray(row.includedModNames) ? row.includedModNames.join(', ') : '') || row.modSearchText || row.mods_search || '';
                         return data;
                     }
                 }

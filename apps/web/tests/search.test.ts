@@ -79,7 +79,7 @@ describe('Search Subsystem', () => {
       includedModsCount: 160,
       modCategories: [],
       previewMods: [],
-      modSearchText: 'ice and fire, lycanites mobs, tough as nails',
+      includedModNames: ['ice and fire', 'lycanites mobs', 'tough as nails'],
       modCategorySearch: '冒险',
       environmentClaims: [],
     };
@@ -246,7 +246,7 @@ describe('Search Subsystem', () => {
       includedModsCount: 5,
       modCategories: [],
       previewMods: [],
-      modSearchText: '奇异饰品-RLCraft版 (RLArtifacts), RLMixins, 冰与火之歌 (Ice and Fire), 夸克 (Quark), 匠魂 (Tinkers Construct)',
+      includedModNames: ['奇异饰品-RLCraft版 (RLArtifacts)', 'RLMixins', '冰与火之歌 (Ice and Fire)', '夸克 (Quark)', '匠魂 (Tinkers Construct)'],
       modCategorySearch: '冒险',
       environmentClaims: [],
       formerTitles: ['Roguelike Adventures RealLife'],
@@ -307,7 +307,7 @@ describe('Search Subsystem', () => {
       const multiModPack: McmodStructuredItem = {
         ...testPack,
         title: '测试包',
-        modSearchText: 'Craft A, Craft B, Craft C, Craft D',
+        includedModNames: ['Craft A', 'Craft B', 'Craft C', 'Craft D'],
       };
       const doc = buildMcmodSearchDocument(multiModPack);
       const res = matchDocument(doc, parseSearchQuery('Craft'));

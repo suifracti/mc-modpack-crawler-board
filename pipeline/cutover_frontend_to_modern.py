@@ -103,6 +103,7 @@ def preflight_quality_gates() -> None:
     run_cmd([sys.executable, "tests/test_bili_grouping_explanation.py"], "Bilibili Grouping Invariant (53 vs 47)")
     run_cmd([sys.executable, "tests/test_correctness_regressions.py"], "Correctness Regressions Test Suite (9 P0 Items)")
     run_cmd([sys.executable, "tests/test_release_date_semantics.py"], "Release-Date Semantics Contract (Phase 3F.2)")
+    run_cmd([sys.executable, "tests/test_mcmod_match_reason_source_integrity.py"], "Match-Reason Structured Source Integrity (Phase 3G-D.1)")
     print("  [GATE PASSED] All code quality and contract tests passed.")
 
 

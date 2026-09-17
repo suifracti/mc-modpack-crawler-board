@@ -13,12 +13,12 @@
 
 ## 1. 审计统计总览
 
-- **审计功能总项数**：`65` 项 (覆盖 15 个业务领域)
-- **状态分布汇总 (Phase 3G-D 审计后)**：
-  - **VERIFIED**：`39` 项 (60.0%) — 确证真实、具备完备契约的可靠功能（包含清除非法项目级时间戳后的 TIME-CURSEFORGE-02、模组关系保真的 MODREL-MCMOD-01、深度索引契约 DIDX-MCMOD-01、简介搜索契约 SEARCH-MCMOD-DESC-01、多词单一真实源契约 SEARCH-MCMOD-MULTIWORD-01 以及搜索命中原因与解释性修复 SEARCH-MCMOD-REASON-01）
-  - **SUSPECT**：`19` 项 (29.2%) — 保留审慎标记（包含B站分组、BBSMC时序、Modrinth 聚合时间与版本标识等）
-  - **WRONG**：`0` 项 (0.0%) — 原始 9 项硬伤与平台时间伪造已全部彻底清零修复！
-  - **UNKNOWN**：`7` 项 (10.8%) — 保持显式未确定（含 CurseForge 真实版本发布日期可用性 RELDATE-CURSEFORGE-01 及模组依赖/重要性关系 MODSEM-MCMOD-01）
+- **审计功能总项数**：`66` 项 (覆盖 15 个业务领域)
+- **状态分布汇总 (Phase 3G-D.1 审计后)**：
+  - **VERIFIED**：`40` 项 (60.6%) — 确证真实、具备完备契约的可靠功能（包含清除非法项目级时间戳后的 TIME-CURSEFORGE-02、模组关系保真的 MODREL-MCMOD-01、深度索引契约 DIDX-MCMOD-01、简介搜索契约 SEARCH-MCMOD-DESC-01、多词单一真实源契约 SEARCH-MCMOD-MULTIWORD-01、搜索命中原因与解释性修复 SEARCH-MCMOD-REASON-01，以及本轮发现并已修复的命中原因结构化来源完整性契约 SEARCH-MCMOD-REASON-SOURCE-01）
+  - **SUSPECT**：`19` 项 (28.8%) — 保留审慎标记（包含B站分组、BBSMC时序、Modrinth 聚合时间与版本标识等）
+  - **WRONG**：`0` 项 (0.0%) — 原始 9 项硬伤、平台时间伪造，以及本轮新增发现的命中原因来源可逆性缺陷均已清零修复！
+  - **UNKNOWN**：`7` 项 (10.6%) — 保持显式未确定（含 CurseForge 真实版本发布日期可用性 RELDATE-CURSEFORGE-01 及模组依赖/重要性关系 MODSEM-MCMOD-01）
 - **六平台覆盖率**：100%（MCMod 权威、Bilibili 动态、BBSMC 社区、XYEBBS 论坛、Modrinth 国际、CurseForge 国际全量覆盖）
 
 ---
@@ -81,8 +81,8 @@
 
 | Feature ID | 平台 | 用户可见功能 / 结论 | 原始平台来源 | 推导算法与逻辑 | 缺失值处理 | Golden Samples | 最终状态 | 备注 / 风险 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `SRCH-MCMOD-01` | MCMod | 搜索“RLCraft”等关键词 | `title`, `typeName`, `formerTitles`, `author`, `categories`, `modSearchText` | 内存多字段子串匹配 (legacy_compat 多词 AND) | 空词不过滤 | 搜索 `RLCraft` = 93 结果 | **`VERIFIED`** | 搜索执行完全符合设计契约。 |
-| `SEARCH-MCMOD-DESC-01` | MCMod | 模组包主表格搜索范围与长篇简介契约 (Option B) | `title`, `typeName`, `formerTitles`, `author`, `categories`, `modSearchText` | 依据设计契约 Option B，主表格搜索明确不包含百科长篇简介（避免膨胀数百兆体积），UI 占位符与文档诚实对齐实际可搜范围。长篇简介作为按需详情抽屉展示 | 简介不参与主表索引 | 搜索 `RLCraft` 不命中仅在简介中出现的 MID 255/413/1231 | **`VERIFIED`** | UI 承诺与底层索引实现完全一致，消除描述搜索虚标。 |
+| `SRCH-MCMOD-01` | MCMod | 搜索“RLCraft”等关键词 | `title`, `typeName`, `formerTitles`, `author`, `categories`, `includedModNames`（扁平索引由该数组正向 join 派生） | 内存多字段子串匹配 (legacy_compat 多词 AND) | 空词不过滤 | 搜索 `RLCraft` = 93 结果 | **`VERIFIED`** | 搜索执行完全符合设计契约。 |
+| `SEARCH-MCMOD-DESC-01` | MCMod | 模组包主表格搜索范围与长篇简介契约 (Option B) | `title`, `typeName`, `formerTitles`, `author`, `categories`, `includedModNames`（扁平索引由该数组正向 join 派生） | 依据设计契约 Option B，主表格搜索明确不包含百科长篇简介（避免膨胀数百兆体积），UI 占位符与文档诚实对齐实际可搜范围。长篇简介作为按需详情抽屉展示 | 简介不参与主表索引 | 搜索 `RLCraft` 不命中仅在简介中出现的 MID 255/413/1231 | **`VERIFIED`** | UI 承诺与底层索引实现完全一致，消除描述搜索虚标。 |
 | `SEARCH-MCMOD-MULTIWORD-01` | MCMod | 多词空格与关系与单一真实源契约 (Multi-word Whitespace AND Contract) | 搜索输入文本 | TS SearchEngine 负责分词 (tokenization) 与多词 AND 匹配（如 `Fabric API` $\to$ `['fabric', 'api']` 匹配 664 个整合包）。DataTables 仅作为渲染器与分页器，通过 `ext.search` 严格遵循 SearchEngine 匹配 ID 集合，消除 DataTables 二次连续字串过滤 | 空词全量 | 搜索 `Fabric API` = 664 (TS Engine 664 == DataTable 664，ID 集合 100% 相同) | **`VERIFIED`** | 终结双重过滤分脑架构，TS SearchEngine 为全局单一真实源。 |
 | `SRCH-BILI-01` | Bilibili | 搜索“机械动力”等关键词 | `title`, `author`, `description`, 版本, 加载器 | 内存多字段子串匹配，并送入作者聚合引擎 | 空词全量 | 搜索 `机械动力` = 53 raw / 47 grouped | **`VERIFIED`** | 原始匹配数与聚合卡片数自动化证明完全一致。 |
 | `SRCH-BBSMC-01` | BBSMC | BBSMC 卡片搜索 | `title`, `author`, `description`, 分类 | 内存子串匹配 | 空词全量 | `bbsmc:1p2TFl6X` | **`VERIFIED`** | 纯文本精准匹配。 |
@@ -144,8 +144,9 @@
 
 | Feature ID | 平台 | 用户可见功能 / 结论 | 原始平台来源 | 推导算法与逻辑 | 缺失值处理 | Golden Samples | 最终状态 | 备注 / 风险 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `DIDX-MCMOD-01` | MCMod | 搜索“机械动力”或“RLCraft”匹配到包含该模组的整合包 | `modSearchText` 全量小写文本索引 | 整合包包含模组（`mod_name`）拼接索引并执行子串/分词匹配；Phase 3G-C.1 证明 96 vs 93 差异纯因客户端裁剪 `description`，在真实客户端数据上 TS 引擎、DataTables 与 Python 达成 100% 绝对一致（0 差异 ID） | 无模组时索引为空 | 搜索 `RLCraft` = 93 结果 (TS/DT/Python 100% 一致) | **`VERIFIED`** | **底层算法与索引契约完全确证**。算法忠实索引 `mod_name` 并执行匹配。命中原因不透明性已拆出至独立的 `SEARCH-MCMOD-REASON-01` (`SUSPECT`)。 |
-| `SEARCH-MCMOD-REASON-01` | MCMod | 模组深度索引命中原因与出处可见性 | Web 前端搜索渲染、TS SearchEngine 与 DataTables / 卡片视图 | **Phase 3G-D 单趟判定与原因契约**：TS SearchEngine 在单趟评估中同时计算 `SearchMatchReason`，忠实输出匹配字段（名称、曾用名、作者、玩法标签、Loader、版本、包含模组），对包含模组返回真实完整模组名称（如 `奇异饰品-RLCraft版 (RLArtifacts)`），多词查询严格遵循 AND 契约（按词匹配字段，杜绝拼凑虚假模组名），前端表格与卡片视图在搜索时显式展示命中原因徽章（`.search-match-badge`），不搜索时静默无徽章。杜绝推断“核心模组” | 搜索词清空不显示徽章 | 搜索 `RLCraft` (MID 16 显式名称匹配；MID 304 显式包含模组：`奇异饰品-RLCraft版 (RLArtifacts)`) | **`VERIFIED`** | **已彻底闭环**：命中原因直接由 TS SearchEngine 单趟评估计算并穿透至 UI 显式呈现，解释性与搜索单趟评估完全一致，彻底消除命中原因不透明性。 |
+| `DIDX-MCMOD-01` | MCMod | 搜索“机械动力”或“RLCraft”匹配到包含该模组的整合包 | `includedModNames`（结构化数组，扁平小写文本索引由该数组正向 join 派生） | 整合包包含模组（`mod_name`）结构化数组拼接索引并执行子串/分词匹配；Phase 3G-C.1 证明 96 vs 93 差异纯因客户端裁剪 `description`，在真实客户端数据上 TS 引擎、DataTables 与 Python 达成 100% 绝对一致（0 差异 ID）。Phase 3G-D.1 将索引来源由扁平串改为结构化数组，`join(', ')` 与旧扁平串在 1484/1484 个包上逐字节相同，20/20 语料命中 ID 100% 不变 | 无模组时索引为空 | 搜索 `RLCraft` = 93 结果 (TS/DT/Python 100% 一致) | **`VERIFIED`** | **底层算法与索引契约完全确证**。算法忠实索引 `mod_name` 并执行匹配。命中原因不透明性已拆出至独立的 `SEARCH-MCMOD-REASON-01`。 |
+| `SEARCH-MCMOD-REASON-01` | MCMod | 模组深度索引命中原因与出处可见性 | Web 前端搜索渲染、TS SearchEngine 与 DataTables / 卡片视图 | **Phase 3G-D 单趟判定与原因契约**：TS SearchEngine 在单趟评估中同时计算 `SearchMatchReason`，忠实输出匹配字段（名称、曾用名、作者、玩法标签、Loader、版本、包含模组），对包含模组返回真实完整模组名称（如 `奇异饰品-RLCraft版 (RLArtifacts)`），多词查询严格遵循 AND 契约（按词匹配字段，杜绝拼凑虚假模组名），前端表格与卡片视图在搜索时显式展示命中原因徽章（`.search-match-badge`），不搜索时静默无徽章。杜绝推断“核心模组” | 搜索词清空不显示徽章 | 搜索 `RLCraft` (MID 16 显式名称匹配；MID 304 显式包含模组：`奇异饰品-RLCraft版 (RLArtifacts)`) | **`VERIFIED`** | **已彻底闭环**：命中原因直接由 TS SearchEngine 单趟评估计算并穿透至 UI 显式呈现，解释性与搜索单趟评估完全一致，彻底消除命中原因不透明性。出处完整性另由 `SEARCH-MCMOD-REASON-SOURCE-01` 独立锁定。 |
+| `SEARCH-MCMOD-REASON-SOURCE-01` | MCMod | “包含模组：XXX”所展示的模组名是否为真实存在的模组 | Canonical `included_mods.mod_name` → Exporter `includedModNames: string[]` → `SearchDocument.includedModNames[]` | **Phase 3G-D.1 结构化来源契约**：Phase 3G-D 的命中原因曾以 `modSearchText.split(', ')` 反解析扁平串得到模组名。全量审计证明该反解析**不可逆**：170,078 条关系中有 **202 条 `mod_name` 自身含分隔符 `", "`**（涉及 23 个不同模组、**178 个整合包**），反解析会把这些真实模组名拆成 **47 个不存在的伪造名、共 411 处**（例如 `Get It Together, Drops!` 被拆成 `Get It Together` 与 `Drops!`）。已改为 Exporter 直接输出结构化数组 `includedModNames`，扁平搜索索引改由 `includedModNames.join(', ')` **正向派生**，展示层不再反推。 | 无模组时为空数组 | `mcmod:1007` 含 `Get It Together, Drops!`（真实名，不再被拆）；`mcmod:16` 含 4 个 RLCraft 版真实模组名 | **`VERIFIED`** | **本轮发现 WRONG 并已修复**：反解析路径不可逆（178 包受影响），已替换为结构化数组来源。结构化数组与 canonical `mod_name` 在 1484/1484 包上顺序与内容完全一致（0 处不符）；`join` 与旧扁平串逐字节相同；20/20 语料命中 ID 不变；payload 仅 +1.47%（12,099,832 B，gzip +1.05%）。 |
 
 ---
 

@@ -298,7 +298,18 @@ class StructuredMCModExporter:
                     "mod_cat_search": ", ".join(all_mod_cats),
                     "modCategories": mod_categories,
                     "previewMods": preview_mods,
-                    "modSearchText": ", ".join(all_mod_names),
+                    # Phase 3G-D.1: structured provenance replaces the ambiguous
+                    # flat `modSearchText` string. Match Reason used to reverse-parse
+                    # `modSearchText.split(', ')`, which fabricated mod names whenever
+                    # a real name contained the ", " delimiter (audited: 178 packs /
+                    # 47 distinct fabricated names / 411 fabricated entries).
+                    #
+                    # The flat search text is now derived client-side via
+                    # `includedModNames.join(', ')`, which is byte-identical to the
+                    # previous `", ".join(all_mod_names)` value for all 1484 packs,
+                    # so search semantics are provably unchanged while the reason
+                    # provenance is exact.
+                    "includedModNames": all_mod_names,
                     "modCategorySearch": ", ".join(all_mod_cats),
                     "environmentClaims": env_claims,
                     "publishedAt": pub_at,

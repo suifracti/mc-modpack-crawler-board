@@ -4,6 +4,7 @@
  */
 import type { SearchDocument } from './types';
 import type { McmodStructuredItem } from '../platforms/mcmod/types';
+import { joinMcmodModNames } from '../platforms/mcmod/selectors';
 import type { BilibiliPack } from '../types/legacy/bilibili';
 import type { BbsmcPack } from '../types/legacy/bbsmc';
 import type { XyebbsPack } from '../types/legacy/xyebbs';
@@ -19,7 +20,11 @@ export function buildMcmodSearchDocument(
   const titleStr = `${item.title || ''} ${item.typeName || ''}`.trim();
   const cats = (item.categories || []).join(' ');
   const tags = (item.tags || []).join(' ');
-  const mods = item.modSearchText || '';
+  // Phase 3G-D.1: `modsLower` is the flattened search index (derived forward from
+  // the structured array, byte-identical to the legacy flat string); the reason
+  // provenance is taken straight from the structured array. The display layer
+  // never reverse-parses the index text back into mod names.
+  const mods = joinMcmodModNames(item);
   const desc = descText || '';
   const comments = commentsText || '';
 
@@ -40,9 +45,7 @@ export function buildMcmodSearchDocument(
     versionsLower: (item.mcVersions || []).join(' ').toLowerCase(),
     allTextLower: allText.toLowerCase(),
     formerTitlesLower: (item.formerTitles || []).map((t) => t.toLowerCase()),
-    includedModNames: item.modSearchText
-      ? item.modSearchText.split(', ').map((s) => s.trim()).filter(Boolean)
-      : [],
+    includedModNames: item.includedModNames || [],
   };
 }
 

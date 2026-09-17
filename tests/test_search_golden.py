@@ -28,7 +28,7 @@ def test_mcmod_search_rlcraft_golden():
             row.get("typeName") or "",
             " ".join(row.get("formerTitles") or []),
             " ".join(row.get("categories") or []),
-            row.get("modSearchText") or ""
+            ", ".join(row.get("includedModNames") or [])
         ]).lower()
         if "rlcraft" in target:
             matches.append(row["mid"])
@@ -51,7 +51,7 @@ def test_mcmod_search_create_golden():
             row.get("typeName") or "",
             " ".join(row.get("formerTitles") or []),
             " ".join(row.get("categories") or []),
-            row.get("modSearchText") or ""
+            ", ".join(row.get("includedModNames") or [])
         ]).lower()
         if "机械动力" in target:
             matches.append(row["mid"])

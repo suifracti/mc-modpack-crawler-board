@@ -60,7 +60,7 @@ class TestMcmodSearchContract(unittest.TestCase):
                 former,
                 r.get("author") or "",
                 " ".join(r.get("categories") or []),
-                r.get("modSearchText") or ""
+                ", ".join(r.get("includedModNames") or [])
             ]).lower()
 
             if all(t in searchable_text for t in tokens):
@@ -82,7 +82,7 @@ class TestMcmodSearchContract(unittest.TestCase):
                 former,
                 r.get("author") or "",
                 " ".join(r.get("categories") or []),
-                r.get("modSearchText") or ""
+                ", ".join(r.get("includedModNames") or [])
             ]).lower()
 
             if q in searchable_text:

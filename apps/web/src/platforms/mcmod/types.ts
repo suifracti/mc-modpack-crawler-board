@@ -52,7 +52,14 @@ export interface McmodStructuredItem {
   includedModsCount: number;
   modCategories: McmodModCategoryItem[];
   previewMods: McmodPreviewModItem[];
-  modSearchText: string;
+  /**
+   * Structured provenance for Match Reason (Phase 3G-D.1).
+   *
+   * Complete, ordered, and exactly equal to canonical `included_mods.mod_name`.
+   * The flat search text used for matching is derived from this array via
+   * `joinMcmodModNames()` — never the other way round.
+   */
+  includedModNames: string[];
   modsSearch?: string;
   modCategorySearch: string;
   trendPoints?: McmodTrendPoint[];
