@@ -3,12 +3,17 @@
  */
 
 export type SearchScope = 'all' | 'title' | 'cat' | 'desc' | 'comment' | 'basic';
+export type SearchMode = 'legacy_compat' | 'advanced';
 
 export interface ParsedSearchQuery {
   raw: string;
   normalized: string;
   terms: string[];
+  negatedTerms?: string[];
+  exactPhrases?: string[];
+  fieldQueries?: Record<string, string>;
   scope: SearchScope;
+  mode: SearchMode;
   isEmpty: boolean;
 }
 

@@ -9,9 +9,10 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
-const targetDir = path.join(REPO_ROOT, 'build', 'frontend_preview');
-const PORT = 8780;
-const CDP_PORT = 9780;
+const targetArg = process.argv[2] || path.join('build', 'frontend_preview');
+const targetDir = path.isAbsolute(targetArg) ? targetArg : path.join(REPO_ROOT, targetArg);
+const PORT = parseInt(process.argv[3] || '8780', 10);
+const CDP_PORT = PORT + 1000;
 const EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 
 const MIME = {

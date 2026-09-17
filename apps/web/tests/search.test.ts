@@ -182,7 +182,7 @@ describe('Search Subsystem', () => {
     });
   });
 
-  describe('Search State Coordinator', () => {
+  describe('Search State Coordinator & Search Modes', () => {
     it('sets and clears search queries across platforms', () => {
       searchCoordinator.setQuery('ATM9', 'mcmod');
       expect(searchCoordinator.getQuery('mcmod')).toBe('ATM9');
@@ -192,6 +192,23 @@ describe('Search Subsystem', () => {
 
       searchCoordinator.clear('mcmod');
       expect(searchCoordinator.getQuery('mcmod')).toBe('');
+    });
+
+    it('defaults to legacy_compat and respects searchMode', () => {
+      expect(searchCoordinator.getSearchMode()).toBe('legacy_compat');
+
+      // In legacy_compat, -term is treated as literal token
+      const qLegacy = parseSearchQuery('RLCraft -survival', 'all', 'legacy_compat');
+      expect(qLegacy.mode).toBe('legacy_compat');
+      expect(qLegacy.terms).toContain('-survival');
+      expect(qLegacy.negatedTerms).toBeUndefined();
+
+      // In advanced, -term is extracted into negatedTerms
+      const qAdvanced = parseSearchQuery('RLCraft -survival "Hardcore pack" author:Shivaxi', 'all', 'advanced');
+      expect(qAdvanced.mode).toBe('advanced');
+      expect(qAdvanced.negatedTerms).toEqual(['survival']);
+      expect(qAdvanced.exactPhrases).toEqual(['hardcore pack']);
+      expect(qAdvanced.fieldQueries).toEqual({ author: 'shivaxi' });
     });
   });
 });

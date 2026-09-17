@@ -2,7 +2,7 @@
  * Search State Coordinator (Architecture V2 — Phase 3C).
  * Coordinates search terms and active scopes across platform tabs.
  */
-import type { SearchScope, ParsedSearchQuery } from './types';
+import type { SearchScope, ParsedSearchQuery, SearchMode } from './types';
 import { parseSearchQuery } from './queryParser';
 import type { Platform } from '../domain/types';
 import { filterItemsWithSearch } from './searchEngine';
@@ -19,8 +19,17 @@ import { recordSearchDebug } from '../debug';
 export class SearchStateCoordinator {
   private activeQuery: string = '';
   private activeScope: SearchScope = 'all';
+  private searchMode: SearchMode = 'legacy_compat';
   private platformQueries: Map<Platform | 'all', string> = new Map();
   private listeners: Set<(query: string, scope: SearchScope) => void> = new Set();
+
+  public getSearchMode(): SearchMode {
+    return this.searchMode;
+  }
+
+  public setSearchMode(mode: SearchMode): void {
+    this.searchMode = mode;
+  }
 
   public getQuery(platform?: Platform | 'all'): string {
     if (platform) {
@@ -35,7 +44,7 @@ export class SearchStateCoordinator {
 
   public getParsedQuery(platform?: Platform | 'all'): ParsedSearchQuery {
     const raw = this.getQuery(platform);
-    return parseSearchQuery(raw, this.activeScope);
+    return parseSearchQuery(raw, this.activeScope, this.searchMode);
   }
 
   public setQuery(query: string, platform?: Platform | 'all'): void {
@@ -48,7 +57,7 @@ export class SearchStateCoordinator {
     // Runtime Integration Wiring: run TS SearchEngine on active dataset & record debug
     if (typeof window !== 'undefined') {
       const plat = platform || 'mcmod';
-      const parsed = parseSearchQuery(trimmed, this.activeScope);
+      const parsed = parseSearchQuery(trimmed, this.activeScope, this.searchMode);
       let matchedIds: (string | number)[] = [];
       const win = window as unknown as Record<string, unknown>;
 

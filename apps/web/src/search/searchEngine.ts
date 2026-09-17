@@ -13,6 +13,34 @@ export function matchDocument(
     return { matches: true, score: 0, matchedFields: [] };
   }
 
+  // Advanced Mode Features (Inactive by default; only evaluated when mode === 'advanced')
+  if (query.mode === 'advanced') {
+    if (query.negatedTerms && query.negatedTerms.length > 0) {
+      for (const neg of query.negatedTerms) {
+        if (doc.allTextLower.includes(neg)) {
+          return { matches: false, score: 0, matchedFields: [] };
+        }
+      }
+    }
+
+    if (query.exactPhrases && query.exactPhrases.length > 0) {
+      for (const phrase of query.exactPhrases) {
+        if (!doc.allTextLower.includes(phrase)) {
+          return { matches: false, score: 0, matchedFields: [] };
+        }
+      }
+    }
+
+    if (query.fieldQueries) {
+      for (const [field, val] of Object.entries(query.fieldQueries)) {
+        if (field === 'author' && !doc.authorLower.includes(val)) return { matches: false, score: 0, matchedFields: [] };
+        if (field === 'title' && !doc.titleLower.includes(val)) return { matches: false, score: 0, matchedFields: [] };
+        if (field === 'loader' && !doc.loadersLower.includes(val)) return { matches: false, score: 0, matchedFields: [] };
+        if (field === 'version' && !doc.versionsLower.includes(val)) return { matches: false, score: 0, matchedFields: [] };
+      }
+    }
+  }
+
   const matchedFields: string[] = [];
   let totalScore = 0;
 

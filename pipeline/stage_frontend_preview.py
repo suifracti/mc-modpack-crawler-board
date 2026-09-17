@@ -53,15 +53,20 @@ def main():
         if os.path.exists(s_src):
             shutil.copy2(s_src, s_dst)
 
-    # Sync mods and comments subdirectories if present
+    # Sync mods and comments subdirectories if present as real directories
     for sub in ['mods', 'comments']:
         sub_src = os.path.join(src_data_dir, sub)
         sub_dst = os.path.join(dst_data_dir, sub)
-        if os.path.exists(sub_src) and not os.path.exists(sub_dst):
-            try:
-                import _winapi
-                _winapi.CreateJunction(sub_src, sub_dst)
-            except Exception:
+        if os.path.exists(sub_src):
+            if os.path.exists(sub_dst):
+                try:
+                    if os.path.islink(sub_dst):
+                        os.unlink(sub_dst)
+                    else:
+                        shutil.rmtree(sub_dst)
+                except Exception:
+                    pass
+            if not os.path.exists(sub_dst):
                 shutil.copytree(sub_src, sub_dst)
 
     # Ensure table_rows.js is NOT present in preview data directory!
