@@ -27,3 +27,7 @@ export interface LegacyXyebbsItem {
   releases?: LegacyXyebbsRelease[];
   [key: string]: unknown;
 }
+
+// Convenience alias for legacy & modern renderer
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type XyebbsPack = LegacyXyebbsItem & Record<string, any>;

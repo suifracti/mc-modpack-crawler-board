@@ -124,6 +124,9 @@ function onPlatformLoaded(platId) {
        - exclude 为假 => 条目分类命中任一所选即通过（并集语义）；
        - exclude 为真 => 命中任一所选即排除（MCMod 的「反向排除模式」）。 */
     function catHitMulti(sel, cats, exclude) {
+        if (typeof window.matchCategories === 'function') {
+            return window.matchCategories(sel, cats, Boolean(exclude));
+        }
         if (!sel || !sel.length) return true;
         cats = cats || [];
         var hit = false;
@@ -965,6 +968,9 @@ function onPlatformLoaded(platId) {
     });
 
     window.switchPlatformTab = function(tab) {
+        if (window.platformRouter && typeof window.platformRouter.navigateTo === 'function') {
+            window.platformRouter.navigateTo(tab, undefined, false);
+        }
         $('.nav-item').removeClass('active');
         $('.nav-item[data-tab="' + tab + '"]').addClass('active');
         $('.top-plat-btn').removeClass('active');
@@ -1144,6 +1150,9 @@ function onPlatformLoaded(platId) {
     /* 跨平台联合穿透搜索交互 */
     $('#crossSearchInput').on('input', function() {
         var query = $(this).val().trim().toLowerCase();
+        if (window.searchCoordinator && typeof window.searchCoordinator.setQuery === 'function') {
+            window.searchCoordinator.setQuery(query, 'all');
+        }
         var $clearBtn = $('#crossSearchClear');
         var $grid = $('#crossResultsGrid');
         var $mcBox = $('#crossMcmodResults');
@@ -1630,39 +1639,37 @@ function onPlatformLoaded(platId) {
             refSec = Math.max(nowSec, latestSec);
         }
 
-        // 过滤
-        var filtered = biliPacks.filter(function(p) {
-            if (serverOnly && !p.has_server) return false;
-            if (q) {
-                var searchTarget = ((p.title || '') + ' ' + (p.author || '') + ' ' + (p.desc || '') + ' ' + (p.mc_version || '') + ' ' + (p.loaders || []).join(' ') + ' ' + (p.categories || []).join(' ')).toLowerCase();
-                if (searchTarget.indexOf(q) === -1) return false;
-            }
-            if (ver && (p.mc_version || '').indexOf(ver) === -1 && !(p.all_versions || []).includes(ver)) return false;
-            if (loader && !(p.loaders || []).includes(loader)) return false;
-            if (!catHitMulti(activeCat, p.categories, __catExclude.bilibili)) return false;
-            if (activePan) {
-                var links = p.download_links || [];
-                var hasPan = links.some(function(l) {
-                    var n = (l && (l.name || l.type || '')) || '';
-                    return n.indexOf(activePan) !== -1;
-                });
-                if (!hasPan) return false;
-            }
-            if (activeDate) {
-                if (activeDate === '7d') {
-                    if (!p.pub_timestamp || (refSec - p.pub_timestamp > 7 * 86400)) return false;
-                } else if (activeDate === '30d') {
-                    if (!p.pub_timestamp || (refSec - p.pub_timestamp > 30 * 86400)) return false;
-                } else if (activeDate === '90d') {
-                    if (!p.pub_timestamp || (refSec - p.pub_timestamp > 90 * 86400)) return false;
-                } else if (/^\d\d\d\d$/.test(activeDate)) {
-                    if (!p.pub_time || p.pub_time.indexOf(activeDate) !== 0) return false;
-                } else {
-                    if (!p.pub_time || p.pub_time.indexOf(activeDate) !== 0) return false;
+        // 过滤 (委派至 TypeScript filterBilibiliPacks 模块)
+        var biliCriteria = {
+            searchQuery: q,
+            version: ver,
+            loader: loader,
+            serverOnly: serverOnly,
+            activeCategories: activeCat,
+            activePan: activePan,
+            activeDate: activeDate
+        };
+        var filtered = (typeof window.filterBilibiliPacks === 'function')
+            ? window.filterBilibiliPacks(biliPacks, biliCriteria, __catExclude.bilibili)
+            : biliPacks.filter(function(p) {
+                if (serverOnly && !p.has_server) return false;
+                if (q) {
+                    var searchTarget = ((p.title || '') + ' ' + (p.author || '') + ' ' + (p.desc || '') + ' ' + (p.mc_version || '') + ' ' + (p.loaders || []).join(' ') + ' ' + (p.categories || []).join(' ')).toLowerCase();
+                    if (searchTarget.indexOf(q) === -1) return false;
                 }
-            }
-            return true;
-        });
+                if (ver && (p.mc_version || '').indexOf(ver) === -1 && !(p.all_versions || []).includes(ver)) return false;
+                if (loader && !(p.loaders || []).includes(loader)) return false;
+                if (!catHitMulti(activeCat, p.categories, __catExclude.bilibili)) return false;
+                if (activePan) {
+                    var links = p.download_links || [];
+                    var hasPan = links.some(function(l) {
+                        var n = (l && (l.name || l.type || '')) || '';
+                        return n.indexOf(activePan) !== -1;
+                    });
+                    if (!hasPan) return false;
+                }
+                return true;
+            });
 
         // 更新活动过滤项标签条
         updateActiveFiltersBar(q, ver, loader);
@@ -1800,6 +1807,9 @@ function onPlatformLoaded(platId) {
 
     /* 渲染同包聚合卡片 */
     function renderGroupedCard(g) {
+        if (typeof window.renderBiliGroupedCard === 'function') {
+            return window.renderBiliGroupedCard(g);
+        }
         var latest = g.items[0];
         var isMulti = g.items.length > 1;
 
@@ -1935,6 +1945,9 @@ function onPlatformLoaded(platId) {
 
     /* 渲染单条平铺卡片 */
     function renderFlatCard(p) {
+        if (typeof window.renderBiliFlatCard === 'function') {
+            return window.renderBiliFlatCard(p);
+        }
         var tagsHtml = '';
         if (p.has_server) {
             tagsHtml += '<span class="badge-env badge-env-server" title="该整合包提供专用服务端下载/支持联机开服">🖳 含服务端</span>';
@@ -2042,34 +2055,28 @@ function onPlatformLoaded(platId) {
         var sort = $('#bbsmcSortSelect').val() || 'downloads_desc';
         var serverOnly = $('#bbsmcServerOnly').is(':checked');
 
-        var filtered = bbsmcPacks.filter(function(p) {
-            if (serverOnly && !p.has_server) return false;
-            if (q) {
-                var sTarget = ((p.title || '') + ' ' + (p.author || '') + ' ' + (p.description || '') + ' ' + (p.mc_version || '') + ' ' + (p.loaders || []).join(' ') + ' ' + (p.categories || []).join(' ')).toLowerCase();
-                if (sTarget.indexOf(q) === -1) return false;
-            }
-            if (ver && (p.mc_version || '').indexOf(ver) === -1 && !(p.all_versions || []).includes(ver)) return false;
-            if (loader && !(p.loaders || []).includes(loader)) return false;
-            if (!catHitMulti(bbsmcActiveCat, p.categories, __catExclude.bbsmc)) return false;
-            if (bbsmcActivePan) {
-                var links = p.download_links || [];
-                var panKey = bbsmcActivePan.toLowerCase();
-                var hasPan = links.some(function(l) {
-                    var n = ((l && l.name) || '').toLowerCase();
-                    var u = ((l && l.url) || '').toLowerCase();
-                    var fn = ((l && l.filename) || '').toLowerCase();
-                    if (panKey === 'modrinth') return n.indexOf('modrinth') !== -1 || fn.indexOf('.mrpack') !== -1 || u.indexOf('cdn.bbsmc.net') !== -1;
-                    if (panKey === 'curseforge') return u.indexOf('curseforge.com') !== -1 || n.indexOf('curseforge') !== -1;
-                    if (panKey === '夸克') return n.indexOf('夸克') !== -1 || u.indexOf('pan.quark.cn') !== -1;
-                    if (panKey === '百度') return n.indexOf('百度') !== -1 || u.indexOf('pan.baidu.com') !== -1;
-                    if (panKey === '123') return n.indexOf('123') !== -1 || u.indexOf('123pan') !== -1;
-                    if (panKey === '迅雷') return n.indexOf('迅雷') !== -1 || u.indexOf('pan.xunlei.com') !== -1;
-                    return n.indexOf(panKey) !== -1 || u.indexOf(panKey) !== -1;
-                });
-                if (!hasPan) return false;
-            }
-            return true;
-        });
+        // 过滤 (委派至 TypeScript filterBbsmcPacks 模块)
+        var bbsmcCriteria = {
+            searchQuery: q,
+            version: ver,
+            loader: loader,
+            serverOnly: serverOnly,
+            activeCategories: bbsmcActiveCat,
+            activePan: bbsmcActivePan
+        };
+        var filtered = (typeof window.filterBbsmcPacks === 'function')
+            ? window.filterBbsmcPacks(bbsmcPacks, bbsmcCriteria, __catExclude.bbsmc)
+            : bbsmcPacks.filter(function(p) {
+                if (serverOnly && !p.has_server) return false;
+                if (q) {
+                    var sTarget = ((p.title || '') + ' ' + (p.author || '') + ' ' + (p.description || '') + ' ' + (p.mc_version || '') + ' ' + (p.loaders || []).join(' ') + ' ' + (p.categories || []).join(' ')).toLowerCase();
+                    if (sTarget.indexOf(q) === -1) return false;
+                }
+                if (ver && (p.mc_version || '').indexOf(ver) === -1 && !(p.all_versions || []).includes(ver)) return false;
+                if (loader && !(p.loaders || []).includes(loader)) return false;
+                if (!catHitMulti(bbsmcActiveCat, p.categories, __catExclude.bbsmc)) return false;
+                return true;
+            });
 
         updateBbsmcActiveFiltersBar(q, ver, loader);
 
@@ -2171,6 +2178,9 @@ function onPlatformLoaded(platId) {
 
     function renderBbsmcCard(p) {
         registerPackForModal(p);
+        if (typeof window.renderBbsmcCard === 'function') {
+            return window.renderBbsmcCard(p);
+        }
         var safeTitle = $('<div>').text(p.title || '').html();
         var safeAuthor = $('<div>').text(p.author || '未知').html();
         var safeDesc = $('<div>').text(p.description || '').html();
@@ -2291,37 +2301,28 @@ function onPlatformLoaded(platId) {
         var sort = $('#xyebbsSortSelect').val() || 'hot_desc';
         var serverOnly = $('#xyebbsServerOnly').is(':checked');
 
-        var filtered = xyebbsPacks.filter(function(p) {
-            if (serverOnly && !p.has_server) return false;
-            if (q) {
-                var sTarget = ((p.title || '') + ' ' + (p.english_name || '') + ' ' + (p.author || '') + ' ' + (p.description || '') + ' ' + (p.mc_version || '') + ' ' + (p.loaders || []).join(' ') + ' ' + (p.categories || []).join(' ')).toLowerCase();
-                if (sTarget.indexOf(q) === -1) return false;
-            }
-            if (ver && (p.mc_version || '').indexOf(ver) === -1 && !(p.all_versions || []).includes(ver)) return false;
-            if (loader && !(p.loaders || []).includes(loader)) return false;
-            if (!catHitMulti(xyebbsActiveCat, p.categories, __catExclude.xyebbs)) return false;
-            if (xyebbsActivePan) {
-                var links = p.download_links || [];
-                var panKey = xyebbsActivePan.toLowerCase();
-                if (panKey === 'official') {
-                    if (!p.url) return false;
-                } else {
-                    var hasPan = links.some(function(l) {
-                        var n = ((l && l.name) || '').toLowerCase();
-                        var u = ((l && l.url) || '').toLowerCase();
-                        var t = ((l && l.type) || '').toLowerCase();
-                        if (panKey === '夸克') return n.indexOf('夸克') !== -1 || u.indexOf('pan.quark.cn') !== -1 || t === 'quark';
-                        if (panKey === '百度') return n.indexOf('百度') !== -1 || u.indexOf('pan.baidu.com') !== -1 || t === 'baidu';
-                        if (panKey === '123') return n.indexOf('123') !== -1 || u.indexOf('123pan') !== -1 || t.indexOf('123') !== -1;
-                        if (panKey === '迅雷') return n.indexOf('迅雷') !== -1 || u.indexOf('pan.xunlei.com') !== -1 || t === 'xunlei';
-                        if (panKey === '蓝奏') return n.indexOf('蓝奏') !== -1 || u.indexOf('lanzou') !== -1 || t.indexOf('lanzou') !== -1;
-                        return n.indexOf(panKey) !== -1 || u.indexOf(panKey) !== -1;
-                    });
-                    if (!hasPan) return false;
+        // 过滤 (委派至 TypeScript filterXyebbsPacks 模块)
+        var xyebbsCriteria = {
+            searchQuery: q,
+            version: ver,
+            loader: loader,
+            serverOnly: serverOnly,
+            activeCategories: xyebbsActiveCat,
+            activePan: xyebbsActivePan
+        };
+        var filtered = (typeof window.filterXyebbsPacks === 'function')
+            ? window.filterXyebbsPacks(xyebbsPacks, xyebbsCriteria, __catExclude.xyebbs)
+            : xyebbsPacks.filter(function(p) {
+                if (serverOnly && !p.has_server) return false;
+                if (q) {
+                    var sTarget = ((p.title || '') + ' ' + (p.english_name || '') + ' ' + (p.author || '') + ' ' + (p.description || '') + ' ' + (p.mc_version || '') + ' ' + (p.loaders || []).join(' ') + ' ' + (p.categories || []).join(' ')).toLowerCase();
+                    if (sTarget.indexOf(q) === -1) return false;
                 }
-            }
-            return true;
-        });
+                if (ver && (p.mc_version || '').indexOf(ver) === -1 && !(p.all_versions || []).includes(ver)) return false;
+                if (loader && !(p.loaders || []).includes(loader)) return false;
+                if (!catHitMulti(xyebbsActiveCat, p.categories, __catExclude.xyebbs)) return false;
+                return true;
+            });
 
         updateXyebbsActiveFiltersBar(q, ver, loader);
 
@@ -2411,6 +2412,9 @@ function onPlatformLoaded(platId) {
 
     function renderXyebbsCard(p) {
         registerPackForModal(p);
+        if (typeof window.renderXyebbsCard === 'function') {
+            return window.renderXyebbsCard(p);
+        }
         var safeTitle = $('<div>').text(p.title || '').html();
         var safeAuthor = $('<div>').text(p.author || '未知').html();
         var safeDesc = $('<div>').text(p.description || '').html();
@@ -2518,17 +2522,27 @@ function onPlatformLoaded(platId) {
         var sort = $('#modrinthSortSelect').val() || 'downloads_desc';
         var serverOnly = $('#modrinthServerOnly').is(':checked');
 
-        var filtered = modrinthPacks.filter(function(p) {
-            if (serverOnly && !p.has_server) return false;
-            if (q) {
-                var sTarget = ((p.title || '') + ' ' + (p.slug || '') + ' ' + (p.author || '') + ' ' + (p.description || '') + ' ' + (p.categories || []).join(' ')).toLowerCase();
-                if (sTarget.indexOf(q) === -1) return false;
-            }
-            if (ver && (p.mc_version || '').indexOf(ver) === -1 && !(p.all_versions || []).includes(ver)) return false;
-            if (loader && !(p.loaders || []).includes(loader)) return false;
-            if (!catHitMulti(modrinthActiveCat, p.categories, __catExclude.modrinth)) return false;
-            return true;
-        });
+        // 过滤 (委派至 TypeScript filterModrinthPacks 模块)
+        var modrinthCriteria = {
+            searchQuery: q,
+            version: ver,
+            loader: loader,
+            serverOnly: serverOnly,
+            activeCategories: modrinthActiveCat
+        };
+        var filtered = (typeof window.filterModrinthPacks === 'function')
+            ? window.filterModrinthPacks(modrinthPacks, modrinthCriteria, __catExclude.modrinth)
+            : modrinthPacks.filter(function(p) {
+                if (serverOnly && !p.has_server) return false;
+                if (q) {
+                    var sTarget = ((p.title || '') + ' ' + (p.slug || '') + ' ' + (p.author || '') + ' ' + (p.description || '') + ' ' + (p.categories || []).join(' ')).toLowerCase();
+                    if (sTarget.indexOf(q) === -1) return false;
+                }
+                if (ver && (p.mc_version || '').indexOf(ver) === -1 && !(p.all_versions || []).includes(ver)) return false;
+                if (loader && !(p.loaders || []).includes(loader)) return false;
+                if (!catHitMulti(modrinthActiveCat, p.categories, __catExclude.modrinth)) return false;
+                return true;
+            });
 
         updateModrinthActiveFiltersBar(q, ver, loader);
 
@@ -2606,6 +2620,9 @@ function onPlatformLoaded(platId) {
 
     function renderModrinthCard(p) {
         registerPackForModal(p);
+        if (typeof window.renderModrinthCard === 'function') {
+            return window.renderModrinthCard(p);
+        }
         var safeTitle = $('<div>').text(p.title || '').html();
         var safeAuthor = $('<div>').text(p.author || '未知').html();
         var safeDesc = $('<div>').text(p.description || '').html();
@@ -2673,17 +2690,27 @@ function onPlatformLoaded(platId) {
         var sort = $('#curseforgeSortSelect').val() || 'downloads_desc';
         var serverOnly = $('#curseforgeServerOnly').is(':checked');
 
-        var filtered = curseforgePacks.filter(function(p) {
-            if (serverOnly && !p.has_server) return false;
-            if (q) {
-                var sTarget = ((p.title || '') + ' ' + (p.slug || '') + ' ' + (p.author || '') + ' ' + (p.description || '') + ' ' + (p.categories || []).join(' ')).toLowerCase();
-                if (sTarget.indexOf(q) === -1) return false;
-            }
-            if (ver && (p.mc_version || '').indexOf(ver) === -1 && !(p.all_versions || []).includes(ver)) return false;
-            if (loader && !(p.loaders || []).includes(loader)) return false;
-            if (!catHitMulti(curseforgeActiveCat, p.categories, __catExclude.curseforge)) return false;
-            return true;
-        });
+        // 过滤 (委派至 TypeScript filterCurseforgePacks 模块)
+        var curseforgeCriteria = {
+            searchQuery: q,
+            version: ver,
+            loader: loader,
+            serverOnly: serverOnly,
+            activeCategories: curseforgeActiveCat
+        };
+        var filtered = (typeof window.filterCurseforgePacks === 'function')
+            ? window.filterCurseforgePacks(curseforgePacks, curseforgeCriteria, __catExclude.curseforge)
+            : curseforgePacks.filter(function(p) {
+                if (serverOnly && !p.has_server) return false;
+                if (q) {
+                    var sTarget = ((p.title || '') + ' ' + (p.slug || '') + ' ' + (p.author || '') + ' ' + (p.description || '') + ' ' + (p.categories || []).join(' ')).toLowerCase();
+                    if (sTarget.indexOf(q) === -1) return false;
+                }
+                if (ver && (p.mc_version || '').indexOf(ver) === -1 && !(p.all_versions || []).includes(ver)) return false;
+                if (loader && !(p.loaders || []).includes(loader)) return false;
+                if (!catHitMulti(curseforgeActiveCat, p.categories, __catExclude.curseforge)) return false;
+                return true;
+            });
 
         updateCurseforgeActiveFiltersBar(q, ver, loader);
 
@@ -2761,6 +2788,9 @@ function onPlatformLoaded(platId) {
 
     function renderCurseforgeCard(p) {
         registerPackForModal(p);
+        if (typeof window.renderCurseforgeCard === 'function') {
+            return window.renderCurseforgeCard(p);
+        }
         var safeTitle = $('<div>').text(p.title || '').html();
         var safeAuthor = $('<div>').text(p.author || '未知').html();
         var safeDesc = $('<div>').text(p.description || '').html();
@@ -3020,6 +3050,9 @@ function onPlatformLoaded(platId) {
         } else {
             $('#mcmodSearchClear').hide();
         }
+        if (window.searchCoordinator && typeof window.searchCoordinator.setQuery === 'function') {
+            window.searchCoordinator.setQuery(val, 'mcmod');
+        }
         clearTimeout(mcmodSearchTimer);
         mcmodSearchTimer = setTimeout(function() {
             currentMcmodCardLimit = 48;
@@ -3076,6 +3109,9 @@ function onPlatformLoaded(platId) {
             $('#biliSearchClear').show();
         } else {
             $('#biliSearchClear').hide();
+        }
+        if (window.searchCoordinator && typeof window.searchCoordinator.setQuery === 'function') {
+            window.searchCoordinator.setQuery(val, 'bilibili');
         }
         clearTimeout(biliSearchTimer);
         biliSearchTimer = setTimeout(function() {
@@ -3352,6 +3388,9 @@ function showToast(msg) {
         } else {
             $('#bbsmcSearchClear').hide();
         }
+        if (window.searchCoordinator && typeof window.searchCoordinator.setQuery === 'function') {
+            window.searchCoordinator.setQuery(val, 'bbsmc');
+        }
         clearTimeout(bbsmcSearchTimer);
         bbsmcSearchTimer = setTimeout(function() {
             currentBbsmcCardLimit = 48;
@@ -3538,6 +3577,9 @@ function showToast(msg) {
         } else {
             $('#xyebbsSearchClear').hide();
         }
+        if (window.searchCoordinator && typeof window.searchCoordinator.setQuery === 'function') {
+            window.searchCoordinator.setQuery(val, 'xyebbs');
+        }
         clearTimeout(xyebbsSearchTimer);
         xyebbsSearchTimer = setTimeout(function() {
             currentXyebbsCardLimit = 48;
@@ -3715,6 +3757,9 @@ function showToast(msg) {
         var val = $(this).val().trim();
         if (val) $('#modrinthSearchClear').show();
         else $('#modrinthSearchClear').hide();
+        if (window.searchCoordinator && typeof window.searchCoordinator.setQuery === 'function') {
+            window.searchCoordinator.setQuery(val, 'modrinth');
+        }
         clearTimeout(modrinthSearchTimer);
         modrinthSearchTimer = setTimeout(function() {
             currentModrinthCardLimit = 48;
@@ -3871,6 +3916,9 @@ function showToast(msg) {
         var val = $(this).val().trim();
         if (val) $('#curseforgeSearchClear').show();
         else $('#curseforgeSearchClear').hide();
+        if (window.searchCoordinator && typeof window.searchCoordinator.setQuery === 'function') {
+            window.searchCoordinator.setQuery(val, 'curseforge');
+        }
         clearTimeout(curseforgeSearchTimer);
         curseforgeSearchTimer = setTimeout(function() {
             currentCurseforgeCardLimit = 48;
@@ -4157,7 +4205,7 @@ function showToast(msg) {
                 result.commentIndex = findCommentMatch(commentData[mid], keyword);
                 result.comment = result.commentIndex >= 0;
             }
-            result.basic = result.title || result.cat || (rowData.mods_search || '').toLowerCase().indexOf(kw) !== -1;
+            result.basic = result.title || result.cat || ((rowData.modSearchText || rowData.mods_search || '').toLowerCase().indexOf(kw) !== -1);
             return result;
         }
 
@@ -4265,7 +4313,7 @@ function showToast(msg) {
                     "orderSequence": ["desc", "asc"],
                     "render": function(data, type, row) {
                         if (type === 'sort' || type === 'order') return row.sort_col6;
-                        if (type === 'filter' || type === 'search') return row.mods_search || '';
+                        if (type === 'filter' || type === 'search') return row.modSearchText || row.mods_search || '';
                         return data;
                     }
                 }
@@ -4956,6 +5004,13 @@ function showToast(msg) {
     $(document).on('change', '.js-server-only-toggle', function() {
         var plat = $(this).data('plat');
         if (plat === 'mcmod') {
+            var isChecked = $('#mcmodServerOnly').is(':checked');
+            if (typeof window.recordFilterDebug === 'function') {
+                var packs = window.mcmodData || window.tableRowsData || [];
+                var matched = isChecked ? packs.filter(function(p) { return !!p.has_server; }) : packs;
+                var matchedIds = matched.map(function(p) { return String(p.mid || p.id || ''); });
+                window.recordFilterDebug('mcmod', { serverOnly: isChecked }, matched.length, matchedIds);
+            }
             if (window.table) window.table.draw();
             if (activeMcmodVMode === 'cards') renderMcmodCards();
         } else if (plat === 'bilibili') {
@@ -5920,6 +5975,9 @@ function showToast(msg) {
        纯数据呈现 —— 版本全部来自抓取结果，不补全、不推断。
        少于 2 个版本时返回空串（单个版本用条形表达没有信息量）。 */
     function buildMcVersionStrip(versions) {
+        if (typeof window.buildMcVersionStrip === 'function') {
+            return window.buildMcVersionStrip(versions);
+        }
         if (!versions || !versions.length) return '';
         var uniq = [];
         versions.forEach(function(v) {
@@ -5958,6 +6016,9 @@ function showToast(msg) {
 
     // ───── 简易安全 Markdown 渲染器 ─────
     function renderSimpleMarkdown(md) {
+        if (typeof window.renderSimpleMarkdown === 'function') {
+            return window.renderSimpleMarkdown(md);
+        }
         if (!md) return '';
         var text = String(md);
         var escapeMap = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -6032,6 +6093,39 @@ function showToast(msg) {
                     row = mcRows[i];
                     break;
                 }
+            }
+        }
+
+        var packObj = row || extra.rawPack || {
+            mid: mid,
+            id: mid,
+            title: title || extra.title,
+            latest_version: ver || extra.ver,
+            last_update_date: date || extra.date,
+            version_count: count || extra.count,
+            mc_versions: extra.mcVersList || (extra.ver ? [extra.ver] : []),
+            type_name: extra.typeName,
+            has_server: extra.has_server,
+            env_display: extra.env_display,
+            url: extra.url || ('https://www.mcmod.cn/modpack/version/' + mid + '.html'),
+            items: extra.items
+        };
+
+        // 委派至 TypeScript VersionModalController 模块
+        if (typeof window.buildVersionModalViewModel === 'function' && window.versionModalController) {
+            try {
+                var modalVm = window.buildVersionModalViewModel(plat, packObj, Object.assign({}, extra, {
+                    mid: mid,
+                    title: title || extra.title,
+                    ver: ver || extra.ver,
+                    date: date || extra.date,
+                    count: count || extra.count,
+                    rawPack: packObj
+                }));
+                window.versionModalController.open(modalVm);
+                return;
+            } catch (err) {
+                console.warn('[VersionModal] Error using VersionModalController, falling back to legacy render:', err);
             }
         }
 

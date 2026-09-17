@@ -45,3 +45,7 @@ export interface LegacyBilibiliItem {
   subtitle_summary?: string;
   [key: string]: unknown;
 }
+
+// Convenience alias for legacy & modern renderer
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type BilibiliPack = LegacyBilibiliItem & Record<string, any>;

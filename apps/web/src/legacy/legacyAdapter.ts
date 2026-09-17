@@ -1,6 +1,7 @@
 /**
  * Legacy Adapter and Global Compatibility Bridge.
- * Binds modern TypeScript utilities, domain logic, repository, and theme state to window
+ * Binds modern TypeScript utilities, domain logic, repository, theme state,
+ * modular search, filter, router, modal, and platform card renderers to window
  * to guarantee 100% backward compatibility for existing DOM event handlers and DataTables.
  */
 import { escHtml, escAttrJs } from '../utils/html';
@@ -14,11 +15,68 @@ import { PLATFORM_CONFIGS } from '../data/platformRegistry';
 import { getMcmodTableColumns, attachMcmodRowAttributes, buildMcmodSearchText } from '../platforms/mcmod';
 import type { Platform } from '../domain/types';
 
+// Modular Subsystems (Phase 3C)
+import {
+  normalizeSearchKeyword,
+  parseSearchQuery,
+  matchDocument,
+  filterItemsWithSearch,
+  searchCoordinator,
+} from '../search';
+import {
+  matchCategories,
+  matchVersion,
+  matchLoader,
+  matchServerOnly,
+  matchPan,
+  matchDateRange,
+  filterStore,
+  filterBilibiliPacks,
+  filterBbsmcPacks,
+  filterXyebbsPacks,
+  filterModrinthPacks,
+  filterCurseforgePacks,
+  CAT_LABELS,
+  getCategoryLabel,
+} from '../filters';
+import { platformRouter, parseHash, updateHash, listenToHashChange } from '../router';
+import {
+  versionModalController,
+  buildVersionModalViewModel,
+  buildMcVersionStrip,
+  renderSimpleMarkdown,
+  renderOverviewPane,
+  renderChangelogPane,
+  renderDownloadsPane,
+  renderDiscussionsPane,
+} from '../modals/version';
+import { renderBiliGroupedCard, renderBiliFlatCard } from '../platforms/bilibili/renderer';
+import { renderBbsmcCard } from '../platforms/bbsmc/renderer';
+import { renderXyebbsCard } from '../platforms/xyebbs/renderer';
+import { renderModrinthCard } from '../platforms/modrinth/renderer';
+import { renderCurseforgeCard } from '../platforms/curseforge/renderer';
+import {
+  initFrontendDebug,
+  recordSearchDebug,
+  recordFilterDebug,
+  recordNavigationDebug,
+  recordModalDebug,
+  recordRendererDebug,
+} from '../debug';
+
 export function setupLegacyBridge(): { repository: LegacySidecarRepository } {
   const repository = new LegacySidecarRepository();
 
   if (typeof window !== 'undefined') {
     const win = window as unknown as Record<string, unknown>;
+
+    // 0. Runtime Debug Instrumentation (Phase 3C.1)
+    initFrontendDebug();
+    win.recordSearchDebug = recordSearchDebug;
+    win.recordFilterDebug = recordFilterDebug;
+    win.recordNavigationDebug = recordNavigationDebug;
+    win.recordModalDebug = recordModalDebug;
+    win.recordRendererDebug = recordRendererDebug;
 
     // 1. Pure Utilities
     win.escHtml = escHtml;
@@ -48,6 +106,53 @@ export function setupLegacyBridge(): { repository: LegacySidecarRepository } {
     win.attachMcmodRowAttributes = attachMcmodRowAttributes;
     win.buildMcmodSearchText = buildMcmodSearchText;
 
+    // 6. Search Subsystem (Phase 3C)
+    win.normalizeSearchKeyword = normalizeSearchKeyword;
+    win.parseSearchQuery = parseSearchQuery;
+    win.matchDocument = matchDocument;
+    win.filterItemsWithSearch = filterItemsWithSearch;
+    win.searchCoordinator = searchCoordinator;
+
+    // 7. Filter Subsystem (Phase 3C)
+    win.matchCategories = matchCategories;
+    win.matchVersion = matchVersion;
+    win.matchLoader = matchLoader;
+    win.matchServerOnly = matchServerOnly;
+    win.matchPan = matchPan;
+    win.matchDateRange = matchDateRange;
+    win.filterStore = filterStore;
+    win.filterBilibiliPacks = filterBilibiliPacks;
+    win.filterBbsmcPacks = filterBbsmcPacks;
+    win.filterXyebbsPacks = filterXyebbsPacks;
+    win.filterModrinthPacks = filterModrinthPacks;
+    win.filterCurseforgePacks = filterCurseforgePacks;
+    win.CAT_LABELS = CAT_LABELS;
+    win.getCategoryLabel = getCategoryLabel;
+
+    // 8. Router Subsystem (Phase 3C)
+    win.platformRouter = platformRouter;
+    win.parseHash = parseHash;
+    win.updateHash = updateHash;
+    win.listenToHashChange = listenToHashChange;
+
+    // 9. Version Modal Subsystem (Phase 3C)
+    win.versionModalController = versionModalController;
+    win.buildVersionModalViewModel = buildVersionModalViewModel;
+    win.buildMcVersionStrip = buildMcVersionStrip;
+    win.renderSimpleMarkdown = renderSimpleMarkdown;
+    win.renderOverviewPane = renderOverviewPane;
+    win.renderChangelogPane = renderChangelogPane;
+    win.renderDownloadsPane = renderDownloadsPane;
+    win.renderDiscussionsPane = renderDiscussionsPane;
+
+    // 10. Platform Card Renderers (Phase 3C)
+    win.renderBiliGroupedCard = renderBiliGroupedCard;
+    win.renderBiliFlatCard = renderBiliFlatCard;
+    win.renderBbsmcCard = renderBbsmcCard;
+    win.renderXyebbsCard = renderXyebbsCard;
+    win.renderModrinthCard = renderModrinthCard;
+    win.renderCurseforgeCard = renderCurseforgeCard;
+
     // Backward-compatible PlatformLoader facade delegating to LegacySidecarLoader
     win.PlatformLoader = {
       ...PLATFORM_CONFIGS,
@@ -62,6 +167,9 @@ export function setupLegacyBridge(): { repository: LegacySidecarRepository } {
   // Initialize theme and event delegation
   initTheme();
   bindThemeControls();
+
+  // Initialize router
+  platformRouter.init();
 
   return { repository };
 }

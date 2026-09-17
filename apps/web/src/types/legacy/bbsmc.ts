@@ -27,3 +27,7 @@ export interface LegacyBbsmcItem {
   releases?: LegacyBbsmcRelease[];
   [key: string]: unknown;
 }
+
+// Convenience alias for legacy & modern renderer
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type BbsmcPack = LegacyBbsmcItem & Record<string, any>;

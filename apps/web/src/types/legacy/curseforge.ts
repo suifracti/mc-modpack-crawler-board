@@ -27,3 +27,7 @@ export interface LegacyCurseforgeItem {
   releases?: LegacyCurseforgeRelease[];
   [key: string]: unknown;
 }
+
+// Convenience alias for legacy & modern renderer
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type CurseforgePack = LegacyCurseforgeItem & Record<string, any>;

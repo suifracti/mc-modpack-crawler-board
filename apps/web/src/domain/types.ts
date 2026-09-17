@@ -138,6 +138,7 @@ export interface McmodTrendStats {
   t60: number;
   tall: number;
   score: number;
+  history7d?: number[];
   trendValsStr?: string;
   trendDatesStr?: string;
 }
@@ -187,9 +188,10 @@ export interface McmodPack extends BasePack {
   tags: string[];
   includedModsCount: number;
   includedModGroups: McmodModGroup[];
-  trendPoints: McmodTrendPoint[];
+  trendPoints?: McmodTrendPoint[];
   tagsSearch?: string;
   categorySearch?: string;
+  modSearchText?: string;
   modsSearch?: string;
 }
 

@@ -280,6 +280,7 @@ class StructuredMCModExporter:
                         "t60": t60_n,
                         "tall": tall_n,
                         "score": score_n,
+                        "history7d": [float(v) for _, v in t_points[-7:]] if t_points else [],
                         "trendValsStr": trend_vals_str,
                         "trendDatesStr": trend_dates_str,
                     },
@@ -292,13 +293,11 @@ class StructuredMCModExporter:
                     "name_order": full_title.lower(),
                     "cat_search": ", ".join(cats),
                     "pack_search": "",
-                    "mods_search": ", ".join(all_mod_names),
                     "mod_cat_search": ", ".join(all_mod_cats),
                     "modCategories": mod_categories,
                     "previewMods": preview_mods,
                     "modSearchText": ", ".join(all_mod_names),
                     "modCategorySearch": ", ".join(all_mod_cats),
-                    "trendPoints": trend_points_list,
                     "environmentClaims": env_claims,
                     "publishedAt": pub_at,
                     "modifiedAt": mod_at,
@@ -313,10 +312,24 @@ class StructuredMCModExporter:
 
             size_bytes = os.path.getsize(output_file)
             print(f"[+] Exported {len(structured_packs)} structured MCMod records to {output_file} ({size_bytes / 1024:.1f} KB)")
+
+            # Export full history to a separate lazy sidecar for on-demand details
+            trends_file = os.path.join(self.output_dir, "mcmod_trends.js")
+            all_trends = {
+                int(k.split(":", 1)[1]): [{"date": d, "viewsDelta": v} for d, v in pts]
+                for k, pts in trend_map.items() if k.startswith("mcmod:")
+            }
+            with open(trends_file, "w", encoding="utf-8") as f:
+                f.write(f"window.mcmodTrendsData = {json.dumps(all_trends, ensure_ascii=False, separators=(',', ':'))};\n")
+            trends_size = os.path.getsize(trends_file)
+            print(f"[+] Exported separate lazy full trend history to {trends_file} ({trends_size / 1024:.1f} KB)")
+
             return {
                 "count": len(structured_packs),
                 "output_file": output_file,
                 "size_bytes": size_bytes,
+                "trends_file": trends_file,
+                "trends_size_bytes": trends_size,
             }
         finally:
             conn.close()

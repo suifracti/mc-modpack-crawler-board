@@ -6,8 +6,12 @@
 import { escHtml, escAttrJs } from '../../utils/html';
 import { generateSparklineSvg } from './sparkline';
 import type { McmodStructuredItem, McmodPreviewModItem } from './types';
+import { recordRendererDebug } from '../../debug';
 
 export function renderTitleCell(pack: McmodStructuredItem): string {
+  if (typeof window !== 'undefined') {
+    recordRendererDebug('mcmod');
+  }
   const mid = String(pack.mid);
   const fullTitle = pack.title || `Modpack ${mid}`;
   const titleCn = pack.chineseName || fullTitle;
@@ -40,7 +44,10 @@ export function renderTrendCell(pack: McmodStructuredItem): string {
   const avg = ts.avg || 0;
   const days = ts.days || 0;
 
-  const vals = (pack.trendPoints || []).map((p) => p.viewsDelta);
+  const vals =
+    (pack.trendStats?.history7d && pack.trendStats.history7d.length > 0)
+      ? pack.trendStats.history7d
+      : (pack.trendPoints || []).map((p) => p.viewsDelta);
   const svgHtml = generateSparklineSvg(vals);
   const hint = svgHtml ? '点击看图' : 'MC百科';
 

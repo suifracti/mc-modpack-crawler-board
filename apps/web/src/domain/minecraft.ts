@@ -86,3 +86,14 @@ export function extractMcVersion(r: VersionInfoCarrier | string | null | undefin
 
   return '';
 }
+
+export const LOADER_LABEL_MAP: Record<string, string> = {
+  Neoforge: 'NeoForge',
+  neoforge: 'NeoForge',
+  neoForge: 'NeoForge',
+};
+
+export function loaderLabel(v: string | null | undefined): string {
+  if (v === null || v === undefined || v === '') return '';
+  return LOADER_LABEL_MAP[v] || v;
+}

@@ -53,9 +53,11 @@ export interface McmodStructuredItem {
   modCategories: McmodModCategoryItem[];
   previewMods: McmodPreviewModItem[];
   modSearchText: string;
+  modsSearch?: string;
   modCategorySearch: string;
-  trendPoints: McmodTrendPoint[];
+  trendPoints?: McmodTrendPoint[];
   environmentClaims: EnvironmentClaim[];
+  has_server?: boolean;
   publishedAt?: string;
   modifiedAt?: string;
 }

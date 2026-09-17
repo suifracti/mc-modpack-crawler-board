@@ -137,6 +137,11 @@ def test_contract():
         for col in ["c0", "c1", "c2", "c3", "c4", "c5", "c6"]:
             assert col not in item, f"Legacy column {col} must NOT exist in structured data! (mid={mid})"
 
+        # Check Phase 3C payload cleanup: duplicate mods_search and full trendPoints removed
+        assert "mods_search" not in item, f"Duplicate mods_search must NOT exist in preview mcmod_data.js! (mid={mid})"
+        assert "trendPoints" not in item, f"Full trendPoints must NOT exist in initial preview mcmod_data.js! (mid={mid})"
+        assert "history7d" in item.get("trendStats", {}), f"trendStats.history7d must exist for Sparkline (mid={mid})"
+
         # Check environment claims structure
         claims = item.get("environmentClaims")
         assert isinstance(claims, list) and len(claims) >= 2, f"Item {mid} missing environmentClaims"

@@ -30,3 +30,7 @@ export interface LegacyModrinthItem {
   releases?: LegacyModrinthRelease[];
   [key: string]: unknown;
 }
+
+// Convenience alias for legacy & modern renderer
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ModrinthPack = LegacyModrinthItem & Record<string, any>;
