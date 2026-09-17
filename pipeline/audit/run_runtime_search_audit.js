@@ -198,12 +198,25 @@ async function main() {
         dtIds.sort((a, b) => a - b);
       }
 
+      const reasons = dbg.lastSearchMatchReasons || {};
+      const sampleReasons = {};
+      for (const id of tsIds.slice(0, 5)) {
+        if (reasons[id]) {
+          sampleReasons[id] = {
+            primaryReasonLabel: reasons[id].primaryReasonLabel,
+            fields: reasons[id].fields,
+          };
+        }
+      }
+
       return JSON.stringify({
         query: ${JSON.stringify(q)},
         tsMatchedCount: tsIds.length,
         tsMatchedIds: tsIds,
         dtMatchedCount: dtIds.length,
         dtMatchedIds: dtIds,
+        reasonsCount: Object.keys(reasons).length,
+        sampleReasons,
         searchCalls: dbg.searchCalls || 0
       });
     })()`);

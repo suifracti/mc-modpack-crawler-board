@@ -192,6 +192,54 @@ class TestMcmodSearchContract(unittest.TestCase):
             self.assertEqual(ts_ids, dt_ids,
                              f"Query '{q}': TS matched IDs != DT visible IDs. Diff count: {len(set(ts_ids) ^ set(dt_ids))}")
 
+    def test_search_match_reasons_audit_integrity(self):
+        """Phase 3G-D: Verify search match reasons integrity and explainability across the 20-query corpus."""
+        if not os.path.exists(RUNTIME_20_PATH):
+            raise unittest.SkipTest(f"Runtime 20-query audit file not found at {RUNTIME_20_PATH}")
+
+        with open(RUNTIME_20_PATH, "r", encoding="utf-8") as f:
+            audit_data = json.load(f)
+
+        for item in audit_data:
+            q = item["query"]
+            rt = item["runtime"]
+            ts_count = rt["tsMatchedCount"]
+            reasons_count = rt.get("reasonsCount", 0)
+
+            # Every matched pack must have an associated match reason
+            self.assertEqual(ts_count, reasons_count,
+                             f"Query '{q}': tsMatchedCount ({ts_count}) != reasonsCount ({reasons_count})")
+
+            # Option B & Phase 3G-D Contract: Match Reason MUST NEVER report '命中简介'
+            sample_reasons = rt.get("sampleReasons", {})
+            for mid, reason_info in sample_reasons.items():
+                label = reason_info.get("primaryReasonLabel", "")
+                self.assertNotIn("命中简介", label,
+                                 f"Query '{q}' MID {mid} falsely contains '命中简介': '{label}'")
+                self.assertNotIn("简介", label,
+                                 f"Query '{q}' MID {mid} falsely contains '简介': '{label}'")
+
+        # Golden Assertions for RLCraft
+        rlcraft_entry = next(x for x in audit_data if x["query"] == "RLCraft")
+        rl_samples = rlcraft_entry["runtime"]["sampleReasons"]
+
+        # MID 16 has RLCraft in title -> must be '名称匹配'
+        self.assertIn("16", rl_samples)
+        self.assertEqual(rl_samples["16"]["primaryReasonLabel"], "名称匹配")
+        self.assertIn("title", rl_samples["16"]["fields"])
+
+        # MID 304 matches included mod '奇异饰品-RLCraft版 (RLArtifacts)'
+        self.assertIn("304", rl_samples)
+        self.assertIn("奇异饰品-RLCraft版 (RLArtifacts)", rl_samples["304"]["primaryReasonLabel"])
+        self.assertIn("included_mod", rl_samples["304"]["fields"])
+
+        # Negative check: RLMixins does not contain 'rlcraft', so it must never be the matched mod reason
+        for mid, r_info in rl_samples.items():
+            label = r_info.get("primaryReasonLabel", "")
+            self.assertNotIn("RLMixins", label,
+                             f"RLMixins falsely matched for RLCraft query in MID {mid}: '{label}'")
+
 
 if __name__ == "__main__":
     unittest.main()
+

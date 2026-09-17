@@ -21,6 +21,7 @@ import {
   parseSearchQuery,
   matchDocument,
   filterItemsWithSearch,
+  searchItemsWithReasons,
   searchCoordinator,
 } from '../search';
 import {
@@ -111,6 +112,7 @@ export function setupLegacyBridge(): { repository: LegacySidecarRepository } {
     win.parseSearchQuery = parseSearchQuery;
     win.matchDocument = matchDocument;
     win.filterItemsWithSearch = filterItemsWithSearch;
+    win.searchItemsWithReasons = searchItemsWithReasons;
     win.searchCoordinator = searchCoordinator;
 
     // 7. Filter Subsystem (Phase 3C)

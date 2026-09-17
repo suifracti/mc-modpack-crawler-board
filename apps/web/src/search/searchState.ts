@@ -2,10 +2,10 @@
  * Search State Coordinator (Architecture V2 — Phase 3C).
  * Coordinates search terms and active scopes across platform tabs.
  */
-import type { SearchScope, ParsedSearchQuery, SearchMode } from './types';
+import type { SearchScope, ParsedSearchQuery, SearchMode, SearchMatchReason } from './types';
 import { parseSearchQuery } from './queryParser';
 import type { Platform } from '../domain/types';
-import { filterItemsWithSearch } from './searchEngine';
+import { searchItemsWithReasons } from './searchEngine';
 import {
   buildMcmodSearchDocument,
   buildBilibiliSearchDocument,
@@ -23,6 +23,7 @@ export class SearchStateCoordinator {
   private platformQueries: Map<Platform | 'all', string> = new Map();
   private listeners: Set<(query: string, scope: SearchScope) => void> = new Set();
   private platformMatchedIds: Map<string, (string | number)[]> = new Map();
+  private platformMatchReasons: Map<Platform | 'all', Map<string | number, SearchMatchReason>> = new Map();
   private cachedMatchedSet: Set<number> | null = null;
   private cachedMatchedSetQuery: string = '';
 
@@ -77,6 +78,28 @@ export class SearchStateCoordinator {
     return matched ? matched.includes(mid) : true;
   }
 
+  public getMatchReason(id: string | number, platform: Platform = 'mcmod'): SearchMatchReason | null {
+    if (!this.isFiltering(platform)) return null;
+    const reasons = this.platformMatchReasons.get(platform);
+    if (!reasons) return null;
+    return reasons.get(id) || reasons.get(Number(id)) || reasons.get(String(id)) || null;
+  }
+
+  public getMatchReasonLabel(id: string | number, platform: Platform = 'mcmod'): string | null {
+    const reason = this.getMatchReason(id, platform);
+    return reason ? reason.primaryReasonLabel : null;
+  }
+
+  public getAllMatchReasons(platform: Platform = 'mcmod'): Record<string | number, SearchMatchReason> {
+    const reasons = this.platformMatchReasons.get(platform);
+    if (!reasons) return {};
+    const out: Record<string | number, SearchMatchReason> = {};
+    for (const [k, v] of reasons.entries()) {
+      out[k] = v;
+    }
+    return out;
+  }
+
   public setQuery(query: string, platform?: Platform | 'all'): void {
     const trimmed = (query || '').trim();
     if (platform) {
@@ -87,6 +110,7 @@ export class SearchStateCoordinator {
     const plat = platform || 'mcmod';
     if (!trimmed) {
       this.platformMatchedIds.delete(plat);
+      this.platformMatchReasons.delete(plat);
       if (plat === 'mcmod' || plat === 'all') {
         this.cachedMatchedSet = null;
         this.cachedMatchedSetQuery = '';
@@ -97,37 +121,49 @@ export class SearchStateCoordinator {
     if (typeof window !== 'undefined') {
       const parsed = parseSearchQuery(trimmed, this.activeScope, this.searchMode);
       let matchedIds: (string | number)[] = [];
+      let matchReasonsMap = new Map<string | number, SearchMatchReason>();
       const win = window as unknown as Record<string, unknown>;
 
       if (plat === 'mcmod' && Array.isArray(win.mcmodData)) {
-        const matches = filterItemsWithSearch(win.mcmodData as any[], buildMcmodSearchDocument, parsed);
-        matchedIds = matches.map((m) => m.mid);
+        const res = searchItemsWithReasons(win.mcmodData as any[], buildMcmodSearchDocument, parsed);
+        matchedIds = res.items.map((m) => m.mid);
+        matchReasonsMap = res.reasons;
       } else if (plat === 'bilibili' && Array.isArray(win.biliModpacksData)) {
-        const matches = filterItemsWithSearch(win.biliModpacksData as any[], buildBilibiliSearchDocument, parsed);
-        matchedIds = matches.map((m) => m.bvid || m.id);
+        const res = searchItemsWithReasons(win.biliModpacksData as any[], buildBilibiliSearchDocument, parsed);
+        matchedIds = res.items.map((m) => m.bvid || m.id);
+        matchReasonsMap = res.reasons;
       } else if (plat === 'bbsmc' && Array.isArray(win.bbsmcModpacksData)) {
-        const matches = filterItemsWithSearch(win.bbsmcModpacksData as any[], buildBbsmcSearchDocument, parsed);
-        matchedIds = matches.map((m) => m.project_id || m.id);
+        const res = searchItemsWithReasons(win.bbsmcModpacksData as any[], buildBbsmcSearchDocument, parsed);
+        matchedIds = res.items.map((m) => m.project_id || m.id);
+        matchReasonsMap = res.reasons;
       } else if (plat === 'xyebbs' && Array.isArray(win.xyebbsModpacksData)) {
-        const matches = filterItemsWithSearch(win.xyebbsModpacksData as any[], buildXyebbsSearchDocument, parsed);
-        matchedIds = matches.map((m) => m.project_id || m.id);
+        const res = searchItemsWithReasons(win.xyebbsModpacksData as any[], buildXyebbsSearchDocument, parsed);
+        matchedIds = res.items.map((m) => m.project_id || m.id);
+        matchReasonsMap = res.reasons;
       } else if (plat === 'modrinth' && Array.isArray(win.modrinthModpacksData)) {
-        const matches = filterItemsWithSearch(win.modrinthModpacksData as any[], buildModrinthSearchDocument, parsed);
-        matchedIds = matches.map((m) => m.id);
+        const res = searchItemsWithReasons(win.modrinthModpacksData as any[], buildModrinthSearchDocument, parsed);
+        matchedIds = res.items.map((m) => m.id);
+        matchReasonsMap = res.reasons;
       } else if (plat === 'curseforge' && Array.isArray(win.curseforgeModpacksData)) {
-        const matches = filterItemsWithSearch(win.curseforgeModpacksData as any[], buildCurseforgeSearchDocument, parsed);
-        matchedIds = matches.map((m) => m.id);
+        const res = searchItemsWithReasons(win.curseforgeModpacksData as any[], buildCurseforgeSearchDocument, parsed);
+        matchedIds = res.items.map((m) => m.id);
+        matchReasonsMap = res.reasons;
       }
 
       if (trimmed) {
         this.platformMatchedIds.set(plat, matchedIds);
+        this.platformMatchReasons.set(plat, matchReasonsMap);
         if (plat === 'mcmod') {
           this.cachedMatchedSet = new Set(matchedIds.map(Number));
           this.cachedMatchedSetQuery = trimmed;
         }
       }
 
-      recordSearchDebug(plat, trimmed, matchedIds);
+      const matchReasonsObj: Record<string | number, unknown> = {};
+      for (const [id, r] of matchReasonsMap.entries()) {
+        matchReasonsObj[id] = r;
+      }
+      recordSearchDebug(plat, trimmed, matchedIds, matchReasonsObj);
     }
 
     this.notify();
@@ -142,6 +178,7 @@ export class SearchStateCoordinator {
     if (platform) {
       this.platformQueries.set(platform, '');
       this.platformMatchedIds.delete(platform);
+      this.platformMatchReasons.delete(platform);
       if (platform === 'mcmod' || platform === 'all') {
         this.cachedMatchedSet = null;
         this.cachedMatchedSetQuery = '';
@@ -149,6 +186,7 @@ export class SearchStateCoordinator {
     } else {
       this.platformQueries.clear();
       this.platformMatchedIds.clear();
+      this.platformMatchReasons.clear();
       this.cachedMatchedSet = null;
       this.cachedMatchedSetQuery = '';
       this.activeQuery = '';

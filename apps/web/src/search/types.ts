@@ -31,10 +31,41 @@ export interface SearchDocument {
   loadersLower: string;
   versionsLower: string;
   allTextLower: string;
+  formerTitlesLower?: string[];
+  includedModNames?: string[];
+}
+
+export type SearchMatchField =
+  | 'title'
+  | 'former_title'
+  | 'author'
+  | 'category'
+  | 'minecraft_version'
+  | 'loader'
+  | 'included_mod'
+  | 'other';
+
+export interface IncludedModMatchReason {
+  field: 'included_mod';
+  modName: string;
+  matchedTerms: string[];
+}
+
+export interface SearchMatchReason {
+  matched: boolean;
+  fields: SearchMatchField[];
+  includedMods: IncludedModMatchReason[];
+  termMatches: {
+    term: string;
+    fields: SearchMatchField[];
+  }[];
+  primaryReasonLabel: string;
 }
 
 export interface SearchMatchResult {
   matches: boolean;
   score: number;
   matchedFields: string[];
+  reason?: SearchMatchReason;
 }
+

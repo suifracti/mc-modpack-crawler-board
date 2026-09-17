@@ -211,4 +211,128 @@ describe('Search Subsystem', () => {
       expect(qAdvanced.fieldQueries).toEqual({ author: 'shivaxi' });
     });
   });
+
+  describe('Search Match Reason & Explainability (Phase 3G-D)', () => {
+    const testPack: McmodStructuredItem = {
+      mid: 1,
+      title: 'RLCraft 真实生存',
+      chineseName: '真实生存',
+      englishName: 'RLCraft',
+      url: 'https://www.mcmod.cn/modpack/1.html',
+      author: 'Shivaxi',
+      coverUrl: '',
+      typeName: '冒险',
+      moldId: '1',
+      views: 100000,
+      recommendations: 500,
+      favorites: 300,
+      commentsCount: 200,
+      trendStats: {
+        lat: 95,
+        max: 100,
+        avg: 90,
+        days: 30,
+        t7: 10,
+        t30: 20,
+        t60: 30,
+        tall: 50,
+        score: 95,
+      },
+      votes: { redVotes: 90, blackVotes: 10, redPercent: 90, blackPercent: 10 },
+      tags: ['生存', '冒险'],
+      categories: ['冒险'],
+      mcVersions: ['1.12.2'],
+      loaders: ['Forge'],
+      includedModsCount: 5,
+      modCategories: [],
+      previewMods: [],
+      modSearchText: '奇异饰品-RLCraft版 (RLArtifacts), RLMixins, 冰与火之歌 (Ice and Fire), 夸克 (Quark), 匠魂 (Tinkers Construct)',
+      modCategorySearch: '冒险',
+      environmentClaims: [],
+      formerTitles: ['Roguelike Adventures RealLife'],
+    };
+
+    it('generates exact title match reason with priority', () => {
+      const doc = buildMcmodSearchDocument(testPack);
+      const res = matchDocument(doc, parseSearchQuery('RLCraft'));
+      expect(res.matches).toBe(true);
+      expect(res.reason).toBeDefined();
+      expect(res.reason?.primaryReasonLabel).toBe('名称匹配');
+      expect(res.reason?.fields).toContain('title');
+    });
+
+    it('generates former title match reason', () => {
+      const doc = buildMcmodSearchDocument(testPack);
+      const res = matchDocument(doc, parseSearchQuery('Roguelike'));
+      expect(res.matches).toBe(true);
+      expect(res.reason?.primaryReasonLabel).toBe('曾用名匹配');
+      expect(res.reason?.fields).toContain('former_title');
+    });
+
+    it('returns exact, complete real modName for included mod reason', () => {
+      const doc = buildMcmodSearchDocument(testPack);
+      const res = matchDocument(doc, parseSearchQuery('RLArtifacts'));
+      expect(res.matches).toBe(true);
+      expect(res.reason?.primaryReasonLabel).toBe('包含模组：奇异饰品-RLCraft版 (RLArtifacts)');
+      expect(res.reason?.includedMods[0].modName).toBe('奇异饰品-RLCraft版 (RLArtifacts)');
+      expect(res.reason?.includedMods[0].matchedTerms).toEqual(['rlartifacts']);
+    });
+
+    it('excludes non-matching mods like RLMixins from reason when query does not match them', () => {
+      const doc = buildMcmodSearchDocument(testPack);
+      // RLCraft matches title and '奇异饰品-RLCraft版 (RLArtifacts)', but NOT RLMixins
+      const res = matchDocument(doc, parseSearchQuery('RLCraft'));
+      const matchedModNames = res.reason?.includedMods.map((m) => m.modName) || [];
+      expect(matchedModNames).toContain('奇异饰品-RLCraft版 (RLArtifacts)');
+      expect(matchedModNames).not.toContain('RLMixins');
+    });
+
+    it('handles multi-word same-mod match vs cross-field match', () => {
+      const doc = buildMcmodSearchDocument(testPack);
+
+      // Same mod matches all tokens: 'ice' and 'fire' in '冰与火之歌 (Ice and Fire)'
+      const resSameMod = matchDocument(doc, parseSearchQuery('Ice Fire'));
+      expect(resSameMod.matches).toBe(true);
+      expect(resSameMod.reason?.primaryReasonLabel).toBe('包含模组：冰与火之歌 (Ice and Fire)');
+
+      // Cross-field: 'RLCraft' in title, 'Fire' in mod
+      const resCross = matchDocument(doc, parseSearchQuery('RLCraft Fire'));
+      expect(resCross.matches).toBe(true);
+      expect(resCross.reason?.primaryReasonLabel).toBe('多字段匹配 (名称 + 包含模组)');
+      expect(resCross.reason?.fields).toContain('title');
+      expect(resCross.reason?.fields).toContain('included_mod');
+    });
+
+    it('truncates multiple matching mods cleanly (top 1-2 + N)', () => {
+      const multiModPack: McmodStructuredItem = {
+        ...testPack,
+        title: '测试包',
+        modSearchText: 'Craft A, Craft B, Craft C, Craft D',
+      };
+      const doc = buildMcmodSearchDocument(multiModPack);
+      const res = matchDocument(doc, parseSearchQuery('Craft'));
+      expect(res.matches).toBe(true);
+      expect(res.reason?.includedMods.length).toBe(4);
+      expect(res.reason?.primaryReasonLabel).toBe('包含模组：Craft A、Craft B +2');
+    });
+
+    it('wires match reason coordinator lookups and debug recording', () => {
+      (globalThis as unknown as { window: unknown }).window = globalThis;
+      (globalThis as any).mcmodData = [testPack];
+      searchCoordinator.setQuery('RLArtifacts', 'mcmod');
+
+      const reason = searchCoordinator.getMatchReason(1, 'mcmod');
+      expect(reason).not.toBeNull();
+      expect(reason?.primaryReasonLabel).toBe('包含模组：奇异饰品-RLCraft版 (RLArtifacts)');
+
+      const label = searchCoordinator.getMatchReasonLabel(1, 'mcmod');
+      expect(label).toBe('包含模组：奇异饰品-RLCraft版 (RLArtifacts)');
+
+      const allReasons = searchCoordinator.getAllMatchReasons('mcmod');
+      expect(allReasons[1]).toBeDefined();
+
+      searchCoordinator.clear('mcmod');
+      expect(searchCoordinator.getMatchReason(1, 'mcmod')).toBeNull();
+    });
+  });
 });

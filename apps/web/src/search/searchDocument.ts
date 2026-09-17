@@ -16,14 +16,14 @@ export function buildMcmodSearchDocument(
   commentsText?: string
 ): SearchDocument {
   const former = (item.formerTitles || []).join(' ');
-  const titleStr = `${item.title || ''} ${item.typeName || ''} ${former}`.trim();
+  const titleStr = `${item.title || ''} ${item.typeName || ''}`.trim();
   const cats = (item.categories || []).join(' ');
   const tags = (item.tags || []).join(' ');
   const mods = item.modSearchText || '';
   const desc = descText || '';
   const comments = commentsText || '';
 
-  const allText = `${titleStr} ${item.author || ''} ${cats} ${tags} ${mods} ${desc} ${comments}`;
+  const allText = `${titleStr} ${former} ${item.author || ''} ${cats} ${tags} ${mods} ${desc} ${comments}`;
 
   return {
     id: item.mid,
@@ -39,6 +39,10 @@ export function buildMcmodSearchDocument(
     loadersLower: (item.loaders || []).join(' ').toLowerCase(),
     versionsLower: (item.mcVersions || []).join(' ').toLowerCase(),
     allTextLower: allText.toLowerCase(),
+    formerTitlesLower: (item.formerTitles || []).map((t) => t.toLowerCase()),
+    includedModNames: item.modSearchText
+      ? item.modSearchText.split(', ').map((s) => s.trim()).filter(Boolean)
+      : [],
   };
 }
 

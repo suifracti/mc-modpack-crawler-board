@@ -348,6 +348,14 @@ function onPlatformLoaded(platId) {
             var modCount = r.mod_count || 0;
             var goodPct = r.rp_n || 90;
 
+            var matchBadgeHtml = '';
+            if (window.searchCoordinator && window.searchCoordinator.isFiltering('mcmod')) {
+                var reasonLabel = window.searchCoordinator.getMatchReasonLabel(mid, 'mcmod');
+                if (reasonLabel) {
+                    matchBadgeHtml = '<div class="search-match-badge" title="匹配原因：' + escAttrJs(reasonLabel) + '"><span class="search-match-icon">🔎</span> ' + escHtml(reasonLabel) + '</div>';
+                }
+            }
+
             var cardHtml = '<div class="mcmod-grid-card" data-mid="' + mid + '">' +
                 '<div class="mcmod-card-top">' +
                     '<img src="' + coverSrc + '" class="mcmod-card-cover image-thumb" data-image-url="' + (coverImg || coverSrc) + '" style="cursor:pointer;" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src=window.MC_COVER_FALLBACK;" alt="' + escAttrJs(title) + '" title="' + escAttrJs(title) + ' 封面预览（点击放大）">' +
@@ -361,6 +369,7 @@ function onPlatformLoaded(platId) {
                         (verStr ? '<span class="modpack-ver-badge">' + verStr + '</span> ' : '') +
                         title +
                     '</a>' +
+                    matchBadgeHtml +
                     '<div class="mcmod-card-badges">' +
                         (r.has_server ? '<span class="badge-env badge-env-server" style="font-size:0.75rem;" title="含服务端/支持联机开服">🖳 服务端</span>' : '') +
                         '<span class="mcmod-badge-type">' + (r.type_name || '魔改') + '</span>' +

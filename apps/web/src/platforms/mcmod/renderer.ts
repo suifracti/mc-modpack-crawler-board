@@ -25,12 +25,24 @@ export function renderTitleCell(pack: McmodStructuredItem): string {
 
   const verBadgeHtml = `<a class="modpack-version-badge" href="https://www.mcmod.cn/modpack/version/${mid}.html" target="_blank" title="查看整合包真实版本发布与更新日志">📜 更新日志 ↗</a>`;
 
+  let matchBadgeHtml = '';
+  if (typeof window !== 'undefined') {
+    const win = window as any;
+    if (win.searchCoordinator && win.searchCoordinator.isFiltering('mcmod')) {
+      const reasonLabel = win.searchCoordinator.getMatchReasonLabel(pack.mid, 'mcmod');
+      if (reasonLabel) {
+        matchBadgeHtml = `<div class="search-match-badge" title="匹配原因：${escAttrJs(reasonLabel)}"><span class="search-match-icon">🔎</span> ${escHtml(reasonLabel)}</div>`;
+      }
+    }
+  }
+
   return (
     `<button type="button" class="fav-star" data-mid="${mid}" title="收藏用于对比" aria-label="收藏用于对比">★</button>` +
     `<button type="button" class="modpack-cover-thumb image-thumb" data-image-url="${escAttrJs(coverUrl)}" title="${escAttrJs(fullTitle)} 封面（悬停 1 秒放大）" aria-label="查看整合包封面">` +
     `<img src="${escAttrJs(coverUrl)}" alt="${escAttrJs(fullTitle)} 封面" loading="lazy"></button>` +
     `<a href="https://www.mcmod.cn/modpack/${mid}.html" target="_blank" class="modpack-link" data-url="https://www.mcmod.cn/modpack/${mid}.html" data-mid="${mid}" data-full-title="${escAttrJs(fullTitle)}">` +
     `<span class="modpack-title-cn">${escHtml(titleCn)}</span><span class="modpack-title-en">${titleEnDisplay}</span></a>` +
+    matchBadgeHtml +
     `<div class="modpack-meta-row"><a class="modpack-type-badge" href="https://www.mcmod.cn/modpack.html?mold=${moldId}" target="_blank" title="打开 MC百科类型页">${escHtml(typeName)}</a>` +
     `<span class="modpack-views-badge" title="总浏览量">👁 ${escHtml(viewsD)}</span> ${verBadgeHtml}</div>`
   );

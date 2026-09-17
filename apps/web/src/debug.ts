@@ -8,6 +8,7 @@ export interface FrontendDebugState {
   lastSearchQuery: string;
   lastSearchPlatform: string;
   lastSearchMatchedIds: (string | number)[];
+  lastSearchMatchReasons?: Record<string | number, unknown>;
   filterCalls: Record<string, number>;
   lastFilterCriteria: Record<string, unknown>;
   lastFilterMatchedCounts: Record<string, number>;
@@ -56,6 +57,7 @@ function createDefaultDebugState(): FrontendDebugState {
     lastSearchQuery: '',
     lastSearchPlatform: '',
     lastSearchMatchedIds: [],
+    lastSearchMatchReasons: {},
     filterCalls: {
       mcmod: 0,
       bilibili: 0,
@@ -89,13 +91,19 @@ function createDefaultDebugState(): FrontendDebugState {
   };
 }
 
-export function recordSearchDebug(platform: string, query: string, matchedIds: (string | number)[]): void {
+export function recordSearchDebug(
+  platform: string,
+  query: string,
+  matchedIds: (string | number)[],
+  matchReasons?: Record<string | number, unknown>
+): void {
   const debug = getFrontendDebug();
   if (debug) {
     debug.searchCalls++;
     debug.lastSearchPlatform = platform;
     debug.lastSearchQuery = query;
     debug.lastSearchMatchedIds = matchedIds;
+    debug.lastSearchMatchReasons = matchReasons || {};
   }
 }
 
