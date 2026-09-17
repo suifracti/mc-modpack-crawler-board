@@ -4,7 +4,12 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const legacyDir = path.join(REPO_ROOT, 'build', 'frontend_legacy_current_data');
+// Phase 3G-D.1R.1: allow auditing any target directory (e.g. the rolled-back
+// `converted_output`), not just the legacy fallback staging bundle.
+const legacyDir = process.argv[2]
+  ? path.resolve(REPO_ROOT, process.argv[2])
+  : path.join(REPO_ROOT, 'build', 'frontend_legacy_current_data');
+const targetLabel = process.argv[2] ? process.argv[2] : 'frontend_legacy_current_data';
 const PORT = 8894;
 const CDP_PORT = 9894;
 const EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
@@ -211,8 +216,8 @@ async function main() {
   cdp.cleanup();
   server.close();
 
-  const outPath = path.join(REPO_ROOT, 'build', 'audit', 'legacy_search_results.json');
-  fs.writeFileSync(outPath, JSON.stringify(results, null, 2), 'utf8');
+  const outPath = path.join(REPO_ROOT, 'build', 'audit', `legacy_search_results_${targetLabel.replace(/[\\/]/g, '_')}.json`);
+  fs.writeFileSync(outPath, JSON.stringify({ target: targetLabel, results }, null, 2), 'utf8');
   console.log('[+] Saved legacy search results to', outPath);
 }
 

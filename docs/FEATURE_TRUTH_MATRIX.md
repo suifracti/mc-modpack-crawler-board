@@ -14,10 +14,10 @@
 ## 1. 审计统计总览
 
 - **审计功能总项数**：`71` 项 (覆盖 16 个业务领域)
-- **状态分布汇总 (Phase 3G-D.1R 审计后)**：
-  - **VERIFIED**：`43` 项 (60.6%) — 确证真实、具备完备契约的可靠功能（包含清除非法项目级时间戳后的 TIME-CURSEFORGE-02、模组关系保真的 MODREL-MCMOD-01、深度索引契约 DIDX-MCMOD-01、简介搜索契约 SEARCH-MCMOD-DESC-01、多词单一真实源契约 SEARCH-MCMOD-MULTIWORD-01、搜索命中原因与解释性修复 SEARCH-MCMOD-REASON-01、命中原因结构化来源完整性契约 SEARCH-MCMOD-REASON-SOURCE-01，以及本轮新增的回滚与发布完整性契约 REL-ROLLBACK-FRONTEND-01 / REL-RESTORE-MODERN-01 / REL-STATE-METADATA-01）
-  - **SUSPECT**：`21` 项 (29.6%) — 保留审慎标记（包含B站分组、BBSMC时序、Modrinth 聚合时间与版本标识，以及本轮新增的回滚数据非严格中性 REL-ROLLBACK-DATA-NEUTRALITY-01 与 Legacy 回退门禁选择器假阴性 REL-ROLLBACK-LEGACY-PARITY-01）
-  - **WRONG**：`0` 项 (0.0%) — 原始 9 项硬伤、平台时间伪造，以及 Phase 3G-D.1 命中原因来源可逆性缺陷均已清零修复。本轮 Runtime 与 Legacy fallback 验证**未暴露任何新的事实性错误**，WRONG 保持 0
+- **状态分布汇总 (Phase 3G-D.1R.1 审计后)**：
+  - **VERIFIED**：`45` 项 (63.4%) — 确证真实、具备完备契约的可靠功能（包含清除非法项目级时间戳后的 TIME-CURSEFORGE-02、模组关系保真的 MODREL-MCMOD-01、深度索引契约 DIDX-MCMOD-01、简介搜索契约 SEARCH-MCMOD-DESC-01、多词单一真实源契约 SEARCH-MCMOD-MULTIWORD-01、搜索命中原因与解释性修复 SEARCH-MCMOD-REASON-01、命中原因结构化来源完整性契约 SEARCH-MCMOD-REASON-SOURCE-01，以及本轮闭环的回滚与发布完整性契约 REL-ROLLBACK-FRONTEND-01 / REL-RESTORE-MODERN-01 / REL-STATE-METADATA-01 / **REL-ROLLBACK-DATA-NEUTRALITY-01** / **REL-ROLLBACK-LEGACY-PARITY-01**）
+  - **SUSPECT**：`19` 项 (26.8%) — 保留审慎标记（包含B站分组、BBSMC时序、Modrinth 聚合时间与版本标识等）
+  - **WRONG**：`0` 项 (0.0%) — 原始 9 项硬伤、平台时间伪造，以及 Phase 3G-D.1 命中原因来源可逆性缺陷均已清零修复。Phase 3G-D.1R / D.1R.1 的 Runtime 与 Legacy fallback 验证**未暴露任何新的事实性错误**，WRONG 保持 0
   - **UNKNOWN**：`7` 项 (9.9%) — 保持显式未确定（含 CurseForge 真实版本发布日期可用性 RELDATE-CURSEFORGE-01 及模组依赖/重要性关系 MODSEM-MCMOD-01）
 - **六平台覆盖率**：100%（MCMod 权威、Bilibili 动态、BBSMC 社区、XYEBBS 论坛、Modrinth 国际、CurseForge 国际全量覆盖）
 
@@ -213,11 +213,11 @@
 
 | Feature ID | 平台 | 现象 / 场景 | 前端当前处理逻辑 | 事实与风险 | 最终状态 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `REL-ROLLBACK-FRONTEND-01` | 全平台 | Modern 前端回滚到 Legacy 前端后，Legacy 能否消费当前数据 | `pipeline/rollback_frontend_to_legacy.py` 仅替换 `assets/` 与 HTML，保留数据层 | **Phase 3G-D.1R 实测**：Legacy 前端读取 `table_rows.js`（`window.tableRowsData`），对 `mcmodData` / `includedModNames` 零引用，故不受结构化来源变更影响。回滚后实测 MCMod 总数 `1484`、`RLCraft` 命中 `93`、服务端筛选 `6`、包含模组抽屉正常展开、0 个 JS 异常 | **`VERIFIED`** |
+| `REL-ROLLBACK-FRONTEND-01` | 全平台 | Modern 前端回滚到 Legacy 前端后，Legacy 能否消费当前数据 | `pipeline/rollback_frontend_to_legacy.py` 仅替换 `assets/` 与 HTML，保留数据层；Legacy 行模型由 `assets/legacy-compat/table_rows.js` 提供 | **Phase 3G-D.1R 实测 + D.1R.1 定案**：Legacy 前端读取前端层的 `window.tableRowsData`（compat 产物），对 `mcmodData` / `includedModNames` 零引用，故不受结构化来源变更影响。回滚后实测 MCMod 总数 `1484`、`RLCraft` 命中 `93`、服务端筛选 `6`、包含模组抽屉正常展开、评论弹窗可开（`.td-comment`）、0 个 JS 异常，Browser `33/33` | **`VERIFIED`** |
 | `REL-RESTORE-MODERN-01` | 全平台 | Legacy 回滚后能否可靠恢复回 Modern | `pipeline/restore_frontend_modern.py` 换回 `assets/`+HTML 并删除 `table_rows.js`，随后校验 production manifest | **本轮发现并已修复缺陷**：该脚本硬编码了 `frontend_modern_production_post3f.sha256.json`（`source_commit=c4fdf68`），一旦 payload/bundle 变更即校验失败、Modern 恢复路径不可用。已改为解析 `cutover_frontend_to_modern.py` 每次构建都会重新生成并校验的规范 manifest。修复后恢复实测 manifest 100% 匹配、Browser 33/33、Wiring 18/18 | **`VERIFIED`** |
 | `REL-STATE-METADATA-01` | 全平台 | `build/production_state.json` 在 cutover 后是否保留发布完整性元数据 | `cutover_frontend_to_modern.py` Step 6 写状态文件 | **本轮发现并已修复缺陷**：原实现写入全新 dict 覆盖整个文件，每次 cutover 静默丢失 `pipeline_data_schema`、`production_build_commit`、`correctness_*`、`release_date_semantics` 等字段。已改为读取现有状态后 merge 更新，并将 `frontend_source_commit` / `frontend_code_commit` / `production_build_commit` 统一为 `9564b89` | **`VERIFIED`** |
-| `REL-ROLLBACK-DATA-NEUTRALITY-01` | 全平台 | 前端回滚是否会连带把旧数据形态带回来 | 回滚脚本按需补写 `data/table_rows.js` | **审慎标记**：回滚**并非严格数据中性** —— `converted_output/data/` 摘要由 `4c3a05ff…`(2920 文件) 变为 `152a040e…`(2921 文件)，差异恰为新增 `data/table_rows.js`（25,008,285 B），0 删除 0 修改。但该文件经重新导出验证为**当前 canonical.db 的 legacy 形态导出**（sha `63e7a83a…`，与全新重导逐字节一致），非陈旧快照；且 `restore_frontend_modern.py` 会删除它，恢复后摘要回到 `4c3a05ff…` 完全一致。根因是 Legacy 前端的唯一 MCMod 数据源即 `table_rows.js` | **`SUSPECT`** |
-| `REL-ROLLBACK-LEGACY-PARITY-01` | MCMod | Legacy 回退目标是否与 Modern 功能等价（回滚门禁 33/33） | 共享 `pipeline/smoke_test_single.js` 探针 | **审慎标记**：Legacy 目标实测为 **32/33**，唯一失败项为 `MCMod Comment Popup Opened`。经探针证实这**不是产品缺陷而是探针选择器不兼容**：该用例使用 `.comment-cell`（Modern `renderer.ts` 专有标记，Legacy 中 0 处），Legacy 的评论触发点为 `.td-comment`（行内 1 处、文档内 25 处）。改用 Legacy 触发点后弹窗实测 `opened=true`（`class="comment-popup show"`），0 异常。故 Legacy 该行为实际可用，门禁指标对 Legacy 目标存在系统性假阴性 | **`SUSPECT`** |
+| `REL-ROLLBACK-DATA-NEUTRALITY-01` | 全平台 | 前端回滚是否会连带把旧数据形态带回来 | 回滚脚本只换 `assets/`+HTML；Legacy 行模型改由 `assets/legacy-compat/table_rows.js` 承载（frontend compatibility artifact） | **Phase 3G-D.1R.1 已闭环**：Legacy MCMod 行模型（`window.tableRowsData`）被明确划归**前端代码层**，不再写入 `data/`。回滚脚本每次从当前 canonical.db 重新生成该 compat 产物到 `assets/legacy-compat/table_rows.js`（避免快照漂移），并内置硬门禁：交换前后对 `converted_output/data/` 取 file set + rollup SHA-256，不一致即 `RuntimeError` 中止。实测 baseline `4c3a05ff…`(2920) == 回滚后 `4c3a05ff…`(2920) == 恢复后 `4c3a05ff…`(2920)，**added 0 / removed 0 / modified 0**。<br>_历史说明（保留）_：Phase 3G-D.1R 曾记为 SUSPECT —— 当时回滚会向 `data/` 补写 `table_rows.js`（2920→2921），摘要变为 `152a040e…`。 | **`VERIFIED`** |
+| `REL-ROLLBACK-LEGACY-PARITY-01` | MCMod | Legacy 回退目标是否与 Modern 功能等价（回滚门禁 33/33） | 共享 `pipeline/smoke_test_single.js`，comment 探针改为 target-compatible | **Phase 3G-D.1R.1 已闭环**：探针不再写死 Modern DOM，而是按 `.comment-cell` → `.td-comment` → `.show-comment-btn` → `#commentOpen` 顺序探测**用户能否打开评论弹窗**这一行为。实测 Modern 报 `Popup open via .comment-cell`、Legacy 报 `Popup open via .td-comment`，两者均 **33/33 PASS、0 异常**。Legacy 功能契约同时实测通过：MCMod total `1484`、`RLCraft 93`、服务端筛选 `6`、包含模组抽屉正常、评论弹窗可开；且 Legacy 搜索计数与原生 fallback 基线**逐项完全一致**（RLCraft 93 / Age of Fate 1 / Cloth Config 591 / Fabric API 111 / Mouse Tweaks 733 / Applied Energistics 353 / Ice and Fire 125），证明未改动 Legacy 搜索语义。<br>_历史说明（保留）_：Phase 3G-D.1R 曾记为 SUSPECT —— 当时探针只用 `.comment-cell`，Legacy 目标恒为 32/33（探针假阴性）。 | **`VERIFIED`** |
 
 ---
 

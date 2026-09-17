@@ -1431,7 +1431,10 @@
     <script src="data/audit_diff.js"></script>
 
     <!-- 6大平台数据源元信息声明 (MC百科首屏直接载入，其余由 PlatformLoader 异步流式按需加载) -->
-    <script src="data/table_rows.js"></script>
+    <!-- Phase 3G-D.1R.1: the legacy MCMod row model is a FRONTEND compatibility artifact.
+         It lives under assets/ (frontend code layer) so a Modern -> Legacy frontend
+         rollback never touches the canonical Production data layer (data/). -->
+    <script src="assets/legacy-compat/table_rows.js"></script>
     <!-- <script src="data/bili_data.js"></script> -->
     <!-- <script src="data/bbsmc_data.js"></script> -->
     <!-- <script src="data/xyebbs_data.js"></script> -->

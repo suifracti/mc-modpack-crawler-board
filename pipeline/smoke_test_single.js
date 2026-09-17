@@ -258,21 +258,38 @@ async function runTestSuite(envName, baseUrl, cdpClient) {
   recordBehavior('MCMod Mod Details Drawer Opened', modDrawerOpened, `Drawer loaded full mods`);
 
   // MC百科: 打开评论弹窗
-  const commentPopupOpened = await evalFn(`
+  // Phase 3G-D.1R.1: probe the BEHAVIOR ("can the user open the comments popup?"),
+  // not a specific DOM class. Modern renders `.comment-cell`; the legacy fallback
+  // renders `.td-comment`. Either trigger is a valid implementation of the same
+  // user-visible capability, so accept the first one present.
+  const commentProbe = await evalFn(`
     new Promise(resolve => {
-      const $cmtCell = $('#modpackTable tbody tr:first-child .comment-cell');
-      if ($cmtCell.length) {
-        $cmtCell.trigger('click');
-        setTimeout(() => {
-          const visible = $('#commentPopup').hasClass('show') || $('#commentPopup').is(':visible');
-          resolve(Boolean(visible));
-        }, 500);
-      } else {
-        resolve(false);
+      const TRIGGERS = ['.comment-cell', '.td-comment', '.show-comment-btn', '#commentOpen'];
+      const row = document.querySelector('#modpackTable tbody tr:first-child');
+      let $trigger = $();
+      let used = '';
+      for (const sel of TRIGGERS) {
+        const $cand = row ? $(row).find(sel) : $();
+        if ($cand.length) { $trigger = $cand.first(); used = sel; break; }
       }
+      if (!$trigger.length) {
+        for (const sel of TRIGGERS) {
+          const $cand = $(sel);
+          if ($cand.length) { $trigger = $cand.first(); used = sel; break; }
+        }
+      }
+      if (!$trigger.length) { resolve('none|'); return; }
+      $trigger.trigger('click');
+      setTimeout(() => {
+        const $p = $('#commentPopup');
+        resolve((($p.hasClass('show') || $p.is(':visible')) ? 'open' : 'closed') + '|' + used);
+      }, 600);
     })
   `);
-  recordBehavior('MCMod Comment Popup Opened', commentPopupOpened, `Popup opened`);
+  const commentParts = String(commentProbe || 'none|').split('|');
+  const commentOpened = commentParts[0] === 'open';
+  recordBehavior('MCMod Comment Popup Opened', commentOpened,
+    `Popup ${commentParts[0]} via ${commentParts[1] || 'n/a'}`);
   await evalFn(`$('#commentPopup').removeClass('show');`);
 
   // MC百科: 打开 Version Modal
