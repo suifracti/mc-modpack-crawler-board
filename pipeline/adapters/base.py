@@ -38,8 +38,9 @@ class BaseAdapter(abc.ABC):
     SERVER_TEXT_NEG_REGEX = SERVER_TEXT_NEG_REGEX
     SERVER_TEXT_POS_REGEX = SERVER_TEXT_POS_REGEX
 
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: Optional[str] = None, ingest_timestamp: Optional[str] = None):
         self.workspace_root = workspace_root or os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        self.ingest_timestamp = ingest_timestamp or ""
 
     @abc.abstractmethod
     def get_source_file_path(self) -> str:

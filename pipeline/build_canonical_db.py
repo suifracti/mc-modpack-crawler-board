@@ -97,7 +97,7 @@ def build_canonical_db(db_path: str = DEFAULT_DB_PATH, recreate: bool = True) ->
 
     adapters: List[BaseAdapter] = [
         MCModAdapter(workspace_root=PROJECT_ROOT),
-        BilibiliAdapter(workspace_root=PROJECT_ROOT),
+        BilibiliAdapter(workspace_root=PROJECT_ROOT, ingest_timestamp=started_at),
         BbsmcAdapter(workspace_root=PROJECT_ROOT),
         XyebbsAdapter(workspace_root=PROJECT_ROOT),
         ModrinthAdapter(workspace_root=PROJECT_ROOT),

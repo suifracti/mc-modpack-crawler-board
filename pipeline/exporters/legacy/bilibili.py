@@ -99,8 +99,14 @@ class BilibiliExporter(BaseLegacyExporter):
                 mc_vers = mc_map.get(si_id, [])
                 mc_version = mc_vers[0] if mc_vers else "未知"
 
-                # Deprecated compatibility field for legacy dashboard UI
-                desc_updated_at = extra.get("update_notice_at") or extra.get("pinned_comment_at") or ""
+                # Deprecated legacy compatibility field for legacy dashboard UI
+                # Cascade priority: update_notice_at -> pinned_comment_at -> observed_at
+                desc_updated_at = (
+                    extra.get("update_notice_at")
+                    or extra.get("pinned_comment_at")
+                    or extra.get("observed_at")
+                    or ""
+                )
 
                 rec = {
                     "platform": "bilibili",

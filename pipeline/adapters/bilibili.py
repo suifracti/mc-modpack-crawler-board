@@ -23,16 +23,14 @@ from pipeline.models.canonical import (
 class BilibiliAdapter(BaseAdapter):
     platform_name = "bilibili"
 
-    def __init__(self, workspace_root: Optional[str] = None):
-        super().__init__(workspace_root)
+    def __init__(self, workspace_root: Optional[str] = None, ingest_timestamp: Optional[str] = None):
+        super().__init__(workspace_root, ingest_timestamp)
         source_path = self.get_source_file_path()
         if os.path.exists(source_path):
             mtime = os.path.getmtime(source_path)
             self.snapshot_mtime_str = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-            self.observation_time_source = "file_mtime_fallback"
         else:
             self.snapshot_mtime_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-            self.observation_time_source = "ingest_now_fallback"
 
     def get_source_file_path(self) -> str:
         return os.path.join(self.workspace_root, "crawler_output", "bilibili_modpacks.json")
@@ -44,24 +42,20 @@ class BilibiliAdapter(BaseAdapter):
         title = (raw_item.get("title") or f"B站整合包 {bvid}").strip()
         url = raw_item.get("url") or f"https://www.bilibili.com/video/{bvid}"
 
-        # 优先级: 1. crawler 明确记录的 fetched/sync 字段 2. 文件 mtime fallback
-        crawler_sync_time = raw_item.get("sync_time") or raw_item.get("fetched_at") or raw_item.get("crawler_sync_at")
-        if crawler_sync_time:
-            last_observed_update_at = str(crawler_sync_time)
-            obs_source = "crawler_sync_timestamp"
-        else:
-            last_observed_update_at = self.snapshot_mtime_str
-            obs_source = self.observation_time_source
+        # 语义校正 (Phase 2A.2 Final Provenance):
+        # 1. published_at: 平台本身提供的视频发布时间
+        published_at = raw_item.get("pub_time") or None
 
-        now_str = last_observed_update_at
-        pub_time = raw_item.get("pub_time") or None
-        
-        # 语义校正 (Phase 1.1 / Phase 2A.1):
-        # 1. 群内新版本识别 (has_group_version / group_version_note)
-        has_group_ver = raw_item.get("has_group_version")
-        group_ver_note = raw_item.get("group_version_note")
+        # 2. pinned_comment_at: 评论 API 的 ctime (如原始快照中的 desc_updated_at 字段)
+        pinned_comment_at = raw_item.get("desc_updated_at") or None
+
+        # 3. update_notice_at: 仅在置顶评论明确属于版本更新公告时，使用该评论时间
         pinned_text = str(raw_item.get("pinned_comment") or "")
         desc_text = str(raw_item.get("desc") or "")
+
+        # 群内新版本识别 (has_group_version / group_version_note)
+        has_group_ver = raw_item.get("has_group_version")
+        group_ver_note = raw_item.get("group_version_note")
         if not has_group_ver:
             full_text = f"{title} {desc_text} {pinned_text}"
             if re.search(r'(?:进群体验|群文件|群里还有|群内首发|群内测试|群里更新|Q群下载|加群体验|群里下载|群内流转|群里版本|群里最新)', full_text):
@@ -74,15 +68,28 @@ class BilibiliAdapter(BaseAdapter):
         else:
             has_group_ver = bool(has_group_ver)
 
-        # 2. pinned_comment_at 严格对应评论 ctime
-        pinned_comment_at = raw_item.get("desc_updated_at") or None
-        # 3. update_notice_at 仅在置顶评论包含版本更新公告特征时成立
         is_update_notice = bool(has_group_ver) or bool(
             re.search(r'(?:更新|新版本|修复|v\d|已更新|升级)', pinned_text)
         )
         update_notice_at = pinned_comment_at if (pinned_comment_at and is_update_notice) else None
-        # 4. last_observed_update_at 对应 Crawler 观测同步时间，真实来源为快照文件修改时间
-        last_observed_update_at = self.snapshot_mtime_str
+
+        # 4. observed_at: 本次 ETL / canonical ingest 真正读取到该记录的时间 (UTC)
+        observed_at = self.ingest_timestamp or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        now_str = observed_at
+
+        # 5. last_observed_update_at: 仅在 crawler/diff 真实检测到内容变化时记录
+        # 历史快照无真实 per-item change detection，合法且规范地置为 NULL (零猜时间)
+        crawler_sync_time = raw_item.get("sync_time") or raw_item.get("fetched_at") or raw_item.get("content_changed_at")
+        if crawler_sync_time:
+            last_observed_update_at = str(crawler_sync_time)
+            observation_time_source = "crawler_change_detection"
+        else:
+            last_observed_update_at = None
+            observation_time_source = "canonical_ingest_run"
+
+        # 6. snapshot_file_mtime 仅作为诊断级文件系统元数据 provenance，不冒充 last_observed_update_at
+        snapshot_file_mtime = self.snapshot_mtime_str
+        snapshot_file_mtime_source = "filesystem_metadata"
 
         # 1. Canonical Pack
         pack = CanonicalPack(
@@ -91,8 +98,8 @@ class BilibiliAdapter(BaseAdapter):
             normalized_title=self.normalize_title(title),
             summary=(raw_item.get("desc") or "")[:1000] or None,
             primary_platform="bilibili",
-            created_at=pub_time or now_str,
-            updated_at=last_observed_update_at,
+            created_at=published_at or observed_at,
+            updated_at=observed_at,
         )
 
         # 2. Source Item
@@ -106,10 +113,14 @@ class BilibiliAdapter(BaseAdapter):
             "has_group_version": bool(has_group_ver),
             "group_version_note": group_ver_note or "",
             "pinned_comment": raw_item.get("pinned_comment"),
+            "published_at": published_at,
             "pinned_comment_at": pinned_comment_at,
             "update_notice_at": update_notice_at,
+            "observed_at": observed_at,
             "last_observed_update_at": last_observed_update_at,
-            "observation_time_source": obs_source,
+            "observation_time_source": observation_time_source,
+            "snapshot_file_mtime": snapshot_file_mtime,
+            "snapshot_file_mtime_source": snapshot_file_mtime_source,
             "subtitle_summary": raw_item.get("subtitle_summary"),
             "subtitle_text": raw_item.get("subtitle_text") or "",
             "has_subtitle": bool(raw_item.get("has_subtitle")),
@@ -132,12 +143,12 @@ class BilibiliAdapter(BaseAdapter):
             author=raw_item.get("author") or "未知UP主",
             description=raw_item.get("desc") or None,
             icon_url=raw_item.get("pic") or None,
-            published_at=pub_time,
+            published_at=published_at,
             modified_at=last_observed_update_at,
             raw_ref=f"crawler_output/bilibili_modpacks.json#bvid={bvid}",
             extra_json=json.dumps(extra_dict, ensure_ascii=False),
-            created_at=pub_time or now_str,
-            updated_at=last_observed_update_at,
+            created_at=published_at or observed_at,
+            updated_at=observed_at,
         )
 
         # 3. Releases (Release Provenance: 不凭空伪造 published_at)
@@ -151,7 +162,8 @@ class BilibiliAdapter(BaseAdapter):
             "source": "bilibili_video",
             "evidence_type": "pinned_comment_notice" if update_notice_at else "video_description",
             "announced_at": update_notice_at or pinned_comment_at,
-            "observed_at": last_observed_update_at,
+            "observed_at": observed_at,
+            "last_observed_update_at": last_observed_update_at,
         }
         releases.append(CanonicalRelease(
             id=f"{source_item_id}:rel:latest",
@@ -165,7 +177,7 @@ class BilibiliAdapter(BaseAdapter):
             downloads_count=None,
             mc_versions=mc_vers,
             extra_json=json.dumps(rel_extra, ensure_ascii=False),
-            created_at=now_str
+            created_at=observed_at,
         ))
 
         # 4. Download Links
@@ -201,7 +213,7 @@ class BilibiliAdapter(BaseAdapter):
                 author=raw_item.get("author") or "",
                 url=url,
                 aid=raw_item.get("aid"),
-                published_at=pub_time,
+                published_at=published_at,
                 views=raw_item.get("views"),
                 danmaku=raw_item.get("danmaku"),
                 likes=raw_item.get("likes"),

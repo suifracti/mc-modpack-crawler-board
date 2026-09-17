@@ -163,6 +163,102 @@ def validate_canonical_db(db_path: str = DEFAULT_DB_PATH) -> Dict[str, Any]:
         print(f"  [FAIL] 规则 5: 发现 {cnt_rule5} 条B站版本虚构了 release_date！")
         results["errors"].append(f"Rule 5 violation: {cnt_rule5} Bilibili releases with non-null release_date")
 
+    # 4.2 Time Semantic Validation (Phase 2A.2 Final Provenance)
+    print("\n--- 4.2 时间语义完整性严格验证 (Time Semantic Integrity Rules A~D) ---")
+
+    # Rule A: observed_at 不得早于 published_at（若 published_at 非空）
+    q_rule_a = """
+        SELECT COUNT(*) FROM source_items
+        WHERE platform = 'bilibili'
+          AND json_extract(extra_json, '$.published_at') IS NOT NULL
+          AND json_extract(extra_json, '$.observed_at') < json_extract(extra_json, '$.published_at')
+    """
+    cnt_rule_a = conn.execute(q_rule_a).fetchone()[0]
+    if cnt_rule_a == 0:
+        print("  [PASS] Rule A: observed_at 严格不早于 published_at (0 违规)")
+    else:
+        print(f"  [FAIL] Rule A: 发现 {cnt_rule_a} 条记录 observed_at 早于 published_at！")
+        results["errors"].append(f"Rule A violation: {cnt_rule_a} records observed_at < published_at")
+
+    # Rule B: last_observed_update_at 如果非 NULL，不得早于 published_at, pinned_comment_at, update_notice_at
+    q_rule_b = """
+        SELECT COUNT(*) FROM source_items
+        WHERE platform = 'bilibili'
+          AND json_extract(extra_json, '$.last_observed_update_at') IS NOT NULL
+          AND (
+            (json_extract(extra_json, '$.published_at') IS NOT NULL 
+             AND json_extract(extra_json, '$.last_observed_update_at') < json_extract(extra_json, '$.published_at'))
+            OR
+            (json_extract(extra_json, '$.pinned_comment_at') IS NOT NULL 
+             AND json_extract(extra_json, '$.last_observed_update_at') < json_extract(extra_json, '$.pinned_comment_at'))
+            OR
+            (json_extract(extra_json, '$.update_notice_at') IS NOT NULL 
+             AND json_extract(extra_json, '$.last_observed_update_at') < json_extract(extra_json, '$.update_notice_at'))
+          )
+    """
+    cnt_rule_b = conn.execute(q_rule_b).fetchone()[0]
+    if cnt_rule_b == 0:
+        print("  [PASS] Rule B: 非空 last_observed_update_at 不早于历史已知时间戳 (0 违规)")
+    else:
+        print(f"  [FAIL] Rule B: 发现 {cnt_rule_b} 条记录 last_observed_update_at 早于历史事件！")
+        results["errors"].append(f"Rule B violation: {cnt_rule_b} records with premature last_observed_update_at")
+
+    # Rule C: 禁止 observation_time_source = 'file_mtime_fallback' AND last_observed_update_at != NULL
+    q_rule_c = """
+        SELECT COUNT(*) FROM source_items
+        WHERE json_extract(extra_json, '$.observation_time_source') = 'file_mtime_fallback'
+          AND json_extract(extra_json, '$.last_observed_update_at') IS NOT NULL
+    """
+    cnt_rule_c = conn.execute(q_rule_c).fetchone()[0]
+    if cnt_rule_c == 0:
+        print("  [PASS] Rule C: 彻底禁止 file_mtime_fallback 作为 last_observed_update_at (0 违规)")
+    else:
+        print(f"  [FAIL] Rule C: 发现 {cnt_rule_c} 条记录使用文件 mtime 冒充 last_observed_update_at！")
+        results["errors"].append(f"Rule C violation: {cnt_rule_c} records using file_mtime_fallback")
+
+    # Rule D: 无真实 change detection 时，last_observed_update_at = NULL 视为合法规范状态
+    q_rule_d = """
+        SELECT COUNT(*) FROM source_items
+        WHERE platform = 'bilibili'
+          AND json_extract(extra_json, '$.last_observed_update_at') IS NULL
+          AND json_extract(extra_json, '$.observation_time_source') = 'canonical_ingest_run'
+    """
+    cnt_rule_d = conn.execute(q_rule_d).fetchone()[0]
+    total_bili = conn.execute("SELECT COUNT(*) FROM source_items WHERE platform = 'bilibili'").fetchone()[0]
+    if cnt_rule_d == total_bili:
+        print(f"  [PASS] Rule D: 全部 {cnt_rule_d}/{total_bili} 条 B站记录在无变更事件时合法保持 NULL (零猜时间)")
+    else:
+        print(f"  [WARN] Rule D: 存在非 NULL 或未规范标记的记录: {total_bili - cnt_rule_d}")
+
+    # 4.3 Bilibili 黄金样本时间凭证核验 (Golden Samples Time Verification)
+    print("\n--- 4.3 Bilibili 黄金样本时间凭证核验 (Golden Samples Time Verification) ---")
+    golden_bvids = ["BV1BFjS65ENy", "BV1aRYC6cE4p", "BV1QTYr6sEXA"]
+    for bvid in golden_bvids:
+        cur_sample = conn.execute("""
+            SELECT id, title, published_at, modified_at, extra_json
+            FROM source_items
+            WHERE source_id = ? AND platform = 'bilibili'
+        """, (bvid,)).fetchone()
+        if cur_sample:
+            ex = json.loads(cur_sample["extra_json"] or "{}")
+            pub_at = ex.get("published_at")
+            pinned_at = ex.get("pinned_comment_at")
+            up_at = ex.get("update_notice_at")
+            obs_at = ex.get("observed_at")
+            last_up = ex.get("last_observed_update_at")
+            obs_src = ex.get("observation_time_source")
+            is_valid = (obs_at >= pub_at) if (obs_at and pub_at) else True
+            print(f"  [Sample: {bvid}] (Title: {cur_sample['title'][:25]})")
+            print(f"    published_at            : {pub_at}")
+            print(f"    pinned_comment_at       : {pinned_at}")
+            print(f"    update_notice_at        : {up_at}")
+            print(f"    observed_at             : {obs_at}")
+            print(f"    last_observed_update_at : {last_up}")
+            print(f"    observation_time_source : {obs_src}")
+            print(f"    Validation Assertion    : observed_at >= published_at -> {is_valid}")
+            if not is_valid:
+                results["errors"].append(f"Golden sample {bvid} failed observed_at >= published_at")
+
     # 5. Environment Claims: Full breakdown by platform x side x status x certainty x evidence_type
     print("\n--- 5. 运行环境断言全矩阵分布 (platform × side × status × certainty × evidence_type) ---")
     cur = conn.execute(
