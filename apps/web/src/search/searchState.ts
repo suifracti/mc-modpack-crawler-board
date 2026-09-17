@@ -22,6 +22,9 @@ export class SearchStateCoordinator {
   private searchMode: SearchMode = 'legacy_compat';
   private platformQueries: Map<Platform | 'all', string> = new Map();
   private listeners: Set<(query: string, scope: SearchScope) => void> = new Set();
+  private platformMatchedIds: Map<string, (string | number)[]> = new Map();
+  private cachedMatchedSet: Set<number> | null = null;
+  private cachedMatchedSetQuery: string = '';
 
   public getSearchMode(): SearchMode {
     return this.searchMode;
@@ -47,6 +50,33 @@ export class SearchStateCoordinator {
     return parseSearchQuery(raw, this.activeScope, this.searchMode);
   }
 
+  public getMatchedIds(platform: Platform = 'mcmod'): (string | number)[] | null {
+    const q = this.getQuery(platform);
+    if (!q) return null;
+    return this.platformMatchedIds.get(platform) || [];
+  }
+
+  public isFiltering(platform: Platform = 'mcmod'): boolean {
+    return Boolean(this.getQuery(platform));
+  }
+
+  public isMatched(mid: string | number, platform: Platform = 'mcmod'): boolean {
+    if (!this.isFiltering(platform)) return true;
+    if (platform === 'mcmod') {
+      const q = this.getQuery(platform);
+      if (this.cachedMatchedSet && this.cachedMatchedSetQuery === q) {
+        return this.cachedMatchedSet.has(Number(mid));
+      }
+      const matched = this.getMatchedIds(platform);
+      if (!matched) return true;
+      this.cachedMatchedSet = new Set(matched.map(Number));
+      this.cachedMatchedSetQuery = q;
+      return this.cachedMatchedSet.has(Number(mid));
+    }
+    const matched = this.getMatchedIds(platform);
+    return matched ? matched.includes(mid) : true;
+  }
+
   public setQuery(query: string, platform?: Platform | 'all'): void {
     const trimmed = (query || '').trim();
     if (platform) {
@@ -54,9 +84,17 @@ export class SearchStateCoordinator {
     }
     this.activeQuery = trimmed;
 
+    const plat = platform || 'mcmod';
+    if (!trimmed) {
+      this.platformMatchedIds.delete(plat);
+      if (plat === 'mcmod' || plat === 'all') {
+        this.cachedMatchedSet = null;
+        this.cachedMatchedSetQuery = '';
+      }
+    }
+
     // Runtime Integration Wiring: run TS SearchEngine on active dataset & record debug
     if (typeof window !== 'undefined') {
-      const plat = platform || 'mcmod';
       const parsed = parseSearchQuery(trimmed, this.activeScope, this.searchMode);
       let matchedIds: (string | number)[] = [];
       const win = window as unknown as Record<string, unknown>;
@@ -81,6 +119,14 @@ export class SearchStateCoordinator {
         matchedIds = matches.map((m) => m.id);
       }
 
+      if (trimmed) {
+        this.platformMatchedIds.set(plat, matchedIds);
+        if (plat === 'mcmod') {
+          this.cachedMatchedSet = new Set(matchedIds.map(Number));
+          this.cachedMatchedSetQuery = trimmed;
+        }
+      }
+
       recordSearchDebug(plat, trimmed, matchedIds);
     }
 
@@ -95,8 +141,16 @@ export class SearchStateCoordinator {
   public clear(platform?: Platform | 'all'): void {
     if (platform) {
       this.platformQueries.set(platform, '');
+      this.platformMatchedIds.delete(platform);
+      if (platform === 'mcmod' || platform === 'all') {
+        this.cachedMatchedSet = null;
+        this.cachedMatchedSetQuery = '';
+      }
     } else {
       this.platformQueries.clear();
+      this.platformMatchedIds.clear();
+      this.cachedMatchedSet = null;
+      this.cachedMatchedSetQuery = '';
       this.activeQuery = '';
     }
     this.notify();

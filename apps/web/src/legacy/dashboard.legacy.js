@@ -4211,6 +4211,11 @@ function showToast(msg) {
 
         $.fn.dataTable.ext.search.push(
             function(settings, data, dataIndex) {
+                if (window.searchCoordinator && typeof window.searchCoordinator.isFiltering === 'function' && window.searchCoordinator.isFiltering('mcmod')) {
+                    var rowData = (window.mcmodData ? window.mcmodData[dataIndex] : (settings.aoData && settings.aoData[dataIndex] ? settings.aoData[dataIndex]._aData : null));
+                    if (!rowData) return false;
+                    return window.searchCoordinator.isMatched(rowData.mid, 'mcmod');
+                }
                 var keyword = normalizeSearchKeyword();
                 if (!keyword) return true;
                 var scope = $('#searchScope').val() || 'all';
@@ -4878,6 +4883,24 @@ function showToast(msg) {
             }, 100);
         }
     });
+
+    if (window.table && typeof window.table.search === 'function') {
+        var origTableSearch = window.table.search.bind(window.table);
+        window.table.search = function(input) {
+            if (arguments.length === 0) {
+                return (window.searchCoordinator && typeof window.searchCoordinator.getQuery === 'function')
+                    ? window.searchCoordinator.getQuery('mcmod')
+                    : origTableSearch();
+            }
+            if (input !== undefined && input !== null) {
+                if (window.searchCoordinator && typeof window.searchCoordinator.setQuery === 'function') {
+                    window.searchCoordinator.setQuery(String(input), 'mcmod');
+                }
+            }
+            // Always pass empty string to DataTables internal search to prevent secondary textual double filtering!
+            return origTableSearch('');
+        };
+    }
     };
 /* ══════════════ 1. DataTables 自定义多条件过滤器 ══════════════ */
     $.fn.dataTable.ext.search.push(

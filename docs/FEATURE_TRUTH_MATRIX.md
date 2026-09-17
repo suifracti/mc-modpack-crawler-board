@@ -13,12 +13,12 @@
 
 ## 1. 审计统计总览
 
-- **审计功能总项数**：`63` 项 (覆盖 15 个业务领域)
-- **状态分布汇总 (Phase 3G-C.1 审计后)**：
-  - **VERIFIED**：`36` 项 (57.1%) — 确证真实、具备完备契约的可靠功能（包含清除非法项目级时间戳后的 TIME-CURSEFORGE-02、模组关系保真的 MODREL-MCMOD-01 及搜索深度索引契约确证的 DIDX-MCMOD-01）
-  - **SUSPECT**：`20` 项 (31.7%) — 保留审慎标记（包含搜索命中原因透明度、B站分组、BBSMC时序、Modrinth 聚合时间与版本标识等）
+- **审计功能总项数**：`65` 项 (覆盖 15 个业务领域)
+- **状态分布汇总 (Phase 3G-C.2 审计后)**：
+  - **VERIFIED**：`38` 项 (58.5%) — 确证真实、具备完备契约的可靠功能（包含清除非法项目级时间戳后的 TIME-CURSEFORGE-02、模组关系保真的 MODREL-MCMOD-01、深度索引契约 DIDX-MCMOD-01、简介搜索契约 SEARCH-MCMOD-DESC-01 以及多词单一真实源契约 SEARCH-MCMOD-MULTIWORD-01）
+  - **SUSPECT**：`20` 项 (30.8%) — 保留审慎标记（包含搜索命中原因透明度、B站分组、BBSMC时序、Modrinth 聚合时间与版本标识等）
   - **WRONG**：`0` 项 (0.0%) — 原始 9 项硬伤与平台时间伪造已全部彻底清零修复！
-  - **UNKNOWN**：`7` 项 (11.1%) — 保持显式未确定（含 CurseForge 真实版本发布日期可用性 RELDATE-CURSEFORGE-01 及模组依赖/重要性关系 MODSEM-MCMOD-01）
+  - **UNKNOWN**：`7` 项 (10.8%) — 保持显式未确定（含 CurseForge 真实版本发布日期可用性 RELDATE-CURSEFORGE-01 及模组依赖/重要性关系 MODSEM-MCMOD-01）
 - **六平台覆盖率**：100%（MCMod 权威、Bilibili 动态、BBSMC 社区、XYEBBS 论坛、Modrinth 国际、CurseForge 国际全量覆盖）
 
 ---
@@ -81,7 +81,9 @@
 
 | Feature ID | 平台 | 用户可见功能 / 结论 | 原始平台来源 | 推导算法与逻辑 | 缺失值处理 | Golden Samples | 最终状态 | 备注 / 风险 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `SRCH-MCMOD-01` | MCMod | 搜索“RLCraft”等关键词 | `title`, `author`, `description`, `modSearchText` | 内存多字段子串匹配 (legacy_compat 多词 AND) | 空词不过滤 | 搜索 `RLCraft` = 93 结果 | **`VERIFIED`** | 搜索执行完全符合设计契约。 |
+| `SRCH-MCMOD-01` | MCMod | 搜索“RLCraft”等关键词 | `title`, `typeName`, `formerTitles`, `author`, `categories`, `modSearchText` | 内存多字段子串匹配 (legacy_compat 多词 AND) | 空词不过滤 | 搜索 `RLCraft` = 93 结果 | **`VERIFIED`** | 搜索执行完全符合设计契约。 |
+| `SEARCH-MCMOD-DESC-01` | MCMod | 模组包主表格搜索范围与长篇简介契约 (Option B) | `title`, `typeName`, `formerTitles`, `author`, `categories`, `modSearchText` | 依据设计契约 Option B，主表格搜索明确不包含百科长篇简介（避免膨胀数百兆体积），UI 占位符与文档诚实对齐实际可搜范围。长篇简介作为按需详情抽屉展示 | 简介不参与主表索引 | 搜索 `RLCraft` 不命中仅在简介中出现的 MID 255/413/1231 | **`VERIFIED`** | UI 承诺与底层索引实现完全一致，消除描述搜索虚标。 |
+| `SEARCH-MCMOD-MULTIWORD-01` | MCMod | 多词空格与关系与单一真实源契约 (Multi-word Whitespace AND Contract) | 搜索输入文本 | TS SearchEngine 负责分词 (tokenization) 与多词 AND 匹配（如 `Fabric API` $\to$ `['fabric', 'api']` 匹配 664 个整合包）。DataTables 仅作为渲染器与分页器，通过 `ext.search` 严格遵循 SearchEngine 匹配 ID 集合，消除 DataTables 二次连续字串过滤 | 空词全量 | 搜索 `Fabric API` = 664 (TS Engine 664 == DataTable 664，ID 集合 100% 相同) | **`VERIFIED`** | 终结双重过滤分脑架构，TS SearchEngine 为全局单一真实源。 |
 | `SRCH-BILI-01` | Bilibili | 搜索“机械动力”等关键词 | `title`, `author`, `description`, 版本, 加载器 | 内存多字段子串匹配，并送入作者聚合引擎 | 空词全量 | 搜索 `机械动力` = 53 raw / 47 grouped | **`VERIFIED`** | 原始匹配数与聚合卡片数自动化证明完全一致。 |
 | `SRCH-BBSMC-01` | BBSMC | BBSMC 卡片搜索 | `title`, `author`, `description`, 分类 | 内存子串匹配 | 空词全量 | `bbsmc:1p2TFl6X` | **`VERIFIED`** | 纯文本精准匹配。 |
 | `SRCH-XYEBBS-01` | XYEBBS | XYEBBS 卡片搜索 | `title`, `author`, `description`, 分类 | 内存子串匹配 | 空词全量 | `xyebbs:mznl` | **`VERIFIED`** | 纯文本精准匹配。 |
