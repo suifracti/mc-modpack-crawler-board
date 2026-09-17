@@ -136,6 +136,23 @@ def check_freshness_guard(db_fresh: str):
             migrated_hash = prov.get("migrated_db", {}).get("sha256")
             if fresh_hash and migrated_hash and fresh_hash == migrated_hash:
                 raise RuntimeError("Fresh verification DB has identical SHA-256 to migrated DB (copy detected).")
+
+            # Phase 3G-A: Stale guard hardening with source file SHA-256 validation
+            source_map = {
+                "bbsmc_adapter": os.path.join(ROOT, "pipeline", "adapters", "bbsmc.py"),
+                "xyebbs_adapter": os.path.join(ROOT, "pipeline", "adapters", "xyebbs.py"),
+                "migration_004": os.path.join(ROOT, "pipeline", "db", "migrations", "004_release_date_semantics.py"),
+                "build_canonical_db": os.path.join(ROOT, "pipeline", "build_canonical_db.py"),
+            }
+            recorded_hashes = prov.get("source_hashes", {})
+            for key, path in source_map.items():
+                if key in recorded_hashes and os.path.exists(path):
+                    with open(path, "rb") as sf:
+                        curr_sha = hashlib.sha256(sf.read()).hexdigest()
+                    if curr_sha != recorded_hashes[key]:
+                        raise RuntimeError(
+                            "FAIL: Fresh verification DB source hash does not match current source; rebuild required."
+                        )
         except json.JSONDecodeError:
             pass
 

@@ -13,11 +13,11 @@
 
 ## 1. 审计统计总览
 
-- **审计功能总项数**：`59` 项 (新增 3 项版本时间语义边界项)
-- **状态分布汇总 (Phase 3F.2 Final 校准后)**：
-  - **VERIFIED**：`32` 项 (54.2%) — 确证真实、具备完备契约的可靠功能
-  - **SUSPECT**：`22` 项 (37.3%) — 保留审慎标记；含新增的 Modrinth/CurseForge/MCMod 项目级时间戳语义张力项
-  - **WRONG**：`0` 项 (0.0%) — 9 项确证硬伤已全部彻底修复清零并通过自动化回归测试
+- **审计功能总项数**：`59` 项 (覆盖 15 个业务领域)
+- **状态分布汇总 (Phase 3G-A 审计后)**：
+  - **VERIFIED**：`33` 项 (55.9%) — 确证真实、具备完备契约的可靠功能（MCMod 版本发布时间经源码证明确证）
+  - **SUSPECT**：`19` 项 (32.2%) — 保留审慎标记（包含模组库、深搜、B站分组、BBSMC时序等）
+  - **WRONG**：`2` 项 (3.4%) — Modrinth (18,328) 与 CurseForge (45,797) 项目级时间戳被错误充当版本发布日期，下一阶段处置
   - **UNKNOWN**：`5` 项 (8.5%) — 保持显式未确定（含快照对比审计功能本身）
 - **六平台覆盖率**：100%（MCMod 权威、Bilibili 动态、BBSMC 社区、XYEBBS 论坛、Modrinth 国际、CurseForge 国际全量覆盖）
 
@@ -186,9 +186,9 @@
 | `TIME-MCMOD-01` | MCMod | `created_at` / `release_date` | 页面收录日期 / 模组包原发布日期 | `published_at`, `modified_at` | **已修复**：Phase 3F 清洗中文字符串 `'未知时间'`，转换为规范 `NULL`，通过 `test_p0_6` | **`VERIFIED`** |
 | `TIME-XYEBBS-01` | XYEBBS | `post_time` / `edit_time` | 论坛发帖与最后编辑时间 | `published_at`, `modified_at` | **已修复**：Phase 3F 清洗中文字符串 `'未知'`，转换为规范 `NULL`，通过 `test_p0_6` | **`VERIFIED`** |
 | `TIME-BBSMC-01` | BBSMC | `date_created` / `date_modified` | 论坛发帖与最后编辑时间 | `published_at`, `modified_at` | **时序倒错**：20 个帖子 `published_at > modified_at`（如发帖 04-27 编辑 04-24） | **`SUSPECT`** |
-| `TIME-MODRINTH-02`| Modrinth | `releases.release_date` | Modrinth 项目级创建/修改时间回退为版本发布日期 | `releases.release_date` | 约 18,328 条 releases 缺少版本级时间戳时回退为项目级 `date_modified` / `date_created`，与严格版本时间存在语义张力 | **`SUSPECT`** |
-| `TIME-CURSEFORGE-02`| CurseForge | `releases.release_date` | CurseForge 顶层 project 日期与文件 dateReleased 优先级 | `releases.release_date` | 约 45,797 条 releases 存在顶层项目日期与文件 `dateReleased` 优先级语义张力，下一阶段单独调查 | **`SUSPECT`** |
-| `TIME-MCMOD-02` | MCMod | `releases.release_date` | MC百科 `last_update_date` vs `release_date` 语义混用 | `releases.release_date` | 约 326 条 releases 存在模组包作者原发布日期与百科页面编辑日期的语义混同风险，下一阶段单独调查 | **`SUSPECT`** |
+| `TIME-MODRINTH-02`| Modrinth | `releases.release_date` | Modrinth 项目级修改/创建时间充当版本发布日期 | `releases.release_date` | **确证事实性错误 (WRONG)**：100% (18,328 / 18,328) releases 仅有项目级 `date_modified`，raw snapshot 中零版本级时间戳，违反版本时间契约 | **`WRONG`** |
+| `TIME-CURSEFORGE-02`| CurseForge | `releases.release_date` | CurseForge 顶层项目修改/首发日期充当版本发布日期 | `releases.release_date` | **确证事实性错误 (WRONG)**：100% (45,797 / 45,797) releases 仅有项目级 `dateModified` / `dateReleased`，raw snapshot 中零文件/版本时间戳，违反版本时间契约 | **`WRONG`** |
+| `TIME-MCMOD-02` | MCMod | `releases.release_date` | MC百科 `last_update_date` 语义调查 | `releases.release_date` | **确证真实 (VERIFIED)**：爬虫源码证明 `last_update_date` 源于 `/modpack/version/{mid}.html` 最新版本发布日，非百科编辑时间；326 条具版本发布证据，1,158 条无日志规范为 NULL | **`VERIFIED`** |
 
 ---
 
@@ -204,7 +204,7 @@
 
 ## 3. 问题优先级与改进计划 (Prioritized Action Register)
 
-### P0: 事实性错误（WRONG）— 9项硬伤在 Phase 3F 已 100% 彻底修复并建立回归保护
+### P0: 事实性错误（WRONG）— 9项硬伤在 Phase 3F 已修复；Phase 3G-A 新确证 2 项待处置
 1. **`SCORE-MCMOD-01`** [已修复]: 移除根据单日浏览增量推算星级的伪逻辑，无真实评分显式标“暂无评分”，保留真实星级评分（回归测试：`test_p0_1`）。
 2. **`MISS-NUM-01`** [已修复]: `numFmt` 严格三态化：`null`/`undefined`/`''` 统一返回 `—`，杜绝将缺失数据伪装为 0 下载（回归测试：`test_p0_2`）。
 3. **`MISS-ENV-01`** [已修复]: 服务端兜底改为“未声明服务端支持 / 无法确认”，解除无证据等价于不支持的负向断言（回归测试：`test_p0_3`）。
@@ -214,15 +214,14 @@
 7. **`BILI-GRP-02`** [已修复]: 增加 $\le 3$ 字符及纯泛词隔离规则，杜绝错误合并并严格保全 53 原始 $\to$ 47 聚合卡片数学证明（回归测试：`test_p0_8`）。
 8. **`LOADER-BILI-01`** [已修复]: Bilibili Adapter 引入上下文词边界正则识别显式 Loader，DB Migration 003 补全缺失关联（回归测试：`test_p0_7`）。
 9. **`AUDIT-DIFF-01`** [已修复]: `audit_diff.js` 显式设置 `is_available: false` 并输出客观说明，UI 诚实提示，移除空数组伪装（回归测试：`test_p0_9`）。
+10. **`TIME-MODRINTH-02`** [已确证 WRONG，待下一阶段处置]: Modrinth 全量 18,328 条 releases 仅有项目级修改时间，无版本级发布证据，暂未修改数据，待下一阶段置空。
+11. **`TIME-CURSEFORGE-02`** [已确证 WRONG，待下一阶段处置]: CurseForge 全量 45,797 条 releases 仅有项目级修改时间，无文件/版本级发布证据，暂未修改数据，待下一阶段置空。
 
 ### P1: 事实性风险（SUSPECT）— 必须审慎呈现的启发式结论
 1. **`MODS-MCMOD-02`**: MCMod 170,078 条模组关联中包含 19.4% 的 `LIB` 基础前置库与 33.2% 的辅助工具，前端应支持按分类（前置库/玩法模组）筛选，避免模组数量虚高。
 2. **`DIDX-MCMOD-01`**: 模组搜索深度索引应在 UI 上提供区分选项：“标题/玩法核心匹配” vs “包含模组依赖匹配”。
 3. **`BILI-GRP-03`**: Bilibili 部分同一整合包的多期更新视频因标题含版本特性被拆解，建议引入更宽泛的分词相似度辅助关联。
 4. **`TIME-BBSMC-01`**: 调查 BBSMC 论坛 20 项发帖时间晚于编辑时间的时序倒错原因，必要时取两者的较晚时间作为 `modified_at`。
-5. **`TIME-MODRINTH-02`**: Modrinth 约 18,328 条 releases 缺少版本级时间戳时回退为项目级 `date_modified` / `date_created`，下一阶段单独调查是否收紧为纯版本时间戳。
-6. **`TIME-CURSEFORGE-02`**: CurseForge 约 45,797 条 releases 存在顶层项目日期与文件 `dateReleased` 优先级歧义，需独立调查版本时间戳边界。
-7. **`TIME-MCMOD-02`**: MCMod 约 326 条 releases 存在 `last_update_date` 与 `release_date` 混用张力，需核实发布时间与收录时间语义。
 
 ### P2: 语义未定项（UNKNOWN）— 显式诚实展示未确定
 1. **`DL-MCMOD-01`**: MCMod 本身不托管文件，UI 明确标注为“原站百科跳转”而非“下载失效”。
