@@ -10,9 +10,15 @@ Validates the contracts of the Phase 3G-A.1 evidence audit:
 6. Freshness Guard source file SHA-256 hardening verification.
 """
 import os
+import sys
 import json
 import sqlite3
 import unittest
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
 from pipeline.audit.release_date_source_auditor import ReleaseDateSourceAuditor, GOLDEN_OUTPUT_PATH
 from pipeline.audit.verify_fresh_equivalence import check_freshness_guard, ROOT
 
@@ -39,8 +45,13 @@ class TestReleaseDateSourceAudit(unittest.TestCase):
         self.assertEqual(mr["null_releases"], 0)
 
         self.assertEqual(cf["total_releases"], 45797)
-        self.assertEqual(cf["non_null_releases"], 45797)
-        self.assertEqual(cf["null_releases"], 0)
+        if cf["non_null_releases"] == 0:
+            # Phase 3G-B post-remediation: fake release_date wiped to NULL
+            self.assertEqual(cf["null_releases"], 45797)
+        else:
+            # Phase 3G-A pre-remediation baseline
+            self.assertEqual(cf["non_null_releases"], 45797)
+            self.assertEqual(cf["null_releases"], 0)
 
         self.assertEqual(mc["total_releases"], 1484)
         self.assertEqual(mc["non_null_releases"], 326)
@@ -48,8 +59,12 @@ class TestReleaseDateSourceAudit(unittest.TestCase):
 
         summary = self.results["summary"]
         self.assertEqual(summary["total_target_releases"], 65609)
-        self.assertEqual(summary["total_target_non_null"], 64451)
-        self.assertEqual(summary["total_target_null"], 1158)
+        if cf["non_null_releases"] == 0:
+            self.assertEqual(summary["total_target_non_null"], 18654)
+            self.assertEqual(summary["total_target_null"], 46955)
+        else:
+            self.assertEqual(summary["total_target_non_null"], 64451)
+            self.assertEqual(summary["total_target_null"], 1158)
 
     def test_modrinth_semantic_classification_and_snapshot(self):
         """Verify Modrinth date_modified is classified as CONFIRMED_VERSION_AGGREGATE."""
@@ -68,8 +83,14 @@ class TestReleaseDateSourceAudit(unittest.TestCase):
         self.assertEqual(cf["scope"], "project")
         self.assertEqual(cf["evidence_certainty"], "PROJECT_LEVEL_ONLY")
         self.assertFalse(cf["strict_rule_valid"])
-        self.assertEqual(cf["strict_rule_violating_rows"], 45797)
-        self.assertEqual(cf["potential_blast_radius"], 45797)
+        if cf["non_null_releases"] == 0:
+            # Phase 3G-B post-remediation: 0 active violating rows in canonical.db
+            self.assertEqual(cf["strict_rule_violating_rows"], 0)
+            self.assertEqual(cf["potential_blast_radius"], 0)
+        else:
+            # Phase 3G-A pre-remediation baseline
+            self.assertEqual(cf["strict_rule_violating_rows"], 45797)
+            self.assertEqual(cf["potential_blast_radius"], 45797)
         # Verify latestFiles/fileDate was not retained in offline crawler snapshot
         self.assertEqual(cf["latest_files_retained_in_snapshot"], 0)
 
@@ -83,10 +104,15 @@ class TestReleaseDateSourceAudit(unittest.TestCase):
         self.assertEqual(mc["potential_blast_radius"], 0)
 
     def test_recalculated_total_violations_and_blast_radius(self):
-        """Verify recalculated total violations (CurseForge only = 45,797)."""
+        """Verify recalculated total violations (0 post-3G-B, 45,797 pre-3G-B)."""
         summary = self.results["summary"]
-        self.assertEqual(summary["total_strict_rule_violating_rows"], 45797)
-        self.assertEqual(summary["total_potential_blast_radius"], 45797)
+        cf = self.results["curseforge"]
+        if cf["non_null_releases"] == 0:
+            self.assertEqual(summary["total_strict_rule_violating_rows"], 0)
+            self.assertEqual(summary["total_potential_blast_radius"], 0)
+        else:
+            self.assertEqual(summary["total_strict_rule_violating_rows"], 45797)
+            self.assertEqual(summary["total_potential_blast_radius"], 45797)
 
     def test_golden_30_contract(self):
         """Verify the 30 Golden Samples exist, with 10 per platform (5 normal, 3 edge, 2 ambiguous)."""

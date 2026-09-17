@@ -141,7 +141,9 @@ def check_freshness_guard(db_fresh: str):
             source_map = {
                 "bbsmc_adapter": os.path.join(ROOT, "pipeline", "adapters", "bbsmc.py"),
                 "xyebbs_adapter": os.path.join(ROOT, "pipeline", "adapters", "xyebbs.py"),
+                "curseforge_adapter": os.path.join(ROOT, "pipeline", "adapters", "curseforge.py"),
                 "migration_004": os.path.join(ROOT, "pipeline", "db", "migrations", "004_release_date_semantics.py"),
+                "migration_005": os.path.join(ROOT, "pipeline", "db", "migrations", "005_curseforge_release_date_correctness.py"),
                 "build_canonical_db": os.path.join(ROOT, "pipeline", "build_canonical_db.py"),
             }
             recorded_hashes = prov.get("source_hashes", {})

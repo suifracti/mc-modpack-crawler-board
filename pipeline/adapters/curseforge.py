@@ -87,7 +87,7 @@ class CurseForgeAdapter(BaseAdapter):
                 source_item_id=source_item_id,
                 version_name=raw_item.get("mc_version") or "Latest",
                 version_type="release",
-                release_date=mod_at or pub_at,
+                release_date=None,
                 is_latest=True,
                 downloads_count=raw_item.get("downloads"),
                 mc_versions=mc_vers,
