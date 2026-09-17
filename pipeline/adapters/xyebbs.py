@@ -138,7 +138,12 @@ class XyebbsAdapter(BaseAdapter):
         raw_releases = raw_item.get("releases_data") or []
         for r_idx, r in enumerate(raw_releases):
             r_name = r.get("label") or r.get("name") or r.get("title") or r.get("version_name") or f"Release_{r_idx+1}"
-            r_date = clean_date_str(r.get("createDate") or r.get("date")) or pub_at
+            # Canonical release_date rule (Phase 3F.2): only a release/version-scoped
+            # timestamp published by the platform may populate release_date.
+            # XYEBBS `releases_data[].createDate` is release-scoped -> accepted.
+            # The forum thread's `date_created`/`date_modified` is a forum post/edit
+            # time, NOT a release date -> NO fallback. Absence of evidence => NULL.
+            r_date = clean_date_str(r.get("createDate") or r.get("date"))
             r_mc = r.get("mc_versions") or raw_item.get("all_versions") or []
             r_extra = {"links": r.get("links") or []}
             releases.append(CanonicalRelease(
@@ -157,13 +162,16 @@ class XyebbsAdapter(BaseAdapter):
             ))
 
         if not releases:
+            # Synthetic "latest" aggregate row: XYEBBS exposes no release-scoped
+            # timestamp for it. Forum post time must NOT be promoted to
+            # release_date -> NULL (no fallback for field completeness).
             releases.append(CanonicalRelease(
                 id=f"{source_item_id}:rel:latest",
                 pack_id=pack_id,
                 source_item_id=source_item_id,
                 version_name="最新版",
                 version_type="release",
-                release_date=mod_at or pub_at,
+                release_date=None,
                 is_latest=True,
                 mc_versions=raw_item.get("all_versions") or ([raw_item["mc_version"]] if raw_item.get("mc_version") else []),
                 created_at=now_str

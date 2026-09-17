@@ -25,6 +25,11 @@ def clean_date_str(val: Any) -> Optional[str]:
     val = val.strip()
     if val in ('未知', '未知时间', 'N/A', '-', ''):
         return None
+    # BBSMC version `date_published` is ISO-8601 UTC ("2026-02-26T16:24:58.070251Z").
+    # Normalize to the canonical repo convention (same rule the crawlers apply):
+    # first 19 chars with "T" replaced by a space.
+    if len(val) >= 19 and val[4] == '-' and val[10] == 'T':
+        val = val[:19].replace("T", " ")
     return val
 
 def clean_download_url(val: Any) -> Optional[str]:
@@ -103,7 +108,13 @@ class BbsmcAdapter(BaseAdapter):
         raw_versions = raw_item.get("versions_data") or []
         for v_idx, v in enumerate(raw_versions):
             v_name = v.get("version_name") or v.get("name") or f"v_{v_idx+1}"
-            v_date = clean_date_str(v.get("date_created") or v.get("release_date")) or pub_at
+            # Canonical release_date rule (Phase 3F.2): only a release/version-scoped
+            # timestamp published by the platform may populate release_date.
+            # BBSMC version objects expose the structured, version-scoped
+            # `date_published` (ISO-8601 UTC). The forum thread's `date_created` /
+            # `date_modified` is a post/edit time and must NEVER be promoted to
+            # release_date -> no `or pub_at` fallback. Absence of evidence => NULL.
+            v_date = clean_date_str(v.get("date_published") or v.get("date_created") or v.get("release_date"))
             v_mc = v.get("game_versions") or raw_item.get("all_versions") or []
             v_extra = {"files": v.get("files") or []}
             releases.append(CanonicalRelease(
@@ -122,13 +133,16 @@ class BbsmcAdapter(BaseAdapter):
             ))
 
         if not releases:
+            # Synthetic "latest" aggregate row: BBSMC exposes no release-scoped
+            # timestamp for it. Forum post time must NOT be promoted to
+            # release_date -> NULL (no fallback for field completeness).
             releases.append(CanonicalRelease(
                 id=f"{source_item_id}:rel:latest",
                 pack_id=pack_id,
                 source_item_id=source_item_id,
                 version_name="最新版",
                 version_type="release",
-                release_date=mod_at or pub_at,
+                release_date=None,
                 is_latest=True,
                 mc_versions=raw_item.get("all_versions") or ([raw_item["mc_version"]] if raw_item.get("mc_version") else []),
                 created_at=now_str
