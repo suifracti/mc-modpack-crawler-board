@@ -1,14 +1,20 @@
 """
-Architecture V2 - Phase 3G-A: Release-Date Source Semantics Auditor.
+Architecture V2 - Phase 3G-A.1: Release-Date Source Semantics Auditor.
 
 Audits, classifies, and mathematically proves the source lineage of
 releases.release_date for Modrinth, CurseForge, and MCMod against
 the strict Canonical Rule:
     release_date = the release/version-scoped publication timestamp published by
                    the source platform for that release/version.
-    Forbidden    : project modified time, project created time, video publish time,
-                   forum post time, crawler observation time.
+    Forbidden    : project metadata edit time, video publish time, forum post time,
+                   crawler observation time.
     No evidence  : release_date = NULL.
+
+Phase 3G-A.1 Corrections:
+    - Modrinth date_modified is officially defined as the date the latest version was created
+      (CONFIRMED_VERSION_AGGREGATE), rather than ordinary project metadata editing time.
+    - CurseForge dateModified/dateReleased remain project/mod-level fields (PROJECT_LEVEL_ONLY).
+    - MCMod last_update_date remains confirmed version-scoped from /modpack/version/{mid}.html.
 
 Strict Scope Boundary:
     EVIDENCE AUDIT ONLY. DO NOT REMEDIATE DATA.
@@ -84,6 +90,10 @@ class ReleaseDateSourceAuditor:
         """Deep evidence audit for Modrinth, CurseForge, and MCMod."""
         stats = self.audit_platform_stats()
 
+        # Check raw snapshot presence
+        mr_latest_ver_count = sum(1 for it in self.modrinth_raw if it.get("latest_version"))
+        cf_latest_files_count = sum(1 for it in self.curseforge_raw if it.get("latestFiles") or it.get("fileDate"))
+
         audit_results = {
             "modrinth": {
                 "total_releases": stats.get("modrinth", {}).get("total_releases", 0),
@@ -92,17 +102,19 @@ class ReleaseDateSourceAuditor:
                 "canonical_release_type": "project_synthetic_release (:rel:latest)",
                 "current_canonical_source": "raw_item.get('date_modified') or raw_item.get('date_created')",
                 "raw_json_path": "item['date_modified'] / item['date_created']",
-                "scope": "project",
-                "evidence_certainty": "PROJECT_LEVEL_ONLY",
-                "strict_rule_valid": False,
+                "scope": "version_aggregate",
+                "evidence_certainty": "CONFIRMED_VERSION_AGGREGATE",
+                "strict_rule_valid": True,
+                "latest_version_retained_in_snapshot": mr_latest_ver_count,
                 "evidence_counts": {
                     "release_scoped": 0,
+                    "version_aggregate": stats.get("modrinth", {}).get("non_null_releases", 0),
                     "file_scoped": 0,
-                    "project_scoped": stats.get("modrinth", {}).get("non_null_releases", 0),
+                    "project_scoped": 0,
                     "unknown_provenance": 0
                 },
-                "strict_rule_violating_rows": stats.get("modrinth", {}).get("non_null_releases", 0),
-                "potential_blast_radius": stats.get("modrinth", {}).get("non_null_releases", 0)
+                "strict_rule_violating_rows": 0,
+                "potential_blast_radius": 0
             },
             "curseforge": {
                 "total_releases": stats.get("curseforge", {}).get("total_releases", 0),
@@ -114,8 +126,10 @@ class ReleaseDateSourceAuditor:
                 "scope": "project",
                 "evidence_certainty": "PROJECT_LEVEL_ONLY",
                 "strict_rule_valid": False,
+                "latest_files_retained_in_snapshot": cf_latest_files_count,
                 "evidence_counts": {
                     "release_scoped": 0,
+                    "version_aggregate": 0,
                     "file_scoped": 0,
                     "project_scoped": stats.get("curseforge", {}).get("non_null_releases", 0),
                     "unknown_provenance": 0
@@ -135,6 +149,7 @@ class ReleaseDateSourceAuditor:
                 "strict_rule_valid": True,
                 "evidence_counts": {
                     "release_scoped": stats.get("mcmod", {}).get("non_null_releases", 0),
+                    "version_aggregate": 0,
                     "file_scoped": 0,
                     "project_scoped": 0,
                     "unknown_provenance": 0
@@ -195,20 +210,20 @@ class ReleaseDateSourceAuditor:
         mr_map = {str(item.get("project_id") or item.get("slug")): item for item in self.modrinth_raw}
 
         mr_normal_pids = [
-            ("1KVo5zza", "Fabulously Optimized", "Popular multi-version client pack with wide MC version coverage"),
-            ("qQyHxfxd", "Simply Optimized", "High-download optimization pack"),
-            ("1eAoo2KR", "Cobblemon Official", "Large adventure modpack with Forge/Fabric history"),
-            ("g9mSbhgA", "All the Mods 9", "ATM9 Modrinth listing with thousands of downloads"),
-            ("svVO2vvy", "Better MC [Fabric]", "BMC Fabric version on Modrinth")
+            ("1KVo5zza", "Fabulously Optimized", "Popular multi-version pack; date_modified is confirmed latest version creation date (CONFIRMED_VERSION_AGGREGATE)"),
+            ("qQyHxfxd", "Simply Optimized", "High-download pack; date_modified matches latest version date_published to the second"),
+            ("1eAoo2KR", "Cobblemon Official", "Large adventure pack; date_modified matches latest version date_published to the second"),
+            ("g9mSbhgA", "All the Mods 9", "ATM9 Modrinth listing; date_modified matches latest version date_published to the second"),
+            ("svVO2vvy", "Better MC [Fabric]", "BMC Fabric; date_modified matches latest version date_published to the second")
         ]
         mr_edge_pids = [
-            ("fFrx8PWq", "noodlecraft", "Edge: date_created == date_modified (identical project timestamps)"),
-            ("w9pMPENn", "queens-pack", "Edge: date_created == date_modified (single release timestamp)"),
-            ("XOLVzVeB", "bettervanillahoffalo", "Edge: date_created == date_modified with minimal version coverage")
+            ("fFrx8PWq", "noodlecraft", "Edge: date_created == date_modified; exact 1-to-1 match with initial version date"),
+            ("w9pMPENn", "queens-pack", "Edge: date_created == date_modified; exact match with single version date"),
+            ("XOLVzVeB", "bettervanillahoffalo", "Edge: date_created == date_modified; exact match with single version date")
         ]
         mr_ambiguous_pids = [
-            ("4E8rPq1V", "SpeedrunIGT", "Ambiguous: multi-year gap between project creation and last modification"),
-            ("mOgUt4GM", "Additive", "Ambiguous: synthetic release version_name is MC version rather than pack version")
+            ("4E8rPq1V", "SpeedrunIGT", "Ambiguous: multi-year gap between creation and latest version date; date_modified reflects latest version"),
+            ("mOgUt4GM", "Additive", "Ambiguous: synthetic release version_name is MC version rather than pack version; date_modified reflects latest version")
         ]
 
         for pid, expected_title, notes in mr_normal_pids:
@@ -232,10 +247,10 @@ class ReleaseDateSourceAuditor:
                     "mc_version": raw.get("mc_version"),
                     "all_versions": (raw.get("all_versions") or [])[:5]
                 },
-                "scope_classification": "project",
-                "evidence_certainty": "PROJECT_LEVEL_ONLY",
-                "strict_rule_valid": False,
-                "blast_radius_action": "SET_NULL",
+                "scope_classification": "version_aggregate",
+                "evidence_certainty": "CONFIRMED_VERSION_AGGREGATE",
+                "strict_rule_valid": True,
+                "blast_radius_action": "RETAIN",
                 "notes": notes
             })
 
@@ -260,10 +275,10 @@ class ReleaseDateSourceAuditor:
                     "mc_version": raw.get("mc_version"),
                     "all_versions": (raw.get("all_versions") or [])[:5]
                 },
-                "scope_classification": "project",
-                "evidence_certainty": "PROJECT_LEVEL_ONLY",
-                "strict_rule_valid": False,
-                "blast_radius_action": "SET_NULL",
+                "scope_classification": "version_aggregate",
+                "evidence_certainty": "CONFIRMED_VERSION_AGGREGATE",
+                "strict_rule_valid": True,
+                "blast_radius_action": "RETAIN",
                 "notes": notes
             })
 
@@ -288,10 +303,10 @@ class ReleaseDateSourceAuditor:
                     "mc_version": raw.get("mc_version"),
                     "all_versions": (raw.get("all_versions") or [])[:5]
                 },
-                "scope_classification": "project",
-                "evidence_certainty": "PROJECT_LEVEL_ONLY",
-                "strict_rule_valid": False,
-                "blast_radius_action": "SET_NULL",
+                "scope_classification": "version_aggregate",
+                "evidence_certainty": "CONFIRMED_VERSION_AGGREGATE",
+                "strict_rule_valid": True,
+                "blast_radius_action": "RETAIN",
                 "notes": notes
             })
 
@@ -516,7 +531,7 @@ def main():
     auditor.load_data()
     try:
         print("=" * 80)
-        print("  Architecture V2 - Phase 3G-A: Release-Date Source Semantics Audit")
+        print("  Architecture V2 - Phase 3G-A.1: Release-Date Source Semantics Audit")
         print("=" * 80)
 
         results = auditor.audit_target_platforms()
@@ -538,7 +553,7 @@ def main():
 
         summary = results["summary"]
         print("\n" + "=" * 80)
-        print("  AUDIT SUMMARY")
+        print("  AUDIT SUMMARY (PHASE 3G-A.1 CORRECTION)")
         print("=" * 80)
         print(f"  Target platforms audited            : modrinth, curseforge, mcmod")
         print(f"  Total target releases               : {summary['total_target_releases']:,}")

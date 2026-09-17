@@ -1,10 +1,13 @@
 """
-Architecture V2 - Phase 3G-A: Release-Date Source Semantics Audit Contract Tests.
+Architecture V2 - Phase 3G-A.1: Release-Date Source Semantics Audit Contract Tests.
 
-Validates the contracts of the Phase 3G-A evidence audit:
+Validates the contracts of the Phase 3G-A.1 evidence audit:
 1. Mathematical lineage and violation counts across Modrinth, CurseForge, MCMod.
-2. Exact structure and categories of the 30 Golden Samples (5 normal, 3 edge, 2 ambiguous per platform).
-3. Freshness Guard source file SHA-256 hardening verification.
+2. Modrinth date_modified semantic classification (CONFIRMED_VERSION_AGGREGATE) & snapshot check.
+3. CurseForge project/file distinction (PROJECT_LEVEL_ONLY & 45,797 violations).
+4. MCMod verified version scope (CONFIRMED_RELEASE_SCOPED & 0 violations).
+5. Exact structure and categories of the 30 Golden Samples (5 normal, 3 edge, 2 ambiguous per platform).
+6. Freshness Guard source file SHA-256 hardening verification.
 """
 import os
 import json
@@ -48,37 +51,42 @@ class TestReleaseDateSourceAudit(unittest.TestCase):
         self.assertEqual(summary["total_target_non_null"], 64451)
         self.assertEqual(summary["total_target_null"], 1158)
 
-    def test_strict_rule_violations_and_blast_radius(self):
-        """Verify strict Canonical Rule violation counts and blast radius."""
+    def test_modrinth_semantic_classification_and_snapshot(self):
+        """Verify Modrinth date_modified is classified as CONFIRMED_VERSION_AGGREGATE."""
         mr = self.results["modrinth"]
+        self.assertEqual(mr["scope"], "version_aggregate")
+        self.assertEqual(mr["evidence_certainty"], "CONFIRMED_VERSION_AGGREGATE")
+        self.assertTrue(mr["strict_rule_valid"])
+        self.assertEqual(mr["strict_rule_violating_rows"], 0)
+        self.assertEqual(mr["potential_blast_radius"], 0)
+        # Verify latest_version was not retained in offline crawler snapshot
+        self.assertEqual(mr["latest_version_retained_in_snapshot"], 0)
+
+    def test_curseforge_project_file_distinction(self):
+        """Verify CurseForge dateModified/dateReleased remain PROJECT_LEVEL_ONLY."""
         cf = self.results["curseforge"]
-        mc = self.results["mcmod"]
-
-        # Modrinth: 100% project-level date modified/created -> 18328 violations
-        self.assertEqual(mr["scope"], "project")
-        self.assertEqual(mr["evidence_certainty"], "PROJECT_LEVEL_ONLY")
-        self.assertFalse(mr["strict_rule_valid"])
-        self.assertEqual(mr["strict_rule_violating_rows"], 18328)
-        self.assertEqual(mr["potential_blast_radius"], 18328)
-
-        # CurseForge: 100% project-level date modified/released -> 45797 violations
         self.assertEqual(cf["scope"], "project")
         self.assertEqual(cf["evidence_certainty"], "PROJECT_LEVEL_ONLY")
         self.assertFalse(cf["strict_rule_valid"])
         self.assertEqual(cf["strict_rule_violating_rows"], 45797)
         self.assertEqual(cf["potential_blast_radius"], 45797)
+        # Verify latestFiles/fileDate was not retained in offline crawler snapshot
+        self.assertEqual(cf["latest_files_retained_in_snapshot"], 0)
 
-        # MCMod: 326 non-null releases are version-scoped dates from /modpack/version/{mid}.html
+    def test_mcmod_verified_version_scope(self):
+        """Verify MCMod last_update_date is confirmed version-scoped."""
+        mc = self.results["mcmod"]
         self.assertEqual(mc["scope"], "version")
         self.assertEqual(mc["evidence_certainty"], "CONFIRMED_RELEASE_SCOPED")
         self.assertTrue(mc["strict_rule_valid"])
         self.assertEqual(mc["strict_rule_violating_rows"], 0)
         self.assertEqual(mc["potential_blast_radius"], 0)
 
-        # Total violating rows across 3 platforms: 18328 + 45797 + 0 = 64125
+    def test_recalculated_total_violations_and_blast_radius(self):
+        """Verify recalculated total violations (CurseForge only = 45,797)."""
         summary = self.results["summary"]
-        self.assertEqual(summary["total_strict_rule_violating_rows"], 64125)
-        self.assertEqual(summary["total_potential_blast_radius"], 64125)
+        self.assertEqual(summary["total_strict_rule_violating_rows"], 45797)
+        self.assertEqual(summary["total_potential_blast_radius"], 45797)
 
     def test_golden_30_contract(self):
         """Verify the 30 Golden Samples exist, with 10 per platform (5 normal, 3 edge, 2 ambiguous)."""
@@ -131,7 +139,6 @@ class TestReleaseDateSourceAudit(unittest.TestCase):
             with open(tampered_path, "w", encoding="utf-8") as f:
                 json.dump(prov, f)
 
-            # Test by temporarily swapping or mocking
             import unittest.mock as mock
             with mock.patch("pipeline.audit.verify_fresh_equivalence.ROOT", ROOT):
                 with open(tampered_path, "r", encoding="utf-8") as tf:
