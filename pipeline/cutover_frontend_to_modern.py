@@ -241,17 +241,33 @@ def execute_cutover() -> str:
     print("\n[Step 6/6] Updating build/production_state.json...")
     db_hash = compute_sha256(CANONICAL_DB) if os.path.exists(CANONICAL_DB) else "unknown"
 
-    state = {
+    # Phase 3G-D.1R: merge into the existing state instead of replacing it.
+    # The previous implementation wrote a fresh dict, which silently dropped
+    # release-integrity metadata (pipeline_data_schema, production_build_commit,
+    # correctness_* , release_date_semantics) on every cutover.
+    state = {}
+    if os.path.exists(PRODUCTION_STATE_PATH):
+        try:
+            with open(PRODUCTION_STATE_PATH, "r", encoding="utf-8") as fp:
+                state = json.load(fp) or {}
+        except (json.JSONDecodeError, OSError):
+            state = {}
+
+    state.update({
         "active_pipeline": "v2",
         "active_frontend": "modern-vite",
         "updated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
         "frontend_source_commit": commit,
+        "frontend_code_commit": commit,
+        "production_build_commit": commit,
         "frontend_manifest": os.path.relpath(MODERN_PRODUCTION_MANIFEST_PATH, REPO_ROOT).replace("\\", "/"),
+        "production_manifest": os.path.relpath(MODERN_PRODUCTION_MANIFEST_PATH, REPO_ROOT).replace("\\", "/"),
         "legacy_frontend_backup": os.path.relpath(backup_dir, REPO_ROOT).replace("\\", "/"),
         "legacy_frontend_manifest": os.path.relpath(LEGACY_MANIFEST_PATH, REPO_ROOT).replace("\\", "/"),
+        "legacy_fallback_staging": "build/frontend_legacy_current_data",
         "canonical_db_hash": db_hash,
-        "record_count": 73522
-    }
+        "record_count": 73522,
+    })
     with open(PRODUCTION_STATE_PATH, "w", encoding="utf-8") as fp:
         json.dump(state, fp, indent=2, ensure_ascii=False)
     print("  [+] production_state.json updated successfully.")

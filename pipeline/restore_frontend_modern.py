@@ -26,7 +26,12 @@ from pipeline.manifest import verify_manifest, compute_sha256, get_git_commit
 CONVERTED_OUTPUT_DIR = os.path.join(REPO_ROOT, "converted_output")
 FRONTEND_PREVIEW_DIR = os.path.join(REPO_ROOT, "build", "frontend_preview")
 PRODUCTION_STATE_PATH = os.path.join(REPO_ROOT, "build", "production_state.json")
-MODERN_MANIFEST_PATH = os.path.join(REPO_ROOT, "build", "manifests", "frontend_modern_production_post3f.sha256.json")
+# Phase 3G-D.1R: this used to be hardcoded to a phase-dated manifest
+# (`frontend_modern_production_post3f.sha256.json`), which went stale as soon as
+# the payload/bundle changed, making the Modern restore path fail verification.
+# Resolve the *canonical* production manifest that `cutover_frontend_to_modern.py`
+# regenerates and verifies on every production build instead.
+MODERN_MANIFEST_PATH = os.path.join(REPO_ROOT, "build", "manifests", "frontend_modern_production.sha256.json")
 CANONICAL_DB = os.path.join(REPO_ROOT, "build", "canonical.db")
 
 
