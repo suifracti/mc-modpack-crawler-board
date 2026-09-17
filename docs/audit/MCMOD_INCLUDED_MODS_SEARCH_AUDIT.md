@@ -409,17 +409,134 @@ Based on the forensic evidence collected in Phase 3G-C:
 
 ---
 
-## 9. Recommendations for Future Implementation (Phase 4+)
+## 9. Architectural Boundaries & Recommendations for Future Implementation (Phase 4+)
 
-*Note: Phase 3G-C is strictly an Evidence Audit. Zero code or DB modifications were made during this phase.*
+*Note: Phase 3G-C / 3G-C.1 is strictly an Evidence Audit. Zero code, DB, or UI modifications are permitted.*
+
+### 9.1 Crucial Architectural Boundary: Category $\neq$ Importance
+
+Phase 3G-C proved that:
+```text
+Mod Category != Pack Relationship / Importance
+```
+
+Therefore, future UI implementations **MUST NOT**:
+1. **Never default-hide `LIB` or `辅助`**: Basic libraries and auxiliary mods are runtime essentials. Hiding them by default falsely implies they are irrelevant or optional.
+2. **Never claim or prioritize "Core Gameplay Mods" based on Category**: Categorizing a mod as `科技` (Tech) or `冒险` (Adventure) is a mod taxonomy classification, NOT pack-level evidence of core gameplay status. A pack author may include `Create` purely for aesthetic gearboxes while the core theme is magical survival.
+3. **Strict Boundary**: Users may be provided with neutral category filters or grouping tabs (e.g., viewing mods by category `[科技]`, `[前置库]`, `[辅助]`), but the UI must NEVER conflate category taxonomy with pack dependency importance.
+
+### 9.2 Recommended Search Ergonomics (Phase 4+)
 
 1. **UI Search Scope Selector**:
    - Add a segmented control or toggle next to the search bar:
-     - `[ 全部 ]` (Default: Title + Desc + Mods)
-     - `[ 仅整合包 ]` (Title + Description only)
-     - `[ 查包含模组 ]` (Dedicated mod discovery mode)
+     - `[ 全部 ]` (Default: Title + Categories + Included Mods)
+     - `[ 仅整合包 ]` (Title & Former Titles only)
+     - `[ 查包含模组 ]` (Dedicated component discovery mode)
 2. **Search Hit Provenance Badge**:
    - When a pack matches solely due to `modSearchText`, display a badge on the card:
      `🔍 包含模组: <highlighted mod name>`
-3. **Mod Drawer Category Filter**:
-   - In the expanded mod drawer, allow users to filter or collapse `LIB` and `辅助` categories, prioritizing gameplay content mods (`科技`, `魔法`, `冒险`).
+3. **Drawer Highlighting**:
+   - When the user opens the mod details drawer for a matched pack, highlight the exact mod name that triggered the search hit and scroll to it.
+
+---
+
+## 10. Phase 3G-C.1: Search Match-Reason Exactness Gate & 96 vs 93 Parity Resolution
+
+### 10.1 The RLCraft 96 vs 93 Discrepancy Fully Resolved
+
+In Phase 3G-C, the initial forensic script queried `canonical.db` and reported **96 matches** for `RLCraft`, whereas the Production Browser runtime (DataTables and TS SearchEngine) reported **93 matches**.
+
+A strict mathematical set comparison reveals:
+- **`canonical_match_ids` (Python DB Forensic)**: **`96`**
+- **`runtime_match_ids` (Edge CDP & DataTables)**: **`93`**
+- **`intersection`**: **`93`** (100% of runtime matches are present in DB)
+- **`python_only_ids`**: **`3`** (`[255, 413, 1231]`)
+- **`runtime_only_ids`**: **`0`**
+
+#### Root Cause of the 3 Diff Packs:
+Inspection of `mcmod:255`, `mcmod:413`, and `mcmod:1231` in `canonical.db`:
+- **`mcmod:255`** (*[MMC]Medieval Minecraft*): Title has 0 RLCraft; Included Mods have 0 RLCraft. Description contains: `"甚至可以说这个整合包是 RLCraft 的续作。"`
+- **`mcmod:413`** (*死亡工艺&重生 (Deathcraft & Rebirth)*): Title has 0 RLCraft; Included Mods have 0 RLCraft. Description contains: `"与RLCraft相比，你有更多的选择。"`
+- **`mcmod:1231`** (*[JSXT]寄生仙途*): Title has 0 RLCraft; Included Mods have 0 RLCraft. Description contains: `"整合包还添加了经典战斗与更好的战斗-RLCraft版"`
+- **The Export Reality**: In `pipeline/exporters/structured_mcmod_exporter.py`, the `description` field is **not exported** to client `mcmod_data.js` to preserve lightweight client bundle size.
+- **The Search Reality**: DataTables (`tableColumns.ts`) indexes columns 0 (title/former), 5 (categories), and 6 (`modSearchText`). It does **not index description**.
+- **Conclusion**: When Python searches against `mcmod_data.js` or client-searchable columns, Python matches **EXACTLY 93** (0 ID differences with Edge CDP).
+
+### 10.2 Verification of Specific Mod Names: RLArtifacts, RLMixins, and RLCombat
+
+A forensic audit of all 170,078 rows in `included_mods` was conducted to verify which mods actually contain literal `rlcraft` (case-insensitive):
+- **Total distinct mods containing literal `rlcraft`**: Exactly **6 mods**:
+  1. `RLCraft Structures (not official)`
+  2. `冰火传说-RLCraft版 (I&F：RLCraft Edition)`
+  3. `可穿戴背包-RLCraft版 (Wearable Backpacks: RLCraft Edition)`
+  4. `奇异饰品-RLCraft版 (RLArtifacts)`
+  5. `斯巴达之冰与火-RLCraft版 (Spartan and Fire: RLCraft Edition)`
+  6. `更好的战斗-RLCraft版 (RLCombat)`
+
+#### Critical Audit Correction:
+- **`RLArtifacts`**: Stored `mod_name` = `'奇异饰品-RLCraft版 (RLArtifacts)'`. Literal `rlcraft` occurs: **YES** (because of `-RLCraft版`, NOT because of the substring `RLArtifacts`).
+- **`RLCombat`**: Stored `mod_name` = `'更好的战斗-RLCraft版 (RLCombat)'`. Literal `rlcraft` occurs: **YES** (because of `-RLCraft版`, NOT because of the substring `RLCombat`).
+- **`RLMixins`**: Stored `mod_name` = `'RLMixins'`. Literal `rlcraft` occurs: **NO!** Packs that only bundle `RLMixins` and none of the other 6 mods **do not match** `RLCraft`! The earlier mention of `RLMixins` was an unverified association error.
+
+### 10.3 Searchable Field Composition Matrix
+
+| Searchable Field | Stored in `canonical.db` | Exported in `mcmod_data.js` | Indexed in TS `SearchDocument` | Indexed in DataTables |
+| :--- | :--- | :--- | :--- | :--- |
+| `title` | YES (`source_items.title`) | YES (`title`) | YES (`titleLower`) | YES (Column 0) |
+| `typeName` | YES (in title / extra_json) | YES (`typeName`) | YES (`titleLower`) | YES (Column 0) |
+| `formerTitles` | YES (`aliases` table) | YES (`formerTitles`) | YES (`titleLower`) | YES (Column 0) |
+| `author` | YES (`source_items.author`) | YES (`author`) | YES (`authorLower`) | NO |
+| `categories` | YES (`categories` table) | YES (`categories`) | YES (`categoriesLower`) | YES (Column 5) |
+| `modSearchText` | YES (`included_mods.mod_name`) | YES (`modSearchText`) | YES (`modsLower`) | YES (Column 6) |
+| `description` | YES (`source_items.description`) | **NO** | **NO** | **NO** |
+| `tags` | YES | YES (`[]` empty) | YES (`[]` empty) | NO |
+| `mcVersions` | YES | YES (`mcVersions`) | YES (`versionsLower`) | NO |
+| `loaders` | YES | YES (`[]` empty) | YES (`loadersLower`) | NO |
+
+### 10.4 20-Query Runtime Parity Evaluation
+
+All 20 queries from the evaluation corpus were executed simultaneously across:
+1. `canonical.db` all-text query (including `description`)
+2. Production TS SearchEngine running in headless Edge CDP (`mcmod_data.js`)
+3. Production DataTables running in headless Edge CDP (`modpackTable`)
+4. Python replication of TS SearchEngine on `mcmod_data.js`
+5. Python replication of DataTables on `mcmod_data.js`
+
+| Query | DB Total (w/ Desc) | Edge TS Engine | Edge DataTable | Python $\equiv$ TS? | Python $\equiv$ DT? | TS $\equiv$ DT? |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `RLCraft` | 96 | 93 | 93 | **TRUE** | **TRUE** | **TRUE** |
+| `GreedyCraft` | 2 | 2 | 2 | **TRUE** | **TRUE** | **TRUE** |
+| `Age of Fate` | 1 | 2 | 1 | **TRUE** | **TRUE** | FALSE (Multi-term) |
+| `Enigmatica` | 36 | 31 | 31 | **TRUE** | **TRUE** | **TRUE** |
+| `DawnCraft` | 2 | 2 | 2 | **TRUE** | **TRUE** | **TRUE** |
+| `Create` | 489 | 477 | 477 | **TRUE** | **TRUE** | **TRUE** |
+| `Cobblemon` | 8 | 8 | 8 | **TRUE** | **TRUE** | **TRUE** |
+| `GregTech` | 71 | 70 | 70 | **TRUE** | **TRUE** | **TRUE** |
+| `Mekanism` | 310 | 300 | 300 | **TRUE** | **TRUE** | **TRUE** |
+| `Botania` | 288 | 286 | 286 | **TRUE** | **TRUE** | **TRUE** |
+| `JEI` | 754 | 740 | 740 | **TRUE** | **TRUE** | **TRUE** |
+| `Architectury` | 634 | 634 | 634 | **TRUE** | **TRUE** | **TRUE** |
+| `Cloth Config` | 591 | 595 | 591 | **TRUE** | **TRUE** | FALSE (Multi-term) |
+| `Fabric API` | 112 | 664 | 111 | **TRUE** | **TRUE** | FALSE (Multi-term) |
+| `Mouse Tweaks` | 733 | 736 | 733 | **TRUE** | **TRUE** | FALSE (Multi-term) |
+| `Twilight Forest` | 281 | 279 | 279 | **TRUE** | **TRUE** | **TRUE** |
+| `Applied Energistics` | 357 | 354 | 353 | **TRUE** | **TRUE** | FALSE (Multi-term) |
+| `Ice and Fire` | 125 | 260 | 125 | **TRUE** | **TRUE** | FALSE (Multi-term) |
+| `Thermal` | 298 | 295 | 295 | **TRUE** | **TRUE** | **TRUE** |
+| `Avaritia` | 150 | 149 | 149 | **TRUE** | **TRUE** | **TRUE** |
+
+**Parity Verdict**:
+- **Python replication $\equiv$ Edge TS Engine**: **`20 / 20 (100.00%) EXACT PARITY`**.
+- **Python replication $\equiv$ Edge DataTables**: **`20 / 20 (100.00%) EXACT PARITY`**.
+- **Single-token queries**: TS SearchEngine and DataTables yield **100% identical ID sets** (0 differences).
+- **Multi-token queries** (`Fabric API`, `Ice and Fire`, etc.): TS SearchEngine splits on whitespace and requires all terms to exist anywhere in the document (`"fabric"` AND `"api"` $\to$ 664), whereas DataTables with `smart: false` matches the exact contiguous substring (`"fabric api"` $\to$ 111).
+
+### 10.5 Status Decision: `DIDX-MCMOD-01` $\to$ `VERIFIED`
+
+1. **`DIDX-MCMOD-01` (MCMod 搜索深度索引算法契约)**: **`VERIFIED`**.
+   - The underlying search indexing and execution algorithm works with 100.00% precision across client payloads and reproduces identically in Python.
+   - The 96 vs 93 discrepancy is fully resolved as client payload field pruning (`description` omitted), not an algorithm fault.
+2. **`SEARCH-MCMOD-REASON-01` (模组深度索引命中原因与出处可见性)**: Maintained as **`SUSPECT`**.
+   - Retains the product usability and opacity risk (matched mod names concealed inside collapsed drawers).
+3. **`MODREL-MCMOD-01`**: Maintained as **`VERIFIED`** (100.00% relation fidelity).
+4. **`MODSEM-MCMOD-01`**: Maintained as **`UNKNOWN`** (mod relationship importance unexpressed).
