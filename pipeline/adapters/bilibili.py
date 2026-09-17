@@ -224,6 +224,12 @@ class BilibiliAdapter(BaseAdapter):
 
         # 6. Loaders & Categories
         loaders = [l for l in (raw_item.get("loaders") or []) if l]
+        # LOADER-BILI-01 Remediation: Contextual loader extraction from title & description
+        text_for_loaders = f"{title} {raw_item.get('desc') or ''}"
+        for ldr_name in ["NeoForge", "Fabric", "Quilt", "Forge"]:
+            if re.search(rf'(?<![a-zA-Z]){ldr_name}(?![a-zA-Z])', text_for_loaders, re.IGNORECASE):
+                if ldr_name not in loaders:
+                    loaders.append(ldr_name)
         categories = [c for c in (raw_item.get("categories") or []) if c]
 
         # 7. Metrics

@@ -28,7 +28,8 @@ def main():
     print(f"  Exported {res['count']} structured items ({res['size_bytes'] / 1024:.1f} KB)")
 
     print("[2/5] Syncing other 5 platforms sidecars & vendor dependencies...")
-    src_data_dir = os.path.join(CONVERTED_DIR, 'data')
+    legacy_preview_data = os.path.join(REPO_ROOT, 'build', 'legacy_preview', 'data')
+    src_data_dir = legacy_preview_data if os.path.exists(os.path.join(legacy_preview_data, 'bili_data.js')) else os.path.join(CONVERTED_DIR, 'data')
 
     # Copy vendor directory
     src_vendor = os.path.join(src_data_dir, 'vendor')

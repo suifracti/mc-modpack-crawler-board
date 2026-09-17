@@ -14,11 +14,14 @@ class AuditExporter(BaseLegacyExporter):
             total_items = cur.fetchone()[0]
 
             now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            # AUDIT-DIFF-01 Remediation: Honestly mark diff as unavailable without baseline snapshot
             diff_result = {
+                "is_available": False,
+                "message": "历史版本快照对比暂未启用（未配置历史基线快照）",
                 "generated_at": now_str,
                 "stats": {
                     "total_current": total_items,
-                    "total_prev": total_items,
+                    "total_prev": None,
                     "added_count": 0,
                     "updated_count": 0,
                     "removed_count": 0,

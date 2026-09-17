@@ -39,6 +39,7 @@ export interface VersionModalViewModel {
   modCountStr?: string;
   targetUrl: string;
   hasServer: boolean;
+  serverStatus?: 'required' | 'optional' | 'supported' | 'unsupported' | 'unknown';
   envDisplay?: string;
   formerTitles?: string[];
   hasGroupVersion?: boolean;

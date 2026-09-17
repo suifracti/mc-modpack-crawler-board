@@ -174,7 +174,9 @@ class StructuredMCModExporter:
                 if not t_points:
                     t_points = [("2026-09-17", float(it["trend_latest"] or 0))]
                 lat_n, max_n, avg_n, days_n, t7_n, t30_n, t60_n, tall_n = compute_trend_stats(t_points)
-                score_n = int(it["score"] or (5 if lat_n > 500 else (4 if lat_n > 200 else (3 if lat_n > 50 else (2 if lat_n > 10 else 1)))))
+                # SCORE-MCMOD-01 Remediation: Do NOT synthesize star rating from daily views.
+                score_raw = it["score"]
+                score_n = int(score_raw) if score_raw is not None and score_raw > 0 else None
                 trend_dates_str = ",".join(p[0] for p in t_points)
                 trend_vals_str = ",".join(f"{p[1]:.1f}" if p[1] != int(p[1]) else str(int(p[1])) for p in t_points)
 

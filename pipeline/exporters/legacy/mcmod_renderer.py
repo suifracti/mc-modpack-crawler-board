@@ -75,12 +75,16 @@ def build_c0(mid: str, full_title: str, title_cn: str, title_en: str, cover_url:
         f'<span class="modpack-views-badge" title="总浏览量">👁 {esc(views_d)}</span> {ver_badge_html}</div>'
     )
 
-def build_c1(score_n: int, lat_n: int, max_n: int, avg_n: float, days_n: int, vals: Optional[List[float]] = None) -> str:
+def build_c1(score_n: Optional[int], lat_n: int, max_n: int, avg_n: float, days_n: int, vals: Optional[List[float]] = None) -> str:
     svg_html = generate_sparkline_svg(vals) if vals and len(vals) >= 2 else ""
     hint = "点击看图" if svg_html else "MC百科"
     mid_row = f'{svg_html}<span class="trend-val-lat" title="最新指数" style="font-weight: 700; color: var(--primary-light);">最新: {lat_n}</span><span class="trend-open-hint">{hint}</span>'
+    if score_n is not None and score_n > 0:
+        score_badge = f'<div class="trend-score-badge" title="官方流行指数评分"><span>流行</span><b>{score_n}</b></div>'
+    else:
+        score_badge = '<div class="trend-score-badge unrated" title="官方暂无评分"><span>暂无评分</span></div>'
     return (
-        f'<div class="trend-consolidated-cell"><div class="trend-score-badge" title="官方流行指数评分"><span>流行</span><b>{score_n}</b></div>'
+        f'<div class="trend-consolidated-cell">{score_badge}'
         f'<div class="trend-main-row">{mid_row}</div>'
         f'<div class="trend-meta-row"><span class="trend-val-max" title="最高指数">高: {max_n}</span><span class="trend-val-avg" title="平均指数">平: {avg_n}</span><span class="trend-val-days" title="走势天数">{days_n}天</span></div></div>'
     )

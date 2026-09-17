@@ -31,7 +31,8 @@ export function adaptMcmodToVersionModal(
     modCountStr: p.includedModsCount ? `${p.includedModsCount} 款` : (raw.mod_count ? `${raw.mod_count} 款` : (extra?.modCount as string) || undefined),
     targetUrl: (extra?.url as string) || `https://www.mcmod.cn/modpack/version/${mid}.html`,
     hasServer: Boolean(p.has_server || extra?.has_server),
-    envDisplay: (p.has_server || extra?.has_server) ? '支持联机开服 / 提供专用服务端' : '未提供专用开服端',
+    serverStatus: (p.has_server || extra?.has_server) ? 'supported' : 'unknown',
+    envDisplay: (p.has_server || extra?.has_server) ? '支持联机开服 / 提供专用服务端' : '未声明服务端支持 / 无法确认',
     formerTitles: former,
     releases: (extra?.releases as any[]) || [],
   };

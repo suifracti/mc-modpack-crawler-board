@@ -21,6 +21,14 @@ from pipeline.models.canonical import (
     CanonicalPackBundle,
 )
 
+def clean_date_str(val: Any) -> Optional[str]:
+    if not val or not isinstance(val, str):
+        return None
+    val = val.strip()
+    if val in ('未知', '未知时间', 'N/A', '-', ''):
+        return None
+    return val
+
 class MCModAdapter(BaseAdapter):
     platform_name = "mcmod"
 
@@ -77,8 +85,8 @@ class MCModAdapter(BaseAdapter):
         )
 
         # 2. Source Item
-        pub_at = raw_item.get("release_date") or None
-        mod_at = raw_item.get("last_update_date") or None
+        pub_at = clean_date_str(raw_item.get("release_date"))
+        mod_at = clean_date_str(raw_item.get("last_update_date"))
         intro_images = cached_info.get("images") or cached_info.get("intro_images") or []
         extra_dict = {
             "type_name": raw_item.get("type_name"),

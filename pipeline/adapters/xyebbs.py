@@ -18,6 +18,50 @@ from pipeline.models.canonical import (
     CanonicalPackBundle,
 )
 
+VALID_URL_SCHEMES = ("http://", "https://", "ftp://", "magnet:")
+
+def clean_date_str(val: Any) -> Optional[str]:
+    if not val or not isinstance(val, str):
+        return None
+    val = val.strip()
+    if val in ('未知', '未知时间', 'N/A', '-', ''):
+        return None
+    return val
+
+def clean_download_link_item(dl: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    raw_url = dl.get("url")
+    if not raw_url or not isinstance(raw_url, str):
+        return None
+    raw_url = raw_url.strip()
+    if raw_url.lower() in ("null", "undefined", "none", "neoforge", "forge", "fabric"):
+        return None
+    if "qq群" in raw_url.lower():
+        return None
+    if len(raw_url) > 1000 or any(c in raw_url for c in ('\n', '\r')):
+        return None
+    
+    clean_url = None
+    extract_code = dl.get("extract_code")
+
+    if raw_url.startswith(VALID_URL_SCHEMES) and ' ' not in raw_url:
+        clean_url = raw_url
+    else:
+        m = re.search(r'https?://[^\s<>"\']+|ftp://[^\s<>"\']+|magnet:\?[^\s<>"\']+', raw_url)
+        if m:
+            clean_url = m.group(0).rstrip('.,;!?#')
+            if not extract_code:
+                m_code = re.search(r'(?:提取码|pwd|密码)[:：\s]+([a-zA-Z0-9]{4,8})', raw_url)
+                if m_code:
+                    extract_code = m_code.group(1)
+    
+    if not clean_url or len(clean_url) > 1000:
+        return None
+
+    return {
+        "url": clean_url,
+        "extract_code": extract_code
+    }
+
 class XyebbsAdapter(BaseAdapter):
     platform_name = "xyebbs"
 
@@ -32,8 +76,8 @@ class XyebbsAdapter(BaseAdapter):
         url = raw_item.get("url") or f"https://www.xyebbs.com/thread-{pid}-1-1.html"
         now_str = "2026-09-17 12:00:00"
 
-        pub_at = raw_item.get("date_created") or None
-        mod_at = raw_item.get("date_modified") or None
+        pub_at = clean_date_str(raw_item.get("date_created"))
+        mod_at = clean_date_str(raw_item.get("date_modified"))
 
         # 1. Canonical Pack
         pack = CanonicalPack(
@@ -94,7 +138,7 @@ class XyebbsAdapter(BaseAdapter):
         raw_releases = raw_item.get("releases_data") or []
         for r_idx, r in enumerate(raw_releases):
             r_name = r.get("label") or r.get("name") or r.get("title") or r.get("version_name") or f"Release_{r_idx+1}"
-            r_date = r.get("createDate") or r.get("date") or pub_at
+            r_date = clean_date_str(r.get("createDate") or r.get("date")) or pub_at
             r_mc = r.get("mc_versions") or raw_item.get("all_versions") or []
             r_extra = {"links": r.get("links") or []}
             releases.append(CanonicalRelease(
@@ -134,12 +178,17 @@ class XyebbsAdapter(BaseAdapter):
 
         for dl in (raw_item.get("download_links") or []):
             if isinstance(dl, dict) and dl.get("url"):
+                cleaned = clean_download_link_item(dl)
+                if not cleaned:
+                    continue
+                clean_url = cleaned["url"]
+                clean_code = cleaned["extract_code"]
                 l_name = dl.get("name") or "下载"
                 dl_texts = " ".join([
                     str(dl.get("name") or ""),
                     str(dl.get("filename") or ""),
                     str(dl.get("version") or ""),
-                    urllib.parse.unquote(str(dl.get("url") or ""))
+                    urllib.parse.unquote(str(clean_url))
                 ])
                 m_srv = self.SERVER_FILE_REGEX.search(dl_texts)
                 is_server = bool(m_srv)
@@ -151,9 +200,9 @@ class XyebbsAdapter(BaseAdapter):
                 download_links.append(CanonicalDownloadLink(
                     source_item_id=source_item_id,
                     link_type=dl.get("type") or "OTHER",
-                    url=dl["url"],
+                    url=clean_url,
                     label=l_name,
-                    extract_code=dl.get("extract_code"),
+                    extract_code=clean_code,
                     is_server=is_server,
                     created_at=now_str
                 ))

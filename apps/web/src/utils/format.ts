@@ -17,9 +17,9 @@ export function fmtBigNum(n: number | string | null | undefined): string {
 }
 
 export function numFmt(n: number | string | null | undefined): string {
-  if (n === null || n === undefined || n === '') return '0';
+  if (n === null || n === undefined || n === '') return '—';
   const v = Number(n);
-  if (!Number.isFinite(v)) return '0';
+  if (!Number.isFinite(v)) return '—';
   return v.toLocaleString('zh-CN');
 }
 

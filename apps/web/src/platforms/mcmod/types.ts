@@ -39,7 +39,7 @@ export interface McmodStructuredItem {
   moldId: string;
   coverUrl: string;
   views: number;
-  score: number;
+  score?: number | null;
   recommendations: number;
   favorites: number;
   commentsCount: number;

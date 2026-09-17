@@ -1603,8 +1603,8 @@ $(document).ready(function() {
             var authorKey = (p.author || 'unknown').trim().toLowerCase();
             var key = '';
 
-            // 规则1：如果提取出的名字为空、长度小于2、或者属于泛用通用词，坚决不跨视频聚合，保持单视频独立！
-            if (!rawKey || rawKey.length < 2 || BILI_GENERIC_PACK_KEYS.has(rawKey)) {
+            // 规则1：如果提取出的名字为空、长度小于等于3、或者属于泛用通用词，坚决不跨视频聚合，保持单视频独立！
+            if (!rawKey || rawKey.length <= 3 || BILI_GENERIC_PACK_KEYS.has(rawKey)) {
                 key = '__raw_' + p.bvid;
             } else {
                 // 规则2：同作者公共核心名二阶段聚类（如 UP 终极劲爽全家桶 的两期 逆转未来 视频）
@@ -1613,8 +1613,8 @@ $(document).ready(function() {
                     if (k.indexOf(authorKey + '::') === 0) {
                         var existRaw = k.substring(authorKey.length + 2);
                         if (existRaw === rawKey || 
-                            (existRaw.length >= 2 && rawKey.indexOf(existRaw) !== -1) || 
-                            (rawKey.length >= 2 && existRaw.indexOf(rawKey) !== -1)) {
+                            (existRaw.length >= 4 && rawKey.indexOf(existRaw) !== -1) || 
+                            (rawKey.length >= 4 && existRaw.indexOf(rawKey) !== -1)) {
                             matchedExistingKey = k;
                             break;
                         }
@@ -7595,6 +7595,11 @@ $(document).ready(function() {
         var diff = window.auditDiffData;
         if (!diff) {
             $('#auditItemsContainer').html('<div style="text-align:center; padding:30px; color:var(--text-muted);">暂无变动审计数据</div>');
+            return;
+        }
+        if (diff.is_available === false) {
+            var msg = diff.message || '历史版本快照对比暂未启用（未配置历史基线快照）';
+            $('#auditItemsContainer').html('<div style="text-align:center; padding:3rem; color:var(--text-muted); font-size:1rem;">ℹ️ ' + auditEsc(msg) + '</div>');
             return;
         }
 

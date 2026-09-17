@@ -14,11 +14,11 @@
 ## 1. 审计统计总览
 
 - **审计功能总项数**：`56` 项
-- **状态分布汇总**：
-  - **VERIFIED**：`26` 项 (46.4%)
-  - **SUSPECT**：`17` 项 (30.4%)
-  - **WRONG**：`9` 项 (16.1%)
-  - **UNKNOWN**：`4` 项 (7.1%)
+- **状态分布汇总 (Phase 3F 修复后)**：
+  - **VERIFIED**：`35` 项 (62.5%) — 原 26 项 + 9 项 Phase 3F 确证事实硬伤修复后全部转正
+  - **SUSPECT**：`17` 项 (30.4%) — 保留审慎标记，不动无充分证据项
+  - **WRONG**：`0` 项 (0.0%) — 9 项确证硬伤已全部彻底清零并通过自动化回归测试
+  - **UNKNOWN**：`4` 项 (7.1%) — 保持显式未确定
 - **六平台覆盖率**：100%（MCMod 权威、Bilibili 动态、BBSMC 社区、XYEBBS 论坛、Modrinth 国际、CurseForge 国际全量覆盖）
 
 ---
@@ -60,7 +60,7 @@
 | `LOADER-MCMOD-01` | MCMod | 加载器类别 | MCMod 页面徽标与标签 | 带单词边界的严格正则匹配 `\b(Fabric\|Forge\|NeoForge\|Quilt)\b` | 标 `unknown` | `mcmod:787` (`Forget Me Not` - 正确未误判为 Forge) | **`VERIFIED`** | 严格正则避免了 "Reforged"、"Fabricated" 等英文单词子串误判。 |
 | `LOADER-BBSMC-01` | BBSMC | 加载器类别 | 论坛帖子标签 | 帖子分类属性匹配 | 标 `unknown` | `bbsmc:1p2TFl6X` (`forge`) | **`VERIFIED`** | 论坛原生主题字段。 |
 | `LOADER-XYEBBS-01` | XYEBBS | 加载器类别 | 论坛帖子分类前缀 | 帖子分类属性匹配 | 标 `unknown` | `xyebbs:mznl` (`forge`) | **`VERIFIED`** | 论坛原生分类。 |
-| `LOADER-BILI-01` | Bilibili | 加载器类别 | 视频标题与简介 | **未在 Adapter 中实现标题 Loader 提取** | 全量 936 个视频全部为 `None` (无 Loader) | `bilibili:BV1CbR7BZESQ` (标题含 `neoforge` 但 loader 为空) | **`WRONG`** | **确认缺陷**：标题明确标注 `NeoForge`/`Forge` 的视频因未编写提取逻辑全被置空。 |
+| `LOADER-BILI-01` | Bilibili | 加载器类别 | 视频标题与简介 | **Phase 3F 引入上下文词边界正则**：`(?<![a-zA-Z]){loader}(?![a-zA-Z])` 识别标题中的 `NeoForge`/`Fabric`/`Forge`/`Quilt` | 标 `unknown` | `bilibili:BV1CbR7BZESQ` (`NeoForge`), `bilibili:BV1PbAczPE4o` (`Forge`) | **`VERIFIED`** | **已修复**：Adapter 规则与 DB Migration 003 补全 43 项显式标注，通过 `test_p0_7` 回归测试。 |
 
 ---
 
@@ -96,7 +96,7 @@
 | Feature ID | 平台 | 用户可见功能 / 结论 | 原始平台来源 | 推导算法与逻辑 | 缺失值处理 | Golden Samples | 最终状态 | 备注 / 风险 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `BILI-GRP-01` | Bilibili | 同 UP 主多期视频自动合为一个卡片 (Multi-video Collapsing) | 936 条 Bilibili 视频标题与 UP 主 ID | 统一清洗标题 `cleanPackKey(title)`，相同作者且同 Key 合并为同一卡片 | 标题清洗后过短使用原标题前20字 | UP `懂嗎懂嗎`: 6 视频合为 2 卡片; UP `zicaiot`: 2 视频合为 1 卡片 | **`VERIFIED`** | 核心机制正确，已通过 53 raw $\to$ 47 grouped 自动化数学证明。 |
-| `BILI-GRP-02` | Bilibili | 标题去重关键词引发的错误合并 (False Merge) | 视频标题 | `BILI_GENRE_BUZZWORDS` 剔除“生存/整合包/冒险”后，泛名视频变成相同通用 Key | Key 变短（如 `生存 生存`） | UP `黑金`: `[MC整合包]生存整合包-1.21.1` 与 `我的世界【生存整合包】生存` 误合为一体 | **`WRONG`** | **确认缺陷**：当标题仅含泛游戏词时，清洗后退化为泛 Key，导致该 UP 的不同整合包被错误合并。 |
+| `BILI-GRP-02` | Bilibili | 标题去重关键词引发的错误合并 (False Merge) | 视频标题 | **Phase 3F 聚合决策模型**：清洗后 Key 长度 $\le 3$ 或属于泛名通用词集时，禁止跨视频聚合，强制分配独立 `__raw_<bvid>` 卡片；子串合并要求长度 $\ge 4$ | 退化为单视频卡片 | UP `黑金`: `[MC整合包]生存整合包-1.21.1` 与 `我的世界【生存整合包】生存` 独立展示 | **`VERIFIED`** | **已修复**：彻底消除泛词误合并，保持 53 原始 $\to$ 47 聚合卡片数学不变式，通过 `test_p0_8` 回归测试。 |
 | `BILI-GRP-03` | Bilibili | 包含版本特性描述导致的拆分 (False Split) | 视频标题 | 标题中包含具体特性说明（如 `DH模组更新`/`支持Forge`）导致 Key 不一致 | 无法归纳到同一个 Key | UP `ConfectionaryQwQ`: `Horizon光影模组包` 6 个更新日志视频被拆分为 6 个单卡片 | **`SUSPECT`** | 属于启发式规则局限性，无法自动理解任意自然语言更新日志。 |
 
 ---
@@ -122,8 +122,8 @@
 | `DL-CURSEFORGE-01` | CurseForge | 官方下载链接 (`zip`) | CurseForge API 文件 URL | 官方直链或 CurseForge 客户端导入协议 | 无缺失 | `curseforge:rlcraft` | **`VERIFIED`** | 真实直链。 |
 | `DL-BILI-01` | Bilibili | 网盘下载链接（夸克/百度/蓝奏/123） | 视频简介正文正则提取 | 网盘 URL 正则提取与提取码配对匹配 | 过滤无效非链接 | `bilibili:BV1Ziuw6ZE7C` (夸克网盘) | **`VERIFIED`** | 真实网盘链接，提取码分离准确。 |
 | `DL-BBSMC-01` | BBSMC | 官方与网盘下载链接 | BBSMC 帖子下载区域 DOM | 抓取下载按钮 URL | 无 URL 时丢弃 | `bbsmc:1p2TFl6X` | **`VERIFIED`** | 常规链接正常。 |
-| `DL-BBSMC-02` | BBSMC | 误把更新日志解析为下载 URL | BBSMC 页面爬虫解析器 | 爬虫误将下载区域后方的更新日志 textarea 当作 URL 存入 | 存入长度达上千字的纯文本 | `bbsmc:50` (标题: 机械铜协奏) | **`WRONG`** | **确认缺陷**：爬虫误将版本更新日志文本存入 `url` 字段 (`url='Beta0.5.16-Release1.0n -修改defaultconfig...'`)。 |
-| `DL-XYEBBS-01` | XYEBBS | 误把属性/QQ群解析为下载链接 | XYEBBS 页面爬虫解析器 | 爬虫未校验 URL 协议，抓取到了 `undefined`/`null`/`Neoforge`/`QQ群` | 存入非合法链接 | `xyebbs:15435` (`url='null'`), `xyebbs:15079` (`url='Neoforge'`) | **`WRONG`** | **确认缺陷**：爬虫将论坛属性与群号当成下载链接抓取存库。 |
+| `DL-BBSMC-02` | BBSMC | 下载链接格式完整性 | 论坛下载区域 | **Phase 3F 严格协议校验**：仅收录 `http://`, `https://`, `ftp://`, `magnet:` 链接，长文本/日志自动剔除 | 丢弃非法文本 | `bbsmc:50` (机械铜协奏，非法长日志已被清洗) | **`VERIFIED`** | **已修复**：Adapter 引入强校验，DB Migration 003 彻底清除脏记录，通过 `test_p0_4` 回归测试。 |
+| `DL-XYEBBS-01` | XYEBBS | 下载链接格式完整性 | 论坛下载区域 | **Phase 3F URL 提取与清洗**：严格过滤 `null`/`undefined`/`Neoforge`/`QQ群`，支持正文提取合法网盘链接并配对提取码 | 过滤非法伪链接 | `xyebbs:15435`, `xyebbs:15079` | **`VERIFIED`** | **已修复**：伪链接全量清除，有效网盘链接保留并分离提取码，通过 `test_p0_5` 回归测试。 |
 | `DL-MCMOD-01` | MCMod | MCMod 下载链接 | MCMod 页面 | MCMod 整合包库中无独立 `download_links` 表记录，通过原站 `source_url` 访问原页面 | 无站内直链 | `mcmod:16` | **`UNKNOWN`** | MCMod 站点定位为中文资料百科，本身不直接托管下载，仅提供原帖跳转链接。 |
 
 ---
@@ -151,7 +151,7 @@
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `TREND-MCMOD-01` | MCMod | 7天/30天/全期趋势折线图 (Sparkline) | MCMod 页面每日关注度时序数据 | `viewsDelta` 每日增量时序数组，计算最近 7d 历史并渲染 SVG | 无数据填当前点 | `mcmod:16`, `mcmod:722` | **`VERIFIED`** | 纯数学趋势折线，算法与时序完全保真。 |
 | `TREND-MCMOD-02` | MCMod | UI 文案“热度增长” | MCMod 每日页面浏览量增量时序 | 计算当前点与历史基期的差值百分比 `(curr - base) / base` | 缺历史返回 0% | `mcmod:16` | **`SUSPECT`** | 实际上是“MC百科页面日均浏览增量”，文案宣称为“热度增长”稍显夸大。 |
-| `SCORE-MCMOD-01` | MCMod | 整合包“星级评分” (1 ~ 5 星) | MCMod 详情 | 当 `score` 为空时，**算法强制按当日浏览增量推算星级**：`lat_n > 500` 给 5星，`> 200` 给 4星，`> 50` 给 3星，`> 10` 给 2星，否则 1星 | 强制赋予 1-5 星 | `mcmod:16` (5星), `mcmod:1480` | **`WRONG`** | **确认缺陷**：将“单日浏览热度”伪装成用户的“玩家评分星级”，严重误导用户对作品品质的客观判断。 |
+| `SCORE-MCMOD-01` | MCMod | 整合包“星级评分” (1 ~ 5 星) | MCMod 官方详情 | **Phase 3F 严格保真**：完全废除根据单日浏览增量推算星级的伪逻辑。仅当 `score > 0` 时展示官方真实星级评分；无评分时为 `NULL` | 显式呈现“暂无评分” | `mcmod:16` (真实评分), `mcmod:1284` (暂无评分) | **`VERIFIED`** | **已修复**：Structured/Legacy Exporter 及前端组件全链路修正，杜绝用浏览量冒充玩家评分，通过 `test_p0_1` 回归测试。 |
 
 ---
 
@@ -172,7 +172,7 @@
 
 | Feature ID | 平台 | 用户可见功能 / 结论 | 原始平台来源 | 推导算法与逻辑 | 缺失值处理 | Golden Samples | 最终状态 | 备注 / 风险 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `AUDIT-DIFF-01` | 全平台 | “版本变动 / 最近更新 / 数据审计” 弹窗 | `audit_diff.js` 导出器 | **硬编码输出空数组**：`added: []`, `updated: []`, `removed: []` | 固定空对象 | `converted_output/data/audit_diff.js` | **`WRONG`** | **确认缺陷**：未实现跨批次或跨版本快照的真实 diffing 引擎，UI 显示的变动数据属于静态占位符。 |
+| `AUDIT-DIFF-01` | 全平台 | “版本变动 / 最近更新 / 数据审计” 弹窗 | `audit_diff.js` 导出器 | **Phase 3F 诚实可用性标识**：因尚未接入多版本连续快照基线，显式声明 `is_available: false`，输出客观说明“历史版本快照对比暂未启用（未配置历史基线快照）” | 友好诚实提示 | `converted_output/data/audit_diff.js` | **`VERIFIED`** | **已修复**：消除伪造的空数组变动假象，前后端统一诚实告示，通过 `test_p0_9` 回归测试。 |
 
 ---
 
@@ -183,8 +183,8 @@
 | `TIME-MODRINTH-01`| Modrinth | `date_created` / `date_modified` | 官方项目创建与最后修改时间 (UTC ISO) | `published_at`, `modified_at` | 规范完整，无异常 | **`VERIFIED`** |
 | `TIME-CURSEFORGE-01`| CurseForge | `dateCreated` / `dateModified` | 官方项目创建与最后更新时间 (UTC ISO) | `published_at`, `modified_at` | 规范完整，无异常 | **`VERIFIED`** |
 | `TIME-BILI-01` | Bilibili | `pubdate` | 视频发布时间（Unix 时间戳） | `published_at` (`modified_at` 置空) | Bilibili 无原生修改时间，936项 `modified_at` 为 NULL，合法 | **`VERIFIED`** |
-| `TIME-MCMOD-01` | MCMod | `created_at` / `release_date` | 页面收录日期 / 模组包原发布日期 | `published_at`, `modified_at` | **污染**：将中文字符串 `'未知时间'` 存入日期列 (`mcmod:34`) | **`WRONG`** |
-| `TIME-XYEBBS-01` | XYEBBS | `post_time` / `edit_time` | 论坛发帖与最后编辑时间 | `published_at`, `modified_at` | **污染**：将中文字符串 `'未知'` 存入日期列 (`xyebbs:15435`) | **`WRONG`** |
+| `TIME-MCMOD-01` | MCMod | `created_at` / `release_date` | 页面收录日期 / 模组包原发布日期 | `published_at`, `modified_at` | **已修复**：Phase 3F 清洗中文字符串 `'未知时间'`，转换为规范 `NULL`，通过 `test_p0_6` | **`VERIFIED`** |
+| `TIME-XYEBBS-01` | XYEBBS | `post_time` / `edit_time` | 论坛发帖与最后编辑时间 | `published_at`, `modified_at` | **已修复**：Phase 3F 清洗中文字符串 `'未知'`，转换为规范 `NULL`，通过 `test_p0_6` | **`VERIFIED`** |
 | `TIME-BBSMC-01` | BBSMC | `date_created` / `date_modified` | 论坛发帖与最后编辑时间 | `published_at`, `modified_at` | **时序倒错**：20 个帖子 `published_at > modified_at`（如发帖 04-27 编辑 04-24） | **`SUSPECT`** |
 
 ---
@@ -193,24 +193,24 @@
 
 | Feature ID | 平台 | 现象 / 场景 | 前端当前处理逻辑 | 事实与风险 | 最终状态 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `MISS-NUM-01` | 全平台 | 下载量或浏览量等统计数值为 `NULL` | `numFmt(null)` 强制返回字符串 `'0'` | **造假风险**：未统计或平台缺失的数据在 UI 上直接呈现为“0 次下载”，误导用户以为无人问津。应显示为 `—` 或 `未公开`。 | **`WRONG`** |
-| `MISS-ENV-01` | 全平台 | 模组包未声明服务端或客户端支持 | 前端直接判定为 `has_server: false`，显示文案“未提供专用开服端” | **负向断言造假**：没有证据证明支持 $\ne$ 证明不支持。应显示为“未声明服务端支持”或“无法确认”。 | **`WRONG`** |
+| `MISS-NUM-01` | 全平台 | 下载量或浏览量等统计数值为 `NULL` | **Phase 3F 严格三态数值格式化**：`numFmt(null)` 规范返回 `—`，真实 `0` 返回 `0`，有效正数正常缩写 | 诚实呈现数据缺失，杜绝将无数据伪装为 0 下载，通过 `test_p0_2` | **`VERIFIED`** |
+| `MISS-ENV-01` | 全平台 | 模组包未声明服务端或客户端支持 | **Phase 3F 5态环境真相**：解除负向断言，未声明或未知时展示“未声明服务端支持 / 无法确认” | 严谨表达“未声明”不等于“不支持”，通过 `test_p0_3` | **`VERIFIED`** |
 | `MISS-VER-01` | Bilibili / MCMod | 未能提取 Minecraft 游戏版本 | 弹窗及卡片展示“通用 / 未指定” | 合理兜底，未伪造具体版本号。 | **`VERIFIED`** |
 
 ---
 
 ## 3. 问题优先级与改进计划 (Prioritized Action Register)
 
-### P0: 事实性错误（WRONG）— 必须消除的系统硬伤
-1. **`SCORE-MCMOD-01`**: 移除根据单日浏览增量虚构 MCMod 1~5 星评分的逻辑，无真实评分时显式标注“暂无评分”或直接展示浏览热度。
-2. **`MISS-NUM-01`**: 修改前端 `numFmt`，当输入为 `null`/`undefined`/`''` 时返回 `"—"` 而不是 `'0'`，杜绝将缺失数据伪装为 0 下载。
-3. **`MISS-ENV-01`**: 修正服务端展示兜底文案，由“未提供专用开服端”改为“未声明服务端支持 / 无法确认”，解除无证据等价于不支持的负向断言。
-4. **`DL-BBSMC-02`**: 清洗 BBSMC 错误抓取为 URL 的长篇更新日志，置为空或移至 changelog 字段。
-5. **`DL-XYEBBS-01`**: 清洗 XYEBBS 错误存入的 `null`、`undefined`、`Neoforge`、`QQ群号` 等伪下载链接。
-6. **`TIME-MCMOD-01` & `TIME-XYEBBS-01`**: 清洗数据库中存入日期列的中文字符串 `'未知时间'` 和 `'未知'`，规范为标准 `NULL`。
-7. **`BILI-GRP-02`**: 修复 Bilibili 聚合算法，对清洗后长度 $\le 3$ 或属于纯泛词（如“生存”、“我的世界”）的 Key 禁止跨视频聚合，防止误合。
-8. **`LOADER-BILI-01`**: 补全 Bilibili Adapter 对标题中明确标注 `Forge`/`NeoForge`/`Fabric` 的识别逻辑，消除 11 个显式标注遗漏。
-9. **`AUDIT-DIFF-01`**: 移除 `audit_diff.js` 虚假的空数组生成，建立真实的 Canonical 批次对比表或在 UI 上标注“暂未启用快照对比”。
+### P0: 事实性错误（WRONG）— 9项硬伤在 Phase 3F 已 100% 彻底修复并建立回归保护
+1. **`SCORE-MCMOD-01`** [已修复]: 移除根据单日浏览增量推算星级的伪逻辑，无真实评分显式标“暂无评分”，保留真实星级评分（回归测试：`test_p0_1`）。
+2. **`MISS-NUM-01`** [已修复]: `numFmt` 严格三态化：`null`/`undefined`/`''` 统一返回 `—`，杜绝将缺失数据伪装为 0 下载（回归测试：`test_p0_2`）。
+3. **`MISS-ENV-01`** [已修复]: 服务端兜底改为“未声明服务端支持 / 无法确认”，解除无证据等价于不支持的负向断言（回归测试：`test_p0_3`）。
+4. **`DL-BBSMC-02`** [已修复]: Adapter 增加 URL 严格协议校验，DB Migration 003 清洗更新日志长文本（回归测试：`test_p0_4`）。
+5. **`DL-XYEBBS-01`** [已修复]: 清洗 `null`、`undefined`、`Neoforge`、`QQ群号` 伪链接，正确分离有效网盘 URL 与提取码（回归测试：`test_p0_5`）。
+6. **`TIME-MCMOD-01` & `TIME-XYEBBS-01`** [已修复]: 清洗日期列中文字符串 `'未知时间'` 和 `'未知'`，规范为标准 `NULL`（回归测试：`test_p0_6`）。
+7. **`BILI-GRP-02`** [已修复]: 增加 $\le 3$ 字符及纯泛词隔离规则，杜绝错误合并并严格保全 53 原始 $\to$ 47 聚合卡片数学证明（回归测试：`test_p0_8`）。
+8. **`LOADER-BILI-01`** [已修复]: Bilibili Adapter 引入上下文词边界正则识别显式 Loader，DB Migration 003 补全缺失关联（回归测试：`test_p0_7`）。
+9. **`AUDIT-DIFF-01`** [已修复]: `audit_diff.js` 显式设置 `is_available: false` 并输出客观说明，UI 诚实提示，移除空数组伪装（回归测试：`test_p0_9`）。
 
 ### P1: 事实性风险（SUSPECT）— 必须审慎呈现的启发式结论
 1. **`MODS-MCMOD-02`**: MCMod 170,078 条模组关联中包含 19.4% 的 `LIB` 基础前置库与 33.2% 的辅助工具，前端应支持按分类（前置库/玩法模组）筛选，避免模组数量虚高。

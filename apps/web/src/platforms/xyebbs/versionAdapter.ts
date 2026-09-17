@@ -70,7 +70,8 @@ export function adaptXyebbsToVersionModal(
     typeName: 'XYEBBS社区整合',
     targetUrl,
     hasServer: Boolean(p.has_server || extra?.has_server),
-    envDisplay: (p.has_server || extra?.has_server) ? '支持联机开服 / 提供专用服务端' : '未提供专用开服端',
+    serverStatus: (p.has_server || extra?.has_server) ? 'supported' : 'unknown',
+    envDisplay: (p.has_server || extra?.has_server) ? '支持联机开服 / 提供专用服务端' : '未声明服务端支持 / 无法确认',
     releases,
   };
 }

@@ -137,7 +137,7 @@ export interface McmodTrendStats {
   t30: number;
   t60: number;
   tall: number;
-  score: number;
+  score?: number | null;
   history7d?: number[];
   trendValsStr?: string;
   trendDatesStr?: string;
@@ -179,7 +179,7 @@ export interface McmodPack extends BasePack {
   typeName: string;
   moldId?: string;
   views: number;
-  score: number;
+  score?: number | null;
   trendStats: McmodTrendStats;
   votes: McmodVotes;
   recommendations: number;

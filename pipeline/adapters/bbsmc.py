@@ -17,6 +17,31 @@ from pipeline.models.canonical import (
     CanonicalPackBundle,
 )
 
+VALID_URL_SCHEMES = ("http://", "https://", "ftp://", "magnet:")
+
+def clean_date_str(val: Any) -> Optional[str]:
+    if not val or not isinstance(val, str):
+        return None
+    val = val.strip()
+    if val in ('未知', '未知时间', 'N/A', '-', ''):
+        return None
+    return val
+
+def clean_download_url(val: Any) -> Optional[str]:
+    if not val or not isinstance(val, str):
+        return None
+    val = val.strip()
+    if len(val) > 1000 or any(c in val for c in ('\n', '\r')):
+        return None
+    if val.startswith(VALID_URL_SCHEMES) and ' ' not in val:
+        return val
+    m = re.search(r'https?://[^\s<>"\']+|ftp://[^\s<>"\']+|magnet:\?[^\s<>"\']+', val)
+    if m:
+        extracted = m.group(0).rstrip('.,;!?#')
+        if len(extracted) <= 1000:
+            return extracted
+    return None
+
 class BbsmcAdapter(BaseAdapter):
     platform_name = "bbsmc"
 
@@ -31,8 +56,8 @@ class BbsmcAdapter(BaseAdapter):
         url = raw_item.get("url") or f"https://www.bbsmc.net/modpack/{pid}"
         now_str = "2026-09-17 12:00:00"
 
-        pub_at = raw_item.get("date_created") or None
-        mod_at = raw_item.get("date_modified") or None
+        pub_at = clean_date_str(raw_item.get("date_created"))
+        mod_at = clean_date_str(raw_item.get("date_modified"))
 
         # 1. Canonical Pack
         pack = CanonicalPack(
@@ -78,7 +103,7 @@ class BbsmcAdapter(BaseAdapter):
         raw_versions = raw_item.get("versions_data") or []
         for v_idx, v in enumerate(raw_versions):
             v_name = v.get("version_name") or v.get("name") or f"v_{v_idx+1}"
-            v_date = v.get("date_created") or v.get("release_date")
+            v_date = clean_date_str(v.get("date_created") or v.get("release_date")) or pub_at
             v_mc = v.get("game_versions") or raw_item.get("all_versions") or []
             v_extra = {"files": v.get("files") or []}
             releases.append(CanonicalRelease(
@@ -118,12 +143,15 @@ class BbsmcAdapter(BaseAdapter):
 
         for dl in (raw_item.get("download_links") or []):
             if isinstance(dl, dict) and dl.get("url"):
+                clean_url = clean_download_url(dl.get("url"))
+                if not clean_url:
+                    continue
                 l_name = dl.get("name") or "下载"
                 dl_texts = " ".join([
                     str(dl.get("name") or ""),
                     str(dl.get("filename") or ""),
                     str(dl.get("version") or ""),
-                    urllib.parse.unquote(str(dl.get("url") or ""))
+                    urllib.parse.unquote(str(clean_url))
                 ])
                 m_srv = self.SERVER_FILE_REGEX.search(dl_texts)
                 is_server = bool(m_srv)
@@ -135,7 +163,7 @@ class BbsmcAdapter(BaseAdapter):
                 download_links.append(CanonicalDownloadLink(
                     source_item_id=source_item_id,
                     link_type=dl.get("type") or "OFFICIAL",
-                    url=dl["url"],
+                    url=clean_url,
                     label=l_name,
                     extract_code=dl.get("extract_code"),
                     is_server=is_server,

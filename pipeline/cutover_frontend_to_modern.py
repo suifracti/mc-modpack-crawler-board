@@ -101,6 +101,7 @@ def preflight_quality_gates() -> None:
     run_cmd([sys.executable, "tests/test_search_golden.py"], "Search Golden Tests")
     run_cmd([sys.executable, "tests/test_filter_golden.py"], "Filter Golden Tests")
     run_cmd([sys.executable, "tests/test_bili_grouping_explanation.py"], "Bilibili Grouping Invariant (53 vs 47)")
+    run_cmd([sys.executable, "tests/test_correctness_regressions.py"], "Correctness Regressions Test Suite (9 P0 Items)")
     print("  [GATE PASSED] All code quality and contract tests passed.")
 
 

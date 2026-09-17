@@ -32,10 +32,12 @@ describe('Formatting Utilities', () => {
     expect(fmtBigNum(undefined)).toBe('');
   });
 
-  it('numFmt formats numbers with locale separators', () => {
+  it('numFmt enforces strict tri-state (null/undefined -> "—", 0 -> "0", positive -> formatted)', () => {
     expect(numFmt(1234567)).toBe('1,234,567');
     expect(numFmt(0)).toBe('0');
-    expect(numFmt(null)).toBe('0');
+    expect(numFmt(null)).toBe('—');
+    expect(numFmt(undefined)).toBe('—');
+    expect(numFmt('')).toBe('—');
   });
 
   it('formatVFileSize formats byte sizes into B, KB, MB, GB', () => {

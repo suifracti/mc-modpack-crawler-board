@@ -60,14 +60,14 @@ for p in filtered:
     raw_key = clean_pack_key(p.get("title"))
     author_key = (p.get("author") or "unknown").strip().lower()
     key = ""
-    if not raw_key or len(raw_key) < 2 or raw_key in BILI_GENERIC_PACK_KEYS:
+    if not raw_key or len(raw_key) <= 3 or raw_key in BILI_GENERIC_PACK_KEYS:
         key = "__raw_" + str(p.get("bvid"))
     else:
         matched = None
         for k in mapping.keys():
             if k.startswith(author_key + "::"):
                 exist_raw = k[len(author_key) + 2:]
-                if exist_raw == raw_key or (len(exist_raw) >= 2 and exist_raw in raw_key) or (len(raw_key) >= 2 and raw_key in exist_raw):
+                if exist_raw == raw_key or (len(exist_raw) >= 4 and exist_raw in raw_key) or (len(raw_key) >= 4 and raw_key in exist_raw):
                     matched = k
                     break
         if matched:

@@ -38,7 +38,7 @@ export function renderTitleCell(pack: McmodStructuredItem): string {
 
 export function renderTrendCell(pack: McmodStructuredItem): string {
   const ts = pack.trendStats;
-  const score = ts.score || 0;
+  const score = ts.score;
   const lat = ts.lat || 0;
   const max = ts.max || 0;
   const avg = ts.avg || 0;
@@ -52,9 +52,13 @@ export function renderTrendCell(pack: McmodStructuredItem): string {
   const hint = svgHtml ? '点击看图' : 'MC百科';
 
   const midRow = `${svgHtml}<span class="trend-val-lat" title="最新指数" style="font-weight: 700; color: var(--primary-light);">最新: ${lat}</span><span class="trend-open-hint">${hint}</span>`;
+  const scoreBadge =
+    (score != null && score > 0)
+      ? `<div class="trend-score-badge" title="官方流行指数评分"><span>流行</span><b>${score}</b></div>`
+      : `<div class="trend-score-badge unrated" title="官方暂无评分"><span>暂无评分</span></div>`;
 
   return (
-    `<div class="trend-consolidated-cell"><div class="trend-score-badge" title="官方流行指数评分"><span>流行</span><b>${score}</b></div>` +
+    `<div class="trend-consolidated-cell">${scoreBadge}` +
     `<div class="trend-main-row">${midRow}</div>` +
     `<div class="trend-meta-row"><span class="trend-val-max" title="最高指数">高: ${max}</span><span class="trend-val-avg" title="平均指数">平: ${avg}</span><span class="trend-val-days" title="走势天数">${days}天</span></div></div>`
   );

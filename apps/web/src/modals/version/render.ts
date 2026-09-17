@@ -171,9 +171,16 @@ export function renderOverviewPane(vm: VersionModalViewModel): string {
       '</div>';
   }
 
-  const envPillText = vm.hasServer
-    ? vm.envDisplay || '支持联机开服 / 提供专用服务端'
-    : '未提供专用开服端';
+  let envPillText = vm.envDisplay;
+  if (!envPillText) {
+    if (vm.serverStatus === 'unsupported') {
+      envPillText = '明确不支持开服 / 仅客户端运行';
+    } else if (vm.hasServer || vm.serverStatus === 'supported' || vm.serverStatus === 'required' || vm.serverStatus === 'optional') {
+      envPillText = '支持联机开服 / 提供专用服务端';
+    } else {
+      envPillText = '未声明服务端支持 / 无法确认';
+    }
+  }
 
   const envBoxHtml =
     '<div class="vmodal-env-box">' +
