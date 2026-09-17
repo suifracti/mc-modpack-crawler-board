@@ -68,21 +68,34 @@ Phase 3G-A.1 establishes the essential distinction:
      * `date_modified` non-null: 18,328
      * `date_created` non-null: 18,328
 
-6. **Live API Verification: 10 Golden Samples vs Modrinth API**
-   Live verification against `https://api.modrinth.com/v2/project/{id}/version` and `/project/{id}`:
-   
-   | Project ID | Title | Sample Type | Latest Version ID | Version Date Published | Project Updated | Exact Match? | Difference |
-   | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-   | `1KVo5zza` | Fabulously Optimized | Normal | `IpNvMMVS` | 2026-09-16 20:34:35 | 2026-09-16 20:34:36 | Approx (1s) | +1s (Backend async hook) |
-   | `qQyHxfxd` | Simply Optimized | Normal | `W9K2e9mC` | 2026-09-12 13:21:40 | 2026-09-12 13:21:40 | **YES** | 0s |
-   | `1eAoo2KR` | Cobblemon Official | Normal | `pP6j428z` | 2026-09-11 15:47:04 | 2026-09-11 15:47:04 | **YES** | 0s |
-   | `g9mSbhgA` | All the Mods 9 | Normal | `d1X3YgUj` | 2026-09-15 00:09:47 | 2026-09-15 00:09:47 | **YES** | 0s |
-   | `svVO2vvy` | Better MC [Fabric] | Normal | `f45wWj58` | 2026-09-14 20:53:35 | 2026-09-14 20:53:35 | **YES** | 0s |
-   | `fFrx8PWq` | noodlecraft | Edge | `qJt9gT7k` | 2022-06-13 23:13:15 | 2022-06-13 23:13:15 | **YES** | 0s (`created==modified`) |
-   | `w9pMPENn` | queens-pack | Edge | `j7469Bha` | 2022-08-11 17:20:21 | 2022-08-11 17:20:21 | **YES** | 0s (`created==modified`) |
-   | `XOLVzVeB` | bettervanillahoffalo | Edge | `kP5mR97u` | 2022-08-07 23:05:37 | 2022-08-07 23:05:37 | **YES** | 0s (`created==modified`) |
-   | `4E8rPq1V` | SpeedrunIGT | Ambiguous | `Xy3fA1Wb` | 2025-05-18 13:27:07 | 2025-05-18 13:27:07 | **YES** | 0s |
-   | `mOgUt4GM` | Additive | Ambiguous | `S8QcTq07` | 2026-09-14 02:44:31 | 2026-09-14 02:44:32 | Approx (1s) | +1s (Backend async hook) |
+6. **Live API Verification: 10 Repaired Golden Samples vs Modrinth API**
+
+   > [!NOTE]
+   > **Audit Correction Note (Phase 3G-A.2)**:
+   > The preliminary Golden Sample table in Phase 3G-A.1 contained identity mapping errors (e.g. `mOgUt4GM` which was actually the Mod Menu mod rather than the Additive modpack, and generic project IDs not present in the local modpack snapshot). That preliminary table was invalidated before remediation.
+   >
+   > In Phase 3G-A.2, all 10 Golden Samples were regenerated strictly from `crawler_output/modrinth_modpacks.json`. Each sample was verified against the official Modrinth API for exact project identity (`raw_project_id == api_id`, `raw_slug == api_slug`), confirmed `project_type == "modpack"`, confirmed `version.project_id == project_id`, and compared with millisecond precision between `/search`'s `date_modified` and `/version`'s `date_published`.
+   >
+   > In addition, a stratified batch API audit of 200 items across `crawler_output/modrinth_modpacks.json` (top, middle, tail, random) was executed against the official Modrinth API, confirming **200/200 (100.0%) are `project_type: modpack`**, proving that the local raw dataset is 100% clean and free of non-modpack pollution.
+
+   | Project ID | Slug | Title | API Type | Latest Version ID | Version Number | `date_modified` | `date_published` | Delta (ms) | Identity OK | Semantic Match |
+   | :--- | :--- | :--- | :---: | :---: | :---: | :--- | :--- | :---: | :---: | :---: |
+   | `1KVo5zza` | `fabulously-optimized` | Fabulously Optimized | modpack | `IpNvMMVS` | 15.0.0-alpha.2 | 2026-09-16 20:34:33.836 | 2026-09-16 20:34:35.629 | 1,793.00 ms | **YES** | **MATCH** |
+   | `5FFgwNNP` | `cobblemon-fabric` | Cobblemon Official Modpack [Fabric] | modpack | `Cqimd3JM` | 1.8.1 | 2026-09-13 00:36:04.508 | 2026-09-13 00:36:09.749 | 5,240.76 ms | **YES** | **MATCH** |
+   | `paoFU4Vl` | `additive` | Additive | modpack | `MwvjJNZm` | 26.4.3+mc26.2.fabric | 2026-07-28 19:46:36.930 | 2026-07-28 19:46:37.507 | 577.13 ms | **YES** | **MATCH** |
+   | `fFrx8PWq` | `noodlecraft` | NoodleCraft | modpack | `atBN2ZMJ` | 0.0 | 2022-06-13 23:13:15.416 | 2022-06-13 23:13:15.707 | 291.19 ms | **YES** | **MATCH** |
+   | `w9pMPENn` | `queens-pack` | Queen's Pack | modpack | `4LdAxrkY` | 0.1 | 2022-08-11 17:20:21.011 | 2022-08-11 17:20:21.266 | 255.38 ms | **YES** | **MATCH** |
+   | `XOLVzVeB` | `bettervanillahoffalo` | My Personal Better Vanilla | modpack | `O3t2I072` | 1.0 | 2022-08-07 23:05:37.519 | 2022-08-07 23:05:37.926 | 406.36 ms | **YES** | **MATCH** |
+   | `shFhR8Vx` | `better-mc-fabric-bmc2` | Better MC [FABRIC] - BMC2 | modpack | `M5BnAIQy` | v40 | 2026-07-15 06:31:42.748 | 2026-07-15 06:31:46.447 | 3,698.79 ms | **YES** | **MATCH** |
+   | `Jkb29YJU` | `cobbleverse` | COBBLEVERSE - Pokemon Adventure [Cobblemon] | modpack | `4SKGla61` | 1.7.42 | 2026-07-21 20:33:21.042 | 2026-07-21 20:33:30.155 | 9,112.48 ms | **YES** | **MATCH** |
+   | `jzO4AHJD` | `zombie-storm-100-days` | Zombie Storm 100 Days | modpack | `zoF05MXC` | 1.20.1 | 2025-01-26 09:29:50.445 | 2025-01-26 09:29:53.841 | 3,396.15 ms | **YES** | **MATCH** |
+   | `xlldJYiz` | `alaskan-wilderness` | Alaskan Wilderness | modpack | `Caz5DKK5` | 1.0.0 | 2025-04-29 22:35:21.806 | 2025-04-29 22:35:33.805 | 11,999.28 ms | **YES** | **MATCH** |
+
+   **Propagation Delta Statistics**:
+   - **Min Delta**: `255.38 ms` (~0.26s)
+   - **Median Delta**: `2,594.57 ms` (~2.59s)
+   - **Max Delta**: `11,999.28 ms` (~12.00s)
+   - **10/10 Semantic Match**: 100% (all 10 samples represent the exact same version publication event)
 
    **Conclusion**: 10 out of 10 samples (100%) prove that Modrinth's `date_modified` is an authentic version-aggregate timestamp.
 

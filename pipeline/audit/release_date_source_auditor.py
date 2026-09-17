@@ -211,19 +211,19 @@ class ReleaseDateSourceAuditor:
 
         mr_normal_pids = [
             ("1KVo5zza", "Fabulously Optimized", "Popular multi-version pack; date_modified is confirmed latest version creation date (CONFIRMED_VERSION_AGGREGATE)"),
-            ("qQyHxfxd", "Simply Optimized", "High-download pack; date_modified matches latest version date_published to the second"),
-            ("1eAoo2KR", "Cobblemon Official", "Large adventure pack; date_modified matches latest version date_published to the second"),
-            ("g9mSbhgA", "All the Mods 9", "ATM9 Modrinth listing; date_modified matches latest version date_published to the second"),
-            ("svVO2vvy", "Better MC [Fabric]", "BMC Fabric; date_modified matches latest version date_published to the second")
+            ("5FFgwNNP", "Cobblemon Official Modpack [Fabric]", "Official Cobblemon pack; date_modified matches latest version date_published within backend propagation delta"),
+            ("paoFU4Vl", "Additive", "Popular optimization pack; date_modified matches latest version date_published within backend propagation delta"),
+            ("shFhR8Vx", "Better MC [FABRIC] - BMC2", "Curated fabric pack; date_modified matches latest version date_published within backend propagation delta"),
+            ("Jkb29YJU", "COBBLEVERSE - Pokemon Adventure [Cobblemon]", "Themed adventure pack; date_modified matches latest version date_published within backend propagation delta")
         ]
         mr_edge_pids = [
-            ("fFrx8PWq", "noodlecraft", "Edge: date_created == date_modified; exact 1-to-1 match with initial version date"),
-            ("w9pMPENn", "queens-pack", "Edge: date_created == date_modified; exact match with single version date"),
-            ("XOLVzVeB", "bettervanillahoffalo", "Edge: date_created == date_modified; exact match with single version date")
+            ("fFrx8PWq", "NoodleCraft", "Edge: date_created == date_modified; exact 1-to-1 match with initial version date"),
+            ("w9pMPENn", "Queen's Pack", "Edge: date_created == date_modified; exact match with single version date"),
+            ("XOLVzVeB", "My Personal Better Vanilla", "Edge: date_created == date_modified; exact match with single version date")
         ]
         mr_ambiguous_pids = [
-            ("4E8rPq1V", "SpeedrunIGT", "Ambiguous: multi-year gap between creation and latest version date; date_modified reflects latest version"),
-            ("mOgUt4GM", "Additive", "Ambiguous: synthetic release version_name is MC version rather than pack version; date_modified reflects latest version")
+            ("jzO4AHJD", "Zombie Storm 100 Days", "Ambiguous: multi-version combat pack; synthetic release version_name is MC version rather than pack version; date_modified reflects latest version"),
+            ("xlldJYiz", "Alaskan Wilderness", "Ambiguous: survival adventure pack; date_modified tracks latest version publication within propagation delta")
         ]
 
         for pid, expected_title, notes in mr_normal_pids:

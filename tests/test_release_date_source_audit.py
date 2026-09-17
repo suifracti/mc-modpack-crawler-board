@@ -151,6 +151,40 @@ class TestReleaseDateSourceAudit(unittest.TestCase):
             if os.path.exists(tampered_path):
                 os.remove(tampered_path)
 
+    def test_modrinth_repaired_golden_identity_contract(self):
+        """Phase 3G-A.2: Verify 10 repaired Modrinth Golden Samples identity & semantic contract."""
+        repaired_path = os.path.join(ROOT, "build", "audit", "modrinth_repaired_golden_10.json")
+        self.assertTrue(os.path.exists(repaired_path), f"Missing {repaired_path}")
+        with open(repaired_path, "r", encoding="utf-8") as f:
+            samples = json.load(f)
+
+        self.assertEqual(len(samples), 10, "Must have exactly 10 repaired Modrinth golden samples")
+
+        # 1. 10 unique project IDs
+        pids = [s["raw_project_id"] for s in samples]
+        self.assertEqual(len(set(pids)), 10, "All 10 project IDs must be unique")
+
+        # 2. All exist in local raw modrinth_modpacks.json
+        raw_map = {item.get("project_id"): item for item in self.auditor.modrinth_raw}
+        for s in samples:
+            pid = s["raw_project_id"]
+            self.assertIn(pid, raw_map, f"Sample project_id {pid} must exist in local raw snapshot")
+            raw_item = raw_map[pid]
+            # 3. raw ID == API ID, raw slug == API slug
+            self.assertEqual(s["raw_project_id"], s["api_project_id"])
+            self.assertEqual(s["raw_slug"], s["api_slug"])
+            self.assertEqual(raw_item.get("slug"), s["api_slug"])
+            # 4. API project_type == modpack
+            self.assertEqual(s["api_project_type"], "modpack")
+            # 5. latest version project_id == project_id
+            self.assertEqual(s["version_project_id"], pid)
+            self.assertEqual(s["version_id"], s["search_latest_version"])
+            # 6. date_modified vs version date_published semantic comparison
+            self.assertTrue(s["identity_verified"])
+            self.assertTrue(s["semantic_match"])
+            self.assertLessEqual(s["delta_ms"], 15000.0)
+
 
 if __name__ == "__main__":
     unittest.main()
+
