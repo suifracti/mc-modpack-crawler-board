@@ -1,7 +1,7 @@
 """
-Architecture V2 - Phase 3D: Verified Restore to Modern Frontend.
-Restores converted_output/ to Modern Frontend (TypeScript + Vite) and validates
-against frontend_modern_production.sha256.json without affecting the V2 Data Pipeline.
+Architecture V2 - Phase 3F.1: Decoupled Frontend Restore to Modern.
+Restores ONLY the frontend presentation layer in converted_output/ to
+the Modern Frontend (TypeScript + Vite) while strictly preserving current Phase 3F data.
 """
 import os
 import sys
@@ -26,7 +26,7 @@ from pipeline.manifest import verify_manifest, compute_sha256, get_git_commit
 CONVERTED_OUTPUT_DIR = os.path.join(REPO_ROOT, "converted_output")
 FRONTEND_PREVIEW_DIR = os.path.join(REPO_ROOT, "build", "frontend_preview")
 PRODUCTION_STATE_PATH = os.path.join(REPO_ROOT, "build", "production_state.json")
-MODERN_MANIFEST_PATH = os.path.join(REPO_ROOT, "build", "manifests", "frontend_modern_production.sha256.json")
+MODERN_MANIFEST_PATH = os.path.join(REPO_ROOT, "build", "manifests", "frontend_modern_production_post3f.sha256.json")
 CANONICAL_DB = os.path.join(REPO_ROOT, "build", "canonical.db")
 
 
@@ -45,7 +45,7 @@ def run_cmd(cmd: list, desc: str) -> None:
 
 def restore_frontend_modern():
     print("============================================================")
-    print("  Architecture V2 — Phase 3D Frontend Restore to Modern")
+    print("  Architecture V2 — Decoupled Frontend Restore to Modern")
     print("============================================================")
     t_start = time.time()
 
@@ -55,26 +55,33 @@ def restore_frontend_modern():
     with open(PRODUCTION_STATE_PATH, "r", encoding="utf-8") as fp:
         state = json.load(fp)
 
-    if not os.path.exists(MODERN_MANIFEST_PATH):
-        raise FileNotFoundError(f"Modern Production manifest not found: {MODERN_MANIFEST_PATH}")
-
     # Ensure frontend_preview exists and is up to date
     if not os.path.exists(FRONTEND_PREVIEW_DIR):
         print("[*] Staging frontend preview...")
         run_cmd([sys.executable, "pipeline/stage_frontend_preview.py"], "Stage Frontend Preview")
 
-    # Step 1: Copy modern staging into converted_output
-    print("\n[Step 1/3] Restoring converted_output/ from build/frontend_preview/...")
-    temp_swap_dir = os.path.join(REPO_ROOT, "build", "frontend_restore_temp")
-    if os.path.exists(temp_swap_dir):
-        shutil.rmtree(temp_swap_dir, ignore_errors=True)
+    # Step 1: Swap Frontend Code Layer Only
+    print("\n[Step 1/3] Restoring frontend code layer (assets, HTML)...")
+    
+    # Replace assets directory
+    prod_assets = os.path.join(CONVERTED_OUTPUT_DIR, "assets")
+    src_assets = os.path.join(FRONTEND_PREVIEW_DIR, "assets")
+    if os.path.exists(prod_assets):
+        shutil.rmtree(prod_assets, ignore_errors=True)
+    shutil.copytree(src_assets, prod_assets)
 
-    shutil.copytree(FRONTEND_PREVIEW_DIR, temp_swap_dir)
+    # Replace HTML files
+    for html_name in ["index.html", "看板.html"]:
+        src_html = os.path.join(FRONTEND_PREVIEW_DIR, html_name)
+        if os.path.exists(src_html):
+            shutil.copy2(src_html, os.path.join(CONVERTED_OUTPUT_DIR, html_name))
 
-    if os.path.exists(CONVERTED_OUTPUT_DIR):
-        shutil.rmtree(CONVERTED_OUTPUT_DIR, ignore_errors=True)
-    shutil.move(temp_swap_dir, CONVERTED_OUTPUT_DIR)
-    print("  [+] Modern files restored into converted_output/.")
+    # Remove legacy table_rows.js from production data
+    prod_table_rows = os.path.join(CONVERTED_OUTPUT_DIR, "data", "table_rows.js")
+    if os.path.exists(prod_table_rows):
+        os.remove(prod_table_rows)
+
+    print("  [+] Modern frontend files restored. Data sidecars preserved intact.")
 
     # Step 2: Verify converted_output against modern production manifest
     print("\n[Step 2/3] Verifying converted_output/ against Modern Production Manifest...")
@@ -90,8 +97,9 @@ def restore_frontend_modern():
 
     state["active_frontend"] = "modern-vite"
     state["active_pipeline"] = "v2"
+    state["production_manifest"] = os.path.relpath(MODERN_MANIFEST_PATH, REPO_ROOT).replace("\\", "/")
     state["frontend_manifest"] = os.path.relpath(MODERN_MANIFEST_PATH, REPO_ROOT).replace("\\", "/")
-    state["frontend_source_commit"] = commit
+    state["frontend_code_commit"] = commit
     state["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
     state["canonical_db_hash"] = db_hash
 
@@ -99,16 +107,16 @@ def restore_frontend_modern():
         json.dump(state, fp, indent=2, ensure_ascii=False)
     print("  [+] production_state.json updated (active_frontend = modern-vite, active_pipeline = v2).")
 
-    # Step 4: Verification gates
-    print("\n--- Gate: Post-Restore Modern Acceptance Verification ---")
+    # Step 4: Post-restore browser & wiring verification
+    print("\n--- Gate: Post-Restore Modern Browser Verification ---")
     run_cmd(["node", "pipeline/smoke_test_single.js", "converted_output", "8768"], "Modern Production Browser Test (33/33)")
     run_cmd(["node", "pipeline/smoke_test_wiring.js", "converted_output", "8780"], "Modern Production Wiring Test (18/18)")
-    print("  [GATE PASSED] Modern Production restored and verified with 0 regressions.")
+    print("  [GATE PASSED] Modern Production verified with 0 regressions.")
 
     print("\n============================================================")
     print("  FRONTEND RESTORE TO MODERN SUCCESSFUL!")
-    print(f"  Active Frontend       : modern-vite")
-    print(f"  Active Pipeline       : v2")
+    print("  Active Frontend       : modern-vite")
+    print("  Active Pipeline       : v2")
     print(f"  Duration              : {time.time() - t_start:.2f}s")
     print("============================================================")
 

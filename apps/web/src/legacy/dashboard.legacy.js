@@ -5114,10 +5114,13 @@ function showToast(msg) {
         $('#compareOpen').prop('disabled', selected.length < 2).attr('title', selected.length < 2 ? '至少收藏 2 个整合包才能对比' : '打开全面对比');
     }
     function numFmt(n) {
-        n = Number(n || 0);
-        if (n >= 100000000) return (n / 100000000).toFixed(1).replace(/\.0$/, '') + '亿';
-        if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + '万';
-        return String(n);
+        if (n === null || n === undefined || n === '') return '—';
+        var num = Number(n);
+        if (isNaN(num)) return '—';
+        if (num === 0) return '0';
+        if (num >= 100000000) return (num / 100000000).toFixed(1).replace(/\.0$/, '') + '亿';
+        if (num >= 10000) return (num / 10000).toFixed(1).replace(/\.0$/, '') + '万';
+        return String(num);
     }
     function listNames(arr, limit) {
         arr = arr || [];
@@ -6184,7 +6187,7 @@ function showToast(msg) {
 
         var hasServer = Boolean(extra.has_server || (row && row.has_server) || (extra.rawPack && extra.rawPack.has_server));
         var envDisplay = extra.env_display || (extra.rawPack && extra.rawPack.env_display) || '';
-        var envPillText = hasServer ? (envDisplay || '支持联机开服 / 提供专用服务端') : '未提供专用开服端';
+        var envPillText = hasServer ? (envDisplay || '支持联机开服 / 提供专用服务端') : (envDisplay ? envDisplay : '未声明服务端支持 / 无法确认');
 
         var envBoxHtml = '<div class="vmodal-env-box">' +
             '<div class="vmodal-env-label">⚙️ 运行环境支持 (Runtime Environment)</div>' +

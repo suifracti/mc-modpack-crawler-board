@@ -14,11 +14,11 @@
 ## 1. 审计统计总览
 
 - **审计功能总项数**：`56` 项
-- **状态分布汇总 (Phase 3F 修复后)**：
-  - **VERIFIED**：`35` 项 (62.5%) — 原 26 项 + 9 项 Phase 3F 确证事实硬伤修复后全部转正
-  - **SUSPECT**：`17` 项 (30.4%) — 保留审慎标记，不动无充分证据项
-  - **WRONG**：`0` 项 (0.0%) — 9 项确证硬伤已全部彻底清零并通过自动化回归测试
-  - **UNKNOWN**：`4` 项 (7.1%) — 保持显式未确定
+- **状态分布汇总 (Phase 3F.1 校准后)**：
+  - **VERIFIED**：`32` 项 (57.1%) — 确证真实、具备完备契约的可靠功能
+  - **SUSPECT**：`19` 项 (33.9%) — 保留审慎标记；B站标题推断Loader与聚合算法全局鲁棒性维持SUSPECT
+  - **WRONG**：`0` 项 (0.0%) — 9 项确证硬伤已全部彻底修复清零并通过自动化回归测试
+  - **UNKNOWN**：`5` 项 (8.9%) — 保持显式未确定（含快照对比审计功能本身）
 - **六平台覆盖率**：100%（MCMod 权威、Bilibili 动态、BBSMC 社区、XYEBBS 论坛、Modrinth 国际、CurseForge 国际全量覆盖）
 
 ---
@@ -60,7 +60,7 @@
 | `LOADER-MCMOD-01` | MCMod | 加载器类别 | MCMod 页面徽标与标签 | 带单词边界的严格正则匹配 `\b(Fabric\|Forge\|NeoForge\|Quilt)\b` | 标 `unknown` | `mcmod:787` (`Forget Me Not` - 正确未误判为 Forge) | **`VERIFIED`** | 严格正则避免了 "Reforged"、"Fabricated" 等英文单词子串误判。 |
 | `LOADER-BBSMC-01` | BBSMC | 加载器类别 | 论坛帖子标签 | 帖子分类属性匹配 | 标 `unknown` | `bbsmc:1p2TFl6X` (`forge`) | **`VERIFIED`** | 论坛原生主题字段。 |
 | `LOADER-XYEBBS-01` | XYEBBS | 加载器类别 | 论坛帖子分类前缀 | 帖子分类属性匹配 | 标 `unknown` | `xyebbs:mznl` (`forge`) | **`VERIFIED`** | 论坛原生分类。 |
-| `LOADER-BILI-01` | Bilibili | 加载器类别 | 视频标题与简介 | **Phase 3F 引入上下文词边界正则**：`(?<![a-zA-Z]){loader}(?![a-zA-Z])` 识别标题中的 `NeoForge`/`Fabric`/`Forge`/`Quilt` | 标 `unknown` | `bilibili:BV1CbR7BZESQ` (`NeoForge`), `bilibili:BV1PbAczPE4o` (`Forge`) | **`VERIFIED`** | **已修复**：Adapter 规则与 DB Migration 003 补全 43 项显式标注，通过 `test_p0_7` 回归测试。 |
+| `LOADER-BILI-01` | Bilibili | 加载器类别 | 视频标题与简介 | **Phase 3F 引入上下文词边界正则**：`(?<![a-zA-Z]){loader}(?![a-zA-Z])` 识别标题中的 `NeoForge`/`Fabric`/`Forge`/`Quilt` | 标 `unknown` | `bilibili:BV1CbR7BZESQ` (`NeoForge`), `bilibili:BV1PbAczPE4o` (`Forge`) | **`SUSPECT`** | **Bug已修复**：显式标题Loader遗漏已修复（通过 `test_p0_7`）。但由于B站无原生结构化Loader字段，全量Loader识别仍属于标题文本正则推断，整体特性审慎维持 SUSPECT。 |
 
 ---
 
@@ -96,7 +96,7 @@
 | Feature ID | 平台 | 用户可见功能 / 结论 | 原始平台来源 | 推导算法与逻辑 | 缺失值处理 | Golden Samples | 最终状态 | 备注 / 风险 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `BILI-GRP-01` | Bilibili | 同 UP 主多期视频自动合为一个卡片 (Multi-video Collapsing) | 936 条 Bilibili 视频标题与 UP 主 ID | 统一清洗标题 `cleanPackKey(title)`，相同作者且同 Key 合并为同一卡片 | 标题清洗后过短使用原标题前20字 | UP `懂嗎懂嗎`: 6 视频合为 2 卡片; UP `zicaiot`: 2 视频合为 1 卡片 | **`VERIFIED`** | 核心机制正确，已通过 53 raw $\to$ 47 grouped 自动化数学证明。 |
-| `BILI-GRP-02` | Bilibili | 标题去重关键词引发的错误合并 (False Merge) | 视频标题 | **Phase 3F 聚合决策模型**：清洗后 Key 长度 $\le 3$ 或属于泛名通用词集时，禁止跨视频聚合，强制分配独立 `__raw_<bvid>` 卡片；子串合并要求长度 $\ge 4$ | 退化为单视频卡片 | UP `黑金`: `[MC整合包]生存整合包-1.21.1` 与 `我的世界【生存整合包】生存` 独立展示 | **`VERIFIED`** | **已修复**：彻底消除泛词误合并，保持 53 原始 $\to$ 47 聚合卡片数学不变式，通过 `test_p0_8` 回归测试。 |
+| `BILI-GRP-02` | Bilibili | 标题去重关键词引发的错误合并 (False Merge) | 视频标题 | **Phase 3F 聚合决策模型**：清洗后 Key 长度 $\le 3$ 或属于泛名通用词集时，禁止跨视频聚合，强制分配独立 `__raw_<bvid>` 卡片；子串合并要求长度 $\ge 4$ | 退化为单视频卡片 | UP `黑金`: `[MC整合包]生存整合包-1.21.1` 与 `我的世界【生存整合包】生存` 独立展示 | **`SUSPECT`** | **Bug已修复**：短词泛名错误合并已杜绝（通过 `test_p0_8`）。但因尚未建立全量20对正负例金集基准，聚合算法整体鲁棒性审慎维持 SUSPECT。 |
 | `BILI-GRP-03` | Bilibili | 包含版本特性描述导致的拆分 (False Split) | 视频标题 | 标题中包含具体特性说明（如 `DH模组更新`/`支持Forge`）导致 Key 不一致 | 无法归纳到同一个 Key | UP `ConfectionaryQwQ`: `Horizon光影模组包` 6 个更新日志视频被拆分为 6 个单卡片 | **`SUSPECT`** | 属于启发式规则局限性，无法自动理解任意自然语言更新日志。 |
 
 ---
@@ -172,7 +172,7 @@
 
 | Feature ID | 平台 | 用户可见功能 / 结论 | 原始平台来源 | 推导算法与逻辑 | 缺失值处理 | Golden Samples | 最终状态 | 备注 / 风险 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `AUDIT-DIFF-01` | 全平台 | “版本变动 / 最近更新 / 数据审计” 弹窗 | `audit_diff.js` 导出器 | **Phase 3F 诚实可用性标识**：因尚未接入多版本连续快照基线，显式声明 `is_available: false`，输出客观说明“历史版本快照对比暂未启用（未配置历史基线快照）” | 友好诚实提示 | `converted_output/data/audit_diff.js` | **`VERIFIED`** | **已修复**：消除伪造的空数组变动假象，前后端统一诚实告示，通过 `test_p0_9` 回归测试。 |
+| `AUDIT-DIFF-01` | 全平台 | “版本变动 / 最近更新 / 数据审计” 弹窗 | `audit_diff.js` 导出器 | **Phase 3F 诚实可用性标识**：因尚未接入多版本连续快照基线，显式声明 `is_available: false`，输出客观说明“历史版本快照对比暂未启用（未配置历史基线快照）” | 友好诚实提示 | `converted_output/data/audit_diff.js` | **`UNKNOWN`** | **告示语义已验证**：弹窗告示契约通过 `test_p0_9` 回归测试；但版本快照比对功能本身因缺失历史快照基准，功能状态维持为 UNKNOWN / UNAVAILABLE。 |
 
 ---
 
