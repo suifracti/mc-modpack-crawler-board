@@ -15,39 +15,68 @@ import {
   renderEnvironmentBadge,
 } from '../src/platforms/mcmod/renderer';
 
-describe('MCMod Environment Claims & deriveLegacyHasServer', () => {
-  it('derives has_server true when server is supported, required, or optional', () => {
+function makeClaim(
+  side: 'client' | 'server',
+  status: 'required' | 'optional' | 'supported' | 'unsupported' | 'unknown',
+  certainty: 'confirmed' | 'strong_inferred' | 'inferred' | 'weak_inferred' | 'unknown',
+  evidenceType: 'platform_field' | 'file_name' | 'text_rule' | 'no_evidence' = 'no_evidence',
+  evidenceText: string | null = null,
+  sourceField: string | null = null,
+  rawValue: unknown | null = null
+): EnvironmentClaim {
+  return { side, status, certainty, evidenceType, evidenceText, sourceField, rawValue };
+}
+
+describe('MCMod Environment Claims & deriveLegacyHasServer (Canonical Parity)', () => {
+  it('covers the exact 10-point Canonical Legacy Bool truth table', () => {
+    // 1. required + confirmed -> true
+    expect(deriveLegacyHasServer([makeClaim('server', 'required', 'confirmed', 'platform_field')])).toBe(true);
+
+    // 2. optional + confirmed -> true
+    expect(deriveLegacyHasServer([makeClaim('server', 'optional', 'confirmed', 'platform_field')])).toBe(true);
+
+    // 3. supported + confirmed -> true
+    expect(deriveLegacyHasServer([makeClaim('server', 'supported', 'confirmed', 'platform_field')])).toBe(true);
+
+    // 4. supported + strong_inferred -> true
+    expect(deriveLegacyHasServer([makeClaim('server', 'supported', 'strong_inferred', 'file_name')])).toBe(true);
+
+    // 5. supported + inferred -> true
+    expect(deriveLegacyHasServer([makeClaim('server', 'supported', 'inferred', 'text_rule')])).toBe(true);
+
+    // 6. supported + weak_inferred -> true
+    expect(deriveLegacyHasServer([makeClaim('server', 'supported', 'weak_inferred', 'text_rule')])).toBe(true);
+
+    // 7. unsupported + confirmed -> false
+    expect(deriveLegacyHasServer([makeClaim('server', 'unsupported', 'confirmed', 'platform_field')])).toBe(false);
+
+    // 8. unsupported + inferred -> false
+    expect(deriveLegacyHasServer([makeClaim('server', 'unsupported', 'inferred', 'text_rule')])).toBe(false);
+
+    // 9. unknown + unknown -> false
+    expect(deriveLegacyHasServer([makeClaim('server', 'unknown', 'unknown', 'no_evidence')])).toBe(false);
+
+    // 10. no claim -> false
+    expect(deriveLegacyHasServer([])).toBe(false);
+    expect(deriveLegacyHasServer(null)).toBe(false);
+    expect(deriveLegacyHasServer(undefined)).toBe(false);
+  });
+
+  it('handles multiple server claims deterministically using certainty precedence', () => {
+    // confirmed > strong_inferred > inferred > weak_inferred > unknown
     const claims1: EnvironmentClaim[] = [
-      { side: 'client', status: 'unknown', certainty: 'unknown' },
-      { side: 'server', status: 'supported', certainty: 'inferred' },
+      makeClaim('server', 'unsupported', 'inferred', 'text_rule'),
+      makeClaim('server', 'supported', 'strong_inferred', 'file_name'),
     ];
+    // strong_inferred (supported) wins over inferred (unsupported)
     expect(deriveLegacyHasServer(claims1)).toBe(true);
 
     const claims2: EnvironmentClaim[] = [
-      { side: 'server', status: 'required', certainty: 'confirmed' },
+      makeClaim('server', 'supported', 'inferred', 'text_rule'),
+      makeClaim('server', 'unsupported', 'confirmed', 'platform_field'),
     ];
-    expect(deriveLegacyHasServer(claims2)).toBe(true);
-
-    const claims3: EnvironmentClaim[] = [
-      { side: 'server', status: 'optional', certainty: 'inferred' },
-    ];
-    expect(deriveLegacyHasServer(claims3)).toBe(true);
-  });
-
-  it('derives has_server false when server is unsupported, unknown, or missing', () => {
-    const claims1: EnvironmentClaim[] = [
-      { side: 'client', status: 'supported', certainty: 'confirmed' },
-      { side: 'server', status: 'unsupported', certainty: 'inferred' },
-    ];
-    expect(deriveLegacyHasServer(claims1)).toBe(false);
-
-    const claims2: EnvironmentClaim[] = [
-      { side: 'server', status: 'unknown', certainty: 'unknown' },
-    ];
+    // confirmed (unsupported) wins over inferred (supported)
     expect(deriveLegacyHasServer(claims2)).toBe(false);
-
-    expect(deriveLegacyHasServer([])).toBe(false);
-    expect(deriveLegacyHasServer(null)).toBe(false);
   });
 });
 
@@ -107,8 +136,8 @@ describe('MCMod Structured Mapper', () => {
       { date: '2026-09-01', viewsDelta: 600 },
     ],
     environmentClaims: [
-      { side: 'client', status: 'unknown', certainty: 'unknown' },
-      { side: 'server', status: 'supported', certainty: 'inferred', evidenceType: 'text_rule', evidenceText: '含服务端配置' },
+      makeClaim('client', 'unknown', 'unknown', 'no_evidence'),
+      makeClaim('server', 'supported', 'inferred', 'text_rule', '含服务端配置', 'description', '含服务端配置'),
     ],
   };
 
@@ -208,8 +237,8 @@ describe('MCMod TypeScript Cell Renderers', () => {
       { date: '2026-09-01', viewsDelta: 250 },
     ],
     environmentClaims: [
-      { side: 'client', status: 'unknown', certainty: 'unknown' },
-      { side: 'server', status: 'supported', certainty: 'inferred', evidenceText: '含服务端' },
+      makeClaim('client', 'unknown', 'unknown', 'no_evidence'),
+      makeClaim('server', 'supported', 'inferred', 'text_rule', '含服务端', 'description', '含服务端'),
     ],
   };
 

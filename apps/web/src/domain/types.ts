@@ -27,28 +27,66 @@ export type EnvironmentCertainty =
   | 'weak_inferred'
   | 'unknown';
 
+export type EnvironmentEvidenceType =
+  | 'platform_field'
+  | 'file_name'
+  | 'text_rule'
+  | 'no_evidence';
+
+export type EnvironmentPresentationConfidence =
+  | 'high'
+  | 'medium'
+  | 'low'
+  | 'unknown';
+
 export interface EnvironmentClaim {
   side: EnvironmentSide;
   status: EnvironmentStatus;
   certainty: EnvironmentCertainty;
-  evidenceType?: string | null;
-  evidenceText?: string | null;
-  sourceField?: string | null;
-  rawValue?: string | null;
+  evidenceType: EnvironmentEvidenceType;
+  evidenceText: string | null;
+  sourceField: string | null;
+  rawValue: unknown | null;
+}
+
+const CERTAINTY_PRIORITY: Record<EnvironmentCertainty, number> = {
+  confirmed: 5,
+  strong_inferred: 4,
+  inferred: 3,
+  weak_inferred: 2,
+  unknown: 1,
+};
+
+/**
+ * Deterministically resolves the primary claim for a given side based on canonical certainty precedence:
+ * confirmed > strong_inferred > inferred > weak_inferred > unknown.
+ */
+export function resolvePrimaryClaim(
+  claims: EnvironmentClaim[] | null | undefined,
+  side: EnvironmentSide
+): EnvironmentClaim | null {
+  if (!claims || !claims.length) return null;
+  const sideClaims = claims.filter((c) => c.side === side);
+  if (!sideClaims.length) return null;
+  if (sideClaims.length === 1) return sideClaims[0];
+
+  return [...sideClaims].sort(
+    (a, b) => (CERTAINTY_PRIORITY[b.certainty] ?? 0) - (CERTAINTY_PRIORITY[a.certainty] ?? 0)
+  )[0];
 }
 
 /**
  * Pure compatibility helper to derive legacy boolean has_server from structured claims.
  * Status 'supported', 'required', or 'optional' translates to true.
+ * 'unsupported', 'unknown', or missing claim translates to false.
  */
-export function deriveLegacyHasServer(claims: EnvironmentClaim[] | null | undefined): boolean {
-  if (!claims || !claims.length) return false;
-  const serverClaim = claims.find((c) => c.side === 'server');
+export function deriveLegacyHasServer(claims?: EnvironmentClaim[] | null): boolean {
+  const serverClaim = resolvePrimaryClaim(claims, 'server');
   if (!serverClaim) return false;
   return (
-    serverClaim.status === 'supported' ||
     serverClaim.status === 'required' ||
-    serverClaim.status === 'optional'
+    serverClaim.status === 'optional' ||
+    serverClaim.status === 'supported'
   );
 }
 

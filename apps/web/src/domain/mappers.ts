@@ -22,8 +22,24 @@ import type { LegacyCurseforgeItem } from '../types/legacy/curseforge';
 export function mapLegacyMcmodToPack(dto: LegacyMcmodRow): McmodPack {
   const hasServer = Boolean(dto.has_server);
   const claims: EnvironmentClaim[] = [
-    { side: 'server', status: hasServer ? 'supported' : 'unknown', certainty: hasServer ? 'inferred' : 'unknown' },
-    { side: 'client', status: 'unknown', certainty: 'unknown' },
+    {
+      side: 'server',
+      status: hasServer ? 'supported' : 'unknown',
+      certainty: hasServer ? 'inferred' : 'unknown',
+      evidenceType: hasServer ? 'text_rule' : 'no_evidence',
+      evidenceText: hasServer ? 'MC百科文本推断' : null,
+      sourceField: hasServer ? 'description' : null,
+      rawValue: null,
+    },
+    {
+      side: 'client',
+      status: 'unknown',
+      certainty: 'unknown',
+      evidenceType: 'no_evidence',
+      evidenceText: null,
+      sourceField: null,
+      rawValue: null,
+    },
   ];
 
   return {
@@ -87,8 +103,24 @@ export function mapLegacyBilibiliToPack(dto: LegacyBilibiliItem): BilibiliPack {
 
   const hasServer = Boolean(dto.has_server);
   const claims: EnvironmentClaim[] = [
-    { side: 'server', status: hasServer ? 'supported' : 'unknown', certainty: hasServer ? 'inferred' : 'unknown' },
-    { side: 'client', status: 'unknown', certainty: 'unknown' },
+    {
+      side: 'server',
+      status: hasServer ? 'supported' : 'unknown',
+      certainty: hasServer ? 'inferred' : 'unknown',
+      evidenceType: hasServer ? 'text_rule' : 'no_evidence',
+      evidenceText: hasServer ? 'Bilibili 文本规则推断' : null,
+      sourceField: hasServer ? 'description' : null,
+      rawValue: null,
+    },
+    {
+      side: 'client',
+      status: 'unknown',
+      certainty: 'unknown',
+      evidenceType: 'no_evidence',
+      evidenceText: null,
+      sourceField: null,
+      rawValue: null,
+    },
   ];
 
   return {
@@ -136,8 +168,24 @@ export function mapLegacyBbsmcToPack(dto: LegacyBbsmcItem): BbsmcPack {
 
   const hasServer = Boolean(dto.has_server);
   const claims: EnvironmentClaim[] = [
-    { side: 'server', status: hasServer ? 'supported' : 'unknown', certainty: hasServer ? 'inferred' : 'unknown' },
-    { side: 'client', status: 'unknown', certainty: 'unknown' },
+    {
+      side: 'server',
+      status: hasServer ? 'supported' : 'unknown',
+      certainty: hasServer ? 'strong_inferred' : 'unknown',
+      evidenceType: hasServer ? 'file_name' : 'no_evidence',
+      evidenceText: hasServer ? 'BBSMC 附件文件名推断' : null,
+      sourceField: hasServer ? 'download_links[].filename' : null,
+      rawValue: null,
+    },
+    {
+      side: 'client',
+      status: 'unknown',
+      certainty: 'unknown',
+      evidenceType: 'no_evidence',
+      evidenceText: null,
+      sourceField: null,
+      rawValue: null,
+    },
   ];
 
   return {
@@ -180,8 +228,24 @@ export function mapLegacyXyebbsToPack(dto: LegacyXyebbsItem): XyebbsPack {
 
   const hasServer = Boolean(dto.has_server);
   const claims: EnvironmentClaim[] = [
-    { side: 'server', status: hasServer ? 'supported' : 'unknown', certainty: hasServer ? 'inferred' : 'unknown' },
-    { side: 'client', status: 'unknown', certainty: 'unknown' },
+    {
+      side: 'server',
+      status: hasServer ? 'supported' : 'unknown',
+      certainty: hasServer ? 'inferred' : 'unknown',
+      evidenceType: hasServer ? 'text_rule' : 'no_evidence',
+      evidenceText: hasServer ? 'XYEBBS 文本推断' : null,
+      sourceField: hasServer ? 'description' : null,
+      rawValue: null,
+    },
+    {
+      side: 'client',
+      status: 'unknown',
+      certainty: 'unknown',
+      evidenceType: 'no_evidence',
+      evidenceText: null,
+      sourceField: null,
+      rawValue: null,
+    },
   ];
 
   return {
@@ -224,10 +288,36 @@ export function mapLegacyModrinthToPack(dto: LegacyModrinthItem): ModrinthPack {
     changelog: r.changelog,
   }));
 
+  function parseModrinthEnvStatus(val?: string): 'required' | 'optional' | 'unsupported' | 'unknown' {
+    if (val === 'required') return 'required';
+    if (val === 'optional') return 'optional';
+    if (val === 'unsupported') return 'unsupported';
+    return 'unknown';
+  }
+
   const hasServer = Boolean(dto.has_server);
+  const serverStatus = parseModrinthEnvStatus(dto.server_side);
+  const clientStatus = parseModrinthEnvStatus(dto.client_side);
+
   const claims: EnvironmentClaim[] = [
-    { side: 'server', status: hasServer ? 'supported' : 'unknown', certainty: hasServer ? 'inferred' : 'unknown' },
-    { side: 'client', status: 'unknown', certainty: 'unknown' },
+    {
+      side: 'server',
+      status: serverStatus,
+      certainty: serverStatus !== 'unknown' ? 'confirmed' : 'unknown',
+      evidenceType: serverStatus !== 'unknown' ? 'platform_field' : 'no_evidence',
+      evidenceText: serverStatus !== 'unknown' ? `Modrinth 官方 API 字段: server_side=${dto.server_side}` : null,
+      sourceField: serverStatus !== 'unknown' ? 'source_meta.server_side' : null,
+      rawValue: dto.server_side ?? null,
+    },
+    {
+      side: 'client',
+      status: clientStatus,
+      certainty: clientStatus !== 'unknown' ? 'confirmed' : 'unknown',
+      evidenceType: clientStatus !== 'unknown' ? 'platform_field' : 'no_evidence',
+      evidenceText: clientStatus !== 'unknown' ? `Modrinth 官方 API 字段: client_side=${dto.client_side}` : null,
+      sourceField: clientStatus !== 'unknown' ? 'source_meta.client_side' : null,
+      rawValue: dto.client_side ?? null,
+    },
   ];
 
   return {
@@ -275,8 +365,24 @@ export function mapLegacyCurseforgeToPack(dto: LegacyCurseforgeItem): Curseforge
 
   const hasServer = Boolean(dto.has_server);
   const claims: EnvironmentClaim[] = [
-    { side: 'server', status: hasServer ? 'supported' : 'unknown', certainty: hasServer ? 'inferred' : 'unknown' },
-    { side: 'client', status: 'unknown', certainty: 'unknown' },
+    {
+      side: 'server',
+      status: hasServer ? 'supported' : 'unknown',
+      certainty: hasServer ? 'inferred' : 'unknown',
+      evidenceType: hasServer ? 'platform_field' : 'no_evidence',
+      evidenceText: hasServer ? 'CurseForge legacy server flag' : null,
+      sourceField: hasServer ? 'has_server' : null,
+      rawValue: null,
+    },
+    {
+      side: 'client',
+      status: 'unknown',
+      certainty: 'unknown',
+      evidenceType: 'no_evidence',
+      evidenceText: null,
+      sourceField: null,
+      rawValue: null,
+    },
   ];
 
   return {

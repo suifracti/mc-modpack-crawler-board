@@ -3,13 +3,13 @@
  * Converts McmodStructuredItem DTO into Unified McmodPack Domain Model.
  */
 import type { McmodPack } from '../../domain/types';
-import { deriveLegacyHasServer } from '../../domain/types';
+import { deriveLegacyHasServer, resolvePrimaryClaim } from '../../domain/types';
 import type { McmodStructuredItem } from './types';
 
 export function mapStructuredMcmodToPack(dto: McmodStructuredItem): McmodPack {
   const claims = dto.environmentClaims || [];
-  const serverClaim = claims.find((c) => c.side === 'server') || null;
-  const clientClaim = claims.find((c) => c.side === 'client') || null;
+  const serverClaim = resolvePrimaryClaim(claims, 'server');
+  const clientClaim = resolvePrimaryClaim(claims, 'client');
   const hasServer = deriveLegacyHasServer(claims);
 
   return {
