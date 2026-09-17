@@ -105,9 +105,46 @@ def release_date_report(db_migrated: str, db_fresh: str):
     return stats, samples
 
 
+def check_freshness_guard(db_fresh: str):
+    """Guards against testing a stale fresh-verification database."""
+    if not os.path.exists(db_fresh):
+        raise FileNotFoundError(f"Fresh verification DB does not exist at {db_fresh}; rebuild required.")
+
+    fresh_mtime = os.path.getmtime(db_fresh)
+    critical_sources = [
+        os.path.join(ROOT, "pipeline", "adapters", "bbsmc.py"),
+        os.path.join(ROOT, "pipeline", "adapters", "xyebbs.py"),
+        os.path.join(ROOT, "pipeline", "db", "migrations", "004_release_date_semantics.py"),
+        os.path.join(ROOT, "pipeline", "build_canonical_db.py"),
+    ]
+    for src in critical_sources:
+        if os.path.exists(src):
+            src_mtime = os.path.getmtime(src)
+            if fresh_mtime < src_mtime - 2.0:
+                rel = os.path.relpath(src, ROOT).replace("\\", "/")
+                raise RuntimeError(
+                    f"Fresh verification DB is stale; rebuild required.\n"
+                    f"DB mtime ({fresh_mtime}) is older than {rel} mtime ({src_mtime})."
+                )
+
+    prov_path = os.path.join(ROOT, "build", "audit", "fresh_rebuild_provenance.json")
+    if os.path.exists(prov_path):
+        try:
+            with open(prov_path, "r", encoding="utf-8") as f:
+                prov = json.load(f)
+            fresh_hash = prov.get("fresh_db", {}).get("sha256")
+            migrated_hash = prov.get("migrated_db", {}).get("sha256")
+            if fresh_hash and migrated_hash and fresh_hash == migrated_hash:
+                raise RuntimeError("Fresh verification DB has identical SHA-256 to migrated DB (copy detected).")
+        except json.JSONDecodeError:
+            pass
+
+
 def verify_equivalence(db_migrated: str = None, db_fresh: str = None):
     db_migrated = db_migrated or os.path.join(ROOT, "build", "canonical.db")
     db_fresh = db_fresh or os.path.join(ROOT, "build", "canonical_fresh_verify.db")
+
+    check_freshness_guard(db_fresh)
 
     results = {}
     print("=" * 78)
