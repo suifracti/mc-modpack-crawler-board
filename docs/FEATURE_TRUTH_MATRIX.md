@@ -13,12 +13,12 @@
 
 ## 1. 审计统计总览
 
-- **审计功能总项数**：`61` 项 (覆盖 15 个业务领域)
-- **状态分布汇总 (Phase 3G-B 修复后)**：
-  - **VERIFIED**：`34` 项 (55.7%) — 确证真实、具备完备契约的可靠功能（包含清除非法项目级时间戳后的 TIME-CURSEFORGE-02）
-  - **SUSPECT**：`21` 项 (34.4%) — 保留审慎标记（包含模组库、深搜、B站分组、BBSMC时序、Modrinth 聚合时间与版本标识等）
+- **审计功能总项数**：`63` 项 (覆盖 15 个业务领域)
+- **状态分布汇总 (Phase 3G-C 审计后)**：
+  - **VERIFIED**：`35` 项 (55.6%) — 确证真实、具备完备契约的可靠功能（包含清除非法项目级时间戳后的 TIME-CURSEFORGE-02 与关系保真的 MODREL-MCMOD-01）
+  - **SUSPECT**：`21` 项 (33.3%) — 保留审慎标记（包含深搜语义、搜索命中原因透明度、B站分组、BBSMC时序、Modrinth 聚合时间与版本标识等）
   - **WRONG**：`0` 项 (0.0%) — 原始 9 项硬伤与平台时间伪造已全部彻底清零修复！
-  - **UNKNOWN**：`6` 项 (9.8%) — 保持显式未确定（含 CurseForge 真实版本发布日期可用性 RELDATE-CURSEFORGE-01）
+  - **UNKNOWN**：`7` 项 (11.1%) — 保持显式未确定（含 CurseForge 真实版本发布日期可用性 RELDATE-CURSEFORGE-01 及模组依赖/重要性关系 MODSEM-MCMOD-01）
 - **六平台覆盖率**：100%（MCMod 权威、Bilibili 动态、BBSMC 社区、XYEBBS 论坛、Modrinth 国际、CurseForge 国际全量覆盖）
 
 ---
@@ -133,7 +133,8 @@
 | Feature ID | 平台 | 用户可见功能 / 结论 | 原始平台来源 | 推导算法与逻辑 | 缺失值处理 | Golden Samples | 最终状态 | 备注 / 风险 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `MODS-MCMOD-01` | MCMod | 整合包包含的模组列表 (共 170,078 条) | MCMod 整合包模组列表页面 DOM | 解析页面模组表格：含 mod_name, mod_title, category_name (辅, LIB, 实用, 科技, 魔法等) | 未归类填 `未分类` | `mcmod:16` (含 108 款模组) | **`VERIFIED`** | 数据与 MCMod 原页面记录 100% 对应，保留了分类标识。 |
-| `MODS-MCMOD-02` | MCMod | “整合包包含模组”的业务性质归类 | MCMod 模组关系表 | **32,910 条 (19.4%) 为 `LIB` 运行前置库，56,466 条 (33.2%) 为 `辅` 辅助优化** | - | `mcmod:16` (内含 Cloth Config, Architectury 等) | **`SUSPECT`** | 超过 52% 的记录是基础运行依赖或辅助工具，若前端统称为“玩法模组”会严重误导用户。 |
+| `MODREL-MCMOD-01` | MCMod | 整合包模组关联抓取与入库保真度 | MCMod 模组关系列表 (`.class-menu-main li[data-id="2"]`) | 爬虫与 Canonical 映射 100.00% 保真（170,062 来自 full_details，16 来自 modpacks fallback，0 重复，0 遗漏） | - | `mcmod:16`, `mcmod:722`, 30 Golden Packs | **`VERIFIED`** | 爬虫提取与入库完全忠实于原网站页面展示，经 30 个金样包与 224 项关系抽检确证 100% 一致。 |
+| `MODSEM-MCMOD-01` | MCMod | “包含模组”的依赖/核心语义与重要性分类 | MCMod 模组列表原站结构 | 原站原生仅按模组分类（辅助、LIB、实用等）归类，**无任何必需/可选/核心/前置依赖字段**（No relationship provenance available）；模组分类 $\neq$ 整合包关系 | 缺失标 `UNKNOWN` | `mcmod:16` (内含 Cloth Config, Architectury 等) | **`UNKNOWN`** | 原站无关系重要性语义。33.2% 为辅助、19.4% 为 LIB（两者占 52.55%），不可简单将模组分类断言为依赖类型，更不能假定为核心玩法模组。 |
 
 ---
 
@@ -141,7 +142,8 @@
 
 | Feature ID | 平台 | 用户可见功能 / 结论 | 原始平台来源 | 推导算法与逻辑 | 缺失值处理 | Golden Samples | 最终状态 | 备注 / 风险 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `DIDX-MCMOD-01` | MCMod | 搜“机械动力”匹配到 93 个整合包 | `modSearchText` 全量文本索引 | 整合包包含该模组（即使只是前置或辅助）即算匹配 | 无模组时索引为空 | 搜索 `RLCraft` = 93 结果 | **`SUSPECT`** | **产品语义模糊**：用户无法区分该整合包是“以机械动力为核心玩法”还是“仅仅安装了一个机械动力作为装饰部件”。 |
+| `DIDX-MCMOD-01` | MCMod | 搜索“机械动力”或“RLCraft”匹配到包含该模组的整合包 | `modSearchText` 全量小写文本索引 | 整合包包含的任何模组名命中搜索词即算匹配（如 RLCraft 命中 93 个包，其中 88 个为仅模组命中） | 无模组时索引为空 | 搜索 `RLCraft` = 93 结果，搜索 `JEI` = 824 结果 | **`SUSPECT`** | **产品语义混淆**：底层算法按契约忠实执行，但统一搜索框将“整合包身份搜索”与“模组依赖包搜索”混为一谈，用户搜“RLCraft”看到非 RLCraft 整合包误以为是假阳性。 |
+| `SEARCH-MCMOD-REASON-01` | MCMod | 模组深度索引命中原因与出处可见性 | Web 前端搜索渲染与详情折叠抽屉 | 搜索命中后，表格行仅展示整合包标题与基本属性，命中该搜索词的具体模组隐藏于折叠抽屉内 | 未展开则不可见 | 搜索 `RLCraft` 命中非 RLCraft 包 (如 `mcmod:305`) | **`SUSPECT`** | **命中原因不透明**：UI 未标注“因包含模组 X 而命中”，造成用户感知上的搜索失真与困惑。建议后续版本在搜索结果卡片上显式标注高亮命中的模组名称。 |
 
 ---
 
@@ -221,8 +223,8 @@
 ### P1: 事实性风险（SUSPECT）— 必须审慎呈现的启发式结论
 1. **`TIME-MODRINTH-02`**: Modrinth 官方 API 证明 `date_modified` 为最新版本创建日期聚合（10/10 金样验证吻合），但因离线快照未保留 `latest_version` ID 且 Release 实体未绑定真实版本，时序语义审慎标记为 SUSPECT。
 2. **`RELID-MODRINTH-01`**: Modrinth 离线爬虫抓取时未保存 `latest_version` ID，且 Adapter 将 `version_name` 赋值为 Minecraft 游戏版本而非整合包自身版本号，Release 实体与版本号解耦，标记为 SUSPECT。
-3. **`MODS-MCMOD-02`**: MCMod 170,078 条模组关联中包含 19.4% 的 `LIB` 基础前置库与 33.2% 的辅助工具，前端应支持按分类（前置库/玩法模组）筛选，避免模组数量虚高。
-4. **`DIDX-MCMOD-01`**: 模组搜索深度索引应在 UI 上提供区分选项：“标题/玩法核心匹配” vs “包含模组依赖匹配”。
+3. **`SEARCH-MCMOD-REASON-01`**: 搜索结果卡片缺乏命中原因透明度（包含模组隐藏于折叠抽屉内），建议后续版本标注“因包含模组 [X] 命中”。
+4. **`DIDX-MCMOD-01`**: 模组搜索深度索引契约忠实但产品语义混淆，建议 UI 提供显式搜索范围切换（“仅搜整合包名称/简介” vs “包含模组深度搜索”）。
 5. **`BILI-GRP-03`**: Bilibili 部分同一整合包的多期更新视频因标题含版本特性被拆解，建议引入更宽泛的分词相似度辅助关联。
 6. **`TIME-BBSMC-01`**: 调查 BBSMC 论坛 20 项发帖时间晚于编辑时间的时序倒错原因，必要时取两者的较晚时间作为 `modified_at`。
 
@@ -230,3 +232,4 @@
 1. **`DL-MCMOD-01`**: MCMod 本身不托管文件，UI 明确标注为“原站百科跳转”而非“下载失效”。
 2. **`ENV-CURSEFORGE-01` / `BBSMC` / `XYEBBS`**: 缺乏官方环境字段时，统一展示为 `UNKNOWN`（未声明），不强行推断。
 3. **`RELDATE-CURSEFORGE-01`**: CurseForge 离线爬虫快照缺失 `latestFiles`/`fileDate`，真实版本发布时间原生无证据，保持为 `UNKNOWN`（数据层诚实为 `NULL`）。
+4. **`MODSEM-MCMOD-01`**: MCMod 原站无模组关系类型字段（无 required/optional/core），模组分类不等于整合包依赖，语义保持为 `UNKNOWN`。
