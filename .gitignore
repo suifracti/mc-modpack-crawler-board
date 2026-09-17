@@ -49,3 +49,6 @@ scratch_chrome_user_data*
 
 # Screenshots
 docs/screenshots/
+
+# Build artifacts
+build/
