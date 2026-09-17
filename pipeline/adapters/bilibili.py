@@ -6,6 +6,7 @@ Fixes semantic naming: transforms legacy desc_updated_at into pinned_comment_at.
 import json
 import os
 import re
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from pipeline.adapters.base import BaseAdapter
 from pipeline.models.canonical import (
@@ -22,6 +23,15 @@ from pipeline.models.canonical import (
 class BilibiliAdapter(BaseAdapter):
     platform_name = "bilibili"
 
+    def __init__(self, workspace_root: Optional[str] = None):
+        super().__init__(workspace_root)
+        source_path = self.get_source_file_path()
+        if os.path.exists(source_path):
+            mtime = os.path.getmtime(source_path)
+            self.snapshot_mtime_str = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            self.snapshot_mtime_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
     def get_source_file_path(self) -> str:
         return os.path.join(self.workspace_root, "crawler_output", "bilibili_modpacks.json")
 
@@ -32,7 +42,7 @@ class BilibiliAdapter(BaseAdapter):
         title = (raw_item.get("title") or f"B站整合包 {bvid}").strip()
         url = raw_item.get("url") or f"https://www.bilibili.com/video/{bvid}"
 
-        now_str = "2026-09-17 12:00:00"
+        now_str = self.snapshot_mtime_str
         pub_time = raw_item.get("pub_time") or None
         
         # 语义校正 (Phase 1.1):
@@ -44,8 +54,8 @@ class BilibiliAdapter(BaseAdapter):
             re.search(r'(?:更新|新版本|修复|v\d|已更新|升级)', pinned_text)
         )
         update_notice_at = pinned_comment_at if (pinned_comment_at and is_update_notice) else None
-        # 3. last_observed_update_at 对应 Crawler 观测同步时间，绝不与 pinned_comment_at 无条件等同
-        last_observed_update_at = now_str
+        # 3. last_observed_update_at 对应 Crawler 观测同步时间，真实来源为快照文件修改时间
+        last_observed_update_at = self.snapshot_mtime_str
 
         # 1. Canonical Pack
         pack = CanonicalPack(
@@ -73,6 +83,14 @@ class BilibiliAdapter(BaseAdapter):
             "update_notice_at": update_notice_at,
             "last_observed_update_at": last_observed_update_at,
             "subtitle_summary": raw_item.get("subtitle_summary"),
+            "subtitle_text": raw_item.get("subtitle_text") or "",
+            "has_subtitle": bool(raw_item.get("has_subtitle")),
+            "duration": raw_item.get("duration") or 0,
+            "pub_timestamp": raw_item.get("pub_timestamp") or 0,
+            "mod_count": raw_item.get("mod_count") or 0,
+            "coins": raw_item.get("coins") or 0,
+            "danmaku": raw_item.get("danmaku") or 0,
+            "share": raw_item.get("share") or 0,
         }
 
         source_item = CanonicalSourceItem(

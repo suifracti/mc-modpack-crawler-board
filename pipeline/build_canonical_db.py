@@ -137,10 +137,14 @@ def build_canonical_db(db_path: str = DEFAULT_DB_PATH, recreate: bool = True) ->
         rv_rows = []
         metrics_rows = []
         claims_rows = []
+        included_mods_rows = []
+        trend_points_rows = []
+        source_comments_rows = []
 
         def flush_batch():
             nonlocal packs_rows, sources_rows, aliases_rows, releases_rows, rel_mc_rows
             nonlocal si_loaders_rows, si_cats_rows, dl_rows, rv_rows, metrics_rows, claims_rows
+            nonlocal included_mods_rows, trend_points_rows, source_comments_rows
             if not packs_rows:
                 return
 
@@ -246,6 +250,34 @@ def build_canonical_db(db_path: str = DEFAULT_DB_PATH, recreate: bool = True) ->
                         """,
                         claims_rows,
                     )
+                if included_mods_rows:
+                    conn.executemany(
+                        """
+                        INSERT INTO included_mods 
+                        (source_item_id, mod_name, mod_title, mod_version, mod_url, class_id, 
+                         category_id, category_name, category_url, sort_order)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        included_mods_rows,
+                    )
+                if trend_points_rows:
+                    conn.executemany(
+                        """
+                        INSERT INTO trend_points 
+                        (source_item_id, point_date, views_delta)
+                        VALUES (?, ?, ?)
+                        """,
+                        trend_points_rows,
+                    )
+                if source_comments_rows:
+                    conn.executemany(
+                        """
+                        INSERT OR REPLACE INTO source_comments 
+                        (source_item_id, page_count, true_count, comments_json)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        source_comments_rows,
+                    )
 
             packs_rows = []
             sources_rows = []
@@ -258,6 +290,9 @@ def build_canonical_db(db_path: str = DEFAULT_DB_PATH, recreate: bool = True) ->
             rv_rows = []
             metrics_rows = []
             claims_rows = []
+            included_mods_rows = []
+            trend_points_rows = []
+            source_comments_rows = []
 
         item_count = 0
         for bundle in adapter.load_and_adapt():
@@ -336,6 +371,27 @@ def build_canonical_db(db_path: str = DEFAULT_DB_PATH, recreate: bool = True) ->
                     cl.source_url, cl.observed_at
                 ))
 
+            # Included Mods
+            for im in bundle.included_mods:
+                included_mods_rows.append((
+                    im.source_item_id, im.mod_name, im.mod_title, im.mod_version,
+                    im.mod_url, im.class_id, im.category_id, im.category_name,
+                    im.category_url, im.sort_order
+                ))
+
+            # Trend Points
+            for tp in bundle.trend_points:
+                trend_points_rows.append((
+                    tp.source_item_id, tp.point_date, tp.views_delta
+                ))
+
+            # Source Comments
+            if bundle.source_comments:
+                sc = bundle.source_comments
+                source_comments_rows.append((
+                    sc.source_item_id, sc.page_count, sc.true_count, sc.comments_json
+                ))
+
             if len(packs_rows) >= BATCH_SIZE:
                 flush_batch()
                 print(f"  ... inserted {item_count}/{rec_count} items")
@@ -401,6 +457,9 @@ def build_canonical_db(db_path: str = DEFAULT_DB_PATH, recreate: bool = True) ->
         "related_videos",
         "metrics",
         "environment_claims",
+        "included_mods",
+        "trend_points",
+        "source_comments",
         "pack_fts",
     ]
     print("\nTable Row Counts:")

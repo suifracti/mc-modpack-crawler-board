@@ -111,7 +111,7 @@ class BaseAdapter(abc.ABC):
             side=side,
             status="unknown",
             certainty="unknown",
-            evidence_type="platform_field",
+            evidence_type="no_evidence",
             evidence_text=evidence_text,
             raw_value=None,
             source_field=None,

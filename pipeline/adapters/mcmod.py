@@ -15,6 +15,9 @@ from pipeline.models.canonical import (
     CanonicalRelease,
     CanonicalMetrics,
     CanonicalEnvironmentClaim,
+    CanonicalIncludedMod,
+    CanonicalTrendPoint,
+    CanonicalSourceComment,
     CanonicalPackBundle,
 )
 
@@ -24,6 +27,7 @@ class MCModAdapter(BaseAdapter):
     def __init__(self, workspace_root: Optional[str] = None):
         super().__init__(workspace_root)
         self.details_cache: Dict[str, Any] = {}
+        self.full_details: Dict[str, Any] = {}
         self._load_details_cache()
 
     def get_source_file_path(self) -> str:
@@ -37,6 +41,14 @@ class MCModAdapter(BaseAdapter):
                     self.details_cache = json.load(f)
             except Exception:
                 self.details_cache = {}
+
+        full_path = os.path.join(self.workspace_root, "crawler_output", "mcmod_full_details.json")
+        if os.path.exists(full_path):
+            try:
+                with open(full_path, "r", encoding="utf-8") as f:
+                    self.full_details = json.load(f)
+            except Exception:
+                self.full_details = {}
 
     def adapt_item(self, raw_item: Dict[str, Any], idx: int) -> CanonicalPackBundle:
         mid = str(raw_item.get("mid") or raw_item.get("project_id") or idx + 1)
@@ -67,11 +79,16 @@ class MCModAdapter(BaseAdapter):
         # 2. Source Item
         pub_at = raw_item.get("release_date") or None
         mod_at = raw_item.get("last_update_date") or None
+        intro_images = cached_info.get("images") or cached_info.get("intro_images") or []
         extra_dict = {
             "type_name": raw_item.get("type_name"),
             "mold_id": raw_item.get("mold_id"),
             "trend_dates": raw_item.get("trend_dates"),
             "trend_vals": raw_item.get("trend_vals"),
+            "intro_images": intro_images,
+            "has_server": bool(raw_item.get("has_server")),
+            "recommend": raw_item.get("recommend") or 0,
+            "favorite": raw_item.get("favorite") or 0,
         }
         source_item = CanonicalSourceItem(
             id=source_item_id,
@@ -163,6 +180,8 @@ class MCModAdapter(BaseAdapter):
             source_item_id=source_item_id,
             observed_at=now_str,
             views=raw_item.get("views"),
+            likes=raw_item.get("recommend"),
+            favorites=raw_item.get("favorite"),
             score=float(raw_item.get("score")) if raw_item.get("score") is not None else None,
             comments_count=raw_item.get("comments"),
             red_votes=raw_item.get("red_votes"),
@@ -236,6 +255,68 @@ class MCModAdapter(BaseAdapter):
                 url, now_str
             ))
 
+        # 7. Included Mods
+        included_mods = []
+        full_item = self.full_details.get(mid, {})
+        mods_list = full_item.get("mods") or raw_item.get("mods") or []
+        for s_idx, m in enumerate(mods_list):
+            if isinstance(m, dict):
+                m_name = (m.get("name") or m.get("title") or "").strip()
+                if not m_name:
+                    continue
+                included_mods.append(CanonicalIncludedMod(
+                    source_item_id=source_item_id,
+                    mod_name=m_name,
+                    mod_title=m.get("title") or m_name,
+                    mod_version=m.get("version"),
+                    mod_url=m.get("url") or (f"https://www.mcmod.cn/class/{m['class_id']}.html" if m.get("class_id") else None),
+                    class_id=str(m.get("class_id")) if m.get("class_id") else None,
+                    category_id=str(m.get("category_id")) if m.get("category_id") else None,
+                    category_name=m.get("category_name") or "未分类",
+                    category_url=m.get("category_url"),
+                    sort_order=s_idx
+                ))
+            elif isinstance(m, str) and m.strip():
+                m_name = m.strip()
+                included_mods.append(CanonicalIncludedMod(
+                    source_item_id=source_item_id,
+                    mod_name=m_name,
+                    mod_title=m_name,
+                    mod_version=None,
+                    mod_url=None,
+                    class_id=None,
+                    category_id=None,
+                    category_name="未分类",
+                    category_url=None,
+                    sort_order=s_idx
+                ))
+
+        # 8. Trend Points
+        trend_points = []
+        t_dates = (raw_item.get("trend_dates") or "").split(",")
+        t_vals = (raw_item.get("trend_vals") or "").split(",")
+        for d, v in zip(t_dates, t_vals):
+            d = d.strip()
+            v = v.strip()
+            if d and v:
+                try:
+                    trend_points.append(CanonicalTrendPoint(
+                        source_item_id=source_item_id,
+                        point_date=d,
+                        views_delta=float(v)
+                    ))
+                except ValueError:
+                    pass
+
+        # 9. Source Comments
+        com_n = int(raw_item.get("comments") or 0)
+        source_comments = CanonicalSourceComment(
+            source_item_id=source_item_id,
+            page_count=com_n,
+            true_count=0,
+            comments_json="[]"
+        )
+
         return CanonicalPackBundle(
             pack=pack,
             source_item=source_item,
@@ -246,5 +327,8 @@ class MCModAdapter(BaseAdapter):
             download_links=[],
             related_videos=[],
             metrics=metrics,
-            environment_claims=claims
+            environment_claims=claims,
+            included_mods=included_mods,
+            trend_points=trend_points,
+            source_comments=source_comments
         )

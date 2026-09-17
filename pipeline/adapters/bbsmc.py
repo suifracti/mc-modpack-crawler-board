@@ -49,6 +49,10 @@ class BbsmcAdapter(BaseAdapter):
         extra_dict = {
             "slug": raw_item.get("slug"),
             "gallery": raw_item.get("gallery") or [],
+            "featured_gallery": raw_item.get("featured_gallery") or [],
+            "created_timestamp": raw_item.get("created_timestamp"),
+            "modified_timestamp": raw_item.get("modified_timestamp"),
+            "versions_data": raw_item.get("versions_data") or [],
         }
         source_item = CanonicalSourceItem(
             id=source_item_id,

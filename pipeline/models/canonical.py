@@ -115,6 +115,32 @@ class CanonicalEnvironmentClaim:
     observed_at: str = ""
 
 @dataclass
+class CanonicalIncludedMod:
+    source_item_id: str
+    mod_name: str
+    mod_title: Optional[str] = None
+    mod_version: Optional[str] = None
+    mod_url: Optional[str] = None
+    class_id: Optional[str] = None
+    category_id: Optional[str] = None
+    category_name: Optional[str] = None
+    category_url: Optional[str] = None
+    sort_order: int = 0
+
+@dataclass
+class CanonicalTrendPoint:
+    source_item_id: str
+    point_date: str
+    views_delta: float
+
+@dataclass
+class CanonicalSourceComment:
+    source_item_id: str
+    page_count: int = 0
+    true_count: int = 0
+    comments_json: str = "[]"
+
+@dataclass
 class CanonicalPackBundle:
     """A bundle representing 1 canonical pack and all its associated source items, releases, links, claims."""
     pack: CanonicalPack
@@ -127,3 +153,6 @@ class CanonicalPackBundle:
     related_videos: List[CanonicalRelatedVideo] = field(default_factory=list)
     metrics: Optional[CanonicalMetrics] = None
     environment_claims: List[CanonicalEnvironmentClaim] = field(default_factory=list)
+    included_mods: List[CanonicalIncludedMod] = field(default_factory=list)
+    trend_points: List[CanonicalTrendPoint] = field(default_factory=list)
+    source_comments: Optional[CanonicalSourceComment] = None

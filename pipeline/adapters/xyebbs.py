@@ -53,6 +53,11 @@ class XyebbsAdapter(BaseAdapter):
             "likes": raw_item.get("likes"),
             "comments": raw_item.get("comments"),
             "gallery": raw_item.get("gallery") or [],
+            "head_url": raw_item.get("head_url"),
+            "source_meta": raw_item.get("source_meta") or {},
+            "created_timestamp": raw_item.get("created_timestamp"),
+            "modified_timestamp": raw_item.get("modified_timestamp"),
+            "releases_data": raw_item.get("releases_data") or [],
         }
         source_item = CanonicalSourceItem(
             id=source_item_id,
@@ -88,20 +93,20 @@ class XyebbsAdapter(BaseAdapter):
         releases = []
         raw_releases = raw_item.get("releases_data") or []
         for r_idx, r in enumerate(raw_releases):
-            r_name = r.get("title") or r.get("version_name") or f"Release_{r_idx+1}"
-            r_date = r.get("date") or pub_at
+            r_name = r.get("label") or r.get("name") or r.get("title") or r.get("version_name") or f"Release_{r_idx+1}"
+            r_date = r.get("createDate") or r.get("date") or pub_at
             r_mc = r.get("mc_versions") or raw_item.get("all_versions") or []
             r_extra = {"links": r.get("links") or []}
             releases.append(CanonicalRelease(
-                id=f"{source_item_id}:rel:{r_idx}",
+                id=f"{source_item_id}:rel:{r.get('id') or r_idx}",
                 pack_id=pack_id,
                 source_item_id=source_item_id,
                 version_name=r_name,
                 version_type="release",
                 release_date=r_date,
                 is_latest=(r_idx == 0),
-                changelog=r.get("changelog"),
-                downloads_count=None,
+                changelog=r.get("notes") or r.get("changelog"),
+                downloads_count=r.get("downloadCount") or r.get("downloads"),
                 mc_versions=r_mc,
                 extra_json=json.dumps(r_extra, ensure_ascii=False),
                 created_at=now_str
