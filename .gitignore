@@ -52,3 +52,5 @@ docs/screenshots/
 
 # Build artifacts
 build/
+node_modules/
+

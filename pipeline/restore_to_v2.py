@@ -148,7 +148,8 @@ def restore_to_v2():
     prod_state = {
         "active_pipeline": "v2",
         "restored_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
-        "commit": commit,
+        "pipeline_code_commit": commit,
+        "cutover_base_commit": "a8cc46ea839ea64d64468d3aba22766015729686",
         "canonical_db_hash": canonical_db_hash,
         "total_records": total_count,
         "manifest_path": os.path.relpath(V2_PROD_MANIFEST_PATH, REPO_ROOT).replace("\\", "/"),
