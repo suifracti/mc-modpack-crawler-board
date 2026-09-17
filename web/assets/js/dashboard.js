@@ -290,6 +290,13 @@ $(document).ready(function() {
             slug: p.slug || '',
             author: p.author || '',
             description: p.description || '',
+            has_server: p.has_server || false,
+            env_display: p.env_display || '',
+            pack_version: p.pack_version || '',
+            has_group_version: p.has_group_version || false,
+            group_version_note: p.group_version_note || '',
+            desc_updated_at: p.desc_updated_at || '',
+            qq_group: p.qq_group || '',
             versions_data: p.versions_data || [],
             releases_data: p.releases_data || [],
             comments_data: p.comments_data || [],
@@ -433,6 +440,7 @@ $(document).ready(function() {
                         title +
                     '</a>' +
                     '<div class="mcmod-card-badges">' +
+                        (r.has_server ? '<span class="badge-env badge-env-server" style="font-size:0.75rem;" title="含服务端/支持联机开服">🖳 服务端</span>' : '') +
                         '<span class="mcmod-badge-type">' + (r.type_name || '魔改') + '</span>' +
                         '<span class="mcmod-badge-mods js-open-version-modal" data-mid="' + mid + '" style="cursor:pointer;" title="点击查看版本与参数详情">🧩 ' + modCount + ' 个模组</span>' +
                         '<span class="mcmod-badge-score">👍 ' + goodPct + '% 好评</span>' +
@@ -1639,7 +1647,12 @@ $(document).ready(function() {
                     totalFavs: 0,
                     totalShare: 0,
                     totalReply: 0,
-                    totalDanmaku: 0
+                    totalDanmaku: 0,
+                    has_server: false,
+                    has_group_version: false,
+                    group_version_note: '',
+                    pack_version: '',
+                    desc_updated_at: ''
                 };
                 groups.push(map[key]);
             }
@@ -1653,6 +1666,12 @@ $(document).ready(function() {
                 g.displayTitle = p.title;
                 g.pic = p.pic;
             }
+
+            if (p.has_server) g.has_server = true;
+            if (p.has_group_version) g.has_group_version = true;
+            if (p.pack_version && !g.pack_version) g.pack_version = p.pack_version;
+            if (p.group_version_note && !g.group_version_note) g.group_version_note = p.group_version_note;
+            if (p.desc_updated_at && !g.desc_updated_at) g.desc_updated_at = p.desc_updated_at;
 
             if (p.mc_version && p.mc_version !== '未知') g.allVersions.add(p.mc_version);
             if (p.all_versions && Array.isArray(p.all_versions)) {
@@ -1700,6 +1719,7 @@ $(document).ready(function() {
         var ver = $('#biliVerSelect').val() || '';
         var loader = $('#biliLoaderSelect').val() || '';
         var sort = $('#biliSortSelect').val() || 'pubdate_desc';
+        var serverOnly = $('#biliServerOnly').is(':checked');
 
         var nowSec = Math.floor(Date.now() / 1000);
         var refSec = nowSec;
@@ -1711,6 +1731,7 @@ $(document).ready(function() {
 
         // 过滤
         var filtered = biliPacks.filter(function(p) {
+            if (serverOnly && !p.has_server) return false;
             if (q) {
                 var searchTarget = ((p.title || '') + ' ' + (p.author || '') + ' ' + (p.desc || '') + ' ' + (p.mc_version || '') + ' ' + (p.loaders || []).join(' ') + ' ' + (p.categories || []).join(' ')).toLowerCase();
                 if (searchTarget.indexOf(q) === -1) return false;
@@ -1864,6 +1885,10 @@ $(document).ready(function() {
             hasFilters = true;
             $list.append('<span class="active-pill" data-clear="pan">💾 网盘: ' + activePan + '<span class="active-pill-remove">✕</span></span>');
         }
+        if ($('#biliServerOnly').is(':checked')) {
+            hasFilters = true;
+            $list.append('<span class="active-pill" data-clear="server">🖳 仅含服务端<span class="active-pill-remove">✕</span></span>');
+        }
 
         if (hasFilters) {
             $bar.show();
@@ -1883,6 +1908,15 @@ $(document).ready(function() {
         var groups = Array.from(g.allGroups);
 
         var tagsHtml = '';
+        if (g.has_server || latest.has_server) {
+            tagsHtml += '<span class="badge-env badge-env-server" title="该整合包提供专用服务端下载/支持联机开服">🖳 含服务端</span>';
+        }
+        if (g.pack_version || latest.pack_version) {
+            tagsHtml += '<span class="bili-pack-ver-tag">📦 v' + escHtml(g.pack_version || latest.pack_version) + '</span>';
+        }
+        if (g.desc_updated_at || latest.desc_updated_at) {
+            tagsHtml += '<span class="bili-desc-updated-tag" title="UP主于简介或置顶评论更新版本：' + escHtml(g.desc_updated_at || latest.desc_updated_at) + '">🔄 简介更新: ' + escHtml(g.desc_updated_at || latest.desc_updated_at) + '</span>';
+        }
         vers.forEach(function(v) { tagsHtml += '<span class="bili-tag-mc">🎮 ' + v + '</span>'; });
         loaders.forEach(function(l) { tagsHtml += '<span class="bili-tag-loader">' + l + '</span>'; });
         cats.forEach(function(c) { tagsHtml += '<span class="bili-tag-cat">' + c + '</span>'; });
@@ -1896,6 +1930,13 @@ $(document).ready(function() {
         var shareStr = g.totalShare > 10000 ? (g.totalShare / 10000).toFixed(1) + '万' : (g.totalShare || 0);
 
         var coverImg = g.pic ? (g.pic.replace('http://', 'https://') + '@480w_300h_1c.webp') : '';
+
+        var groupVerBannerHtml = '';
+        if (g.has_group_version || latest.has_group_version) {
+            var gNote = g.group_version_note || latest.group_version_note || 'UP主在简介/置顶评论提示最新版本仅在群内发布，可加入QQ群获取体验！';
+            var qGroup = latest.qq_group || (groups.length > 0 ? groups[0] : '');
+            groupVerBannerHtml = '<div class="bili-group-ver-banner">👥 <strong>群内有最新版本</strong>：' + escHtml(gNote) + (qGroup ? (' (Q群: <b>' + escHtml(qGroup) + '</b>)') : '') + '</div>';
+        }
 
         var dlZoneHtml = '<div class="bili-dl-zone">';
         var dlMap = {};
@@ -1974,6 +2015,8 @@ $(document).ready(function() {
                     '<span>·</span>' +
                     '<span>最新: ' + g.latestPubTime + '</span>' +
                 '</div>' +
+                (tagsHtml ? '<div class="bili-card-tags">' + tagsHtml + '</div>' : '') +
+                groupVerBannerHtml +
                 '<div class="bili-metrics-bar">' +
                     '<span class="bmb-item" title="总播放量">👁️ <strong>' + viewsStr + '</strong></span>' +
                     '<span class="bmb-item" title="总弹幕数">📺 <strong>' + danmakuStr + '</strong></span>' +
@@ -1983,7 +2026,6 @@ $(document).ready(function() {
                     '<span class="bmb-item" title="总评论数">💬 <strong>' + replyStr + '</strong></span>' +
                     '<span class="bmb-item" title="总分享数">🔁 <strong>' + shareStr + '</strong></span>' +
                 '</div>' +
-                (tagsHtml ? '<div class="bili-card-tags">' + tagsHtml + '</div>' : '') +
                 dlZoneHtml +
                 versionsHtml +
             '</div>' +
@@ -1993,6 +2035,15 @@ $(document).ready(function() {
     /* 渲染单条平铺卡片 */
     function renderFlatCard(p) {
         var tagsHtml = '';
+        if (p.has_server) {
+            tagsHtml += '<span class="badge-env badge-env-server" title="该整合包提供专用服务端下载/支持联机开服">🖳 含服务端</span>';
+        }
+        if (p.pack_version) {
+            tagsHtml += '<span class="bili-pack-ver-tag">📦 v' + escHtml(p.pack_version) + '</span>';
+        }
+        if (p.desc_updated_at) {
+            tagsHtml += '<span class="bili-desc-updated-tag" title="UP主于简介或置顶评论更新版本：' + escHtml(p.desc_updated_at) + '">🔄 简介更新: ' + escHtml(p.desc_updated_at) + '</span>';
+        }
         if (p.mc_version && p.mc_version !== '未知') tagsHtml += '<span class="bili-tag-mc">🎮 ' + p.mc_version + '</span>';
         if (p.loaders && Array.isArray(p.loaders)) {
             p.loaders.forEach(function(l) { tagsHtml += '<span class="bili-tag-loader">' + l + '</span>'; });
@@ -2010,6 +2061,12 @@ $(document).ready(function() {
         var shareStr = (p.share || 0) > 10000 ? ((p.share || 0) / 10000).toFixed(1) + '万' : (p.share || 0);
 
         var coverImg = p.pic ? (p.pic.replace('http://', 'https://') + '@480w_300h_1c.webp') : '';
+
+        var groupVerBannerHtml = '';
+        if (p.has_group_version) {
+            var gNote = p.group_version_note || 'UP主在简介/置顶评论提示最新版本仅在群内发布，可加入QQ群获取体验！';
+            groupVerBannerHtml = '<div class="bili-group-ver-banner">👥 <strong>群内有最新版本</strong>：' + escHtml(gNote) + (p.qq_group ? (' (Q群: <b>' + escHtml(p.qq_group) + '</b>)') : '') + '</div>';
+        }
 
         var dlZoneHtml = '<div class="bili-dl-zone">';
         if (p.download_links && p.download_links.length > 0) {
@@ -2060,6 +2117,8 @@ $(document).ready(function() {
                     '<span>·</span>' +
                     '<span>' + p.pub_time + '</span>' +
                 '</div>' +
+                (tagsHtml ? '<div class="bili-card-tags">' + tagsHtml + '</div>' : '') +
+                groupVerBannerHtml +
                 '<div class="bili-metrics-bar">' +
                     '<span class="bmb-item" title="播放量">👁️ <strong>' + viewsStr + '</strong></span>' +
                     '<span class="bmb-item" title="弹幕数">📺 <strong>' + danmakuStr + '</strong></span>' +
@@ -2069,7 +2128,6 @@ $(document).ready(function() {
                     '<span class="bmb-item" title="评论数">💬 <strong>' + replyStr + '</strong></span>' +
                     '<span class="bmb-item" title="分享数">🔁 <strong>' + shareStr + '</strong></span>' +
                 '</div>' +
-                (tagsHtml ? '<div class="bili-card-tags">' + tagsHtml + '</div>' : '') +
                 dlZoneHtml +
             '</div>' +
         '</div>';
@@ -2081,8 +2139,10 @@ $(document).ready(function() {
         var ver = $('#bbsmcVerSelect').val() || '';
         var loader = $('#bbsmcLoaderSelect').val() || '';
         var sort = $('#bbsmcSortSelect').val() || 'downloads_desc';
+        var serverOnly = $('#bbsmcServerOnly').is(':checked');
 
         var filtered = bbsmcPacks.filter(function(p) {
+            if (serverOnly && !p.has_server) return false;
             if (q) {
                 var sTarget = ((p.title || '') + ' ' + (p.author || '') + ' ' + (p.description || '') + ' ' + (p.mc_version || '') + ' ' + (p.loaders || []).join(' ') + ' ' + (p.categories || []).join(' ')).toLowerCase();
                 if (sTarget.indexOf(q) === -1) return false;
@@ -2180,6 +2240,10 @@ $(document).ready(function() {
             else if (bbsmcActivePan === 'curseforge') panLabel = 'CurseForge';
             $list.append('<span class="active-pill" data-clear="pan">💾 渠道: ' + panLabel + '<span class="active-pill-remove">✕</span></span>');
         }
+        if ($('#bbsmcServerOnly').is(':checked')) {
+            hasFilters = true;
+            $list.append('<span class="active-pill" data-clear="server">🖳 仅含服务端<span class="active-pill-remove">✕</span></span>');
+        }
 
         if (hasFilters) {
             $bar.show();
@@ -2214,6 +2278,9 @@ $(document).ready(function() {
         var flStr = p.followers > 10000 ? (p.followers / 10000).toFixed(1) + '万' : (p.followers || 0);
 
         var tagsHtml = '';
+        if (p.has_server) {
+            tagsHtml += '<span class="badge-env badge-env-server" title="该整合包提供专用服务端下载/支持联机开服">🖳 含服务端</span>';
+        }
         if (p.mc_version && p.mc_version !== '未知') {
             tagsHtml += '<span class="bbsmc-badge-ver">🎮 ' + p.mc_version + '</span>';
         }
@@ -2321,8 +2388,10 @@ $(document).ready(function() {
         var ver = $('#xyebbsVerSelect').val() || '';
         var loader = $('#xyebbsLoaderSelect').val() || '';
         var sort = $('#xyebbsSortSelect').val() || 'hot_desc';
+        var serverOnly = $('#xyebbsServerOnly').is(':checked');
 
         var filtered = xyebbsPacks.filter(function(p) {
+            if (serverOnly && !p.has_server) return false;
             if (q) {
                 var sTarget = ((p.title || '') + ' ' + (p.english_name || '') + ' ' + (p.author || '') + ' ' + (p.description || '') + ' ' + (p.mc_version || '') + ' ' + (p.loaders || []).join(' ') + ' ' + (p.categories || []).join(' ')).toLowerCase();
                 if (sTarget.indexOf(q) === -1) return false;
@@ -2427,6 +2496,10 @@ $(document).ready(function() {
             var panLabel = xyebbsActivePan === 'official' ? '官方发布页' : xyebbsActivePan;
             $list.append('<span class="active-pill" data-clear="pan">💾 渠道: ' + panLabel + '<span class="active-pill-remove">✕</span></span>');
         }
+        if ($('#xyebbsServerOnly').is(':checked')) {
+            hasFilters = true;
+            $list.append('<span class="active-pill" data-clear="server">🖳 仅含服务端<span class="active-pill-remove">✕</span></span>');
+        }
 
         if (hasFilters) {
             $bar.show();
@@ -2445,6 +2518,9 @@ $(document).ready(function() {
         var viewStr = p.views > 10000 ? (p.views / 10000).toFixed(1) + '万' : (p.views || 0);
 
         var tagsHtml = '';
+        if (p.has_server) {
+            tagsHtml += '<span class="badge-env badge-env-server" title="该整合包提供专用服务端下载/支持联机开服">🖳 含服务端</span>';
+        }
         if (p.mc_version && p.mc_version !== '未知') {
             tagsHtml += '<span class="xyebbs-badge-ver">🎮 ' + p.mc_version + '</span>';
         }
@@ -2539,8 +2615,10 @@ $(document).ready(function() {
         var ver = $('#modrinthVerSelect').val() || '';
         var loader = $('#modrinthLoaderSelect').val() || '';
         var sort = $('#modrinthSortSelect').val() || 'downloads_desc';
+        var serverOnly = $('#modrinthServerOnly').is(':checked');
 
         var filtered = modrinthPacks.filter(function(p) {
+            if (serverOnly && !p.has_server) return false;
             if (q) {
                 var sTarget = ((p.title || '') + ' ' + (p.slug || '') + ' ' + (p.author || '') + ' ' + (p.description || '') + ' ' + (p.categories || []).join(' ')).toLowerCase();
                 if (sTarget.indexOf(q) === -1) return false;
@@ -2613,6 +2691,10 @@ $(document).ready(function() {
                 $list.append('<span class="active-pill" data-clear="cat" data-val="' + escHtml(oneCat, true) + '">🏷️ 分类: ' + escHtml(catLabel(oneCat), true) + '<span class="active-pill-remove">✕</span></span>');
             });
         }
+        if ($('#modrinthServerOnly').is(':checked')) {
+            hasFilters = true;
+            $list.append('<span class="active-pill" data-clear="server">🖳 仅含服务端<span class="active-pill-remove">✕</span></span>');
+        }
 
         if (hasFilters) {
             $bar.show();
@@ -2631,6 +2713,12 @@ $(document).ready(function() {
         var flStr = p.followers > 10000 ? (p.followers / 10000).toFixed(1) + '万' : (p.followers || 0);
 
         var tagsHtml = '';
+        if (p.env_display) {
+            var isBoth = p.env_display.indexOf('服务端') !== -1;
+            tagsHtml += '<span class="modrinth-badge-env ' + (isBoth ? 'env-both' : 'env-client') + '" title="运行环境: ' + escHtml(p.env_display) + '">🖵 ' + escHtml(p.env_display) + '</span>';
+        } else if (p.has_server) {
+            tagsHtml += '<span class="badge-env badge-env-server" title="含服务端">🖳 含服务端</span>';
+        }
         if (p.mc_version && p.mc_version !== '未知') {
             tagsHtml += '<span class="modrinth-badge-ver">🎮 ' + p.mc_version + '</span>';
         }
@@ -2682,8 +2770,10 @@ $(document).ready(function() {
         var ver = $('#curseforgeVerSelect').val() || '';
         var loader = $('#curseforgeLoaderSelect').val() || '';
         var sort = $('#curseforgeSortSelect').val() || 'downloads_desc';
+        var serverOnly = $('#curseforgeServerOnly').is(':checked');
 
         var filtered = curseforgePacks.filter(function(p) {
+            if (serverOnly && !p.has_server) return false;
             if (q) {
                 var sTarget = ((p.title || '') + ' ' + (p.slug || '') + ' ' + (p.author || '') + ' ' + (p.description || '') + ' ' + (p.categories || []).join(' ')).toLowerCase();
                 if (sTarget.indexOf(q) === -1) return false;
@@ -2756,6 +2846,10 @@ $(document).ready(function() {
                 $list.append('<span class="active-pill" data-clear="cat" data-val="' + escHtml(oneCat, true) + '">🏷️ 分类: ' + escHtml(catLabel(oneCat), true) + '<span class="active-pill-remove">✕</span></span>');
             });
         }
+        if ($('#curseforgeServerOnly').is(':checked')) {
+            hasFilters = true;
+            $list.append('<span class="active-pill" data-clear="server">🖳 仅含服务端<span class="active-pill-remove">✕</span></span>');
+        }
 
         if (hasFilters) {
             $bar.show();
@@ -2774,6 +2868,9 @@ $(document).ready(function() {
         var flStr = p.followers > 10000 ? (p.followers / 10000).toFixed(1) + '万' : (p.followers || 0);
 
         var tagsHtml = '';
+        if (p.has_server) {
+            tagsHtml += '<span class="badge-env badge-env-server" title="该整合包提供专用服务端下载/支持联机开服">🖳 含服务端</span>';
+        }
         if (p.mc_version && p.mc_version !== '未知') {
             tagsHtml += '<span class="curseforge-badge-ver">🎮 ' + p.mc_version + '</span>';
         }
@@ -2984,6 +3081,7 @@ $(document).ready(function() {
         activeCat = [];
         activePan = '';
         activeDate = '';
+        $('#biliServerOnly').prop('checked', false);
         $('#biliSortSelect').val('pubdate_desc').trigger('change');
         $('#biliVerSelect').val('').trigger('change');
         $('#biliLoaderSelect').val('').trigger('change');
@@ -3150,6 +3248,8 @@ $(document).ready(function() {
             $('#biliVerSelect').val('').trigger('change');
         } else if (clearType === 'loader') {
             $('#biliLoaderSelect').val('').trigger('change');
+        } else if (clearType === 'server') {
+            $('#biliServerOnly').prop('checked', false).trigger('change');
         }
     });
 
@@ -3426,6 +3526,8 @@ $(document).ready(function() {
             $('#bbsmcVerSelect').val('').trigger('change');
         } else if (clearType === 'loader') {
             $('#bbsmcLoaderSelect').val('').trigger('change');
+        } else if (clearType === 'server') {
+            $('#bbsmcServerOnly').prop('checked', false).trigger('change');
         }
     });
 
@@ -3433,6 +3535,7 @@ $(document).ready(function() {
         bbsmcActiveCat = [];
         bbsmcActivePan = '';
         currentBbsmcCardLimit = 48;
+        $('#bbsmcServerOnly').prop('checked', false);
         $('#bbsmcSortSelect').val('downloads_desc').trigger('change');
         $('#bbsmcVerSelect').val('').trigger('change');
         $('#bbsmcLoaderSelect').val('').trigger('change');
@@ -3609,6 +3712,8 @@ $(document).ready(function() {
             $('#xyebbsVerSelect').val('').trigger('change');
         } else if (clearType === 'loader') {
             $('#xyebbsLoaderSelect').val('').trigger('change');
+        } else if (clearType === 'server') {
+            $('#xyebbsServerOnly').prop('checked', false).trigger('change');
         }
     });
 
@@ -3616,6 +3721,7 @@ $(document).ready(function() {
         xyebbsActiveCat = [];
         xyebbsActivePan = '';
         currentXyebbsCardLimit = 48;
+        $('#xyebbsServerOnly').prop('checked', false);
         $('#xyebbsSortSelect').val('hot_desc').trigger('change');
         $('#xyebbsVerSelect').val('').trigger('change');
         $('#xyebbsLoaderSelect').val('').trigger('change');
@@ -3768,11 +3874,13 @@ $(document).ready(function() {
         }
         else if (clearType === 'ver') $('#modrinthVerSelect').val('').trigger('change');
         else if (clearType === 'loader') $('#modrinthLoaderSelect').val('').trigger('change');
+        else if (clearType === 'server') $('#modrinthServerOnly').prop('checked', false).trigger('change');
     });
 
     $('#modrinthClearFiltersBtn, #modrinthResetBtn').on('click', function() {
         modrinthActiveCat = [];
         currentModrinthCardLimit = 48;
+        $('#modrinthServerOnly').prop('checked', false);
         $('#modrinthSortSelect').val('downloads_desc').trigger('change');
         $('#modrinthVerSelect').val('').trigger('change');
         $('#modrinthLoaderSelect').val('').trigger('change');
@@ -3922,11 +4030,13 @@ $(document).ready(function() {
         }
         else if (clearType === 'ver') $('#curseforgeVerSelect').val('').trigger('change');
         else if (clearType === 'loader') $('#curseforgeLoaderSelect').val('').trigger('change');
+        else if (clearType === 'server') $('#curseforgeServerOnly').prop('checked', false).trigger('change');
     });
 
     $('#curseforgeClearFiltersBtn, #curseforgeResetBtn').on('click', function() {
         curseforgeActiveCat = [];
         currentCurseforgeCardLimit = 48;
+        $('#curseforgeServerOnly').prop('checked', false);
         $('#curseforgeSortSelect').val('downloads_desc').trigger('change');
         $('#curseforgeVerSelect').val('').trigger('change');
         $('#curseforgeLoaderSelect').val('').trigger('change');
@@ -4908,6 +5018,7 @@ $(document).ready(function() {
             // 分类和标签筛选（内存化高速检索，无需查询 DOM）
             var rowData = (window.tableRowsData && window.tableRowsData[dataIndex]);
             if (!rowData) return true;
+            if ($('#mcmodServerOnly').is(':checked') && !rowData.has_server) return false;
             var rowType = rowData.type_name || '';
             var rowCat  = rowData.cat_search || '';
             var rowPack = rowData.pack_search || '';
@@ -4983,6 +5094,7 @@ $(document).ready(function() {
         $('#modCategoryFilter').val(null).trigger('change');
         $('#modFilter').val(null).trigger('change');
         $('#categoryExclude, #packTagExclude, #modCategoryExclude, #modExclude').prop('checked', false);
+        $('#mcmodServerOnly').prop('checked', false);
         $('#trendFilter').val('').trigger('change');
         $('#mcmodUnifiedSearch').val('');
         $('#mcmodSearchClear').hide();
@@ -4990,6 +5102,30 @@ $(document).ready(function() {
         if (table) table.search('').draw();
         renderMcmodCards();
         renderSidebarTags('mcmod');
+    });
+
+    // 跨平台仅看含服务端复选框统一事件调度
+    $(document).on('change', '.js-server-only-toggle', function() {
+        var plat = $(this).data('plat');
+        if (plat === 'mcmod') {
+            if (window.table) window.table.draw();
+            if (activeMcmodVMode === 'cards') renderMcmodCards();
+        } else if (plat === 'bilibili') {
+            currentBiliCardLimit = 48;
+            renderBiliView();
+        } else if (plat === 'bbsmc') {
+            currentBbsmcCardLimit = 48;
+            renderBbsmcView();
+        } else if (plat === 'xyebbs') {
+            currentXyebbsCardLimit = 48;
+            renderXyebbsView();
+        } else if (plat === 'modrinth') {
+            currentModrinthCardLimit = 48;
+            renderModrinthView();
+        } else if (plat === 'curseforge') {
+            currentCurseforgeCardLimit = 48;
+            renderCurseforgeView();
+        }
     });
 
     // ★ 首屏极速初始化：定义完成后立即检查，如果数据就绪且为表格模式，立即构建表格！
@@ -6117,7 +6253,27 @@ $(document).ready(function() {
             '</div>';
         }
 
-        var overviewHtml = formerTitlesHtml +
+        var hasServer = Boolean(extra.has_server || (row && row.has_server) || (extra.rawPack && extra.rawPack.has_server));
+        var envDisplay = extra.env_display || (extra.rawPack && extra.rawPack.env_display) || '';
+        var envPillText = hasServer ? (envDisplay || '支持联机开服 / 提供专用服务端') : '未提供专用开服端';
+
+        var envBoxHtml = '<div class="vmodal-env-box">' +
+            '<div class="vmodal-env-label">⚙️ 运行环境支持 (Runtime Environment)</div>' +
+            '<div class="vmodal-env-pills">' +
+                '<span class="vmodal-env-pill active">🖵 客户端 (支持单人游玩/客户端运行)</span>' +
+                '<span class="vmodal-env-pill ' + (hasServer ? 'active active-server' : '') + '">🖳 服务端 (' + escHtml(envPillText) + ')</span>' +
+            '</div>' +
+        '</div>';
+
+        var groupVerHtml = '';
+        if (extra.has_group_version) {
+            groupVerHtml = '<div class="bili-group-ver-banner" style="margin-bottom:16px; font-size:0.92rem; padding:12px 16px;">' +
+                '👥 <strong>群内有最新版本提示</strong>：' + escHtml(extra.group_version_note || 'UP主在简介/置顶评论中提示最新版本仅在QQ群内发布，请加入QQ群获取体验！') +
+                (extra.qq_group ? (' (QQ群号: <b>' + escHtml(extra.qq_group) + '</b>)') : '') +
+                '</div>';
+        }
+
+        var overviewHtml = formerTitlesHtml + groupVerHtml + envBoxHtml +
             '<div class="version-details-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:18px;">' +
                 '<div class="vcard-metric" style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:12px; padding:14px;">' +
                     '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">' + lblVer + '</div>' +
@@ -6662,6 +6818,12 @@ $(document).ready(function() {
                 url: g.items[0] ? g.items[0].url : '#',
                 items: g.items,
                 count: g.items.length,
+                has_server: g.has_server || false,
+                has_group_version: g.has_group_version || false,
+                group_version_note: g.group_version_note || '',
+                pack_version: g.pack_version || '',
+                qq_group: (g.items[0] && g.items[0].qq_group) || '',
+                links: g.allLinks || [],
                 // 主版本槽已经承载「支持版本」，再放一张 Minecraft 支持版本卡就是重复信息
                 skipMcVersCard: true,
                 mcVers: verText,

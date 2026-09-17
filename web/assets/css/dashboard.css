@@ -9024,3 +9024,164 @@ input, textarea {
     font-weight: 800 !important;
 }
 
+/* ═════════════════ 运行环境与服务端徽章及群版本感知样式 ═════════════════ */
+.hub-server-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--text-secondary);
+    padding: 3px 10px;
+    border-radius: 6px;
+    background: var(--soft);
+    border: 1px solid var(--line);
+    transition: all 0.2s ease;
+    user-select: none;
+}
+.hub-server-toggle:hover {
+    border-color: var(--emerald, #10b981);
+    color: var(--text-primary);
+}
+.hub-server-toggle input {
+    accent-color: var(--emerald, #10b981);
+    cursor: pointer;
+}
+.hub-server-toggle.active {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: var(--emerald, #10b981);
+}
+
+.badge-env {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.4;
+    transition: all 0.15s ease;
+}
+.badge-env-server, .modrinth-badge-env.env-server, .modrinth-badge-env.env-both {
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+[data-theme="dark"] .badge-env-server, [data-theme="dark"] .modrinth-badge-env.env-server, [data-theme="dark"] .modrinth-badge-env.env-both {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.35);
+}
+.badge-env-client, .modrinth-badge-env.env-client {
+    background: rgba(100, 116, 139, 0.12);
+    color: #64748b;
+    border: 1px solid rgba(100, 116, 139, 0.25);
+}
+[data-theme="dark"] .badge-env-client, [data-theme="dark"] .modrinth-badge-env.env-client {
+    background: rgba(148, 163, 184, 0.15);
+    color: #cbd5e1;
+    border-color: rgba(148, 163, 184, 0.25);
+}
+
+.bili-group-ver-banner {
+    display: block;
+    line-height: 1.55;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(245, 158, 11, 0.12));
+    border: 1px dashed rgba(16, 185, 129, 0.35);
+    border-radius: 8px;
+    padding: 7px 11px;
+    margin: 8px 0;
+    font-size: 12px;
+    color: #059669;
+    word-break: break-word;
+}
+.bili-group-ver-banner strong {
+    font-weight: 750;
+    color: #059669;
+}
+.bili-group-ver-banner b {
+    color: #0284c7;
+    font-weight: 750;
+}
+[data-theme="dark"] .bili-group-ver-banner {
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.4);
+}
+[data-theme="dark"] .bili-group-ver-banner strong {
+    color: #34d399;
+}
+[data-theme="dark"] .bili-group-ver-banner b {
+    color: #38bdf8;
+}
+.bili-desc-updated-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #d97706;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 4px;
+    padding: 1px 6px;
+}
+.bili-pack-ver-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 750;
+    color: #0284c7;
+    background: rgba(2, 132, 199, 0.1);
+    border: 1px solid rgba(2, 132, 199, 0.25);
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-right: 4px;
+}
+
+.vmodal-env-box {
+    background: var(--bg-surface-elevated, #ffffff);
+    border: 1px solid var(--border-subtle, rgba(0,0,0,0.08));
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+}
+.vmodal-env-label {
+    font-size: 0.88rem;
+    font-weight: 750;
+    color: var(--text-secondary, #64748b);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.vmodal-env-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.vmodal-env-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    background: var(--bg-surface, #f8fafc);
+    border: 1px solid var(--border-color, #e2e8f0);
+    color: var(--text-muted, #94a3b8);
+}
+.vmodal-env-pill.active {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.35);
+    color: var(--text-primary, #0f172a);
+}
+.vmodal-env-pill.active-server {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: #059669;
+}
+[data-theme="dark"] .vmodal-env-pill.active-server {
+    background: rgba(16, 185, 129, 0.16);
+    color: #34d399;
+}
+

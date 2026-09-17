@@ -131,10 +131,15 @@ def standardize_pack(item):
         "date_created": date_created,
         "date_modified": date_modified,
         "download_links": download_links,
+        "client_side": item.get("client_side") or "required",
+        "server_side": item.get("server_side") or "unsupported",
+        "has_server": (item.get("server_side") in ("required", "optional")),
+        "env_display": "客户端和服务端" if (item.get("server_side") in ("required", "optional") and item.get("client_side") in ("required", "optional", None)) else ("仅服务端" if item.get("server_side") in ("required", "optional") else "仅客户端"),
         "source_meta": {
             "license": item.get("license"),
             "client_side": item.get("client_side"),
-            "server_side": item.get("server_side")
+            "server_side": item.get("server_side"),
+            "environment": item.get("environment")
         }
     }
 

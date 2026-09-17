@@ -143,12 +143,14 @@ class BbsmcCrawler:
                                     {
                                         "name": f.get("filename") or "下载",
                                         "url": f.get("url"),
-                                        "size": f"{f.get('size', 0) / (1024 * 1024):.1f}MB" if f.get("size", 0) > 1024 * 1024 else ""
+                                        "size": f"{f.get('size', 0) / (1024 * 1024):.1f}MB" if f.get("size", 0) > 1024 * 1024 else "",
+                                        "is_server": bool(re.search(r'(?:server|服务端|开服包|服端)', (f.get("filename") or "") + " " + (v.get("name") or ""), re.I))
                                     }
                                     for f in v.get("files", []) if f.get("url")
                                 ]
                             })
                         p['versions_data'] = cleaned_versions
+                        p['has_server'] = any(fl.get('is_server') for ver in cleaned_versions for fl in ver.get('files', [])) or bool(re.search(r'(?:服务端|server|开服|服端)', (p.get('title') or "") + " " + (p.get('description') or ""), re.I))
                         if download_links:
                             enriched_count += 1
                 except Exception:
@@ -294,6 +296,7 @@ def standardize_pack(item: Dict[str, Any]) -> Dict[str, Any]:
         "modified_timestamp": modified_ts,
         "download_links": item.get('download_links', []),
         "latest_version": item.get('latest_version', ''),
+        "has_server": item.get('has_server', False),
         "versions_data": item.get('versions_data', [])
     }
 

@@ -17,10 +17,11 @@ def load_bilibili_data():
                 has_qq = bool(item.get("qq_group"))
                 full_text = f"{title}\n{desc}\n{pinned}\n{sub}"
 
-                # 0. 核心黄金准入准则：名字必须有 "整合包/懒人包"，并包含 "更新/发布/首发/公测"
-                if not re.search(r'(?:整合包|模组包|懒人包)', title):
+                # 0. 核心黄金准入准则：名字必须有 "整合包/懒人包/模组包"，且 (包含行动词/版本 OR 包含有效下载直链/QQ群)
+                if not re.search(r'(?:整合包|模组包|懒人包|整合客户端)', title):
                     continue
-                if not re.search(r'(?:更新|发布|首发|公测)', title):
+                has_action = bool(re.search(r'(?:更新|发布|首发|公测|上线|推出|自制|原创|开源|汉化版?|重[制置]版?|正式版|测试版|抢先版|先行版|体验版|出炉|完工|制作完成|分享|下载|v?\d+\.\d+)', title, re.I))
+                if not has_action and not has_links and not has_qq:
                     continue
 
                 # 1. 过滤纯材质包/光影包/资源包/皮肤包
@@ -119,6 +120,19 @@ def load_bilibili_data():
                 if re.search(r'1[3-9]\d{9}整合包', title) or (re.search(r'1[3-9]\d{9}', title) and not desc.strip()):
                     continue
 
+                # 识别服务端
+                if 'has_server' not in item:
+                    item['has_server'] = bool(re.search(r'(?:服务端|服务器端|开服包|开服|双端|服务器整合包)', full_text))
+                # 识别群内新版本
+                if 'has_group_version' not in item:
+                    has_gv = bool(re.search(r'(?:进群体验|群文件|群里还有|群内首发|群内测试|群里更新|Q群下载|加群体验|群里下载|群内流转|群里版本|群里最新)', full_text))
+                    item['has_group_version'] = has_gv
+                    if has_gv and not item.get('group_version_note'):
+                        if pinned and re.search(r'(?:进群体验|群文件|群里还有|群内|Q群|换新|沉淀)', pinned):
+                            item['group_version_note'] = pinned.strip()
+                        elif desc and re.search(r'(?:进群体验|群文件|群里还有|群内|Q群)', desc):
+                            item['group_version_note'] = '进群体验最新版'
+
                 cleaned.append(item)
             return cleaned
         except Exception:
@@ -131,7 +145,19 @@ def load_bbsmc_data():
     if os.path.exists(bbsmc_json):
         try:
             with open(bbsmc_json, "r", encoding="utf-8") as f:
-                return json.load(f)
+                packs = json.load(f)
+            for p in packs:
+                txt = (p.get("title", "") + " " + p.get("description", "")).lower()
+                for d in p.get("download_links", []):
+                    txt += " " + str(d.get("name", "")).lower()
+                for v in p.get("versions_data", []):
+                    txt += " " + str(v.get("name", "")).lower() + " " + str(v.get("changelog", "")).lower()
+                    for fl in v.get("files", []):
+                        fn = str(fl.get("name", "")).lower()
+                        if "server" in fn or "服务端" in fn or "开服" in fn:
+                            fl["is_server"] = True
+                p["has_server"] = bool(re.search(r'(?:服务端|server|开服|服端)', txt))
+            return packs
         except Exception:
             pass
     return []
@@ -143,6 +169,19 @@ def load_modrinth_data():
         try:
             with open(target, "r", encoding="utf-8") as f:
                 packs = json.load(f)
+            for p in packs:
+                sm = p.get("source_meta") or {}
+                c_side = p.get("client_side") or sm.get("client_side") or "required"
+                s_side = p.get("server_side") or sm.get("server_side") or "unsupported"
+                p["client_side"] = c_side
+                p["server_side"] = s_side
+                p["has_server"] = (s_side in ("required", "optional"))
+                if s_side in ("required", "optional") and c_side in ("required", "optional", None):
+                    p["env_display"] = "客户端和服务端"
+                elif s_side in ("required", "optional"):
+                    p["env_display"] = "仅服务端"
+                else:
+                    p["env_display"] = "仅客户端"
             print("  [提示] 成功从 {} 读取 Modrinth 整合包 (共 {} 条)".format(target, len(packs)))
             return packs
         except Exception as e:
@@ -156,6 +195,11 @@ def load_curseforge_data():
         try:
             with open(target, "r", encoding="utf-8") as f:
                 packs = json.load(f)
+            for p in packs:
+                txt = (p.get("title", "") + " " + p.get("description", "")).lower()
+                for d in p.get("download_links", []):
+                    txt += " " + str(d.get("name", "")).lower()
+                p["has_server"] = bool(re.search(r'(?:server|服务端|serverpack|server-pack|开服)', txt))
             print("  [提示] 成功从 {} 读取 CurseForge 整合包 (共 {} 条)".format(target, len(packs)))
             return packs
         except Exception as e:
@@ -168,7 +212,19 @@ def load_xyebbs_data():
     if os.path.exists(xyebbs_json):
         try:
             with open(xyebbs_json, "r", encoding="utf-8") as f:
-                return json.load(f)
+                packs = json.load(f)
+            for p in packs:
+                txt = (p.get("title", "") + " " + p.get("description", "") + " " + p.get("sub_title", "")).lower()
+                for d in p.get("download_links", []):
+                    txt += " " + str(d.get("name", "")).lower()
+                for r in p.get("releases_data", []):
+                    txt += " " + str(r.get("title", "")).lower() + " " + str(r.get("notes", "")).lower()
+                    for lk in r.get("links", []):
+                        ln = str(lk.get("name", "")).lower()
+                        if "server" in ln or "服务端" in ln or "开服" in ln:
+                            lk["is_server"] = True
+                p["has_server"] = bool(re.search(r'(?:服务端|server|开服|服端)', txt))
+            return packs
         except Exception:
             pass
     return []
@@ -2384,6 +2440,7 @@ def adapt_table_rows_js_record(r, existing_compare=None, details_cache=None):
         "tall_d": "{:+.1f}%".format(tall_n) if tall_n is not None else "",
         "tall_n": tall_n if tall_n is not None else 0,
         "trend_arr": trend_arr,
+        "has_server": bool(re.search(r'(?:服务端|服务器端|开服包|支持开服|提供服务端)', (desc or "") + " " + (r.get("title") or "") + " " + (r.get("tags_search") or ""))),
     }
 
 
