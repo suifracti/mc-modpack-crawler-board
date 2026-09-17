@@ -278,8 +278,9 @@ function onPlatformLoaded(platId) {
     window.CURSEFORGE_COVER_FALLBACK = CURSEFORGE_COVER_FALLBACK;
 
     function enhanceMcmodRows() {
-        if (!window.tableRowsData) return;
-        window.tableRowsData.forEach(function(r) {
+        var mcRows = window.mcmodData || window.tableRowsData;
+        if (!mcRows) return;
+        mcRows.forEach(function(r) {
             // 提取封面 URL，确保各模块随时可用且自带防盗链与 fallback
             if (!r.cover_url && r.c0) {
                 var mCover = r.c0.match(/data-image-url="([^"]+)"/);
@@ -314,7 +315,7 @@ function onPlatformLoaded(platId) {
             var table = $('#modpackTable').DataTable();
             rows = table.rows({ search: 'applied' }).data().toArray();
         } else {
-            rows = window.tableRowsData || [];
+            rows = window.mcmodData || window.tableRowsData || [];
         }
 
         $('#mcmodCardCountBadge').text(rows.length + ' 款');
@@ -1169,7 +1170,7 @@ function onPlatformLoaded(platId) {
 
         // 1. 搜索 MC百科
         var mcMatches = [];
-        var mcRows = window.tableRowsData || [];
+        var mcRows = window.mcmodData || window.tableRowsData || [];
         for (var i = 0; i < mcRows.length; i++) {
             var r = mcRows[i];
             var formerTxt = Array.isArray(r.former_titles) ? r.former_titles.join(' ') : (r.former_titles || '');
@@ -3190,7 +3191,7 @@ function showToast(msg) {
 
     function initBiliStats() {
         if (!biliPacks.length) return;
-        var mcCount = (window.tableRowsData ? window.tableRowsData.length : 1484);
+        var mcCount = (window.mcmodData ? window.mcmodData.length : (window.tableRowsData ? window.tableRowsData.length : 1484));
         var groupedAll = groupPacks(biliPacks);
         $('#topNavBiliBadge').text(groupedAll.length.toLocaleString());
         $('#sidebarAllBadge').text((mcCount + groupedAll.length).toLocaleString() + ' 款');
@@ -3945,7 +3946,7 @@ function showToast(msg) {
 
     // 全局六大平台总徽标动态刷新
     function updateAllPlatformsTotalBadge() {
-        var mcCount = (window.tableRowsData ? window.tableRowsData.length : 1484);
+        var mcCount = (window.mcmodData ? window.mcmodData.length : (window.tableRowsData ? window.tableRowsData.length : 1484));
         var biliCount = (window.biliModpacksData ? window.biliModpacksData.length : 935);
         var bbsmcCount = (window.bbsmcModpacksData ? window.bbsmcModpacksData.length : 1802);
         var xyebbsCount = (window.xyebbsModpacksData ? window.xyebbsModpacksData.length : 5175);
@@ -4114,10 +4115,11 @@ function showToast(msg) {
             }
             var formerTxt = '';
             var mid = $(tr).find('a.modpack-link').data('mid');
-            if (mid && window.tableRowsData) {
-                for (var ri = 0; ri < window.tableRowsData.length; ri++) {
-                    if (String(window.tableRowsData[ri].mid) === String(mid)) {
-                        var ft = window.tableRowsData[ri].former_titles;
+            var mcRows = window.mcmodData || window.tableRowsData;
+            if (mid && mcRows) {
+                for (var ri = 0; ri < mcRows.length; ri++) {
+                    if (String(mcRows[ri].mid) === String(mid)) {
+                        var ft = mcRows[ri].former_titles || mcRows[ri].formerTitles;
                         formerTxt = Array.isArray(ft) ? ft.join(' ').toLowerCase() : String(ft || '').toLowerCase();
                         break;
                     }
@@ -4164,7 +4166,7 @@ function showToast(msg) {
                 var keyword = normalizeSearchKeyword();
                 if (!keyword) return true;
                 var scope = $('#searchScope').val() || 'all';
-                var rowData = (window.tableRowsData && window.tableRowsData[dataIndex]);
+                var rowData = (window.mcmodData ? window.mcmodData[dataIndex] : (window.tableRowsData && window.tableRowsData[dataIndex]));
                 if (!rowData) return true;
                 return rowMatchesScope(matchRowSearchFast(data, rowData, keyword, scope), scope);
             }
@@ -4178,136 +4180,106 @@ function showToast(msg) {
             if (window.table) window.table.columns.adjust();
             return;
         }
-        if (!window.tableRowsData || !window.tableRowsData.length) return;
-        // 初始化每个 row 对象的排序字段缓存
-        window.tableRowsData.forEach(function(r) {
-            r.sort_col0 = r.name_order || '';
-            r.sort_col1 = (typeof r.score_n === 'number' ? r.score_n : (parseFloat(r.score_n) || 0));
-            r.sort_col2 = (typeof r.t7_n === 'number' ? r.t7_n : (parseFloat(r.t7_n) || 0));
-            r.sort_col3 = (typeof r.rv_n === 'number' ? r.rv_n : (parseFloat(r.rv_n) || 0));
-            r.sort_col4 = (typeof r.com_n === 'number' ? r.com_n : (parseFloat(r.com_n) || 0));
-            r.sort_col5 = (typeof r.tag_count === 'number' ? r.tag_count : (parseInt(r.tag_count) || 0));
-            r.sort_col6 = (typeof r.mod_count === 'number' ? r.mod_count : (parseInt(r.mod_count) || 0));
-        });
+        var isStructured = Boolean(window.mcmodData && window.mcmodData.length);
+        var tableData = isStructured ? window.mcmodData : (window.tableRowsData || []);
+        if (!tableData || !tableData.length) return;
+
+        var columnsDef;
+        var createdRowFn;
+
+        if (isStructured && typeof window.getMcmodTableColumns === 'function') {
+            columnsDef = window.getMcmodTableColumns();
+            createdRowFn = typeof window.attachMcmodRowAttributes === 'function'
+                ? window.attachMcmodRowAttributes
+                : function(row, rowData, dataIndex) { $(row).attr('data-row', dataIndex).attr('data-mid', rowData.mid); };
+        } else {
+            tableData.forEach(function(r) {
+                r.sort_col0 = r.name_order || '';
+                r.sort_col1 = (typeof r.score_n === 'number' ? r.score_n : (parseFloat(r.score_n) || 0));
+                r.sort_col2 = (typeof r.t7_n === 'number' ? r.t7_n : (parseFloat(r.t7_n) || 0));
+                r.sort_col3 = (typeof r.rv_n === 'number' ? r.rv_n : (parseFloat(r.rv_n) || 0));
+                r.sort_col4 = (typeof r.com_n === 'number' ? r.com_n : (parseFloat(r.com_n) || 0));
+                r.sort_col5 = (typeof r.tag_count === 'number' ? r.tag_count : (parseInt(r.tag_count) || 0));
+                r.sort_col6 = (typeof r.mod_count === 'number' ? r.mod_count : (parseInt(r.mod_count) || 0));
+            });
+            columnsDef = [
+                {
+                    "data": "c0",
+                    "type": "string",
+                    "orderSequence": ["asc", "desc"],
+                    "render": function(data, type, row) {
+                        if (type === 'sort' || type === 'order') return row.sort_col0;
+                        if (type === 'filter' || type === 'search') return (row.title || '') + ' ' + (row.type_name || '');
+                        return data;
+                    }
+                },
+                {
+                    "data": "c1",
+                    "type": "num",
+                    "orderSequence": ["desc", "asc"],
+                    "render": function(data, type, row) {
+                        if (type === 'sort' || type === 'order') return row.sort_col1;
+                        return data;
+                    }
+                },
+                {
+                    "data": "c2",
+                    "type": "num",
+                    "orderSequence": ["desc", "asc"],
+                    "render": function(data, type, row) {
+                        if (type === 'sort' || type === 'order') return row.sort_col2;
+                        return data;
+                    }
+                },
+                {
+                    "data": "c3",
+                    "type": "num",
+                    "orderSequence": ["desc", "asc"],
+                    "render": function(data, type, row) {
+                        if (type === 'sort' || type === 'order') return row.sort_col3;
+                        return data;
+                    }
+                },
+                {
+                    "data": "c4",
+                    "type": "num",
+                    "orderSequence": ["desc", "asc"],
+                    "render": function(data, type, row) {
+                        if (type === 'sort' || type === 'order') return row.sort_col4;
+                        return data;
+                    }
+                },
+                {
+                    "data": "c5",
+                    "type": "num",
+                    "orderSequence": ["desc", "asc"],
+                    "render": function(data, type, row) {
+                        if (type === 'sort' || type === 'order') return row.sort_col5;
+                        if (type === 'filter' || type === 'search') return row.tags_search || '';
+                        return data;
+                    }
+                },
+                {
+                    "data": "c6",
+                    "type": "num",
+                    "orderSequence": ["desc", "asc"],
+                    "render": function(data, type, row) {
+                        if (type === 'sort' || type === 'order') return row.sort_col6;
+                        if (type === 'filter' || type === 'search') return row.mods_search || '';
+                        return data;
+                    }
+                }
+            ];
+            createdRowFn = function(row, rowData, dataIndex) {
+                $(row).attr('data-row', dataIndex).attr('data-mid', rowData.mid);
+            };
+        }
 
         table = window.table = $('#modpackTable').DataTable({
-        "data": window.tableRowsData || [],
+        "data": tableData,
         "deferRender": true,
-        "columns": [
-            {
-                "data": "c0",
-                "type": "string",
-                "orderSequence": ["asc", "desc"],
-                "render": function(data, type, row) {
-                    if (type === 'sort' || type === 'order') return row.sort_col0;
-                    if (type === 'filter' || type === 'search') return (row.title || '') + ' ' + (row.type_name || '');
-                    return data;
-                }
-            },
-            {
-                "data": "c1",
-                "type": "num",
-                "orderSequence": ["desc", "asc"],
-                "render": function(data, type, row) {
-                    if (type === 'sort' || type === 'order') return row.sort_col1;
-                    return data;
-                }
-            },
-            {
-                "data": "c2",
-                "type": "num",
-                "orderSequence": ["desc", "asc"],
-                "render": function(data, type, row) {
-                    if (type === 'sort' || type === 'order') return row.sort_col2;
-                    return data;
-                }
-            },
-            {
-                "data": "c3",
-                "type": "num",
-                "orderSequence": ["desc", "asc"],
-                "render": function(data, type, row) {
-                    if (type === 'sort' || type === 'order') return row.sort_col3;
-                    return data;
-                }
-            },
-            {
-                "data": "c4",
-                "type": "num",
-                "orderSequence": ["desc", "asc"],
-                "render": function(data, type, row) {
-                    if (type === 'sort' || type === 'order') return row.sort_col4;
-                    return data;
-                }
-            },
-            {
-                "data": "c5",
-                "type": "num",
-                "orderSequence": ["desc", "asc"],
-                "render": function(data, type, row) {
-                    if (type === 'sort' || type === 'order') return row.sort_col5;
-                    if (type === 'filter' || type === 'search') return row.tags_search || '';
-                    return data;
-                }
-            },
-            {
-                "data": "c6",
-                "type": "num",
-                "orderSequence": ["desc", "asc"],
-                "render": function(data, type, row) {
-                    if (type === 'sort' || type === 'order') return row.sort_col6;
-                    if (type === 'filter' || type === 'search') return row.mods_search || '';
-                    return data;
-                }
-            }
-        ],
-        "createdRow": function(row, rowData, dataIndex) {
-            $(row).attr('data-row', dataIndex).attr('data-mid', rowData.mid);
-            var $tds = $(row).children('td');
-            $tds.eq(0).addClass('td-title' + (rowData.has_cover ? ' has-cover' : ''))
-                      .attr('data-type-search', rowData.type_name)
-                      .attr('data-name', rowData.name_order)
-                      .attr('data-order', rowData.sort_col0)
-                      .attr('data-views', rowData.views_n);
-            $tds.eq(1).addClass('td-trend')
-                      .attr('data-score', rowData.score_n)
-                      .attr('data-lat', rowData.lat_n)
-                      .attr('data-max', rowData.max_n)
-                      .attr('data-avg', rowData.avg_n)
-                      .attr('data-days', rowData.days_n)
-                      .attr('data-order', rowData.sort_col1)
-                      .attr('data-trend', rowData.trend_vals)
-                      .attr('data-dates', rowData.trend_dates)
-                      .attr('data-title', rowData.title);
-            $tds.eq(2).addClass('td-trend')
-                      .attr('data-t7', rowData.t7_n)
-                      .attr('data-t30', rowData.t30_n)
-                      .attr('data-t60', rowData.t60_n)
-                      .attr('data-tall', rowData.tall_n)
-                      .attr('data-order', rowData.sort_col2);
-            $tds.eq(3).addClass('td-votes')
-                      .attr('data-rv', rowData.rv_n)
-                      .attr('data-rp', rowData.rp_n)
-                      .attr('data-bv', rowData.bv_n)
-                      .attr('data-bp', rowData.bp_n)
-                      .attr('data-order', rowData.sort_col3);
-            $tds.eq(4).addClass('td-engage td-comment')
-                      .attr('data-rec', rowData.rec_n)
-                      .attr('data-fav', rowData.fav_n)
-                      .attr('data-com', rowData.com_n)
-                      .attr('data-order', rowData.sort_col4)
-                      .attr('data-mid', rowData.mid);
-            $tds.eq(5).addClass('td-tags')
-                      .attr('data-search', rowData.tags_search)
-                      .attr('data-cat-search', rowData.cat_search)
-                      .attr('data-pack-search', rowData.pack_search)
-                      .attr('data-count', rowData.tag_count)
-                      .attr('data-order', rowData.sort_col5);
-            $tds.eq(6).addClass('td-mods')
-                      .attr('data-search', rowData.mods_search)
-                      .attr('data-count', rowData.mod_count)
-                      .attr('data-order', rowData.sort_col6);
-        },
+        "columns": columnsDef,
+        "createdRow": createdRowFn,
 
         "scrollX": true,
         "autoWidth": false,
@@ -4432,7 +4404,7 @@ function showToast(msg) {
                 }
                 table.rows({ search: 'applied' }).every(function() {
                     var rowIdx = this.index();
-                    var rowData = window.tableRowsData ? window.tableRowsData[rowIdx] : null;
+                    var rowData = window.mcmodData ? window.mcmodData[rowIdx] : (window.tableRowsData ? window.tableRowsData[rowIdx] : null);
                     if (!rowData) return;
                     var match = matchRowSearchFast(this.data(), rowData, keyword, scope);
                     if (!rowMatchesScope(match, scope)) return;
@@ -4624,7 +4596,7 @@ function showToast(msg) {
                 }
 
                 // 重新计算并缓存该列的所有行排序权重
-                (window.tableRowsData || []).forEach(function(r) {
+                (window.mcmodData || window.tableRowsData || []).forEach(function(r) {
                     var raw = 0;
                     if (colIdx === 0) {
                         raw = (subKey === 'name') ? (r.name_order || r.title || '') : (r.views_n !== undefined ? r.views_n : 0);
@@ -4892,7 +4864,7 @@ function showToast(msg) {
                 return exclude ? !matched : matched;
             }
             // 分类和标签筛选（内存化高速检索，无需查询 DOM）
-            var rowData = (window.tableRowsData && window.tableRowsData[dataIndex]);
+            var rowData = (window.mcmodData ? window.mcmodData[dataIndex] : (window.tableRowsData && window.tableRowsData[dataIndex]));
             if (!rowData) return true;
             if ($('#mcmodServerOnly').is(':checked') && !rowData.has_server) return false;
             var rowType = rowData.type_name || '';
@@ -4936,7 +4908,7 @@ function showToast(msg) {
         if (!tbl && $.fn.DataTable && $.fn.DataTable.isDataTable('#modpackTable')) {
             tbl = $('#modpackTable').DataTable();
         }
-        var info = tbl ? tbl.page.info() : { recordsDisplay: (window.tableRowsData ? window.tableRowsData.length : 1484) };
+        var info = tbl ? tbl.page.info() : { recordsDisplay: (window.mcmodData ? window.mcmodData.length : (window.tableRowsData ? window.tableRowsData.length : 1484)) };
         $('#statTotal').text(info.recordsDisplay);
         $('#mcmodMatchedCount').text(info.recordsDisplay);
         $('#mcmodCardCountBadge').text(info.recordsDisplay + ' 款');
@@ -5005,7 +4977,7 @@ function showToast(msg) {
     });
 
     // ★ 首屏极速初始化：定义完成后立即检查，如果数据就绪且为表格模式，立即构建表格！
-    if (window.tableRowsData && window.tableRowsData.length) {
+    if ((window.mcmodData && window.mcmodData.length) || (window.tableRowsData && window.tableRowsData.length)) {
         if (!$.fn.DataTable.isDataTable('#modpackTable') && activeMcmodVMode === 'table') {
             window.initMcmodTable();
         }
@@ -6053,10 +6025,11 @@ function showToast(msg) {
         var plat = extra.platform || (mid ? 'mcmod' : 'bilibili');
         if (!mid && !title && !extra.title) return;
 
-        if (!row && mid && window.tableRowsData) {
-            for (var i = 0; i < window.tableRowsData.length; i++) {
-                if (String(window.tableRowsData[i].mid) === String(mid)) {
-                    row = window.tableRowsData[i];
+        var mcRows = window.mcmodData || window.tableRowsData;
+        if (!row && mid && mcRows) {
+            for (var i = 0; i < mcRows.length; i++) {
+                if (String(mcRows[i].mid) === String(mid)) {
+                    row = mcRows[i];
                     break;
                 }
             }
@@ -6709,10 +6682,11 @@ function showToast(msg) {
             if (m) mid = m[1];
         }
         var row = null;
-        if (mid && window.tableRowsData) {
-            for (var i = 0; i < window.tableRowsData.length; i++) {
-                if (String(window.tableRowsData[i].mid) === String(mid)) {
-                    row = window.tableRowsData[i];
+        var mcRows = window.mcmodData || window.tableRowsData;
+        if (mid && mcRows) {
+            for (var i = 0; i < mcRows.length; i++) {
+                if (String(mcRows[i].mid) === String(mid)) {
+                    row = mcRows[i];
                     break;
                 }
             }

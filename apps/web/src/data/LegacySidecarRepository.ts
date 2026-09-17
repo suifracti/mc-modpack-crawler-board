@@ -14,6 +14,8 @@ import {
   mapLegacyModrinthToPack,
   mapLegacyCurseforgeToPack,
 } from '../domain/mappers';
+import { mapStructuredMcmodToPack } from '../platforms/mcmod/mappers';
+import type { McmodStructuredItem } from '../platforms/mcmod/types';
 import type { LegacyMcmodRow } from '../types/legacy/mcmod';
 import type { LegacyBilibiliItem } from '../types/legacy/bilibili';
 import type { LegacyBbsmcItem } from '../types/legacy/bbsmc';
@@ -46,11 +48,19 @@ export class LegacySidecarRepository implements PackRepository {
     const mapped: PlatformPack[] = [];
 
     switch (platform) {
-      case 'mcmod':
-        for (const row of rawArray as LegacyMcmodRow[]) {
-          mapped.push(mapLegacyMcmodToPack(row));
+      case 'mcmod': {
+        const win = typeof window !== 'undefined' ? (window as unknown as { mcmodData?: McmodStructuredItem[] }) : null;
+        if (win && win.mcmodData && Array.isArray(win.mcmodData)) {
+          for (const item of win.mcmodData) {
+            mapped.push(mapStructuredMcmodToPack(item));
+          }
+        } else {
+          for (const row of rawArray as LegacyMcmodRow[]) {
+            mapped.push(mapLegacyMcmodToPack(row));
+          }
         }
         break;
+      }
       case 'bilibili':
         for (const item of rawArray as LegacyBilibiliItem[]) {
           mapped.push(mapLegacyBilibiliToPack(item));

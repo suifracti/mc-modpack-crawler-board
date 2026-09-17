@@ -1,6 +1,6 @@
 /**
  * Architecture V2 - Frontend Domain Types.
- * Strictly typed representation of Modpacks, Releases, Environment, and Metrics.
+ * Strictly typed representation of Modpacks, Releases, Environment Claims, and Metrics.
  */
 
 export type Platform =
@@ -11,25 +11,45 @@ export type Platform =
   | 'modrinth'
   | 'curseforge';
 
+export type EnvironmentSide = 'client' | 'server';
+
 export type EnvironmentStatus =
   | 'required'
   | 'optional'
+  | 'supported'
   | 'unsupported'
-  | 'unknown'
-  | 'both';
+  | 'unknown';
 
 export type EnvironmentCertainty =
   | 'confirmed'
+  | 'strong_inferred'
   | 'inferred'
+  | 'weak_inferred'
   | 'unknown';
 
 export interface EnvironmentClaim {
-  side: 'client' | 'server';
+  side: EnvironmentSide;
   status: EnvironmentStatus;
   certainty: EnvironmentCertainty;
-  evidenceType?: string;
-  sourceField?: string;
-  rawDeclaration?: string;
+  evidenceType?: string | null;
+  evidenceText?: string | null;
+  sourceField?: string | null;
+  rawValue?: string | null;
+}
+
+/**
+ * Pure compatibility helper to derive legacy boolean has_server from structured claims.
+ * Status 'supported', 'required', or 'optional' translates to true.
+ */
+export function deriveLegacyHasServer(claims: EnvironmentClaim[] | null | undefined): boolean {
+  if (!claims || !claims.length) return false;
+  const serverClaim = claims.find((c) => c.side === 'server');
+  if (!serverClaim) return false;
+  return (
+    serverClaim.status === 'supported' ||
+    serverClaim.status === 'required' ||
+    serverClaim.status === 'optional'
+  );
 }
 
 export interface DownloadLink {
@@ -58,7 +78,10 @@ export interface BasePack {
   title: string;
   author: string;
   url: string;
-  hasServer: boolean;
+  environmentClaims: EnvironmentClaim[];
+  serverClaim?: EnvironmentClaim | null;
+  clientClaim?: EnvironmentClaim | null;
+  hasServer: boolean; // Derived compatibility attribute
   coverUrl?: string;
   summary?: string;
   mcVersions: string[];
@@ -67,14 +90,69 @@ export interface BasePack {
   updatedAt?: string;
 }
 
+export interface McmodTrendStats {
+  lat: number;
+  max: number;
+  avg: number;
+  days: number;
+  t7: number;
+  t30: number;
+  t60: number;
+  tall: number;
+  score: number;
+  trendValsStr?: string;
+  trendDatesStr?: string;
+}
+
+export interface McmodVotes {
+  redVotes: number;
+  blackVotes: number;
+  redPercent: number;
+  blackPercent: number;
+}
+
+export interface McmodModItem {
+  name: string;
+  title: string;
+  version?: string;
+  url: string;
+  classId?: string;
+}
+
+export interface McmodModGroup {
+  categoryKey: string;
+  categoryName: string;
+  categoryUrl?: string;
+  mods: McmodModItem[];
+}
+
+export interface McmodTrendPoint {
+  date: string;
+  viewsDelta: number;
+}
+
 export interface McmodPack extends BasePack {
   platform: 'mcmod';
   mid: number;
+  chineseName: string;
+  englishName: string;
+  formerTitles: string[];
+  typeName: string;
+  moldId?: string;
   views: number;
   score: number;
-  recommendScore?: number;
-  commentsCount?: number;
-  hasServer: boolean;
+  trendStats: McmodTrendStats;
+  votes: McmodVotes;
+  recommendations: number;
+  favorites: number;
+  commentsCount: number;
+  tags: string[];
+  includedModsCount: number;
+  includedModGroups: McmodModGroup[];
+  trendPoints: McmodTrendPoint[];
+  tagsSearch?: string;
+  categorySearch?: string;
+  modsSearch?: string;
 }
 
 export interface BilibiliPack extends BasePack {
@@ -132,7 +210,10 @@ export interface CurseforgePack extends BasePack {
 export type PlatformPack =
   | McmodPack
   | BilibiliPack
-  | BbsmcPack
-  | XyebbsPack
+  | BBSMCPack
+  | XYEBBSPack
   | ModrinthPack
   | CurseforgePack;
+
+export type BBSMCPack = BbsmcPack;
+export type XYEBBSPack = XyebbsPack;

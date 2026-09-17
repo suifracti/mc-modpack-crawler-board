@@ -11,6 +11,7 @@ import { getTheme, setTheme, toggleTheme, bindThemeControls, initTheme } from '.
 import { LegacySidecarLoader } from '../data/LegacySidecarLoader';
 import { LegacySidecarRepository } from '../data/LegacySidecarRepository';
 import { PLATFORM_CONFIGS } from '../data/platformRegistry';
+import { getMcmodTableColumns, attachMcmodRowAttributes, buildMcmodSearchText } from '../platforms/mcmod';
 import type { Platform } from '../domain/types';
 
 export function setupLegacyBridge(): { repository: LegacySidecarRepository } {
@@ -41,6 +42,11 @@ export function setupLegacyBridge(): { repository: LegacySidecarRepository } {
 
     // 4. Data Repository & Platform Loader
     win.packRepository = repository;
+
+    // 5. MCMod Structured Table Columns & TS Renderers
+    win.getMcmodTableColumns = getMcmodTableColumns;
+    win.attachMcmodRowAttributes = attachMcmodRowAttributes;
+    win.buildMcmodSearchText = buildMcmodSearchText;
 
     // Backward-compatible PlatformLoader facade delegating to LegacySidecarLoader
     win.PlatformLoader = {

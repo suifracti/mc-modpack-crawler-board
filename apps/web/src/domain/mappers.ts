@@ -10,6 +10,7 @@ import type {
   CurseforgePack,
   ReleaseItem,
   DownloadLink,
+  EnvironmentClaim,
 } from './types';
 import type { LegacyMcmodRow } from '../types/legacy/mcmod';
 import type { LegacyBilibiliItem } from '../types/legacy/bilibili';
@@ -19,21 +20,43 @@ import type { LegacyModrinthItem } from '../types/legacy/modrinth';
 import type { LegacyCurseforgeItem } from '../types/legacy/curseforge';
 
 export function mapLegacyMcmodToPack(dto: LegacyMcmodRow): McmodPack {
+  const hasServer = Boolean(dto.has_server);
+  const claims: EnvironmentClaim[] = [
+    { side: 'server', status: hasServer ? 'supported' : 'unknown', certainty: hasServer ? 'inferred' : 'unknown' },
+    { side: 'client', status: 'unknown', certainty: 'unknown' },
+  ];
+
   return {
     id: `mcmod:${dto.mid}`,
     platform: 'mcmod',
     sourceId: String(dto.mid),
     mid: dto.mid,
     title: dto.title || '',
+    chineseName: dto.title || '',
+    englishName: '',
+    formerTitles: [],
+    typeName: (dto.type_name as string) || '原生整合',
     author: '',
     url: `https://www.mcmod.cn/modpack/${dto.mid}.html`,
-    hasServer: Boolean(dto.has_server),
+    hasServer,
+    environmentClaims: claims,
+    serverClaim: claims[0],
+    clientClaim: claims[1],
     coverUrl: dto.cover_url,
     views: dto.views_n || 0,
     score: dto.score_n || 0,
+    recommendations: 0,
+    favorites: 0,
+    commentsCount: 0,
+    votes: { redVotes: 0, blackVotes: 0, redPercent: 50, blackPercent: 50 },
+    trendStats: { lat: 0, max: 0, avg: 0, days: 0, t7: 0, t30: 0, t60: 0, tall: 0, score: dto.score_n || 0 },
+    tags: [],
+    categories: dto.category_search ? dto.category_search.split(',').map((s) => s.trim()).filter(Boolean) : [],
     mcVersions: dto.mc_versions || (dto.mc_version ? [dto.mc_version] : []),
     loaders: [],
-    categories: dto.category_search ? dto.category_search.split(',').map((s) => s.trim()).filter(Boolean) : [],
+    includedModsCount: 0,
+    includedModGroups: [],
+    trendPoints: [],
   };
 }
 
@@ -62,6 +85,12 @@ export function mapLegacyBilibiliToPack(dto: LegacyBilibiliItem): BilibiliPack {
     changelog: r.changelog,
   }));
 
+  const hasServer = Boolean(dto.has_server);
+  const claims: EnvironmentClaim[] = [
+    { side: 'server', status: hasServer ? 'supported' : 'unknown', certainty: hasServer ? 'inferred' : 'unknown' },
+    { side: 'client', status: 'unknown', certainty: 'unknown' },
+  ];
+
   return {
     id: `bilibili:${dto.bvid}`,
     platform: 'bilibili',
@@ -70,7 +99,10 @@ export function mapLegacyBilibiliToPack(dto: LegacyBilibiliItem): BilibiliPack {
     title: dto.title,
     author: dto.author,
     url: dto.url,
-    hasServer: Boolean(dto.has_server),
+    hasServer,
+    environmentClaims: claims,
+    serverClaim: claims[0],
+    clientClaim: claims[1],
     coverUrl: dto.cover,
     views: dto.views || 0,
     danmaku: dto.danmaku || 0,
@@ -102,6 +134,12 @@ export function mapLegacyBbsmcToPack(dto: LegacyBbsmcItem): BbsmcPack {
     changelog: r.changelog,
   }));
 
+  const hasServer = Boolean(dto.has_server);
+  const claims: EnvironmentClaim[] = [
+    { side: 'server', status: hasServer ? 'supported' : 'unknown', certainty: hasServer ? 'inferred' : 'unknown' },
+    { side: 'client', status: 'unknown', certainty: 'unknown' },
+  ];
+
   return {
     id: `bbsmc:${dto.project_id}`,
     platform: 'bbsmc',
@@ -110,7 +148,10 @@ export function mapLegacyBbsmcToPack(dto: LegacyBbsmcItem): BbsmcPack {
     title: dto.title,
     author: dto.author,
     url: dto.url,
-    hasServer: Boolean(dto.has_server),
+    hasServer,
+    environmentClaims: claims,
+    serverClaim: claims[0],
+    clientClaim: claims[1],
     coverUrl: dto.cover,
     downloads: dto.downloads || 0,
     replies: dto.replies || 0,
@@ -137,6 +178,12 @@ export function mapLegacyXyebbsToPack(dto: LegacyXyebbsItem): XyebbsPack {
     changelog: r.changelog,
   }));
 
+  const hasServer = Boolean(dto.has_server);
+  const claims: EnvironmentClaim[] = [
+    { side: 'server', status: hasServer ? 'supported' : 'unknown', certainty: hasServer ? 'inferred' : 'unknown' },
+    { side: 'client', status: 'unknown', certainty: 'unknown' },
+  ];
+
   return {
     id: `xyebbs:${dto.project_id}`,
     platform: 'xyebbs',
@@ -145,7 +192,10 @@ export function mapLegacyXyebbsToPack(dto: LegacyXyebbsItem): XyebbsPack {
     title: dto.title,
     author: dto.author,
     url: dto.url,
-    hasServer: Boolean(dto.has_server),
+    hasServer,
+    environmentClaims: claims,
+    serverClaim: claims[0],
+    clientClaim: claims[1],
     coverUrl: dto.cover,
     downloads: dto.downloads || 0,
     replies: dto.replies || 0,
@@ -174,6 +224,12 @@ export function mapLegacyModrinthToPack(dto: LegacyModrinthItem): ModrinthPack {
     changelog: r.changelog,
   }));
 
+  const hasServer = Boolean(dto.has_server);
+  const claims: EnvironmentClaim[] = [
+    { side: 'server', status: hasServer ? 'supported' : 'unknown', certainty: hasServer ? 'inferred' : 'unknown' },
+    { side: 'client', status: 'unknown', certainty: 'unknown' },
+  ];
+
   return {
     id: `modrinth:${dto.project_id}`,
     platform: 'modrinth',
@@ -183,7 +239,10 @@ export function mapLegacyModrinthToPack(dto: LegacyModrinthItem): ModrinthPack {
     title: dto.title,
     author: dto.author,
     url: dto.url,
-    hasServer: Boolean(dto.has_server),
+    hasServer,
+    environmentClaims: claims,
+    serverClaim: claims[0],
+    clientClaim: claims[1],
     coverUrl: dto.icon_url,
     iconUrl: dto.icon_url,
     downloads: dto.downloads || 0,
@@ -214,6 +273,12 @@ export function mapLegacyCurseforgeToPack(dto: LegacyCurseforgeItem): Curseforge
     changelog: r.changelog,
   }));
 
+  const hasServer = Boolean(dto.has_server);
+  const claims: EnvironmentClaim[] = [
+    { side: 'server', status: hasServer ? 'supported' : 'unknown', certainty: hasServer ? 'inferred' : 'unknown' },
+    { side: 'client', status: 'unknown', certainty: 'unknown' },
+  ];
+
   return {
     id: `curseforge:${dto.project_id}`,
     platform: 'curseforge',
@@ -223,7 +288,10 @@ export function mapLegacyCurseforgeToPack(dto: LegacyCurseforgeItem): Curseforge
     title: dto.title,
     author: dto.author,
     url: dto.url,
-    hasServer: Boolean(dto.has_server),
+    hasServer,
+    environmentClaims: claims,
+    serverClaim: claims[0],
+    clientClaim: claims[1],
     coverUrl: dto.logo_url,
     logoUrl: dto.logo_url,
     downloads: dto.downloads || 0,

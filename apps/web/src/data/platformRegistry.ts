@@ -16,8 +16,8 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
   mcmod: {
     id: 'mcmod',
     name: 'MC百科',
-    src: 'data/table_rows.js',
-    globalVar: 'tableRowsData',
+    src: 'data/mcmod_data.js',
+    globalVar: 'mcmodData',
     expectedCount: 1484,
   },
   bilibili: {

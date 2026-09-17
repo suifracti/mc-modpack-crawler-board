@@ -164,10 +164,10 @@ async function runTestSuite(envName, baseUrl, cdpClient) {
   let ready = false;
   for (let i = 0; i < 50; i++) {
     await new Promise(r => setTimeout(r, 200));
-    const isReady = await evalFn('Boolean(window.tableRowsData && window.tableRowsData.length > 0)');
+    const isReady = await evalFn('Boolean((window.mcmodData && window.mcmodData.length > 0) || (window.tableRowsData && window.tableRowsData.length > 0))');
     if (isReady) { ready = true; break; }
   }
-  if (!ready) throw new Error(`[${envName}] Failed to initialize tableRowsData in time`);
+  if (!ready) throw new Error(`[${envName}] Failed to initialize mcmod data (tableRowsData or mcmodData) in time`);
 
   const metrics = {};
   const behaviors = [];
@@ -179,7 +179,7 @@ async function runTestSuite(envName, baseUrl, cdpClient) {
 
   // --- 1. MC百科 (mcmod) ---
   console.log('\n[*] Testing MCMod behaviors...');
-  const mcmodTotal = await evalFn('window.tableRowsData.length');
+  const mcmodTotal = await evalFn(`Boolean(window.mcmodData) ? window.mcmodData.length : (window.tableRowsData ? window.tableRowsData.length : 0)`);
   metrics.mcmod_total = mcmodTotal;
   recordBehavior('MCMod Total Loaded', mcmodTotal === 1484, `Total: ${mcmodTotal}`);
 
