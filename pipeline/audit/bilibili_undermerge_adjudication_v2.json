@@ -1,0 +1,2365 @@
+{
+  "phase": "3G-F.2-B",
+  "generated_at": "2026-08-06T07:06:40.000Z",
+  "artifact": "bilibili_undermerge_adjudication_v2",
+  "question": "Of the under-merge candidates from module 2, which are genuinely one pack split apart, and which are merely similarly-named or wrong candidates?",
+  "separation_of_concerns": {
+    "module2_scanner": "build/audit/bilibili_cross_group_undermerge_v2.json (review list; no verdicts)",
+    "adjudication": "pipeline/audit/bilibili_undermerge_adjudication_v2.js (this file; hand-maintained)",
+    "rule": "No verdict is derived by rule. Every entry was written by reading member titles and registered project ids."
+  },
+  "evidence_policy": {
+    "strong": [
+      "same registered project identity (MCMod / XyeBBS / BBSMC / CurseForge / Modrinth id or slug)",
+      "same explicit pack name continuity",
+      "uploader explicit update / version wording on a named pack"
+    ],
+    "supporting_only": [
+      "same download URL",
+      "same QQ",
+      "same theme"
+    ],
+    "never_sufficient": "A shared download URL or QQ group can never decide a verdict; one Quark link was proven to front 28 different packs (Phase 3G-E)."
+  },
+  "the_nirvana_lesson": {
+    "principle": "\"the title / series looks the same\" != \"the same pack\"",
+    "evidence": {
+      "涅槃": {
+        "records": 5,
+        "group_keys": 4,
+        "identities": [
+          "xyebbs:resource/37418",
+          "mcmod:modpack/1418"
+        ]
+      },
+      "未尽之路-涅槃": {
+        "records": 2,
+        "group_keys": 1,
+        "identities": [
+          "bbsmc:modpack/unfinished_path_nirvana",
+          "xyebbs:res-id/TUPN"
+        ]
+      },
+      "未尽之路(unfinished-path)": {
+        "records": 3,
+        "group_keys": 1,
+        "identities": [
+          "bbsmc:modpack/unfinished-path",
+          "xyebbs:res-id/UP"
+        ]
+      },
+      "expected_packs": 2
+    },
+    "explanation": "未尽之路涅槃 carries 涅槃 as a SUBTITLE of the 未尽之路 line, so it shares a word with the 涅槃 pack without being it. The registered identities separate them cleanly. Therefore the module-2 scanner splitting the 涅槃 keys into two findings is CORRECT, and 涅槃 is the reference FALSE-POSITIVE under-merge candidate.",
+    "consequence": "Module 2 recorded two of the 涅槃 groups as FALSE_SPLIT_INDICATOR. Under this adjudication those are correct as SPLITS (different pack) and must NOT be merged by any runtime change."
+  },
+  "candidates_total": 58,
+  "adjudicated_total": 58,
+  "unadjudicated": [],
+  "declared_but_absent": [],
+  "counts": {
+    "CONFIRMED_SAME_PACK": 24,
+    "STRONG_SAME_PACK": 2,
+    "DIFFERENT_PACKS": 27,
+    "AMBIGUOUS": 5,
+    "PARTIAL": 0
+  },
+  "totals": {
+    "confirmed_same_pack": 24,
+    "strong_same_pack": 2,
+    "different_packs": 27,
+    "ambiguous": 5,
+    "partial": 0,
+    "runtime_gate_size": 26
+  },
+  "expected_identity_totals": {
+    "packs_to_unify": 34,
+    "records_in_gated_cases": 80
+  },
+  "runtime_gate_clusters": [
+    {
+      "cluster_key": "-阳春面面-||-阳春面面-::大 蔚蓝档案 版本|-阳春面面-::青春复兴",
+      "author": "-阳春面面-",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "medium",
+      "group_count": 2,
+      "record_count": 3,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "-阳春面面-::青春复兴",
+        "-阳春面面-::大 蔚蓝档案 版本"
+      ],
+      "evidence_note": "SAME PACK. “青春复兴” IS the pack name (蔚蓝档案超大型科技冒险整合包：青春复兴) and the other group is its earlier “0.5.1版本发布”. Explicit version continuity on a named pack: 0.5.1 -> 0.7.1. The uploader’s own update wording is the decisive evidence."
+    },
+    {
+      "cluster_key": "Karashok_Leo||__raw_BV1iDdLYJESg|karashok_leo::咒次元",
+      "author": "Karashok_Leo",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 4,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "karashok_leo::咒次元",
+        "__raw_BV1iDdLYJESg"
+      ],
+      "evidence_note": "SAME PACK. The raw bucket and the named spell-dimension group carry the IDENTICAL registered identity set: bbsmc:modpack/spell-dimension, curseforge:spell-dimension, github:Karashok-Leo/Spell-Dimension-Modpack, mcmod:modpack/1024. The 0.6.0 release simply produced a key the algorithm could not attach to the others. One pack split two ways."
+    },
+    {
+      "cluster_key": "KonataWorks||__raw_BV1Fg8gzHE7K|konataworks::生电 拥有最全的辅助模组最适合生电的",
+      "author": "KonataWorks",
+      "verdict": "STRONG_SAME_PACK",
+      "confidence": "medium",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "konataworks::生电 拥有最全的辅助模组最适合生电的",
+        "__raw_BV1Fg8gzHE7K"
+      ],
+      "evidence_note": "SAME PACK. Two releases of the same unnamed 生电 (technical-Minecraft) pack, 1.21.4 and 1.21.5, same uploader, same QQ 536926371, consecutive versions. Neither title carries a distinct pack name, and the earlier one fell into a __raw_ bucket. Treating as one pack."
+    },
+    {
+      "cluster_key": "Pork猪排||pork猪排::化龍 金鳞岂是池中物 一遇风云便化龙|pork猪排::化龍 麒麟踏雪|pork猪排::化龙 版本 龙可是帝王之征|pork猪排::龙语 连招 化龍 版本",
+      "author": "Pork猪排",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 4,
+      "record_count": 5,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "pork猪排::化龙 版本 龙可是帝王之征",
+        "pork猪排::化龍 金鳞岂是池中物 一遇风云便化龙",
+        "pork猪排::龙语 连招 化龍 版本",
+        "pork猪排::化龍 麒麟踏雪"
+      ],
+      "evidence_note": "SAME PACK. All four groups are the same hualong pack: the titles name it and the versions run 1.0 -> 1.2 -> 1.3.1 -> 1.3.2 with no competing pack name. Two groups resolve to xyebbs:res-id/beloong and the other two to xyebbs:resource/885, which are the slug and numeric forms of ONE XyeBBS project. One pack split four ways."
+    },
+    {
+      "cluster_key": "SmartAkita||smartakita::cobblemon方块宝可梦 预览 免费 同时提供两种稳定服务端 有光影 一键开服 可伙伴联机 可转载 不限速 体验|smartakita::方块宝可梦 版本 含服务端 免费 cobblemon 进化特效 全新宝可梦添加 双打模式",
+      "author": "SmartAkita",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "smartakita::cobblemon方块宝可梦 预览 免费 同时提供两种稳定服务端 有光影 一键开服 可伙伴联机 可转载 不限速 体验",
+        "smartakita::方块宝可梦 版本 含服务端 免费 cobblemon 进化特效 全新宝可梦添加 双打模式"
+      ],
+      "evidence_note": "SAME PACK. Both are the uploader’s Cobblemon 方块宝可梦 1.6 release for MC 1.21/1.21.1 - one a preview, one the release, both offering the same two servers and free distribution. Explicit version identity (1.6) on the same pack. One pack split two ways."
+    },
+    {
+      "cluster_key": "三只大猪TB_pig||三只大猪tb_pig::最适合初次游玩铁砧工艺的 铁砧工艺极速版|三只大猪tb_pig::铁砧工艺 极速版 完美体验铁砧工艺的所有内容",
+      "author": "三只大猪TB_pig",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "三只大猪tb_pig::最适合初次游玩铁砧工艺的 铁砧工艺极速版",
+        "三只大猪tb_pig::铁砧工艺 极速版 完美体验铁砧工艺的所有内容"
+      ],
+      "evidence_note": "SAME PACK. Both carry the SAME registered project curveforge:anvilcraft-turbo (the release video additionally lists bbsmc:anvilcraft-turbo and xyebbs:res-id/anvilcraft-turbo, which are other mirrors of the same project). Title is identical: 铁砧工艺极速版. One pack split two ways."
+    },
+    {
+      "cluster_key": "吴也mc||吴也mc::全新的灾难降临 安全开局 平衡大增|吴也mc::灾难降临 你需要击杀怪物 升级 技能树 开拓安全区 重建家园",
+      "author": "吴也mc",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "吴也mc::全新的灾难降临 安全开局 平衡大增",
+        "吴也mc::灾难降临 你需要击杀怪物 升级 技能树 开拓安全区 重建家园"
+      ],
+      "evidence_note": "SAME PACK. Both name 灾难降临 as the pack, one an update of the other by the same uploader (“全新的灾难降临…更新介绍” vs the original “灾难降临！…发布”). Explicit pack-name continuity plus update wording. One pack split two ways."
+    },
+    {
+      "cluster_key": "在下Shmily||在下shmily::优化 最牛优化 cmpack即将来临|在下shmily::优化 老手机2000 fps 最牛优化|在下shmily::优化 老手机2800帧 最牛优化",
+      "author": "在下Shmily",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 3,
+      "record_count": 3,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "在下shmily::优化 最牛优化 cmpack即将来临",
+        "在下shmily::优化 老手机2800帧 最牛优化",
+        "在下shmily::优化 老手机2000 fps 最牛优化"
+      ],
+      "evidence_note": "SAME PACK. All three are “最牛优化” (optimisation) releases, explicitly version-continuous: V3.9 -> V4.0 with the same naming and the same stated project (“最牛优化整合包”). Uploader’s own version wording on a named pack. The two “老手机” groups share QQ 377265276; the V4.0 video shares the CMpack roadmap. One pack split three ways."
+    },
+    {
+      "cluster_key": "墨言eclipse||墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频|墨言eclipse::沉浸 深度 a 咒镰双生|墨言eclipse::涅槃 无神明渡我 我亦是神明|墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅",
+      "author": "墨言eclipse",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 4,
+      "record_count": 5,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "墨言eclipse::涅槃 无神明渡我 我亦是神明",
+        "墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅",
+        "墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频",
+        "墨言eclipse::沉浸 深度 a 咒镰双生"
+      ],
+      "evidence_note": "SAME PACK (nirvana). All four groups are the nirvana pack: every member carries xyebbs:resource/37418 and three of them also carry mcmod:modpack/1418. Versions 0.1.5 through 0.2 are explicit updates of the same named pack. One pack split four ways. NOTE: this is the nirvana half of the module-2 result - see the_nirvana_lesson for why the OTHER nirvana-labelled group is NOT part of it."
+    },
+    {
+      "cluster_key": "孑孑雨不是牢孑||孑孑雨不是牢孑::annoying villagers烦村|孑孑雨不是牢孑::烦村 史诗级",
+      "author": "孑孑雨不是牢孑",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "孑孑雨不是牢孑::annoying villagers烦村",
+        "孑孑雨不是牢孑::烦村 史诗级"
+      ],
+      "evidence_note": "SAME PACK. Both are 烦村 / annoying_villagers: one is the 1.0 release, the other the 5.0 “史诗级更新”. Chinese title and English alias are given for the same pack in the first video, and the second is an explicit version update. One pack split two ways."
+    },
+    {
+      "cluster_key": "小兜兜呀_||小兜兜呀_::原神与机械 的时代|小兜兜呀_::小兜兜 恭喜我的原神与机械 的时代 在bbs 资源站 量破6666次和在红石中继站浏览量达到400人 次 以及 相关 计划",
+      "author": "小兜兜呀_",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 7,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "小兜兜呀_::原神与机械 的时代",
+        "小兜兜呀_::小兜兜 恭喜我的原神与机械 的时代 在bbs 资源站 量破6666次和在红石中继站浏览量达到400人 次 以及 相关 计划"
+      ],
+      "evidence_note": "SAME PACK. Both groups carry the SAME two registered ids (a BBSMC project plus its -lts edition). The second video is a milestone / download-count announcement for the very same pack. One pack split two ways."
+    },
+    {
+      "cluster_key": "小水滴的源头||小水滴的源头::在 里使用学生们的力量 x蔚蓝档案 新版 篇|小水滴的源头::当你在 中拥有了学生们的能力 蔚蓝档案主题|小水滴的源头::当你在 里拥有了学生们的能力 npcai系统 跨时代篇",
+      "author": "小水滴的源头",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 3,
+      "record_count": 3,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "小水滴的源头::当你在 里拥有了学生们的能力 npcai系统 跨时代篇",
+        "小水滴的源头::当你在 中拥有了学生们的能力 蔚蓝档案主题",
+        "小水滴的源头::在 里使用学生们的力量 x蔚蓝档案 新版 篇"
+      ],
+      "evidence_note": "SAME PACK. These are successive updates of one 蔚蓝档案 (Blue Archive) themed pack, told as a continuing story: the early release introduces the pack, then “整合包更新NPCAI系统！(跨时代篇)” and “整合包新版发布介绍！(更新篇)”. Same uploader, same theme, explicit CONTINUATION wording with no competing pack name. One pack split three ways."
+    },
+    {
+      "cluster_key": "我嘞个牢末ENd||我嘞个牢末end::增强 轻量 v 内容新鲜出炉|我嘞个牢末end::增强 轻量 周末的 预告以上菜",
+      "author": "我嘞个牢末ENd",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "我嘞个牢末end::增强 轻量 v 内容新鲜出炉",
+        "我嘞个牢末end::增强 轻量 周末的 预告以上菜"
+      ],
+      "evidence_note": "SAME PACK. Both titles say 《1.20.1原版增强》轻量整合包 - the SAME named pack, one being a v1.13 update and the other a weekend preview, and they share the same download link (123684.com/s/qfKUVv-ulrPH). One pack split two ways."
+    },
+    {
+      "cluster_key": "星必尘Sguan||星必尘sguan::基岩版 rlcraft适配手机版 汉化 年度优化 超真实 addon|星必尘sguan::真正在基岩版 做个石粒人 rlcraft汉化 重大 超真实的 国际版be pe 均可用",
+      "author": "星必尘Sguan",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "星必尘sguan::基岩版 rlcraft适配手机版 汉化 年度优化 超真实 addon",
+        "星必尘sguan::真正在基岩版 做个石粒人 rlcraft汉化 重大 超真实的 国际版be pe 均可用"
+      ],
+      "evidence_note": "SAME PACK. Both are the same 基岩版 RLCraft 汉化 pack: v5 update and the “重大更新”, same uploader, same platform scope (BE/PE), same 超真实 descriptor and the same Lanzou mirror host. Explicit version continuity (v5 follows the earlier release). One pack split two ways."
+    },
+    {
+      "cluster_key": "星遥工坊||星遥工坊::刀剑异闻录 我有一剑 可斩终末 amp 拔刀 定制 任务引导 深度优化|星遥工坊::刀剑异闻录周年 附属万行 全新拔刀全新挑战 流程 性能全面优化",
+      "author": "星遥工坊",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "星遥工坊::刀剑异闻录周年 附属万行 全新拔刀全新挑战 流程 性能全面优化",
+        "星遥工坊::刀剑异闻录 我有一剑 可斩终末 amp 拔刀 定制 任务引导 深度优化"
+      ],
+      "evidence_note": "SAME PACK. Both name 刀剑异闻录 as the pack; one is the anniversary update, the other an earlier release of the same named pack. Same uploader, explicit pack-name continuity in both titles. Note the two groups disagree on which key they produced, so normalisation is still unstable on this title - a defect for the remediation phase, not a reason to doubt the verdict."
+    },
+    {
+      "cluster_key": "流霜雾影||流霜雾影::愚者 愚弄 伪装 欺诈 屠龙者终成恶龙 扮演所有的生物 使用它们的能力编织一场完美的欺诈盛宴|流霜雾影::愚者版本大",
+      "author": "流霜雾影",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 3,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "流霜雾影::愚者版本大",
+        "流霜雾影::愚者 愚弄 伪装 欺诈 屠龙者终成恶龙 扮演所有的生物 使用它们的能力编织一场完美的欺诈盛宴"
+      ],
+      "evidence_note": "SAME PACK. Both groups carry the SAME registered id bbsmc:modpack/the-fool, and the versions run v0.1 -> v0.2 as explicit major updates of the one named pack. One pack split two ways."
+    },
+    {
+      "cluster_key": "炒雪吵狐力o||炒雪吵狐力o::rapid|炒雪吵狐力o::你电脑玩 很卡 极致优化 帧数提升超过10倍|炒雪吵狐力o::极致优化 fabirc双端支持 帧数暴涨 低配玩家福星 rapidoptimization优化",
+      "author": "炒雪吵狐力o",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 3,
+      "record_count": 5,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "炒雪吵狐力o::rapid",
+        "炒雪吵狐力o::你电脑玩 很卡 极致优化 帧数提升超过10倍",
+        "炒雪吵狐力o::极致优化 fabirc双端支持 帧数暴涨 低配玩家福星 rapidoptimization优化"
+      ],
+      "evidence_note": "SAME PACK. All three groups carry the SAME registered id mcmod:modpack/1159 and every title names the same optimisation pack across successive updates. One pack split three ways."
+    },
+    {
+      "cluster_key": "爱吃土豆的界王||爱吃土豆的界王::山海大陆 与 斗罗大陆与山海经为背景|爱吃土豆的界王::山海大陆斗罗大陆 与",
+      "author": "爱吃土豆的界王",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 3,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "爱吃土豆的界王::山海大陆斗罗大陆 与",
+        "爱吃土豆的界王::山海大陆 与 斗罗大陆与山海经为背景"
+      ],
+      "evidence_note": "SAME PACK. All three titles are the same pack: “山海大陆X斗罗大陆” / “山海大陆·斗罗大陆与山海经为背景”. Two of them are near-identical duplicate announcements. One pack split two ways."
+    },
+    {
+      "cluster_key": "爱吃土豆的界王||爱吃土豆的界王::考古与化石 侏罗纪 与|爱吃土豆的界王::考古与化石x侏罗纪 与",
+      "author": "爱吃土豆的界王",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "爱吃土豆的界王::考古与化石x侏罗纪 与",
+        "爱吃土豆的界王::考古与化石 侏罗纪 与"
+      ],
+      "evidence_note": "SAME PACK. Both titles name “考古与化石X侏罗纪” - literally the same pack, one with an “X” separator instead of a space. Split only by punctuation normalisation. One pack split two ways."
+    },
+    {
+      "cluster_key": "爱玩游戏的烛梦||爱玩游戏的烛梦::基岩版 仿亡者世界|爱玩游戏的烛梦::基岩版仿亡者世界 v",
+      "author": "爱玩游戏的烛梦",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "爱玩游戏的烛梦::基岩版仿亡者世界 v",
+        "爱玩游戏的烛梦::基岩版 仿亡者世界"
+      ],
+      "evidence_note": "SAME PACK. Same uploader, same title “基岩版仿亡者世界整合包”, one is the V1.2 update of the other, same QQ 1082956985. One pack split two ways."
+    },
+    {
+      "cluster_key": "科里森Corrison||科里森corrison::apotheosis conquest|科里森corrison::神之征伐 版本",
+      "author": "科里森Corrison",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 6,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "科里森corrison::神之征伐 版本",
+        "科里森corrison::apotheosis conquest"
+      ],
+      "evidence_note": "SAME PACK. Both groups carry the SAME registered id xyebbs:resource/1421, and the second group is literally the English title of the first (Apotheosis Conquest). Versions run v1.1 through v2.3 on one pack. One pack split two ways."
+    },
+    {
+      "cluster_key": "空空如也js||空空如也js::惊变100天v ftb500|空空如也js::惊变100天但是是",
+      "author": "空空如也js",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "空空如也js::惊变100天v ftb500",
+        "空空如也js::惊变100天但是是"
+      ],
+      "evidence_note": "SAME PACK. Both are the same 1.18.2 惊变100天 FTB500 pack: identical titles modulo suffix (“惊变100天v1.3更新FTB500+” vs “惊变100天但是是1.18.2”) AND identical download links on both MCBBS and MineBBS. Same registered thread identity. One pack split two ways."
+    },
+    {
+      "cluster_key": "芦苇草的梦想||芦苇草的梦想::芦苇 寒假来休闲一下 芦苇的 宣传片|芦苇草的梦想::芦苇的 宣传片4|芦苇草的梦想::芦苇的 版本 宣传片",
+      "author": "芦苇草的梦想",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 3,
+      "record_count": 3,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "芦苇草的梦想::芦苇 寒假来休闲一下 芦苇的 宣传片",
+        "芦苇草的梦想::芦苇的 宣传片4",
+        "芦苇草的梦想::芦苇的 版本 宣传片"
+      ],
+      "evidence_note": "SAME PACK. All three carry the SAME registered Modrinth project (modrinth.com/modpack/my-biome-is-so-beautiful) and are version-continuous updates of the same 芦苇的 pack (4.0.11 -> 4.1.7 -> 4.2.12). One pack split three ways."
+    },
+    {
+      "cluster_key": "落烟雨辰呀||落烟雨辰呀::诡厄 使徒|落烟雨辰呀::诡厄使徒",
+      "author": "落烟雨辰呀",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "medium",
+      "group_count": 2,
+      "record_count": 4,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "落烟雨辰呀::诡厄使徒",
+        "落烟雨辰呀::诡厄 使徒"
+      ],
+      "evidence_note": "SAME PACK. The two groups are the same pack name with a separator difference; the MCMod id mcmod:modpack/1241 belongs to the 1.0.x line and the two newer videos carry the BBSMC slugs. Versions 1.0.6 -> 1.1.0 are continuous. One pack split two ways."
+    },
+    {
+      "cluster_key": "韬可梦||韬可梦::宝可梦 向 实时 版 目标是成为宝可梦大师|韬可梦::宝可梦 向 领先 版本 主打紧跟时事",
+      "author": "韬可梦",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "韬可梦::宝可梦 向 领先 版本 主打紧跟时事",
+        "韬可梦::宝可梦 向 实时 版 目标是成为宝可梦大师"
+      ],
+      "evidence_note": "SAME PACK. One 养老向 宝可梦 pack, described twice as staying on the newest version (“实时更新最新版” / “领先更新1.20.1版本”), same uploader, same QQ 773422289, same “目标是成为宝可梦大师” tagline. No competing pack name. One pack split two ways."
+    },
+    {
+      "cluster_key": "鹿清玖LQJ||__raw_BV1AoULBgEoH|__raw_BV1aRYC6cE4p",
+      "author": "鹿清玖LQJ",
+      "verdict": "STRONG_SAME_PACK",
+      "confidence": "medium",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "group_keys": [
+        "__raw_BV1aRYC6cE4p",
+        "__raw_BV1AoULBgEoH"
+      ],
+      "evidence_note": "SAME PACK. Two videos with IDENTICAL titles (“我的世界1.20.1整合包，溯渊最新更新”) by one uploader, both landing in un-named __raw_ buckets. Same pack name 溯渊, same MC version, near-identical publish dates. The only reason they are separate groups is that the key fell below the discriminative threshold, which is itself the defect. Treating as one pack."
+    }
+  ],
+  "overturns_of_module2": {
+    "zanghero::机械殖民地 vs zanghero::模拟殖民地": "Module 2: UNDER_MERGE. This ledger: DIFFERENT_PACKS. 模拟殖民地 is a descriptor word on 机械殖民地 titles; the 模拟殖民地 group belongs to 剑与王国.",
+    "在职玩家jostar::去吧 方可梦大师 vs 在职玩家jostar::方可梦": "Module 2: UNDER_MERGE. This ledger: AMBIGUOUS (not gated). The 方可梦 group names no pack, so it may be a separate pack rather than an earlier release of 去吧，方可梦大师.",
+    "一个小寂哦::怪物大乱斗 vs 一个小寂哦::怪物大乱斗重生": "Ruled DIFFERENT_PACKS (手机版 vs 重生 are two separate releases), consistent with the module-2 candidate-layer finding that 怪物大乱斗 is a real false merge.",
+    "爱吃土豆的界王::时光牧场 vs 爱吃土豆的界王::侏罗纪公园": "Module 2: UNDER_MERGE. This ledger: DIFFERENT_PACKS. Only the dinosaur theme is shared."
+  },
+  "findings": [
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "-六五六-||-六五六-::也能畅玩射击 六五六极致|-六五六-::建筑 党的福音来辣 六五六极致美化",
+      "author": "-六五六-",
+      "group_keys": [
+        "-六五六-::也能畅玩射击 六五六极致",
+        "-六五六-::建筑 党的福音来辣 六五六极致美化"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "六五六极致"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "medium",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "NOT one pack. 六五六极致枪械 (gun pack) and 六五六极致美化 (aesthetic pack) are different products sharing the “六五六极致” brand prefix. Both share the same unrelated mirror link and QQ 966737963, which is a channel identity, not a pack identity. Brand prefix is not pack identity.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [
+            "方式1：https://www.123865.com/s/7lMvvd-ooknH（推荐"
+          ],
+          "shared_qq_ids": [
+            "966737963"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "-阳春面面-||-阳春面面-::大 蔚蓝档案 版本|-阳春面面-::青春复兴",
+      "author": "-阳春面面-",
+      "group_keys": [
+        "-阳春面面-::青春复兴",
+        "-阳春面面-::大 蔚蓝档案 版本"
+      ],
+      "group_count": 2,
+      "record_count": 3,
+      "shared_tokens": [
+        "蔚蓝档案"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "medium",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. “青春复兴” IS the pack name (蔚蓝档案超大型科技冒险整合包：青春复兴) and the other group is its earlier “0.5.1版本发布”. Explicit version continuity on a named pack: 0.5.1 -> 0.7.1. The uploader’s own update wording is the decisive evidence.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [
+            "地址：http://mc.flowersidc.cn/"
+          ],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "Deemo旋律||deemo旋律::地球2 版本|deemo旋律::地球3 预览 版本",
+      "author": "Deemo旋律",
+      "group_keys": [
+        "deemo旋律::地球3 预览 版本",
+        "deemo旋律::地球2 版本"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "地球"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "NOT one pack. 地球2 和 地球3 are SEQUELS, i.e. separately named packs, not versions of one pack.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "Drunk耀爵||__raw_BV1b2h36bEvA|drunk耀爵::deepseek鲸鱼娘 测试|drunk耀爵::晴小姐 测试",
+      "author": "Drunk耀爵",
+      "group_keys": [
+        "drunk耀爵::deepseek鲸鱼娘 测试",
+        "drunk耀爵::晴小姐 测试",
+        "__raw_BV1b2h36bEvA"
+      ],
+      "group_count": 3,
+      "record_count": 3,
+      "shared_tokens": [
+        "测试",
+        "晴小姐"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "Two unrelated packs: DeepSeek鲸鱼娘 and 晴小姐. The 晴小姐 raw bucket and the 晴小姐 group ARE the same pack (real under-merge); DeepSeek鲸鱼娘 is separate. Bridged only by the word 测试.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "Karashok_Leo||__raw_BV1iDdLYJESg|karashok_leo::咒次元",
+      "author": "Karashok_Leo",
+      "group_keys": [
+        "karashok_leo::咒次元",
+        "__raw_BV1iDdLYJESg"
+      ],
+      "group_count": 2,
+      "record_count": 4,
+      "shared_tokens": [
+        "咒次元"
+      ],
+      "project_identities_shared_by_all_groups": [
+        "bbsmc:modpack/spell-dimension",
+        "curseforge:spell-dimension",
+        "github:Karashok-Leo/Spell-Dimension-Modpack",
+        "mcmod:modpack/1024"
+      ],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. The raw bucket and the named spell-dimension group carry the IDENTICAL registered identity set: bbsmc:modpack/spell-dimension, curseforge:spell-dimension, github:Karashok-Leo/Spell-Dimension-Modpack, mcmod:modpack/1024. The 0.6.0 release simply produced a key the algorithm could not attach to the others. One pack split two ways.",
+        "project_identities": [
+          "bbsmc:modpack/spell-dimension",
+          "curseforge:spell-dimension",
+          "github:Karashok-Leo/Spell-Dimension-Modpack",
+          "mcmod:modpack/1024"
+        ],
+        "supporting": {
+          "shared_download_urls": [
+            "CurseForge：https://www.curseforge.com/minecraft/modpacks/spell-dimension",
+            "BBSMC国内站点：https://bbsmc.net/modpack/spell-dimension",
+            "官方Wiki：https://karashok-leo.github.io/Wiki/zh/spell-dimension/",
+            "Github仓库：https://github.com/Karashok-Leo/Spell-Dimension-Modpack",
+            "稍等再试）：https://karashok-leo.github.io/Wiki/zh/spell-dimension/changelog/",
+            "http://mc.flowersidc.cn/",
+            "mc百科：https://www.mcmod.cn/modpack/1024.html",
+            "https://i2.hdslb.com/bfs/archive/d91d14fafbdffe5f0e1c72ed5965101827b16537.jpg"
+          ],
+          "shared_qq_ids": [
+            "797027098"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "KonataWorks||__raw_BV1Fg8gzHE7K|konataworks::生电 拥有最全的辅助模组最适合生电的",
+      "author": "KonataWorks",
+      "group_keys": [
+        "konataworks::生电 拥有最全的辅助模组最适合生电的",
+        "__raw_BV1Fg8gzHE7K"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "生电"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "STRONG_SAME_PACK",
+      "confidence": "medium",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Two releases of the same unnamed 生电 (technical-Minecraft) pack, 1.21.4 and 1.21.5, same uploader, same QQ 536926371, consecutive versions. Neither title carries a distinct pack name, and the earlier one fell into a __raw_ bucket. Treating as one pack.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [
+            "536926371"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "P1nero||p1nero::平底锅侠 白天模拟经营 夜晚化身正义 高度 的轻量 支持多人|p1nero::方可梦 炽白真形 高度 沉浸 兼容超远视距模组|p1nero::远梦之棺",
+      "author": "P1nero",
+      "group_keys": [
+        "p1nero::方可梦 炽白真形 高度 沉浸 兼容超远视距模组",
+        "p1nero::远梦之棺",
+        "p1nero::平底锅侠 白天模拟经营 夜晚化身正义 高度 的轻量 支持多人"
+      ],
+      "group_count": 3,
+      "record_count": 6,
+      "shared_tokens": [
+        "高度"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 3,
+      "evidence": {
+        "note": "NOT one pack. Three distinct registered projects: 远梦之棺 (xyebbs:resource/1261, xyebbs:res-id/the-casket-of-reveries), 平底锅侠 (bbsmc:modpack/skillet-man, curseforge:skillet-man), 方可梦：炽白真形 (xyebbs:resource/41975). Bridged only by the generic word 高度 in “高度魔改”.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "Pork猪排||pork猪排::化龍 金鳞岂是池中物 一遇风云便化龙|pork猪排::化龍 麒麟踏雪|pork猪排::化龙 版本 龙可是帝王之征|pork猪排::龙语 连招 化龍 版本",
+      "author": "Pork猪排",
+      "group_keys": [
+        "pork猪排::化龙 版本 龙可是帝王之征",
+        "pork猪排::化龍 金鳞岂是池中物 一遇风云便化龙",
+        "pork猪排::龙语 连招 化龍 版本",
+        "pork猪排::化龍 麒麟踏雪"
+      ],
+      "group_count": 4,
+      "record_count": 5,
+      "shared_tokens": [
+        "化龙",
+        "化龍"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [
+        "xyebbs:res-id/beloong",
+        "xyebbs:resource/885"
+      ],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. All four groups are the same hualong pack: the titles name it and the versions run 1.0 -> 1.2 -> 1.3.1 -> 1.3.2 with no competing pack name. Two groups resolve to xyebbs:res-id/beloong and the other two to xyebbs:resource/885, which are the slug and numeric forms of ONE XyeBBS project. One pack split four ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "Puikre||puikre::一场紧张又刺激的alex洞穴之旅 美食 挑战 向的轻量化|puikre::一段追求极致的 属于锻造师的历练史诗 炼狱锻魂 成为锻造大师吧|puikre::一段铸造奇迹的 史诗 锻造 boss挑战 生活 定制模组 那就成为锻造大师吧|puikre::奇妙的洞穴 之旅 休闲 美食 定制的交易系统 更多趣味联动 alexcraft 重置大|puikre::定制模组 成为锻造大师|puikre::锻造大师 全面重置的神器锻造和特性效果 重新谱写这份独属于锻造大师们的 乐章",
+      "author": "Puikre",
+      "group_keys": [
+        "puikre::锻造大师 全面重置的神器锻造和特性效果 重新谱写这份独属于锻造大师们的 乐章",
+        "puikre::一段追求极致的 属于锻造师的历练史诗 炼狱锻魂 成为锻造大师吧",
+        "puikre::一段铸造奇迹的 史诗 锻造 boss挑战 生活 定制模组 那就成为锻造大师吧",
+        "puikre::定制模组 成为锻造大师",
+        "puikre::奇妙的洞穴 之旅 休闲 美食 定制的交易系统 更多趣味联动 alexcraft 重置大",
+        "puikre::一场紧张又刺激的alex洞穴之旅 美食 挑战 向的轻量化"
+      ],
+      "group_count": 6,
+      "record_count": 7,
+      "shared_tokens": [
+        "锻造大师",
+        "锻造",
+        "之旅",
+        "美食",
+        "史诗",
+        "成为锻造大师吧",
+        "成为锻造大师",
+        "挑战",
+        "定制模组"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 4,
+      "evidence": {
+        "note": "NOT one pack. 成为锻造大师 / 炼狱锻魂 / 锻造大师 是 one forging-RPG line (multiple version suffixes), while 奇妙的洞穴 and alex洞穴之旅 are Alexcraft cave-exploration packs. “成为锻造大师吧” is a SLOGAN the uploader repeats across unrelated releases. Different packs, no shared registered id anywhere.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "SmartAkita||smartakita::cobblemon方块宝可梦 预览 免费 同时提供两种稳定服务端 有光影 一键开服 可伙伴联机 可转载 不限速 体验|smartakita::方块宝可梦 版本 含服务端 免费 cobblemon 进化特效 全新宝可梦添加 双打模式",
+      "author": "SmartAkita",
+      "group_keys": [
+        "smartakita::cobblemon方块宝可梦 预览 免费 同时提供两种稳定服务端 有光影 一键开服 可伙伴联机 可转载 不限速 体验",
+        "smartakita::方块宝可梦 版本 含服务端 免费 cobblemon 进化特效 全新宝可梦添加 双打模式"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "方块宝可梦"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Both are the uploader’s Cobblemon 方块宝可梦 1.6 release for MC 1.21/1.21.1 - one a preview, one the release, both offering the same two servers and free distribution. Explicit version identity (1.6) on the same pack. One pack split two ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "Terminus_54-32||terminus_54-32::怪物大乱斗 简介|terminus_54-32::新泰坦生物 new titan creatures mod pack released|terminus_54-32::泰坦 新增神器氪金萝莉|terminus_54-32::泰坦 看简介|terminus_54-32::泰坦 附 链接|terminus_54-32::泰坦生物 小",
+      "author": "Terminus_54-32",
+      "group_keys": [
+        "terminus_54-32::泰坦 新增神器氪金萝莉",
+        "terminus_54-32::泰坦 看简介",
+        "terminus_54-32::泰坦生物 小",
+        "terminus_54-32::泰坦 附 链接",
+        "terminus_54-32::新泰坦生物 new titan creatures mod pack released",
+        "terminus_54-32::怪物大乱斗 简介"
+      ],
+      "group_count": 6,
+      "record_count": 6,
+      "shared_tokens": [
+        "泰坦",
+        "泰坦生物",
+        "简介"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "medium",
+      "expected_identity_count": 5,
+      "evidence": {
+        "note": "Different packs. Six separate releases across 1.7.10 / 1.12.2 / 1.21.1 / 1.21.4 with different Quark/Baidu folders and titles that name different things (泰坦整合包, 泰坦生物, 新泰坦生物 / New Titan Creatures, 怪物大乱斗). The single shared word 泰坦 names the mod, not the pack. No registered identity to unify them; treated as separate. (Several groups collapsing into __raw_ shows the detector, not the pack, is what connected them.)",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "VM汉化组||vm汉化组::下一个大型 就在这 集成 integrated 宣传片 amp 汉化|vm汉化组::内容超多的 了 卓越 ii 版本 汉化 amp 官方汉化安装教程|vm汉化组::城作者的又一 破碎城 amp 官方汉化|vm汉化组::等价交换为核心的 等价交换工程2 amp 汉化 amp 服务端安装|vm汉化组::适合暑假联机爽玩的 高版本 卓越ii 汉化",
+      "author": "VM汉化组",
+      "group_keys": [
+        "vm汉化组::内容超多的 了 卓越 ii 版本 汉化 amp 官方汉化安装教程",
+        "vm汉化组::城作者的又一 破碎城 amp 官方汉化",
+        "vm汉化组::适合暑假联机爽玩的 高版本 卓越ii 汉化",
+        "vm汉化组::下一个大型 就在这 集成 integrated 宣传片 amp 汉化",
+        "vm汉化组::等价交换为核心的 等价交换工程2 amp 汉化 amp 服务端安装"
+      ],
+      "group_count": 5,
+      "record_count": 5,
+      "shared_tokens": [
+        "amp",
+        "官方汉化",
+        "卓越"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [
+        "curseforge:prominence-2-rpg"
+      ],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 5,
+      "evidence": {
+        "note": "NOT one pack. This is a TRANSLATION GROUP, not a pack author: it localises many unrelated foreign packs. Each group carries a different upstream project id (curseforge:prominence-2-rpg, curseforge:integrated-minecraft, curseforge:fractured-opolis, curseforge:project-architect-2). “官方汉化” is the house style. 卓越 II appears twice and those two groups ARE the same project - so this cluster is genuinely MIXED and its group-level verdict must not be applied per-pair.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "WZW_王宗王||wzw_王宗王::fcl zl启动器 勇者之章3 手机移植版|wzw_王宗王::fcl 低配宝可梦 手机版 安装教程|wzw_王宗王::fcl启动器 农场物语 v 手机移植版",
+      "author": "WZW_王宗王",
+      "group_keys": [
+        "wzw_王宗王::fcl zl启动器 勇者之章3 手机移植版",
+        "wzw_王宗王::fcl启动器 农场物语 v 手机移植版",
+        "wzw_王宗王::fcl 低配宝可梦 手机版 安装教程"
+      ],
+      "group_count": 3,
+      "record_count": 3,
+      "shared_tokens": [
+        "启动器",
+        "手机移植版",
+        "fcl"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 3,
+      "evidence": {
+        "note": "NOT one pack. Three different third-party packs ported to phone: 勇者之章3, 农场物语, 低配宝可梦. “FCL启动器/手机移植版” is the shared template.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "XyeBBS中文论坛||xyebbs中文论坛::方可梦 炽白真形 宣传片 真正的|xyebbs中文论坛::虚饰作品v 宣传片 四种职业 四种弹幕 百种饰品",
+      "author": "XyeBBS中文论坛",
+      "group_keys": [
+        "xyebbs中文论坛::方可梦 炽白真形 宣传片 真正的",
+        "xyebbs中文论坛::虚饰作品v 宣传片 四种职业 四种弹幕 百种饰品"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "宣传片"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "NOT one pack. Two different registered projects (xyebbs:resource/41975 方可梦：炽白真形 vs xyebbs:res-id/Fictional 虚饰作品). This is a FORUM account cross-posting other people’s packs; “宣传片” is the shared word.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "ZangHeRo||zanghero::机械殖民地|zanghero::模拟殖民地",
+      "author": "ZangHeRo",
+      "group_keys": [
+        "zanghero::机械殖民地",
+        "zanghero::模拟殖民地"
+      ],
+      "group_count": 2,
+      "record_count": 3,
+      "shared_tokens": [
+        "模拟殖民地"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "medium",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "NOT one pack. 机械殖民地 and 模拟殖民地 are announced as different packs. 模拟殖民地 is used as a DESCRIPTOR on the 机械殖民地 videos (“[整合包][模拟殖民地][我的世界]”), which is exactly what bridged them; the 模拟殖民地 group instead belongs to 剑与王国. No shared registered identity exists to unify them. Module 2 called this UNDER_MERGE - this ledger overturns it.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "一个小寂哦||一个小寂哦::各大主播同款|一个小寂哦::四叶草|一个小寂哦::弑神之路|一个小寂哦::怪物大乱斗|一个小寂哦::怪物大乱斗重生|一个小寂哦::我是星辉死神 变身星辉死神 终极艾德曼合金战神 终极骷髅模组 所有泰坦都能变身 凡宇轩 红烧 泉奈同款|一个小寂哦::无尽幸运方块大陆 重生|一个小寂哦::星辉死神|一个小寂哦::暑假幸运方块赛道 手机可玩 低配 4个区域 6条赛道 45种不同幸运方块 童年未能达成的愿望 这次来实现|一个小寂哦::更多泰坦|一个小寂哦::泰坦 新的武器 无限之锤 基岩弩 炎黄弩 虚无弓|一个小寂哦::泰坦生物|一个小寂哦::浪客 重生 小本同款 女仆 豆腐世界 小型新手向 多任务 怀旧|一个小寂哦::超bt绿宝石大陆 怪物大乱斗版 记忆中的一切 怀旧 多人 爽包 详细任务 在充满绿宝石的大陆上挑战曾经的boss|一个小寂哦::追影之旅|一个小寂哦::随机方块泰坦 每隔一段时间身边的方块就会刷新 你能否击败星辉死神|一个小寂哦::高版本神器随机合成 幸运与实力的考验 重温一遍经典娱乐模组",
+      "author": "一个小寂哦",
+      "group_keys": [
+        "一个小寂哦::弑神之路",
+        "一个小寂哦::泰坦 新的武器 无限之锤 基岩弩 炎黄弩 虚无弓",
+        "一个小寂哦::怪物大乱斗",
+        "一个小寂哦::怪物大乱斗重生",
+        "一个小寂哦::四叶草",
+        "一个小寂哦::超bt绿宝石大陆 怪物大乱斗版 记忆中的一切 怀旧 多人 爽包 详细任务 在充满绿宝石的大陆上挑战曾经的boss",
+        "一个小寂哦::各大主播同款",
+        "一个小寂哦::高版本神器随机合成 幸运与实力的考验 重温一遍经典娱乐模组",
+        "一个小寂哦::暑假幸运方块赛道 手机可玩 低配 4个区域 6条赛道 45种不同幸运方块 童年未能达成的愿望 这次来实现",
+        "一个小寂哦::星辉死神",
+        "一个小寂哦::更多泰坦",
+        "一个小寂哦::无尽幸运方块大陆 重生",
+        "一个小寂哦::泰坦生物",
+        "一个小寂哦::浪客 重生 小本同款 女仆 豆腐世界 小型新手向 多任务 怀旧",
+        "一个小寂哦::随机方块泰坦 每隔一段时间身边的方块就会刷新 你能否击败星辉死神",
+        "一个小寂哦::我是星辉死神 变身星辉死神 终极艾德曼合金战神 终极骷髅模组 所有泰坦都能变身 凡宇轩 红烧 泉奈同款",
+        "一个小寂哦::追影之旅"
+      ],
+      "group_count": 17,
+      "record_count": 32,
+      "shared_tokens": [
+        "泰坦",
+        "怪物大乱斗",
+        "高版本矿石菌种",
+        "高版本",
+        "矿石菌种",
+        "幸运方块",
+        "新泰坦生物",
+        "更多泰坦",
+        "泰坦生物",
+        "怀旧",
+        "星辉死神",
+        "终极骷髅",
+        "无尽幸运方块大陆",
+        "体验"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 12,
+      "evidence": {
+        "note": "NOT one pack. This uploader runs a family of distinct titan/lucky-block packs: 弑神之路, 怪物大乱斗, 怪物大乱斗重生, 四叶草, 超BT绿宝石大陆, 超级幸运方块 series, 追影之旅, 更多泰坦, 泰坦生物, 我是星辉死神, 随机方块泰坦, 浪客拔刀剑. “泰坦”/“星辉死神”/“幸运方块” are shared COMPONENTS and house style, not a pack name. The cluster is a token-connectivity artifact: 17 groups chained through generic words. Expectation: 12 distinct packs (several groups in the cluster are themselves still split, which is a separate finding).",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "三只大猪TB_pig||三只大猪tb_pig::最适合初次游玩铁砧工艺的 铁砧工艺极速版|三只大猪tb_pig::铁砧工艺 极速版 完美体验铁砧工艺的所有内容",
+      "author": "三只大猪TB_pig",
+      "group_keys": [
+        "三只大猪tb_pig::最适合初次游玩铁砧工艺的 铁砧工艺极速版",
+        "三只大猪tb_pig::铁砧工艺 极速版 完美体验铁砧工艺的所有内容"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "铁砧工艺",
+        "极速版"
+      ],
+      "project_identities_shared_by_all_groups": [
+        "curseforge:anvilcraft-turbo"
+      ],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Both carry the SAME registered project curveforge:anvilcraft-turbo (the release video additionally lists bbsmc:anvilcraft-turbo and xyebbs:res-id/anvilcraft-turbo, which are other mirrors of the same project). Title is identical: 铁砧工艺极速版. One pack split two ways.",
+        "project_identities": [
+          "curseforge:anvilcraft-turbo"
+        ],
+        "supporting": {
+          "shared_download_urls": [
+            "https://www.curseforge.com/minecraft/modpacks/anvilcraft-turbo"
+          ],
+          "shared_qq_ids": [
+            "1063389762"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "以乐太洋||以乐太洋::fcl h lpe 的 ftb 生于灾厄 低配丰富的 可不多见|以乐太洋::fcl 优化 帧率肯定包提升的啊",
+      "author": "以乐太洋",
+      "group_keys": [
+        "以乐太洋::fcl h lpe 的 ftb 生于灾厄 低配丰富的 可不多见",
+        "以乐太洋::fcl 优化 帧率肯定包提升的啊"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "fcl"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "NOT one pack. 《生于灾厄》 is an FTB adventure pack; the other is a generic 1.20.1 optimisation pack. Two different products sharing “fcl” (the launcher) and the same QQ channel.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [
+            "718229409"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "冰冻酸奶盒||冰冻酸奶盒::voxy 真实物理|冰冻酸奶盒::宝可梦地平线",
+      "author": "冰冻酸奶盒",
+      "group_keys": [
+        "冰冻酸奶盒::宝可梦地平线",
+        "冰冻酸奶盒::voxy 真实物理"
+      ],
+      "group_count": 2,
+      "record_count": 5,
+      "shared_tokens": [
+        "宝可梦",
+        "voxy",
+        "高版本",
+        "真实物理",
+        "高版本宝可梦重铸"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "medium",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "NOT one pack. The first group is the named pack with 4 records and its own QQ 242291254; the second is a DIFFERENT pack by the same uploader. Bridged by shared component words (voxy / realistic physics / high-version cobblemon), which are mods and descriptors, not pack names.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "吴也mc||吴也mc::中世纪 内容及汉化 medieval 版|吴也mc::内容 better 版|吴也mc::新版直接变76个模组 dark amp 汉化|吴也mc::汉化 宝藏猎人 vault hunters",
+      "author": "吴也mc",
+      "group_keys": [
+        "吴也mc::新版直接变76个模组 dark amp 汉化",
+        "吴也mc::汉化 宝藏猎人 vault hunters",
+        "吴也mc::内容 better 版",
+        "吴也mc::中世纪 内容及汉化 medieval 版"
+      ],
+      "group_count": 4,
+      "record_count": 5,
+      "shared_tokens": [
+        "汉化"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 4,
+      "evidence": {
+        "note": "NOT one pack. This is a LOCALISATION channel: each group translates a different upstream pack and carries a different registered id (curseforge:better-minecraft-fabric, curseforge:medieval-minecraft-fabric, plus DarkRPG and Vault Hunters). Localisation wording is the house style.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "吴也mc||吴也mc::体验悠然人生 以种植等收获来推动经济发展的休闲|吴也mc::开启 的脚步 悠然人生3 世界|吴也mc::悠然人生海岛时光",
+      "author": "吴也mc",
+      "group_keys": [
+        "吴也mc::悠然人生海岛时光",
+        "吴也mc::开启 的脚步 悠然人生3 世界",
+        "吴也mc::体验悠然人生 以种植等收获来推动经济发展的休闲"
+      ],
+      "group_count": 3,
+      "record_count": 4,
+      "shared_tokens": [
+        "悠然人生",
+        "开启"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "AMBIGUOUS",
+      "confidence": "low",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "AMBIGUOUS - do NOT gate on this. The first two groups are announced as SEPARATE numbered entries, which suggests sequels rather than one pack split; the third is an unnumbered entry. No registered identity exists to settle it.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "吴也mc||吴也mc::全新的灾难降临 安全开局 平衡大增|吴也mc::灾难降临 你需要击杀怪物 升级 技能树 开拓安全区 重建家园",
+      "author": "吴也mc",
+      "group_keys": [
+        "吴也mc::全新的灾难降临 安全开局 平衡大增",
+        "吴也mc::灾难降临 你需要击杀怪物 升级 技能树 开拓安全区 重建家园"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "灾难降临"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Both name 灾难降临 as the pack, one an update of the other by the same uploader (“全新的灾难降临…更新介绍” vs the original “灾难降临！…发布”). Explicit pack-name continuity plus update wording. One pack split two ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "啊liu22||啊liu22::更真实的 亲历人类 进化史 群峦传说 野望|啊liu22::简单群峦",
+      "author": "啊liu22",
+      "group_keys": [
+        "啊liu22::简单群峦",
+        "啊liu22::更真实的 亲历人类 进化史 群峦传说 野望"
+      ],
+      "group_count": 2,
+      "record_count": 3,
+      "shared_tokens": [
+        "群峦传说"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "NOT one pack. 简单群峦 owns its own registered identities (curseforge:simple-tfc, mcmod:modpack/940, xyebbs:resource/842) and 群峦传说：野望 points at a different project (curseforge:terra-firma-far-horizons). Two different TFC-derived packs.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [
+            "672326817"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "在下Shmily||在下shmily::优化 最牛优化 cmpack即将来临|在下shmily::优化 老手机2000 fps 最牛优化|在下shmily::优化 老手机2800帧 最牛优化",
+      "author": "在下Shmily",
+      "group_keys": [
+        "在下shmily::优化 最牛优化 cmpack即将来临",
+        "在下shmily::优化 老手机2800帧 最牛优化",
+        "在下shmily::优化 老手机2000 fps 最牛优化"
+      ],
+      "group_count": 3,
+      "record_count": 3,
+      "shared_tokens": [
+        "最牛优化",
+        "老手机"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. All three are “最牛优化” (optimisation) releases, explicitly version-continuous: V3.9 -> V4.0 with the same naming and the same stated project (“最牛优化整合包”). Uploader’s own version wording on a named pack. The two “老手机” groups share QQ 377265276; the V4.0 video shares the CMpack roadmap. One pack split three ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "在职玩家JoStar||在职玩家jostar::去吧 方可梦大师|在职玩家jostar::方可梦",
+      "author": "在职玩家JoStar",
+      "group_keys": [
+        "在职玩家jostar::去吧 方可梦大师",
+        "在职玩家jostar::方可梦"
+      ],
+      "group_count": 2,
+      "record_count": 4,
+      "shared_tokens": [
+        "方可梦",
+        "方块宝可梦"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "AMBIGUOUS",
+      "confidence": "low",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "AMBIGUOUS - do NOT gate on this. The first group is well established (3.0 / 4.0 / 1.7 all in one group). The second group does NOT name that pack at all, so it may be a separate pack rather than an earlier release. A possible real split, but the cluster boundary is not trustworthy enough to gate on.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [
+            "https://www.bilibili.com/video/BV1NDrWYHEUW/?share_source=copy_web&vd_source=0765431564f1316847d2c77ac99f3eb5",
+            "https://www.bilibili.com/video/BV1vVwae3EcV/?share_source=copy_web&vd_source=0765431564f1316847d2c77ac99f3eb5"
+          ],
+          "shared_qq_ids": [
+            "725519309",
+            "910979690",
+            "661564388",
+            "981816728"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "墨竹ギ||墨竹ギ::quot 在失落的异界中 一个人生活下去 quot 生活 thelostworld 失落的异界|墨竹ギ::农业 低配 将 地下城 注入到 当中 史诗的地下城|墨竹ギ::史诗的地下城 dungeons of fantasy|墨竹ギ::史诗的地下城 一个 风 低配 极致优化 将 地下城 内容注入的高版本 啦|墨竹ギ::幻想的地下城 一个幻想风 风 低配 将 地下城 内容注入 的 啦|墨竹ギ::深渊之诗",
+      "author": "墨竹ギ",
+      "group_keys": [
+        "墨竹ギ::深渊之诗",
+        "墨竹ギ::quot 在失落的异界中 一个人生活下去 quot 生活 thelostworld 失落的异界",
+        "墨竹ギ::史诗的地下城 dungeons of fantasy",
+        "墨竹ギ::农业 低配 将 地下城 注入到 当中 史诗的地下城",
+        "墨竹ギ::幻想的地下城 一个幻想风 风 低配 将 地下城 内容注入 的 啦",
+        "墨竹ギ::史诗的地下城 一个 风 低配 极致优化 将 地下城 内容注入的高版本 啦"
+      ],
+      "group_count": 6,
+      "record_count": 9,
+      "shared_tokens": [
+        "quot",
+        "生活",
+        "the",
+        "of",
+        "地下城",
+        "史诗的地下城",
+        "当中",
+        "低配",
+        "一个",
+        "内容注入"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 4,
+      "evidence": {
+        "note": "NOT one pack. At least four separate packs: 深渊之诗 [Poetry of the Abyss], 失落的异界 [TheLostWorld], 史诗的地下城 [Dungeons of Fantasy], 幻想的地下城. The shared token 地下城 (“dungeon”) is a SUBJECT word used to describe a Minecraft-Dungeons-flavoured pack, not an identity. Note 史诗的地下城 and 幻想的地下城 share no registered id and are announced as separate releases.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "墨言eclipse||墨言eclipse::命轮无章 infinite random|墨言eclipse::颠覆性的|墨言eclipse::高版本沉浸 lt 未尽之诗 gt 官方宣传片 一首写给高版本 的远征诗",
+      "author": "墨言eclipse",
+      "group_keys": [
+        "墨言eclipse::颠覆性的",
+        "墨言eclipse::命轮无章 infinite random",
+        "墨言eclipse::高版本沉浸 lt 未尽之诗 gt 官方宣传片 一首写给高版本 的远征诗"
+      ],
+      "group_count": 3,
+      "record_count": 5,
+      "shared_tokens": [
+        "颠覆性的",
+        "版本"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 3,
+      "evidence": {
+        "note": "NOT one pack. This single group contains TWO different registered projects (bbsmc:minecraft-photo-wanderer AND curseforge:sendims-banforges / mcmod:1426). The other groups are a third project (mcmod:1346, xyebbs:1491) and a fourth. The shared phrase is a marketing adjective used on all of them.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "墨言eclipse||墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频|墨言eclipse::沉浸 深度 a 咒镰双生|墨言eclipse::涅槃 无神明渡我 我亦是神明|墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅",
+      "author": "墨言eclipse",
+      "group_keys": [
+        "墨言eclipse::涅槃 无神明渡我 我亦是神明",
+        "墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅",
+        "墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频",
+        "墨言eclipse::沉浸 深度 a 咒镰双生"
+      ],
+      "group_count": 4,
+      "record_count": 5,
+      "shared_tokens": [
+        "涅槃",
+        "深度"
+      ],
+      "project_identities_shared_by_all_groups": [
+        "xyebbs:resource/37418"
+      ],
+      "project_identities_shared_by_some_groups": [
+        "mcmod:modpack/1418"
+      ],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK (nirvana). All four groups are the nirvana pack: every member carries xyebbs:resource/37418 and three of them also carry mcmod:modpack/1418. Versions 0.1.5 through 0.2 are explicit updates of the same named pack. One pack split four ways. NOTE: this is the nirvana half of the module-2 result - see the_nirvana_lesson for why the OTHER nirvana-labelled group is NOT part of it.",
+        "project_identities": [
+          "xyebbs:resource/37418"
+        ],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "墨言eclipse||墨言eclipse::拒绝同质|墨言eclipse::未尽之路涅槃",
+      "author": "墨言eclipse",
+      "group_keys": [
+        "墨言eclipse::未尽之路涅槃",
+        "墨言eclipse::拒绝同质"
+      ],
+      "group_count": 2,
+      "record_count": 5,
+      "shared_tokens": [
+        "未尽之路"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "NOT the same pack as nirvana. This is the FALSE-POSITIVE lesson: this group uses nirvana as a SUBTITLE of the unfinished-path line, and it carries a completely different registered identity (bbsmc:modpack/unfinished_path_nirvana, xyebbs:res-id/TUPN) whereas the nirvana pack is xyebbs:resource/37418 + mcmod:1418. The other group here is unfinished-path itself (bbsmc:unfinished-path, xyebbs:UP). Two packs; the split is CORRECT.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [
+            "530417628"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "孑孑雨不是牢孑||孑孑雨不是牢孑::annoying villagers烦村|孑孑雨不是牢孑::烦村 史诗级",
+      "author": "孑孑雨不是牢孑",
+      "group_keys": [
+        "孑孑雨不是牢孑::annoying villagers烦村",
+        "孑孑雨不是牢孑::烦村 史诗级"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "烦村"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Both are 烦村 / annoying_villagers: one is the 1.0 release, the other the 5.0 “史诗级更新”. Chinese title and English alias are given for the same pack in the first video, and the second is an explicit version update. One pack split two ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "小兜兜呀_||小兜兜呀_::原神与机械 的时代|小兜兜呀_::小兜兜 恭喜我的原神与机械 的时代 在bbs 资源站 量破6666次和在红石中继站浏览量达到400人 次 以及 相关 计划",
+      "author": "小兜兜呀_",
+      "group_keys": [
+        "小兜兜呀_::原神与机械 的时代",
+        "小兜兜呀_::小兜兜 恭喜我的原神与机械 的时代 在bbs 资源站 量破6666次和在红石中继站浏览量达到400人 次 以及 相关 计划"
+      ],
+      "group_count": 2,
+      "record_count": 7,
+      "shared_tokens": [
+        "原神与机械",
+        "的时代"
+      ],
+      "project_identities_shared_by_all_groups": [
+        "bbsmc:modpack/genshin-impact-and-the-age-of-mechanical-adventure",
+        "bbsmc:modpack/genshin-impact-and-the-age-of-mechanical-adventure-lts"
+      ],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Both groups carry the SAME two registered ids (a BBSMC project plus its -lts edition). The second video is a milestone / download-count announcement for the very same pack. One pack split two ways.",
+        "project_identities": [
+          "bbsmc:modpack/genshin-impact-and-the-age-of-mechanical-adventure",
+          "bbsmc:modpack/genshin-impact-and-the-age-of-mechanical-adventure-lts"
+        ],
+        "supporting": {
+          "shared_download_urls": [
+            "mcbbs纪念版：https://www.mcbbs.co/thread-2554-1-1.html",
+            "bbsmc资源站：https://bbsmc.net/modpack/genshin-impact-and-the-age-of-mechanical-adventure",
+            "红石中继站：https://www.mczwlt.net/resource/tjjivbpc",
+            "bbmc资源站：https://bbsmc.net/modpack/genshin-impact-and-the-age-of-mechanical-adventure-lts",
+            "红石中继站：https://www.mczwlt.net/resource/bbvvtnwg"
+          ],
+          "shared_qq_ids": [
+            "1027945753"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "小水滴的源头||小水滴的源头::在 里使用学生们的力量 x蔚蓝档案 新版 篇|小水滴的源头::当你在 中拥有了学生们的能力 蔚蓝档案主题|小水滴的源头::当你在 里拥有了学生们的能力 npcai系统 跨时代篇",
+      "author": "小水滴的源头",
+      "group_keys": [
+        "小水滴的源头::当你在 里拥有了学生们的能力 npcai系统 跨时代篇",
+        "小水滴的源头::当你在 中拥有了学生们的能力 蔚蓝档案主题",
+        "小水滴的源头::在 里使用学生们的力量 x蔚蓝档案 新版 篇"
+      ],
+      "group_count": 3,
+      "record_count": 3,
+      "shared_tokens": [
+        "当你在",
+        "蔚蓝档案"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. These are successive updates of one 蔚蓝档案 (Blue Archive) themed pack, told as a continuing story: the early release introduces the pack, then “整合包更新NPCAI系统！(跨时代篇)” and “整合包新版发布介绍！(更新篇)”. Same uploader, same theme, explicit CONTINUATION wording with no competing pack name. One pack split three ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "我嘞个牢末ENd||我嘞个牢末end::增强 轻量 v 内容新鲜出炉|我嘞个牢末end::增强 轻量 周末的 预告以上菜",
+      "author": "我嘞个牢末ENd",
+      "group_keys": [
+        "我嘞个牢末end::增强 轻量 v 内容新鲜出炉",
+        "我嘞个牢末end::增强 轻量 周末的 预告以上菜"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "增强",
+        "轻量"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Both titles say 《1.20.1原版增强》轻量整合包 - the SAME named pack, one being a v1.13 update and the other a weekend preview, and they share the same download link (123684.com/s/qfKUVv-ulrPH). One pack split two ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "我的世界peaunt||__raw_BV1EhYN6AEWo|__raw_BV1QTYr6sEXA|我的世界peaunt::泰坦生物 仿照|我的世界peaunt::泰坦生物复刻",
+      "author": "我的世界peaunt",
+      "group_keys": [
+        "__raw_BV1QTYr6sEXA",
+        "__raw_BV1EhYN6AEWo",
+        "我的世界peaunt::泰坦生物复刻",
+        "我的世界peaunt::泰坦生物 仿照"
+      ],
+      "group_count": 4,
+      "record_count": 8,
+      "shared_tokens": [
+        "泰坦",
+        "泰坦生物"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "medium",
+      "expected_identity_count": 3,
+      "evidence": {
+        "note": "Different packs / different Minecraft generations. Two groups are un-named raw buckets (1.12.2 and 1.7.10 titan packs, no title identity at all), while 泰坦生物复刻 is an explicit 1.20.1 RECREATION with its own QQ group (791405778). The 1.7.10-era originals and the 1.20.1 recreation are announced as different products.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "无双小星||__raw_BV1h7wFeEEQn|无双小星::幸运泰坦",
+      "author": "无双小星",
+      "group_keys": [
+        "无双小星::幸运泰坦",
+        "__raw_BV1h7wFeEEQn"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "泰坦"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "medium",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "NOT one pack. 1.20.1幸运泰坦 and 1.12.2泰坦整合包 are different packs on different MC generations (the 1.12.2 one is an un-named raw bucket). “泰坦” is the mod.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "无双小星||无双小星::幸运大 低配|无双小星::幸运方块 低配版",
+      "author": "无双小星",
+      "group_keys": [
+        "无双小星::幸运大 低配",
+        "无双小星::幸运方块 低配版"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "低配"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "medium",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "NOT one pack. 1.8.9幸运大冒险低配 vs 1.12.2幸运方块低配版: different pack names, different MC versions, and DIFFERENT QQ groups (676321183 vs 775098626). “低配” is a shared descriptor.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [
+            "775098626"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "时唅||时唅::大型 末世 潜行者|时唅::大型末世 潜行者风暴 免费 开发中|时唅::大型末世 辐射 生还者|时唅::潜行者 免费|时唅::辐射新世纪|时唅::辐射次时代|时唅::辐射生还者 末世 免费",
+      "author": "时唅",
+      "group_keys": [
+        "时唅::辐射新世纪",
+        "时唅::大型 末世 潜行者",
+        "时唅::辐射生还者 末世 免费",
+        "时唅::辐射次时代",
+        "时唅::潜行者 免费",
+        "时唅::大型末世 辐射 生还者",
+        "时唅::大型末世 潜行者风暴 免费 开发中"
+      ],
+      "group_count": 7,
+      "record_count": 29,
+      "shared_tokens": [
+        "末世",
+        "潜行者",
+        "大型末世"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 4,
+      "evidence": {
+        "note": "NOT one pack. Four separately-named series: 辐射新世纪, 辐射次时代, 辐射生还者, 潜行者 (+ 潜行者风暴 as its own title). “末世/辐射/潜行者” are genre words this uploader uses on every video. Distinct Quark folders per series.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "明月庄主||__raw_BV1vT411A71k|明月庄主::红石生电|明月庄主::红石生电优化|明月庄主::绿色版红石生电优化",
+      "author": "明月庄主",
+      "group_keys": [
+        "明月庄主::红石生电",
+        "明月庄主::红石生电优化",
+        "明月庄主::绿色版红石生电优化",
+        "__raw_BV1vT411A71k"
+      ],
+      "group_count": 4,
+      "record_count": 8,
+      "shared_tokens": [
+        "红石生电",
+        "红石生电优化",
+        "绿色版"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "AMBIGUOUS",
+      "confidence": "medium",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "AMBIGUOUS - do NOT gate on this. 红石生电, 红石生电优化 and 绿色版红石生电优化 look like one family (a base pack plus an optimisation edition and a “green/low-spec” edition), and the uploader is the same. But the groups point at DIFFERENT Modrinth projects: modrinth.com/modpack/rso for 红石生电 versus modrinth.com/modpack/moon-luseban for 绿色版红石生电优化. Whether “优化”/“绿色版” are editions of one project or separate projects cannot be settled from this payload. Left unresolved rather than forced.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "明月庄主||明月庄主::命运齿轮|明月庄主::月亮工厂|明月庄主::月亮工厂 f|明月庄主::机械动力航空动力学服务端 对应客户端是命运齿轮航空动力学 pcl2启动器",
+      "author": "明月庄主",
+      "group_keys": [
+        "明月庄主::机械动力航空动力学服务端 对应客户端是命运齿轮航空动力学 pcl2启动器",
+        "明月庄主::命运齿轮",
+        "明月庄主::月亮工厂 f",
+        "明月庄主::月亮工厂"
+      ],
+      "group_count": 4,
+      "record_count": 7,
+      "shared_tokens": [
+        "机械动力",
+        "命运齿轮",
+        "月亮工厂"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 3,
+      "evidence": {
+        "note": "NOT one pack. 命运齿轮 (FOM) and 月亮工厂 (MCF) are two separately-named Create-modpack lines with DIFFERENT registered ids: modrinth.com/modpack/mcf vs the 命运齿轮 line. The 航空动力学 video names both (server = one pack, client = the other), which is what bridged the cluster. 机械动力 is the underlying mod, not a pack name.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "星必尘Sguan||星必尘sguan::基岩版 rlcraft适配手机版 汉化 年度优化 超真实 addon|星必尘sguan::真正在基岩版 做个石粒人 rlcraft汉化 重大 超真实的 国际版be pe 均可用",
+      "author": "星必尘Sguan",
+      "group_keys": [
+        "星必尘sguan::基岩版 rlcraft适配手机版 汉化 年度优化 超真实 addon",
+        "星必尘sguan::真正在基岩版 做个石粒人 rlcraft汉化 重大 超真实的 国际版be pe 均可用"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "基岩版",
+        "汉化",
+        "超真实"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Both are the same 基岩版 RLCraft 汉化 pack: v5 update and the “重大更新”, same uploader, same platform scope (BE/PE), same 超真实 descriptor and the same Lanzou mirror host. Explicit version continuity (v5 follows the earlier release). One pack split two ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "星辉の天晓||星辉の天晓::天晓 匠魂之旅|星辉の天晓::天晓 血肉寄生虫 血肉 感染 寄生虫",
+      "author": "星辉の天晓",
+      "group_keys": [
+        "星辉の天晓::天晓 匠魂之旅",
+        "星辉の天晓::天晓 血肉寄生虫 血肉 感染 寄生虫"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "天晓"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "NOT one pack. 匠魂之旅 and 血肉寄生虫 are announced as two separate packs on different MC versions (1.12.2 vs 1.20.1). “天晓の整合包发布” is the uploader’s intro prefix, not a pack name.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [
+            "本UP主所有整合包下载：https://pan.baidu.com/s/1hGQdCsa0-S_xbQFXuwRXbA?pwd=6666"
+          ],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "星遥工坊||星遥工坊::刀剑异闻录 我有一剑 可斩终末 amp 拔刀 定制 任务引导 深度优化|星遥工坊::刀剑异闻录周年 附属万行 全新拔刀全新挑战 流程 性能全面优化",
+      "author": "星遥工坊",
+      "group_keys": [
+        "星遥工坊::刀剑异闻录周年 附属万行 全新拔刀全新挑战 流程 性能全面优化",
+        "星遥工坊::刀剑异闻录 我有一剑 可斩终末 amp 拔刀 定制 任务引导 深度优化"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "刀剑异闻录"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Both name 刀剑异闻录 as the pack; one is the anniversary update, the other an earlier release of the same named pack. Same uploader, explicit pack-name continuity in both titles. Note the two groups disagree on which key they produced, so normalisation is still unstable on this title - a defect for the remediation phase, not a reason to doubt the verdict.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "流霜雾影||流霜雾影::愚者 愚弄 伪装 欺诈 屠龙者终成恶龙 扮演所有的生物 使用它们的能力编织一场完美的欺诈盛宴|流霜雾影::愚者版本大",
+      "author": "流霜雾影",
+      "group_keys": [
+        "流霜雾影::愚者版本大",
+        "流霜雾影::愚者 愚弄 伪装 欺诈 屠龙者终成恶龙 扮演所有的生物 使用它们的能力编织一场完美的欺诈盛宴"
+      ],
+      "group_count": 2,
+      "record_count": 3,
+      "shared_tokens": [
+        "愚者"
+      ],
+      "project_identities_shared_by_all_groups": [
+        "bbsmc:modpack/the-fool"
+      ],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Both groups carry the SAME registered id bbsmc:modpack/the-fool, and the versions run v0.1 -> v0.2 as explicit major updates of the one named pack. One pack split two ways.",
+        "project_identities": [
+          "bbsmc:modpack/the-fool"
+        ],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "炒雪吵狐力o||炒雪吵狐力o::rapid|炒雪吵狐力o::你电脑玩 很卡 极致优化 帧数提升超过10倍|炒雪吵狐力o::极致优化 fabirc双端支持 帧数暴涨 低配玩家福星 rapidoptimization优化",
+      "author": "炒雪吵狐力o",
+      "group_keys": [
+        "炒雪吵狐力o::rapid",
+        "炒雪吵狐力o::你电脑玩 很卡 极致优化 帧数提升超过10倍",
+        "炒雪吵狐力o::极致优化 fabirc双端支持 帧数暴涨 低配玩家福星 rapidoptimization优化"
+      ],
+      "group_count": 3,
+      "record_count": 5,
+      "shared_tokens": [
+        "极致优化",
+        "优化"
+      ],
+      "project_identities_shared_by_all_groups": [
+        "mcmod:modpack/1159"
+      ],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. All three groups carry the SAME registered id mcmod:modpack/1159 and every title names the same optimisation pack across successive updates. One pack split three ways.",
+        "project_identities": [
+          "mcmod:modpack/1159"
+        ],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [
+            "825580429"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "爱吃土豆的界王||爱吃土豆的界王::jojo 与 含手机版|爱吃土豆的界王::原初修真 与 含手机版x|爱吃土豆的界王::版原初修真 与 含手机版",
+      "author": "爱吃土豆的界王",
+      "group_keys": [
+        "爱吃土豆的界王::jojo 与 含手机版",
+        "爱吃土豆的界王::原初修真 与 含手机版x",
+        "爱吃土豆的界王::版原初修真 与 含手机版"
+      ],
+      "group_count": 3,
+      "record_count": 3,
+      "shared_tokens": [
+        "含手机版",
+        "原初修真"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "NOT one pack. 原初修真 appears twice (those two groups are the same pack - a genuine under-merge) but the third group is a JoJo pack. “含手机版” is a fixed phrase in this uploader’s titles.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [
+            "298929369"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "爱吃土豆的界王||爱吃土豆的界王::侏罗纪公园 与|爱吃土豆的界王::时光牧场",
+      "author": "爱吃土豆的界王",
+      "group_keys": [
+        "爱吃土豆的界王::时光牧场",
+        "爱吃土豆的界王::侏罗纪公园 与"
+      ],
+      "group_count": 2,
+      "record_count": 5,
+      "shared_tokens": [
+        "侏罗纪公园"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "NOT one pack. 时光牧场 is a farming/ranch pack whose 1.20.1 release is themed “打造你的侏罗纪公园”; the other group is a standalone 侏罗纪公园 pack announcement. Sharing the dinosaur theme is not sharing the pack. Both 1.20.1 and same uploader, which is what confused the scanner.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [
+            "298929369"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "爱吃土豆的界王||爱吃土豆的界王::山海大陆 与 斗罗大陆与山海经为背景|爱吃土豆的界王::山海大陆斗罗大陆 与",
+      "author": "爱吃土豆的界王",
+      "group_keys": [
+        "爱吃土豆的界王::山海大陆斗罗大陆 与",
+        "爱吃土豆的界王::山海大陆 与 斗罗大陆与山海经为背景"
+      ],
+      "group_count": 2,
+      "record_count": 3,
+      "shared_tokens": [
+        "山海大陆"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. All three titles are the same pack: “山海大陆X斗罗大陆” / “山海大陆·斗罗大陆与山海经为背景”. Two of them are near-identical duplicate announcements. One pack split two ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [
+            "298929369",
+            "240052014",
+            "369550067"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "爱吃土豆的界王||爱吃土豆的界王::考古与化石 侏罗纪 与|爱吃土豆的界王::考古与化石x侏罗纪 与",
+      "author": "爱吃土豆的界王",
+      "group_keys": [
+        "爱吃土豆的界王::考古与化石x侏罗纪 与",
+        "爱吃土豆的界王::考古与化石 侏罗纪 与"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "考古与化石",
+        "侏罗纪"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Both titles name “考古与化石X侏罗纪” - literally the same pack, one with an “X” separator instead of a space. Split only by punctuation normalisation. One pack split two ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [
+            "240052014",
+            "298929369",
+            "369550067"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "爱玩游戏的烛梦||爱玩游戏的烛梦::基岩版 仿亡者世界|爱玩游戏的烛梦::基岩版仿亡者世界 v",
+      "author": "爱玩游戏的烛梦",
+      "group_keys": [
+        "爱玩游戏的烛梦::基岩版仿亡者世界 v",
+        "爱玩游戏的烛梦::基岩版 仿亡者世界"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "基岩版",
+        "仿亡者世界"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Same uploader, same title “基岩版仿亡者世界整合包”, one is the V1.2 update of the other, same QQ 1082956985. One pack split two ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [
+            "1082956985"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "碎砖做的砖块王||碎砖做的砖块王::幸运之证 超多不同种类的幸运方块 全站 超高版本的幸运方块大 低配|碎砖做的砖块王::幸运方块大 高版本的幸运方块大 全站 46个幸运方块 版本",
+      "author": "碎砖做的砖块王",
+      "group_keys": [
+        "碎砖做的砖块王::幸运之证 超多不同种类的幸运方块 全站 超高版本的幸运方块大 低配",
+        "碎砖做的砖块王::幸运方块大 高版本的幸运方块大 全站 46个幸运方块 版本"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "全站",
+        "幸运方块大",
+        "高版本的幸运方块大"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "AMBIGUOUS",
+      "confidence": "low",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "AMBIGUOUS - do NOT gate on this. Different pack names AND different MC versions: 幸运之证 1.20.1 vs 幸运方块大冒险 1.19.2 (46 blocks). That points to two packs. But the uploader is a small lucky-block channel whose two lines may be a rename, and there is no registered identity to settle it. Cannot decide from this payload.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "科里森Corrison||科里森corrison::apotheosis conquest|科里森corrison::神之征伐 版本",
+      "author": "科里森Corrison",
+      "group_keys": [
+        "科里森corrison::神之征伐 版本",
+        "科里森corrison::apotheosis conquest"
+      ],
+      "group_count": 2,
+      "record_count": 6,
+      "shared_tokens": [
+        "神之征伐",
+        "apotheosis",
+        "conquest"
+      ],
+      "project_identities_shared_by_all_groups": [
+        "xyebbs:resource/1421"
+      ],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Both groups carry the SAME registered id xyebbs:resource/1421, and the second group is literally the English title of the first (Apotheosis Conquest). Versions run v1.1 through v2.3 on one pack. One pack split two ways.",
+        "project_identities": [
+          "xyebbs:resource/1421"
+        ],
+        "supporting": {
+          "shared_download_urls": [
+            "夸克网盘链接：https://pan.quark.cn/s/dfebb9393e08?pwd=RQiy",
+            "Xyebbs社区：https://www.xyebbs.com/resources/1421?tab=info"
+          ],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "空空如也js||空空如也js::惊变100天v ftb500|空空如也js::惊变100天但是是",
+      "author": "空空如也js",
+      "group_keys": [
+        "空空如也js::惊变100天v ftb500",
+        "空空如也js::惊变100天但是是"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "惊变天"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Both are the same 1.18.2 惊变100天 FTB500 pack: identical titles modulo suffix (“惊变100天v1.3更新FTB500+” vs “惊变100天但是是1.18.2”) AND identical download links on both MCBBS and MineBBS. Same registered thread identity. One pack split two ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [
+            "https://www.mcbbs.net/thread-1483408-1-1.html",
+            "https://www.minebbs.com/resources/ftb500-1-18-2-100.7571/"
+          ],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "芦苇草的梦想||芦苇草的梦想::芦苇 寒假来休闲一下 芦苇的 宣传片|芦苇草的梦想::芦苇的 宣传片4|芦苇草的梦想::芦苇的 版本 宣传片",
+      "author": "芦苇草的梦想",
+      "group_keys": [
+        "芦苇草的梦想::芦苇 寒假来休闲一下 芦苇的 宣传片",
+        "芦苇草的梦想::芦苇的 宣传片4",
+        "芦苇草的梦想::芦苇的 版本 宣传片"
+      ],
+      "group_count": 3,
+      "record_count": 3,
+      "shared_tokens": [
+        "芦苇",
+        "芦苇的",
+        "宣传片"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. All three carry the SAME registered Modrinth project (modrinth.com/modpack/my-biome-is-so-beautiful) and are version-continuous updates of the same 芦苇的 pack (4.0.11 -> 4.1.7 -> 4.2.12). One pack split three ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [
+            "下载：https://modrinth.com/modpack/my-biome-is-so-beautiful",
+            "百度：https://pan.baidu.com/s/1RBW5Xlz96yuVVHk0a4NAdw?pwd=g398",
+            "夸克：https://pan.quark.cn/s/9cb97694a566"
+          ],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "落烟雨辰呀||落烟雨辰呀::诡厄 使徒|落烟雨辰呀::诡厄使徒",
+      "author": "落烟雨辰呀",
+      "group_keys": [
+        "落烟雨辰呀::诡厄使徒",
+        "落烟雨辰呀::诡厄 使徒"
+      ],
+      "group_count": 2,
+      "record_count": 4,
+      "shared_tokens": [
+        "诡厄",
+        "使徒"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "medium",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. The two groups are the same pack name with a separator difference; the MCMod id mcmod:modpack/1241 belongs to the 1.0.x line and the two newer videos carry the BBSMC slugs. Versions 1.0.6 -> 1.1.0 are continuous. One pack split two ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [
+            "1033381920"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "豆腐ki||豆腐ki::中低配 手机移植版 atm10 fcl启动器移植 一键自动安装|豆腐ki::中低配 手机移植版 atm3 fcl启动器移植 一键自动安装|豆腐ki::中低配 手机移植版 殖民战争 fcl启动器移植 一键自动安装|豆腐ki::中低配 蔚蓝档案 手机移植版 amp 蔚蓝档案 fcl启动器移植 一键自动导入|豆腐ki::中配 手机移植版 大轩 fcl启动器移植 一键自动安装|豆腐ki::中配 手机移植版 寻谧 精简 fcl启动器移植 一键自动安装|豆腐ki::中配 手机移植版 异界旅者 5 版 fcl启动器移植 一键自动安装|豆腐ki::中配 手机移植版 机械殖民地 fcl启动器移植 一键自动安装|豆腐ki::中配 手机移植版 沉浸 v fcl启动器移植 一键自动安装|豆腐ki::中配休闲 手机移植版 自然之旅3 fcl启动器移植 一键自动安装|豆腐ki::中配群峦 手机移植版 群峦重生 fcl启动器移植 一键自动安装o|豆腐ki::中高配 手机移植版 异界 幻想 fcl启动器移植 一键自动安装|豆腐ki::低配 天空奥德赛手机移植版 试玩加 fcl启动器 一键自动安装|豆腐ki::低配 手机移植版 ftb魔眼传说 fcl启动器移植 一键自动安装|豆腐ki::低配 手机移植版 原环之理v fcl启动器移植 一键自动安装|豆腐ki::低配 末日 手机移植版 终末旅行家 fcl启动器移植 一键自动安装|豆腐ki::低配奥特曼 手机移植版 特摄世界 fcl启动器移植 一键自动导入|豆腐ki::低配手机移植版 高版本惊变100天手机移植版 fcl启动器 一键自动安装|豆腐ki::低配生活大 手机移植版 高版本生活大 fcl启动器移植 一键自动导入|豆腐ki::手机移植版 createdelight fcl启动器移植 一键自动安装|豆腐ki::手机移植版 模块化 v fcl启动器移植 一键自动导入|豆腐ki::末日丧尸 末世废土二手机移植 fcl启动器移植 一键自动导入|豆腐ki::超低配 无限打金 手机移植版 fcl启动器|豆腐ki::超低配最逆天 手机移植版 天空厕所 人人都是老八自给自足|豆腐ki::超级低配的 手机移植版 无中生无尽 fcl启动器移植 一键自动导入",
+      "author": "豆腐ki",
+      "group_keys": [
+        "豆腐ki::低配生活大 手机移植版 高版本生活大 fcl启动器移植 一键自动导入",
+        "豆腐ki::低配 手机移植版 原环之理v fcl启动器移植 一键自动安装",
+        "豆腐ki::低配 手机移植版 ftb魔眼传说 fcl启动器移植 一键自动安装",
+        "豆腐ki::低配 末日 手机移植版 终末旅行家 fcl启动器移植 一键自动安装",
+        "豆腐ki::低配 天空奥德赛手机移植版 试玩加 fcl启动器 一键自动安装",
+        "豆腐ki::超低配 无限打金 手机移植版 fcl启动器",
+        "豆腐ki::中低配 蔚蓝档案 手机移植版 amp 蔚蓝档案 fcl启动器移植 一键自动导入",
+        "豆腐ki::中低配 手机移植版 atm3 fcl启动器移植 一键自动安装",
+        "豆腐ki::中低配 手机移植版 atm10 fcl启动器移植 一键自动安装",
+        "豆腐ki::中低配 手机移植版 殖民战争 fcl启动器移植 一键自动安装",
+        "豆腐ki::低配奥特曼 手机移植版 特摄世界 fcl启动器移植 一键自动导入",
+        "豆腐ki::中配休闲 手机移植版 自然之旅3 fcl启动器移植 一键自动安装",
+        "豆腐ki::超级低配的 手机移植版 无中生无尽 fcl启动器移植 一键自动导入",
+        "豆腐ki::中配 手机移植版 异界旅者 5 版 fcl启动器移植 一键自动安装",
+        "豆腐ki::中高配 手机移植版 异界 幻想 fcl启动器移植 一键自动安装",
+        "豆腐ki::超低配最逆天 手机移植版 天空厕所 人人都是老八自给自足",
+        "豆腐ki::末日丧尸 末世废土二手机移植 fcl启动器移植 一键自动导入",
+        "豆腐ki::中配 手机移植版 沉浸 v fcl启动器移植 一键自动安装",
+        "豆腐ki::中配 手机移植版 大轩 fcl启动器移植 一键自动安装",
+        "豆腐ki::中配 手机移植版 寻谧 精简 fcl启动器移植 一键自动安装",
+        "豆腐ki::中配 手机移植版 机械殖民地 fcl启动器移植 一键自动安装",
+        "豆腐ki::手机移植版 createdelight fcl启动器移植 一键自动安装",
+        "豆腐ki::手机移植版 模块化 v fcl启动器移植 一键自动导入",
+        "豆腐ki::中配群峦 手机移植版 群峦重生 fcl启动器移植 一键自动安装o",
+        "豆腐ki::低配手机移植版 高版本惊变100天手机移植版 fcl启动器 一键自动安装"
+      ],
+      "group_count": 25,
+      "record_count": 25,
+      "shared_tokens": [
+        "低配",
+        "启动器",
+        "中低配",
+        "异界",
+        "超低配",
+        "末日"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "DIFFERENT_PACKS",
+      "confidence": "high",
+      "expected_identity_count": 25,
+      "evidence": {
+        "note": "NOT one pack. This is a phone-port channel: 25 videos, mostly one group per video, each porting a DIFFERENT third-party pack (生活大冒险, 原环之理, FTB魔眼传说, 终末旅行家, 天空奥德赛, ATM3, ATM10, 殖民战争, 特摄世界, 自然之旅3, 无中生无尽, …). “低配/手机移植版/FCL启动器/一键自动安装” is a fixed house template. Groups carry conflicting registered ids (mcmod:613, mcmod:49, curseforge:all-the-mods-3-expert, curseforge:all-the-mods-10) - proof they are different projects. This cluster is pure boilerplate connectivity.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "韬可梦||韬可梦::宝可梦 向 实时 版 目标是成为宝可梦大师|韬可梦::宝可梦 向 领先 版本 主打紧跟时事",
+      "author": "韬可梦",
+      "group_keys": [
+        "韬可梦::宝可梦 向 领先 版本 主打紧跟时事",
+        "韬可梦::宝可梦 向 实时 版 目标是成为宝可梦大师"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "宝可梦"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. One 养老向 宝可梦 pack, described twice as staying on the newest version (“实时更新最新版” / “领先更新1.20.1版本”), same uploader, same QQ 773422289, same “目标是成为宝可梦大师” tagline. No competing pack name. One pack split two ways.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [
+            "773422289"
+          ],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "马赵龙zhao_long||马赵龙zhao_long::fcl手机启动器 宝可梦 正式|马赵龙zhao_long::宝可梦 重铸 内置幸运方块赛道及内容|马赵龙zhao_long::宝可梦重铸",
+      "author": "马赵龙zhao_long",
+      "group_keys": [
+        "马赵龙zhao_long::宝可梦 重铸 内置幸运方块赛道及内容",
+        "马赵龙zhao_long::宝可梦重铸",
+        "马赵龙zhao_long::fcl手机启动器 宝可梦 正式"
+      ],
+      "group_count": 3,
+      "record_count": 3,
+      "shared_tokens": [
+        "宝可梦",
+        "重铸"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "AMBIGUOUS",
+      "confidence": "low",
+      "expected_identity_count": 2,
+      "evidence": {
+        "note": "AMBIGUOUS - do NOT gate on this. The first two groups clearly describe 宝可梦重铸 1.16.5 (one is a version update of the other), so at least those two are the same pack. The third is an FCL phone-launcher release whose title names no pack at all, so it cannot be attributed. Verdict: at least one real under-merge here, but the cluster boundary is not trustworthy.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    },
+    {
+      "layer": "undermerge_adjudication",
+      "cluster_key": "鹿清玖LQJ||__raw_BV1AoULBgEoH|__raw_BV1aRYC6cE4p",
+      "author": "鹿清玖LQJ",
+      "group_keys": [
+        "__raw_BV1aRYC6cE4p",
+        "__raw_BV1AoULBgEoH"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "溯渊"
+      ],
+      "project_identities_shared_by_all_groups": [],
+      "project_identities_shared_by_some_groups": [],
+      "verdict": "STRONG_SAME_PACK",
+      "confidence": "medium",
+      "expected_identity_count": 1,
+      "evidence": {
+        "note": "SAME PACK. Two videos with IDENTICAL titles (“我的世界1.20.1整合包，溯渊最新更新”) by one uploader, both landing in un-named __raw_ buckets. Same pack name 溯渊, same MC version, near-identical publish dates. The only reason they are separate groups is that the key fell below the discriminative threshold, which is itself the defect. Treating as one pack.",
+        "project_identities": [],
+        "supporting": {
+          "shared_download_urls": [],
+          "shared_qq_ids": [],
+          "url_qq_caveat": "Supporting context only. A shared netdisk URL can cover several packs (Phase 3G-E: 28 packs on one link), so it never decides a verdict on its own."
+        }
+      }
+    }
+  ]
+}
