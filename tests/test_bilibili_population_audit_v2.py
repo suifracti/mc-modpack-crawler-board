@@ -37,6 +37,7 @@ DELIBERATELY NOT ASSERTED
   * that candidate-detector precision is high (it is LOW BY DESIGN; see §14)
 """
 import hashlib
+import gzip
 import json
 import os
 import subprocess
@@ -107,8 +108,19 @@ AUDIT_SCRIPTS = [
 
 
 def load(path):
-    with open(path, encoding="utf-8") as fp:
-        return json.load(fp)
+    """Load a JSON audit artifact, transparently handling the gzipped form.
+
+    The two large TRACKED artifacts (ledger, holdout) are stored gzipped: they
+    are 309 KB / 129 KB of per-record EVIDENCE, and gzip shrinks them to 18% /
+    20% while keeping every byte of that evidence intact (minifying or dropping
+    member titles would save far less and would destroy reviewability). The
+    untracked build/audit/ copies stay plain JSON for eyeballing.
+    """
+    with open(path, "rb") as fp:
+        buf = fp.read()
+    if buf[:2] == b"\x1f\x8b":
+        buf = gzip.decompress(buf)
+    return json.loads(buf.decode("utf-8"))
 
 
 def run(cmd):

@@ -29,6 +29,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { readJson, writeJsonPair } = require('./lib/audit_artifact_io');
 
 global.window = {};
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -48,7 +49,7 @@ function loadBili() {
 
 function main() {
   const data = loadBili();
-  const ledger = JSON.parse(fs.readFileSync(LEDGER, 'utf8'));
+  const ledger = readJson(LEDGER);
   const oldSplit = JSON.parse(fs.readFileSync(OLD_SPLIT, 'utf8'));
 
   const usedUploaders = new Set([
@@ -168,8 +169,7 @@ function main() {
   };
 
   fs.mkdirSync(path.dirname(OUT_FULL), { recursive: true });
-  fs.writeFileSync(OUT_FULL, JSON.stringify(compact, null, 2), 'utf8');
-  fs.writeFileSync(OUT_COMPACT, JSON.stringify(compact, null, 2), 'utf8');
+  const size = writeJsonPair(OUT_FULL, OUT_COMPACT, compact);
 
   console.log('=== Phase 3G-F.1-B population holdout v2 ===');
   console.log(`positives : ${positives.length}`);
@@ -181,7 +181,8 @@ function main() {
   for (const p of positives) console.log(`  [${p.videos.length}] ${p.uploader} :: ${p.group_key} (oldKeys=${p.old_distinct_keys})`);
   console.log('\n-- negatives --');
   for (const n of negatives) console.log(`  [groups=${n.group_count} vids=${n.videos.length}] ${n.uploader}`);
-  console.log(`\nwritten: ${path.relative(REPO_ROOT, OUT_COMPACT)}`);
+  console.log(`\nwritten: ${path.relative(REPO_ROOT, OUT_COMPACT)} `
+    + `(gzip ${(size.tracked.gz / 1024).toFixed(0)}KB <- ${(size.tracked.raw / 1024).toFixed(0)}KB)`);
   return compact.holdout_v2.meets_requirement ? 0 : 1;
 }
 

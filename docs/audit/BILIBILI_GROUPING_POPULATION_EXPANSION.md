@@ -258,8 +258,8 @@ Known remaining blind spots:
 | `pipeline/audit/bilibili_cross_group_undermerge_scan.js` | yes | detector, layer 1 (cross-group) |
 | `pipeline/audit/bilibili_population_adjudication_v2.js` | yes | verdicts, layer 2 |
 | `pipeline/audit/build_population_holdout_v2.js` | yes | holdout builder |
-| `pipeline/audit/bilibili_population_adjudication_v2.json` | yes | **the ledger** |
-| `pipeline/audit/bilibili_population_holdout_v2.json` | yes | holdout v2 (46 pos / 66 neg) |
+| `pipeline/audit/bilibili_population_adjudication_v2.json` | yes | **the ledger** (gzip) |
+| `pipeline/audit/bilibili_population_holdout_v2.json` | yes | holdout v2 (gzip) |
 | `build/audit/bilibili_population_candidates_v2.json` | no (gitignored) | 113 candidates |
 | `build/audit/bilibili_cross_group_undermerge_v2.json` | no (gitignored) | 58 clusters |
 | `tests/test_bilibili_population_audit_v2.py` | yes | regression suite |
@@ -310,6 +310,25 @@ python -m unittest tests.test_bilibili_population_audit_v2 -v
 `bilibili_population_adjudication_v2.json` and `bilibili_population_holdout_v2.json`
 are **tracked**, so they must not churn. They carry a `generated_at` field; all four
 scripts honour `SOURCE_DATE_EPOCH`, and the test harness pins it:
+
+**Both are stored gzipped** (via `pipeline/audit/lib/audit_artifact_io.js`). They were
+309 KB / 129 KB of plain JSON, almost all of it per-record *evidence* — the member
+`bvid`+`title` pairs and per-verdict notes that let a reviewer re-derive each verdict by
+hand. That evidence is the entire reason the ledger is reviewable, so it is not
+negotiable; the only question was its on-disk form. Measured for the ledger:
+
+| form | bytes | vs pretty |
+| --- | --- | --- |
+| pretty JSON | 309,399 | 100% |
+| minified | 147,424 | 48% |
+| short structural keys + minified | 120,877 | 39% |
+| **gzip -9 of pretty** | **55,695** | **18%** |
+
+gzip wins on every axis: smallest, no schema surgery, and inflating yields the original
+pretty-printed document. `readJson()` auto-detects the magic bytes, so consumers are
+agnostic (the untracked `build/audit/` copies stay plain for eyeballing). The
+`test_tracked_artifacts_are_byte_reproducible` test still compares raw file bytes, which
+is the property that actually matters.
 
 ```bash
 SOURCE_DATE_EPOCH=1786000000 node pipeline/audit/bilibili_population_adjudication_v2.js

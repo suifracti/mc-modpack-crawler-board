@@ -60,6 +60,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { writeJsonGz } = require('./lib/audit_artifact_io');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const CANDIDATES = path.join(REPO_ROOT, 'build', 'audit', 'bilibili_population_candidates_v2.json');
@@ -1001,7 +1002,7 @@ function main() {
   };
 
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
-  fs.writeFileSync(OUT, JSON.stringify(result, null, 2), 'utf8');
+  const size = writeJsonGz(OUT, result);
 
   console.log('=== Phase 3G-F.1-B population adjudication ledger v2 ===');
   console.log(`candidates total      : ${cand.candidates_total}`);
@@ -1027,7 +1028,8 @@ function main() {
   if (umDeclaredButAbsent.length) console.log(`!! UM DECLARED-BUT-ABSENT: ${umDeclaredButAbsent.length} cluster(s)`);
   if (umRetiredPresent.length) console.log(`!! UM RETIRED-BUT-PRESENT: ${umRetiredPresent.length} cluster(s)`);
   console.log(`um retired clusters   : ${Object.keys(RETIRED_UNDERMERGE_CLUSTERS).length}`);
-  console.log(`written: ${path.relative(REPO_ROOT, OUT)}`);
+  console.log(`written: ${path.relative(REPO_ROOT, OUT)} `
+    + `(gzip ${(size.gz / 1024).toFixed(0)}KB <- ${(size.raw / 1024).toFixed(0)}KB)`);
   return (unadjudicated.length || known8StillMerging.length
     || known8Unexplained.length || nieKeysMissing.length
     || declaredButAbsent.length || retiredCandidateMissing.length
