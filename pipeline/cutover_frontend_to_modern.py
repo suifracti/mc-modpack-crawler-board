@@ -346,10 +346,18 @@ def copy_tree_progressed(src: str, dst: str, label: str,
 
     ``shutil.copytree`` on this tree has been measured at a ~20x wall/CPU ratio
     (47.96s wall vs 2.39s of Python CPU for 2924 files), i.e. the wall time is
-    dominated by work charged to another component (filesystem filter driver /
-    antivirus), not to Python. That is precisely the shape of stall that looks
-    like "0% CPU" in the Python process, so it gets an explicit watchdog that
-    names the file being copied.
+    dominated by work charged to another component, not to Python. That is
+    precisely the shape of stall that looks like "0% CPU" in the Python process,
+    so it gets an explicit watchdog that names the file being copied.
+
+    Attribution honesty (Phase 3G-F.1): the blocking occurred in the OS /
+    filesystem copy path, and the behaviour is consistent with a filesystem
+    filter driver or realtime scanning being charged to a different process.
+    Defender (MsMpEng.exe) was sampled by
+    ``pipeline/audit/probe_step4_io_attribution.py`` but was NOT uniquely
+    proven to be the cause - other filter drivers, the search indexer, or the
+    volume's own IO stack were not ruled out. Treat the component as unproven;
+    only "not Python bytecode, not the manifest code" is established.
     """
     progress = Progress(label=label, stall_timeout=stall_timeout)
     progress.start_watchdog()

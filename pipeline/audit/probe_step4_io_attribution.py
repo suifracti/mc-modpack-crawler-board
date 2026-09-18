@@ -7,9 +7,16 @@ separates wall-clock time from Python process-CPU time for each Step-4
 primitive (copytree / rmtree / move / hash) and samples the CPU consumed by
 external services (Defender MsMpEng.exe) at the same time.
 
-If wall >> process_cpu and MsMpEng CPU rises, the stall is filter-driver /
-antivirus work charged to a *different* process - which is exactly why the
-Python process looked idle.
+If wall >> process_cpu, the cost is billed to a *different* process, which is
+exactly why the Python process looked idle. That establishes WHAT class of
+component is responsible (an out-of-process filter/scanner), not WHICH one.
+
+Attribution honesty (Phase 3G-F.1): Defender (MsMpEng.exe) is only one of the
+processes sampled below. A rising MsMpEng CPU counter is consistent with
+Defender being involved, but it does NOT uniquely prove Defender is the cause -
+other filter drivers, the search indexer, and the volume's own IO stack are
+sampled too and are not ruled out. Do not report Defender as the proven root
+cause; report "blocking occurred in the OS/filesystem copy path".
 """
 import os
 import sys
