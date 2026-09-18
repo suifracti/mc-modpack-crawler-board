@@ -2,173 +2,27 @@
  * Architecture V2 - Single Directory Browser Smoke Test.
  * Runs the comprehensive 33-behavior test suite against any specified directory.
  * Usage: node pipeline/smoke_test_single.js <target_dir> [port]
+ *
+ * Phase 3G-F-B: the process lifecycle (static server, Edge launch, teardown,
+ * per-run profile isolation) now lives in pipeline/lib/browser_harness.js.
+ *
+ * The previous inline version called `process.exit()` from *inside* its `try`
+ * block. Node does not unwind the stack for `process.exit()`, so the `finally`
+ * block - and with it `cdpClient.cleanup()` and `server.close()` - never ran on
+ * any run, successful or not. Every invocation therefore orphaned its Edge
+ * process, leaked its profile directory and never closed its static server,
+ * which is how a later run could end up talking to a browser it did not own.
  */
-const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
 
-const REPO_ROOT = path.resolve(__dirname, '..');
+const harness = require('./lib/browser_harness');
+const { REPO_ROOT, createStaticServer, EdgeCDPClient, installExitHooks } = harness;
+
 const targetArg = process.argv[2] || 'converted_output';
 const targetDir = path.isAbsolute(targetArg) ? targetArg : path.join(REPO_ROOT, targetArg);
 const PORT = parseInt(process.argv[3] || '8769', 10);
 const CDP_PORT = PORT + 1000;
-const EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
-
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'application/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.png': 'image/png',
-  '.svg': 'image/svg+xml',
-};
-
-function createStaticServer(rootDir, startPort) {
-  return new Promise((resolve, reject) => {
-    let currentPort = startPort;
-    function tryListen() {
-      const server = http.createServer((req, res) => {
-        let reqPath = decodeURIComponent(req.url.split('?')[0]);
-        if (reqPath === '/' || reqPath === '') {
-          reqPath = fs.existsSync(path.join(rootDir, '看板.html')) ? '/看板.html' : '/点击打开.html';
-        }
-        const filePath = path.join(rootDir, reqPath);
-
-        if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-          res.writeHead(404);
-          res.end('Not found: ' + reqPath);
-          return;
-        }
-
-        const ext = path.extname(filePath).toLowerCase();
-        res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
-        fs.createReadStream(filePath).pipe(res);
-      });
-
-      server.on('error', (err) => {
-        if (err.code === 'EADDRINUSE') {
-          currentPort++;
-          tryListen();
-        } else {
-          reject(err);
-        }
-      });
-
-      server.listen(currentPort, '127.0.0.1', () => {
-        resolve({ server, port: currentPort });
-      });
-    }
-    tryListen();
-  });
-}
-
-class EdgeCDPClient {
-  constructor(port) {
-    this.port = port;
-    this.proc = null;
-    // Phase 3G-F: unique per run - a stale, undeletable profile dir left behind by
-    // a killed run otherwise permanently prevents Edge from launching on that port.
-    this.userDataDir = path.join(REPO_ROOT, 'build', `.edge_cdp_${port}_${process.pid}`);
-  }
-
-  async start() {
-    fs.mkdirSync(this.userDataDir, { recursive: true });
-    const args = [
-      '--headless=new',
-      `--remote-debugging-port=${this.port}`,
-      `--user-data-dir=${this.userDataDir}`,
-      '--disable-gpu',
-      '--no-sandbox',
-      '--no-first-run',
-      '--no-default-browser-check',
-      'about:blank'
-    ];
-    this.proc = spawn(EDGE_PATH, args);
-
-    for (let i = 0; i < 35; i++) {
-      await new Promise(r => setTimeout(r, 200));
-      try {
-        const res = await fetch(`http://127.0.0.1:${this.port}/json/version`);
-        if (res.ok) return;
-      } catch (e) {}
-    }
-    throw new Error('Could not connect to Edge CDP on port ' + this.port);
-  }
-
-  async createPage(url) {
-    const res = await fetch(`http://127.0.0.1:${this.port}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' });
-    const target = await res.json();
-    const ws = new WebSocket(target.webSocketDebuggerUrl);
-
-    let msgId = 1;
-    const pending = new Map();
-    const consoleLogs = [];
-    const uncaughtErrors = [];
-
-    await new Promise((resolve, reject) => {
-      ws.onopen = resolve;
-      ws.onerror = reject;
-    });
-
-    ws.onmessage = (evt) => {
-      const msg = JSON.parse(evt.data);
-      if (msg.id && pending.has(msg.id)) {
-        const { resolve, reject } = pending.get(msg.id);
-        pending.delete(msg.id);
-        if (msg.error) reject(msg.error);
-        else resolve(msg.result);
-      } else if (msg.method === 'Runtime.consoleAPICalled') {
-        const text = msg.params.args.map(a => a.value || a.description || '').join(' ');
-        consoleLogs.push({ type: msg.params.type, text });
-      } else if (msg.method === 'Runtime.exceptionThrown') {
-        const desc = msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text;
-        console.error(`  [CDP UNCAUGHT EXCEPTION]`, desc);
-        uncaughtErrors.push(desc);
-      }
-    };
-
-    const sendCDP = (method, params = {}) => {
-      return new Promise((resolve, reject) => {
-        const id = msgId++;
-        pending.set(id, { resolve, reject });
-        ws.send(JSON.stringify({ id, method, params }));
-      });
-    };
-
-    await sendCDP('Runtime.enable');
-    await sendCDP('Page.enable');
-
-    const evaluate = async (expr) => {
-      // Phase 3F.2 harness fix.
-      //
-      // `awaitPromise: true` is required: three MCMod behaviours resolve their
-      // result through `new Promise(...)` + setTimeout. Without it the CDP result
-      // is the unresolved Promise object and no primitive value comes back.
-      //
-      // `returnByValue` must NOT be passed. Several behaviours end with a legacy
-      // DataTables call, e.g.
-      //     if (window.table) window.table.search('RLCraft').draw();
-      // whose *completion value* is the DataTables API object - a large cyclic
-      // object graph. With `returnByValue: true` the renderer main thread blocks
-      // forever trying to serialize it, the CDP response never arrives, and every
-      // subsequent evaluate hangs as well (reproduced: the identical work completes
-      // in 93 ms when the completion value is a primitive, and never returns
-      // otherwise). Primitives are still delivered in `result.value` without
-      // `returnByValue`, and every value this suite consumes (booleans / numbers /
-      // strings) is a primitive, so no behaviour assertion is weakened.
-      const evalRes = await sendCDP('Runtime.evaluate', { expression: expr, awaitPromise: true });
-      return evalRes.result ? evalRes.result.value : undefined;
-    };
-
-    return { ws, sendCDP, evaluate, consoleLogs, uncaughtErrors };
-  }
-
-  cleanup() {
-    try { if (this.proc) this.proc.kill('SIGKILL'); } catch (e) {}
-    try { fs.rmSync(this.userDataDir, { recursive: true, force: true }); } catch (e) {}
-  }
-}
 
 async function runTestSuite(envName, baseUrl, cdpClient) {
   console.log(`\n============================================================`);
@@ -176,7 +30,12 @@ async function runTestSuite(envName, baseUrl, cdpClient) {
   console.log(`  URL: ${baseUrl}`);
   console.log(`============================================================`);
 
-  const page = await cdpClient.createPage(baseUrl);
+  // `awaitPromise` is required (three MCMod behaviours resolve through
+  // `new Promise(...)` + setTimeout); `returnByValue` must stay off because a
+  // DataTables completion value is a large cyclic object graph that blocks the
+  // renderer forever while CDP tries to serialize it. Both flags are passed
+  // explicitly here rather than relying on the harness defaults.
+  const page = await cdpClient.createPage(baseUrl, { awaitPromise: true });
   const evalFn = page.evaluate;
 
   // 1. Wait for page initialization
@@ -578,21 +437,33 @@ async function main() {
   const { server, port: actualPort } = await createStaticServer(targetDir, PORT);
   console.log(`[+] Static server running at http://127.0.0.1:${actualPort}`);
 
-  const cdpClient = new EdgeCDPClient(CDP_PORT);
-  await cdpClient.start();
-  console.log('[+] Headless Edge CDP client ready.');
+  const cdpClient = new EdgeCDPClient(CDP_PORT, { suite: 'single' });
 
+  // Register cleanup *before* launching Edge so a failed launch cannot leak
+  // either the static server or a half-started browser.
+  const teardown = installExitHooks({ clients: [cdpClient], servers: [server] });
+
+  let exitCode = 1;
   try {
-    const results = await runTestSuite(path.basename(targetDir), `http://127.0.0.1:${actualPort}`, cdpClient);
+    await cdpClient.start();
+    console.log('[+] Headless Edge CDP client ready.');
+
+    const results = await runTestSuite(
+      path.basename(targetDir), `http://127.0.0.1:${actualPort}`, cdpClient);
     const success = (results.failCount === 0 && results.uncaughtErrors.length === 0);
     console.log(`\n[RESULT] Final Result: ${success ? 'SUCCESS (ALL 33 PASS, 0 EXCEPTIONS)' : 'FAILED'}`);
-    process.exit(success ? 0 : 1);
+    exitCode = success ? 0 : 1;
   } catch (err) {
     console.error("Test execution failed:", err);
-    process.exit(1);
+    exitCode = 1;
   } finally {
-    cdpClient.cleanup();
-    server.close();
+    // Teardown runs here because we no longer call process.exit() inside the
+    // try block - that is what used to skip this entirely.
+    teardown();
+    // Force the process down: an unclosed handle must never leave the gate
+    // hanging after its result has already been decided.
+    process.exitCode = exitCode;
+    setTimeout(() => process.exit(exitCode), 5000).unref();
   }
 }
 
