@@ -13,12 +13,12 @@
 
 ## 1. 审计统计总览
 
-- **审计功能总项数**：`71` 项 (覆盖 16 个业务领域)
-- **状态分布汇总 (Phase 3G-D.1R.1 审计后)**：
-  - **VERIFIED**：`45` 项 (63.4%) — 确证真实、具备完备契约的可靠功能（包含清除非法项目级时间戳后的 TIME-CURSEFORGE-02、模组关系保真的 MODREL-MCMOD-01、深度索引契约 DIDX-MCMOD-01、简介搜索契约 SEARCH-MCMOD-DESC-01、多词单一真实源契约 SEARCH-MCMOD-MULTIWORD-01、搜索命中原因与解释性修复 SEARCH-MCMOD-REASON-01、命中原因结构化来源完整性契约 SEARCH-MCMOD-REASON-SOURCE-01，以及本轮闭环的回滚与发布完整性契约 REL-ROLLBACK-FRONTEND-01 / REL-RESTORE-MODERN-01 / REL-STATE-METADATA-01 / **REL-ROLLBACK-DATA-NEUTRALITY-01** / **REL-ROLLBACK-LEGACY-PARITY-01**）
-  - **SUSPECT**：`19` 项 (26.8%) — 保留审慎标记（包含B站分组、BBSMC时序、Modrinth 聚合时间与版本标识等）
-  - **WRONG**：`0` 项 (0.0%) — 原始 9 项硬伤、平台时间伪造，以及 Phase 3G-D.1 命中原因来源可逆性缺陷均已清零修复。Phase 3G-D.1R / D.1R.1 的 Runtime 与 Legacy fallback 验证**未暴露任何新的事实性错误**，WRONG 保持 0
-  - **UNKNOWN**：`7` 项 (9.9%) — 保持显式未确定（含 CurseForge 真实版本发布日期可用性 RELDATE-CURSEFORGE-01 及模组依赖/重要性关系 MODSEM-MCMOD-01）
+- **审计功能总项数**：`72` 项 (覆盖 16 个业务领域)
+- **状态分布汇总 (Phase 3G-E 审计后)**：
+  - **VERIFIED**：`47` 项 (65.3%) — 确证真实、具备完备契约的可靠功能（包含清除非法项目级时间戳后的 TIME-CURSEFORGE-02、模组关系保真的 MODREL-MCMOD-01、深度索引契约 DIDX-MCMOD-01、简介搜索契约 SEARCH-MCMOD-DESC-01、多词单一真实源契约 SEARCH-MCMOD-MULTIWORD-01、搜索命中原因与解释性修复 SEARCH-MCMOD-REASON-01、命中原因结构化来源完整性契约 SEARCH-MCMOD-REASON-SOURCE-01、回滚与发布完整性契约 REL-ROLLBACK-FRONTEND-01 / REL-RESTORE-MODERN-01 / REL-STATE-METADATA-01 / REL-ROLLBACK-DATA-NEUTRALITY-01 / REL-ROLLBACK-LEGACY-PARITY-01，以及本轮由独立证据基准确证的 BILI-GRP-02 与 BILI-GRP-BENCH-01）
+  - **SUSPECT**：`17` 项 (23.6%) — 保留审慎标记（包含BBSMC时序、Modrinth 聚合时间与版本标识等）
+  - **WRONG**：`1` 项 (1.4%) — 原始 9 项硬伤、平台时间伪造、Phase 3G-D.1 命中原因来源可逆性缺陷均已清零修复；**本轮新增确认 `BILI-GRP-03`（Bilibili 同包多期被系统性拆分为多张卡片，Merge Recall = 0.1250）**。未为了保持 WRONG=0 而隐藏该结论。
+  - **UNKNOWN**：`7` 项 (9.7%) — 保持显式未确定（含 CurseForge 真实版本发布日期可用性 RELDATE-CURSEFORGE-01 及模组依赖/重要性关系 MODSEM-MCMOD-01）
 - **六平台覆盖率**：100%（MCMod 权威、Bilibili 动态、BBSMC 社区、XYEBBS 论坛、Modrinth 国际、CurseForge 国际全量覆盖）
 
 ---
@@ -98,8 +98,9 @@
 | Feature ID | 平台 | 用户可见功能 / 结论 | 原始平台来源 | 推导算法与逻辑 | 缺失值处理 | Golden Samples | 最终状态 | 备注 / 风险 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `BILI-GRP-01` | Bilibili | 同 UP 主多期视频自动合为一个卡片 (Multi-video Collapsing) | 936 条 Bilibili 视频标题与 UP 主 ID | 统一清洗标题 `cleanPackKey(title)`，相同作者且同 Key 合并为同一卡片 | 标题清洗后过短使用原标题前20字 | UP `懂嗎懂嗎`: 6 视频合为 2 卡片; UP `zicaiot`: 2 视频合为 1 卡片 | **`VERIFIED`** | 核心机制正确，已通过 53 raw $\to$ 47 grouped 自动化数学证明。 |
-| `BILI-GRP-02` | Bilibili | 标题去重关键词引发的错误合并 (False Merge) | 视频标题 | **Phase 3F 聚合决策模型**：清洗后 Key 长度 $\le 3$ 或属于泛名通用词集时，禁止跨视频聚合，强制分配独立 `__raw_<bvid>` 卡片；子串合并要求长度 $\ge 4$ | 退化为单视频卡片 | UP `黑金`: `[MC整合包]生存整合包-1.21.1` 与 `我的世界【生存整合包】生存` 独立展示 | **`SUSPECT`** | **Bug已修复**：短词泛名错误合并已杜绝（通过 `test_p0_8`）。但因尚未建立全量20对正负例金集基准，聚合算法整体鲁棒性审慎维持 SUSPECT。 |
-| `BILI-GRP-03` | Bilibili | 包含版本特性描述导致的拆分 (False Split) | 视频标题 | 标题中包含具体特性说明（如 `DH模组更新`/`支持Forge`）导致 Key 不一致 | 无法归纳到同一个 Key | UP `ConfectionaryQwQ`: `Horizon光影模组包` 6 个更新日志视频被拆分为 6 个单卡片 | **`SUSPECT`** | 属于启发式规则局限性，无法自动理解任意自然语言更新日志。 |
+| `BILI-GRP-02` | Bilibili | 标题去重关键词引发的错误合并 (False Merge) | 视频标题 | **Phase 3F 聚合决策模型**：清洗后 Key 长度 $\le 3$ 或属于泛名通用词集时，禁止跨视频聚合，强制分配独立 `__raw_<bvid>` 卡片；子串合并要求长度 $\ge 4$。另加作者作用域前缀 `authorKey::`，跨 UP 主结构上不可能合并 | 退化为单视频卡片 | **Phase 3G-E 基准**：22 个 hard negative 全部正确分开（0 false merge）；含 phase 指定的 `黑金` 重建对照（`[MC整合包]生存整合包-1.21.1` 与 `我的世界【生存整合包】生存` 清洗后均为 `生存`，长度 2 $\le$ 3 → 各自 `__raw_` 独立卡片） | **`VERIFIED`** | **已闭环**：False Merge Rate = **0.0000**（Merge Precision = 1.0000）。negative corpus 覆盖「同 UP 主 + 同 MC 版本 + 同命名模板 + 泛用词」极端区间，跨 33 个 UP 主。证据：`docs/audit/BILIBILI_GROUPING_AUDIT.md`、`build/audit/bilibili_grouping_benchmark.json`。 |
+| `BILI-GRP-03` | Bilibili | 包含版本特性描述导致的拆分 (False Split) | 视频标题 | 标题中包含具体特性说明（如 `DH模组更新`/`支持Forge`）导致 Key 不一致 | 无法归纳到同一个 Key | **Phase 3G-E 基准**：24 个独立证据确认的同包系列中 **21 个被拆开**；`Horizon 光影整合包` v1.2.0→v2.1.0 的 6 期仍为 6 张卡片 | **`WRONG`** | **已确认为系统性缺陷**：Merge Recall = **0.1250**，False Split Rate = **0.8750**。根因：`cleanPackKey` 保留更新日志正文，同包不同期的 key 既不相同也不互为子串（例：`群峦野望 原始 革新` / `群峦野望 沉浸 革新` / `群峦野望 挖矿来 抢油气来` 三张卡片）。当前仅「key 完全相同」或「一方为另一方子串（$\ge$ 4 字）」两种形态可合并。**本轮仅审计，未修复**。 |
+| `BILI-GRP-BENCH-01` | Bilibili | 聚合算法是否具备独立证据基准（而非自证） | 936 条 Bilibili payload + 独立证据 | 从生产 bundle **逐字提取** `cleanPackKey`/`groupPacks` 在 Node 执行；ground truth 由**共享具体下载资源** + **版本剥离后互斥核心包名** + phase 人工确认案例构成，**不使用 `cleanPackKey` 作为真值** | 证据不足者标 `AMBIGUOUS`/`reconstructed`，不计入 P/R | 复现生产不变量 `机械动力 53 raw → 47 cards`、4 组 / 10 视频 / net −6；提取实现与前端单测 `domain.test.ts` 4 条期望逐条一致 | **`VERIFIED`** | 24 positive / 22 negative / 33 UP 主 / 3 CONFIRMED + 43 STRONG。注意：phase 指定的 `黑金` 案例**不在当前 payload 中**（全字段搜索 0 命中），已用其标题重建为合成记录单独评估，不计入 P/R。 |
 
 ---
 
@@ -230,17 +231,17 @@
 4. **`DL-BBSMC-02`** [已修复]: Adapter 增加 URL 严格协议校验，DB Migration 003 清洗更新日志长文本（回归测试：`test_p0_4`）。
 5. **`DL-XYEBBS-01`** [已修复]: 清洗 `null`、`undefined`、`Neoforge`、`QQ群号` 伪链接，正确分离有效网盘 URL 与提取码（回归测试：`test_p0_5`）。
 6. **`TIME-MCMOD-01` & `TIME-XYEBBS-01`** [已修复]: 清洗日期列中文字符串 `'未知时间'` 和 `'未知'`，规范为标准 `NULL`（回归测试：`test_p0_6`）。
-7. **`BILI-GRP-02`** [已修复]: 增加 $\le 3$ 字符及纯泛词隔离规则，杜绝错误合并并严格保全 53 原始 $\to$ 47 聚合卡片数学证明（回归测试：`test_p0_8`）。
+7. **`BILI-GRP-02`** [已修复并闭环]: 增加 $\le 3$ 字符及纯泛词隔离规则 + 作者作用域前缀，杜绝错误合并（回归测试：`test_p0_8`）。**Phase 3G-E 独立证据基准进一步确认**：22 个 hard negative 全部正确分开，False Merge Rate = 0.0000（含 phase 指定的 `黑金` 重建对照）。
 8. **`LOADER-BILI-01`** [已修复]: Bilibili Adapter 引入上下文词边界正则识别显式 Loader，DB Migration 003 补全缺失关联（回归测试：`test_p0_7`）。
 9. **`AUDIT-DIFF-01`** [已修复]: `audit_diff.js` 显式设置 `is_available: false` 并输出客观说明，UI 诚实提示，移除空数组伪装（回归测试：`test_p0_9`）。
 10. **`TIME-CURSEFORGE-02`** [已修复]: CurseForge 全量 45,797 条 releases 移除项目级修改/首发时间向版本日期的非法降级，全量规范置空（`release_date = NULL`），并通过 Migration 005 及 Adapter 根治，杜绝虚假版本发布时间（测试：`test_curseforge_release_date_semantics.py`）。
+11. **`BILI-GRP-03`** [**本轮新确认，未修复**]: Bilibili 同一整合包的多期更新视频被**系统性拆分为多张卡片**。Phase 3G-E 独立证据基准实测：24 个确认同包系列中 **21 个被拆开**，Merge Recall = **0.1250**，False Split Rate = **0.8750**。根因：`cleanPackKey` 保留更新日志正文，同包不同期的 key 既不相同也不互为子串（例：`群峦野望 原始 革新` / `群峦野望 沉浸 革新` / `群峦野望 挖矿来 抢油气来` → 3 张卡片）。证据与逐条清单：`docs/audit/BILIBILI_GROUPING_AUDIT.md`。**本阶段为纯审计，未做 remediation。**
 
 ### P1: 事实性风险（SUSPECT）— 必须审慎呈现的启发式结论
 1. **`TIME-MODRINTH-02`**: Modrinth 官方 API 证明 `date_modified` 为最新版本创建日期聚合（10/10 金样验证吻合），但因离线快照未保留 `latest_version` ID 且 Release 实体未绑定真实版本，时序语义审慎标记为 SUSPECT。
 2. **`RELID-MODRINTH-01`**: Modrinth 离线爬虫抓取时未保存 `latest_version` ID，且 Adapter 将 `version_name` 赋值为 Minecraft 游戏版本而非整合包自身版本号，Release 实体与版本号解耦，标记为 SUSPECT。
 3. **`SEARCH-MCMOD-REASON-01`**: 搜索结果卡片缺乏命中原因透明度（包含模组隐藏于折叠抽屉内），建议后续版本标注“因包含模组 [X] 命中”，解除用户困惑。
-4. **`BILI-GRP-03`**: Bilibili 部分同一整合包的多期更新视频因标题含版本特性被拆解，建议引入更宽泛的分词相似度辅助关联。
-5. **`TIME-BBSMC-01`**: 调查 BBSMC 论坛 20 项发帖时间晚于编辑时间的时序倒错原因，必要时取两者的较晚时间作为 `modified_at`。
+4. **`TIME-BBSMC-01`**: 调查 BBSMC 论坛 20 项发帖时间晚于编辑时间的时序倒错原因，必要时取两者的较晚时间作为 `modified_at`。
 
 ### P2: 语义未定项（UNKNOWN）— 显式诚实展示未确定
 1. **`DL-MCMOD-01`**: MCMod 本身不托管文件，UI 明确标注为“原站百科跳转”而非“下载失效”。
