@@ -1,6 +1,6 @@
 {
   "phase": "3G-F.1-B",
-  "generated_at": "2026-09-18T11:30:58.435Z",
+  "generated_at": "2026-08-06T07:06:40.000Z",
   "artifact": "bilibili_population_adjudication_v2",
   "separation_of_concerns": {
     "detector": "pipeline/audit/bilibili_population_candidate_scan_v2.js (over-reports; no verdicts)",

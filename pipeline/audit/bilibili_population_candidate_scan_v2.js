@@ -292,7 +292,10 @@ function main() {
 
   const result = {
     phase: '3G-F.1-B',
-    generated_at: new Date().toISOString(),
+    // SOURCE_DATE_EPOCH makes the artifact byte-reproducible.
+    generated_at: new Date(
+      (process.env.SOURCE_DATE_EPOCH ? Number(process.env.SOURCE_DATE_EPOCH) * 1000 : Date.now()),
+    ).toISOString(),
     artifact: 'bilibili_population_candidates_v2',
     payload_records: data.length,
     total_groups: groups.size,

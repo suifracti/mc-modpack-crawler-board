@@ -328,7 +328,10 @@ function main() {
 
   const out = {
     phase: '3G-F.1-B',
-    generated_at: new Date().toISOString(),
+    // SOURCE_DATE_EPOCH makes the artifact byte-reproducible.
+    generated_at: new Date(
+      (process.env.SOURCE_DATE_EPOCH ? Number(process.env.SOURCE_DATE_EPOCH) * 1000 : Date.now()),
+    ).toISOString(),
     artifact: 'bilibili_cross_group_undermerge_v2',
     payload_records: data.length,
     thresholds: TH,

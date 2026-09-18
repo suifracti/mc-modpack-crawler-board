@@ -613,7 +613,12 @@ function main() {
 
   const result = {
     phase: '3G-F.1-B',
-    generated_at: new Date().toISOString(),
+    // SOURCE_DATE_EPOCH support: without it, re-running the audit changes only
+    // this timestamp, which makes a TRACKED artifact show up as dirty and hides
+    // real drift behind noise. Set SOURCE_DATE_EPOCH for byte-reproducible output.
+    generated_at: new Date(
+      (process.env.SOURCE_DATE_EPOCH ? Number(process.env.SOURCE_DATE_EPOCH) * 1000 : Date.now()),
+    ).toISOString(),
     artifact: 'bilibili_population_adjudication_v2',
     separation_of_concerns: {
       detector: 'pipeline/audit/bilibili_population_candidate_scan_v2.js (over-reports; no verdicts)',

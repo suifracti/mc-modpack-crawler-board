@@ -18,6 +18,7 @@ DELIBERATELY NOT ASSERTED
   * that candidate-detector precision is high (it is LOW BY DESIGN -- the detector
     over-reports so nothing is silently missed; see §14)
 """
+import hashlib
 import json
 import os
 import subprocess
@@ -82,8 +83,14 @@ def load(path):
 
 
 def run(cmd):
+    # SOURCE_DATE_EPOCH pins the `generated_at` field of the generated JSON so
+    # that running this suite does NOT leave the tracked audit artifacts dirty.
+    # Without it, every test run rewrites only a timestamp and `git status` shows
+    # two modified files - which trains everyone to ignore real drift.
+    env = dict(os.environ)
+    env.setdefault("SOURCE_DATE_EPOCH", "1786000000")
     return subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace")
+                          encoding="utf-8", errors="replace", env=env)
 
 
 class TestBilibiliPopulationAuditV2(unittest.TestCase):
@@ -341,6 +348,36 @@ class TestBilibiliPopulationAuditV2(unittest.TestCase):
         """Guard the premise: the v1 threshold really did exclude index 0, so the
         expansion is not solving a non-problem."""
         self.assertEqual(self.cand["thresholds"]["v1"]["min_anchor_index"], 1)
+
+    # ---------------------------------------------------- reproducibility
+    def test_tracked_artifacts_are_byte_reproducible(self):
+        """The two TRACKED JSON artifacts must not change when regenerated.
+
+        They carry a `generated_at` field. Before this was pinned, running the
+        suite rewrote only that timestamp, so `git status` showed two modified
+        files after every run. That is worse than untidy: a permanently-dirty
+        tracked artifact trains you to ignore drift, and real drift then hides
+        behind the noise. SOURCE_DATE_EPOCH pins it (see run()).
+        """
+        for path in (LEDGER, HOLDOUT):
+            with open(path, "rb") as fp:
+                before = hashlib.sha256(fp.read()).hexdigest()
+            for script in AUDIT_SCRIPTS:
+                r = run(["node", os.path.join("pipeline", "audit", script)])
+                self.assertEqual(r.returncode, 0, f"{script} failed:\n{r.stderr}")
+            with open(path, "rb") as fp:
+                after = hashlib.sha256(fp.read()).hexdigest()
+            self.assertEqual(
+                before, after,
+                f"{os.path.relpath(path, REPO_ROOT)} is not byte-reproducible; "
+                f"regenerating it changed the file content")
+
+    def test_generated_at_honours_source_date_epoch(self):
+        """Guard the mechanism, not just its effect."""
+        self.assertEqual(self.ledger["generated_at"], "2026-08-06T07:06:40.000Z",
+                         "SOURCE_DATE_EPOCH was not honoured by the ledger builder")
+        self.assertEqual(self.holdout["generated_at"], "2026-08-06T07:06:40.000Z",
+                         "SOURCE_DATE_EPOCH was not honoured by the holdout builder")
 
     # ------------------------------------------------------ §13 audit doc
     def test_audit_document_exists_with_required_sections(self):
