@@ -31,8 +31,8 @@ const oldImpl = require(path.join(REPO_ROOT, 'pipeline', 'audit', 'fixtures', 'b
 const OUT = path.join(REPO_ROOT, 'build', 'audit', 'bilibili_grouping_slogan_anchor_scan.json');
 const BILI_DATA = path.join(REPO_ROOT, 'converted_output', 'data', 'bili_data.js');
 
-const MIN_ANCHOR_INDEX = 2;   // anchor must not be the first/second token
-const MIN_DISTINCT_PREFIX = 2; // at least two different prefixes => tail slogan
+const MIN_ANCHOR_INDEX = parseInt(process.env.MIN_ANCHOR_INDEX || '1', 10); // anchor must not be the first token
+const MIN_DISTINCT_PREFIX = parseInt(process.env.MIN_DISTINCT_PREFIX || '2', 10);
 
 function loadBili() {
   const raw = fs.readFileSync(BILI_DATA, 'utf8');

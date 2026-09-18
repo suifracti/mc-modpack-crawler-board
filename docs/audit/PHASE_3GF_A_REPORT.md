@@ -5,9 +5,10 @@
 
 **结论一句话**：`4bf5e0f` 的 remediation **真实有效且精度未被牺牲**（Recall 0.1250 → 0.7500，
 Precision 保持 1.0000，benchmark False Merge 0），并在**真实浏览器运行时**确证生效；
-但全量审计在 corpus 之外**新确证 5 例误合并**，故宽口径安全结论**不成立**，
-`BILI-GRP-02` 维持 **SUSPECT**，并新增两项显式标记（`BILI-GRP-PRECISION-POP-01 = WRONG`、
-`BILI-GRP-BATCH-01 = SUSPECT`）。
+但全量审计在 corpus 之外**新确证 7 例误合并**，故宽口径安全结论**不成立**，
+`BILI-GRP-02` 维持 **SUSPECT**；同时发现**反向缺陷**（同一包 `涅槃` 被拆成 5 组）。
+新增三项显式标记（`BILI-GRP-PRECISION-POP-01 = WRONG`、
+`BILI-GRP-UNDERMERGE-01 = WRONG`、`BILI-GRP-BATCH-01 = SUSPECT`）。
 
 ---
 
@@ -97,11 +98,13 @@ FalseMergeRate = 0.0000   FalseSplitRate = 0.2500
 
 **0 例**。`new_false_merges = []`，`negative_regression = 22/22 separate`。
 
-> **但全量 corpus 之外新确证 5 例**，见 §9b —— 这是本轮最重要的发现。
+> **但全量 corpus 之外新确证 7 例**，见 §9b —— 这是本轮最重要的发现。
+> （首轮审计报 5 例；因扫描器 `MIN_ANCHOR_INDEX = 2` 存在**已证实的假阴性**，
+> 放宽到 1 后逐条人工裁定，数字上调为 **7**，并新发现一类**反向缺陷**，见 §9c。）
 
 ### 9b. 全量 population 新确证误合并（corpus 未覆盖）
 
-人工逐条裁定全部 55 个 size ≥ 3 的组后确证 5 例，**全部 `preExisting=false`（3G-F 新引入）**：
+人工逐条裁定全部 **31 个 flagged 组**后确证 7 例，**全部 `preExisting=false`（3G-F 新引入）**：
 
 | # | 组 key | 条数 | 被误合的包 | anchor 性质 |
 | --- | --- | --- | --- | --- |
@@ -110,10 +113,47 @@ FalseMergeRate = 0.0000   FalseSplitRate = 0.2500
 | 3 | `一个小寂哦::各大主播同款` | 2 | 幸运方块大全 + 神器泰坦随机合成 | 口号 |
 | 4 | `墨言eclipse::颠覆性的` | 2 | 摄影奇境 + 千界万锻 | 形容词 |
 | 5 | `原界环::or not` | 2 | Minecraft or Not: Girl&Gun + Maiden or not | 英文片段 |
+| 6 | `叙利亚自爆民兵::voxy` | 2 | 《你好，新蒸程》+《你好，新世代》 | **通用模组名** |
+| 7 | `tibsalta::难度驱动` | 2 | 《抗争之际0.6》+《旅途痕迹0.5》 | **方括号系列标签** |
+
+**#6 / #7 是首轮漏报、本轮新确认**，并引入两种新根因类别：
+- **通用模组名当 anchor**：`voxy` 是渲染模组名，任何用它的包都会共享该 token。
+- **方括号系列标签当 anchor**：`【抗争之际0.6】【难度驱动】...` 中真包名在前一个方括号内，
+  后一个方括号里的**系列标签**反被选为 anchor（清洗剥掉了括号符号但保留了其中文字）。
+
+**裁定完整性**：31 flagged = **7 REAL + 23 LEGITIMATE + 1 UNDECIDED**，无未裁定项。
+过程固化为可复算台账 `pipeline/audit/bilibili_grouping_anchor_adjudication.js`
+→ `build/audit/bilibili_grouping_anchor_adjudication.json`，并由 `test_p12` / `test_p13` 强制。
+
+> **⚠️ 该扫描器是审查清单生成器，不是判决器，既过报也漏报**（文档 §23.2 已注明）：
+> 过报——anchor 落在真实包名（`勇者之章` / `齿轮与腐肉` / `soa3`）时也会被 flagged；
+> 漏报——anchor 落在 key 第 0 个 token 的形态仍无法被发现。
+> 因此 **7 例是下界**，不是全量保证。
+
+### 9c. 反向发现：同一个包被拆成 5 组（宽口径误拆分）
+
+核实 `bili_data` 后确认：含 `涅槃` 的 **7 条记录全部来自同一 UP 主 `墨言eclipse`、
+且全部是同一个包**（`涅槃` v0.1.5 → v0.2），但算法把它们拆成了 **5 个 groupKey**：
+
+```
+墨言eclipse::涅槃 无神明渡我 我亦是神明                          (1)
+墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅    (1)
+墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 ... (1)
+墨言eclipse::沉浸 深度 a 咒镰双生                                (2)
+墨言eclipse::未尽之路涅槃                                        (2)
+```
+
+其中 `沉浸 深度 a 咒镰双生` 与 `未尽之路涅槃` **两个组本身合法**（成员确实同包），
+只是 anchor 是「坏 anchor」——**不得记为误合并**（已用 `test_p14` 钉死这条边界）。
+真正的问题是 **`涅槃`（2 字）被拆散**：短包名先被清洗稀释，再被其它 token 的
+identity run 捞走，anchor 落到宣传 tag 或阶段性标题词上，每换一次标题风格就换一个 key。
+
+→ 与 §9b 方向**相反**（欠合并 vs 过合并），两者不能相互抵消，已记为
+`BILI-GRP-UNDERMERGE-01 = WRONG`。
 
 **为什么 benchmark 仍报 FM = 0**：22 个 negative 只枚举特定配对。
 `一个小寂哦` 确在语料中（NEG-03/04），但覆盖的是 `弑神之路` vs `小行星空岛`；
-`墨言eclipse`（NEG-14/15）同理。新发现的三对**不在语料内**。
+`墨言eclipse`（NEG-14/15）、`叙利亚自爆民兵`、`tibsalta` 同理。新发现的配对**不在语料内**。
 
 ## 10. Horizon 结果
 
@@ -158,6 +198,9 @@ FalseMergeRate = 0.0000   FalseSplitRate = 0.2500
 
 **17/17 均为同一 UP 主的同一整合包系列**，无跨 UP 主组（`cross_uploader_groups = 0`）。
 最大组 11 条。**cards 越少 ≠ 越正确**：857 → 668 中既有真实修复，也含 §9b 的误合并。
+（注：本轮因放宽 anchor 扫描阈值新增的 7 例误合并中，`tibsalta::难度驱动` 与
+`叙利亚自爆民兵::voxy` 都只有 2 条，**不落在 size ≥ 5 区间**，故未被本表覆盖——
+这也说明「只看大组」不足以发现全部误合并。）
 
 ## 15. download / QQ safety
 
@@ -227,7 +270,7 @@ grouped = 36（过滤批上下文）  /  37（全量 936 上下文）
 **`SUSPECT`（维持，且证据显著加强；不升 VERIFIED）**
 
 - benchmark 内 FM = 0，全量 22 negative 上下文 0 违规 ✅
-- 但本轮**新确证 5 例** corpus 之外的误合并（§9b），全部为 3G-F 新引入
+- 但本轮**新确证 7 例** corpus 之外的误合并（§9b），全部为 3G-F 新引入
 - → 「0 false merge」只在**已枚举的 negative 形态**下成立
 
 ## 21. BILI-GRP-03 status
@@ -237,24 +280,27 @@ grouped = 36（过滤批上下文）  /  37（全量 936 上下文）
 - Recall 0.1250 → 0.7500，FS 21 → 6，Precision 1.0000，holdout 无过拟合
 - 剩余 6 例根因逐条实测确认：包名 ≤ 2 字，或清洗后 ≤ 3 字被泛名守卫截断
 - 修复须放宽守卫 / 降阈值 → 直接牺牲 precision → **按精度优先主动保留**
+- 另发现**同族但未被 corpus 覆盖**的新形态 `涅槃`（§9c），记为 `BILI-GRP-UNDERMERGE-01 = WRONG`
 
 ## 22. Truth Matrix distribution
 
-总项数 **75**（+2）：
+总项数 **76**（+3：POP-01 / UNDERMERGE-01 / BATCH-01）：
 
 | 状态 | 数量 | 占比 |
 | --- | --- | --- |
-| VERIFIED | 47 | 62.7% |
-| SUSPECT | **20** | 26.7% |
-| WRONG | **1** | 1.3% |
-| UNKNOWN | 7 | 9.3% |
+| VERIFIED | 47 | 61.8% |
+| SUSPECT | **20** | 26.3% |
+| WRONG | **2** | 2.6% |
+| UNKNOWN | 7 | 9.2% |
 
-7 个 BILI-GRP 条目：
+8 个 BILI-GRP 条目：
 `BILI-GRP-01 = VERIFIED`、`BILI-GRP-02 = SUSPECT`、`BILI-GRP-03 = SUSPECT`、
 `BILI-GRP-MERGE-BENCH-01 = VERIFIED`、`BILI-GRP-PRECISION-BENCH-01 = VERIFIED（窄口径）`、
-**`BILI-GRP-PRECISION-POP-01 = WRONG`（新增）**、**`BILI-GRP-BATCH-01 = SUSPECT`（新增）**。
+**`BILI-GRP-PRECISION-POP-01 = WRONG`（新增）**、
+**`BILI-GRP-UNDERMERGE-01 = WRONG`（新增）**、**`BILI-GRP-BATCH-01 = SUSPECT`（新增）**。
 
 > 窄口径 VERIFIED 与宽口径 WRONG **不矛盾**，两者差额正是 corpus 覆盖不足的量化证据。
+> **两个 WRONG 方向相反**（过合并 POP-01 / 欠合并 UNDERMERGE-01），不能相互抵消。
 > 同时**撤销**了 `BILI-GRP-02` 原先「已修复并闭环」的表述。
 
 ## 23. Tests
@@ -265,25 +311,41 @@ npm --prefix apps/web test                              80 passed (11 files)
 python tests/test_bilibili_grouping_benchmark.py        12 tests OK
 python tests/test_bili_grouping_explanation.py          OK
 python tests/test_feature_truth_matrix_contract.py      ALL PASSED
-python tests/test_bilibili_grouping_precision_audit.py  11 tests OK   (本轮新增)
+python tests/test_bilibili_grouping_precision_audit.py  14 tests OK   (本轮新增)
+pipeline/smoke_test_wiring.js (converted_output)        18/18 PASSED
+  └ Bilibili Search Wiring & Flat-Mode Raw Invariant - Raw Matches: 53, Grouped Cards: 36
 ```
 
 两个 evaluator 连跑两次结果**逐字节一致**（除 `generated_at`），可重复性已确认。
 
+> **门禁稳定性说明**：`smoke_test_wiring.js` 首跑出现
+> `Preview page failed to initialize mcmodData in time`，同端口重试仍失败；
+> 换端口（`converted_output 8921`）干净重跑 **18/18 PASS**。
+> 观察：失败时 `tasklist` 中有 33 个 `msedgewebview2.exe` 但 **0 个 `msedge.exe`**，
+> 端口只剩 `TIME_WAIT` —— 与 MEMORY 记录的「Edge 未真正启动即卡死」症状一致。
+> 直接手动拉起 `msedge.exe --headless=new --remote-debugging-port=9911` 可正常 LISTENING，
+> 证明 Edge 本身可用，属**环境/瞬时**问题。该基础设施**不在本轮范围内**，
+> 故仅记录现象与可用绕法（换端口重试），未作修改。
+
 ## 24. git diff --stat
 
 ```
- docs/FEATURE_TRUTH_MATRIX.md          |  32 ++--
- docs/audit/BILIBILI_GROUPING_AUDIT.md | 290 ++++++++++++++++++++++++++++++++++
- 2 files changed, 308 insertions(+), 14 deletions(-)
+ docs/FEATURE_TRUTH_MATRIX.md                      |  30 ++--
+ docs/audit/BILIBILI_GROUPING_AUDIT.md             | 358 ++++++++++++++++++++++
+ docs/audit/PHASE_3GF_A_REPORT.md                  |  (本文件)
+ tests/test_bilibili_grouping_precision_audit.py   |  14 tests
+ 2 files changed(跟踪文件中),  ~180 insertions(+), 14 deletions(-)
+```
 
-新增文件（6）：
- pipeline/audit/probe_bili_grouping_runtime.js
- pipeline/audit/bilibili_grouping_precision_probe.js
- pipeline/audit/bilibili_grouping_precision_audit.js
- pipeline/audit/bilibili_grouping_candidate_false_merge_check.js
- pipeline/audit/bilibili_grouping_slogan_anchor_scan.js
- tests/test_bilibili_grouping_precision_audit.py
+新增文件（7）：
+```
+pipeline/audit/probe_bili_grouping_runtime.js
+pipeline/audit/bilibili_grouping_precision_probe.js
+pipeline/audit/bilibili_grouping_precision_audit.js
+pipeline/audit/bilibili_grouping_candidate_false_merge_check.js
+pipeline/audit/bilibili_grouping_slogan_anchor_scan.js
+pipeline/audit/bilibili_grouping_anchor_adjudication.js    ← 本轮新增（可复算裁定台账）
+tests/test_bilibili_grouping_precision_audit.py
 ```
 
 **未修改任何 runtime / 算法文件**（`bilibiliGrouping.ts`、`legacyAdapter.ts`、
@@ -294,17 +356,19 @@ python tests/test_bilibili_grouping_precision_audit.py  11 tests OK   (本轮新
 ```
  M docs/FEATURE_TRUTH_MATRIX.md
  M docs/audit/BILIBILI_GROUPING_AUDIT.md
-?? pipeline/audit/bilibili_grouping_candidate_false_merge_check.js
-?? pipeline/audit/bilibili_grouping_precision_audit.js
-?? pipeline/audit/bilibili_grouping_precision_probe.js
-?? pipeline/audit/bilibili_grouping_slogan_anchor_scan.js
-?? pipeline/audit/probe_bili_grouping_runtime.js
-?? tests/test_bilibili_grouping_precision_audit.py
+ M docs/audit/PHASE_3GF_A_REPORT.md
+ M pipeline/audit/bilibili_grouping_candidate_false_merge_check.js
+ M pipeline/audit/bilibili_grouping_slogan_anchor_scan.js
+ M tests/test_bilibili_grouping_precision_audit.py
+?? pipeline/audit/bilibili_grouping_anchor_adjudication.js
 ```
+
+（`pipeline/audit/bilibili_grouping_precision_*.js`、`probe_bili_grouping_runtime.js`
+与 `bilibili_grouping_candidate_false_merge_check.js` 已在上一提交落库。）
 
 ## 26. final commit
 
-见本文件所在提交（`audit(arch-v2): Phase 3G-F-A ...`），分支 `audit/phase3gf-a-final`。
+见本文件所在提交（`audit(arch-v2): Phase 3G-F-A ...`），分支 `audit-phase3gf-a-final`。
 
 ---
 
@@ -316,7 +380,8 @@ python tests/test_bilibili_grouping_precision_audit.py  11 tests OK   (本轮新
 | `build/audit/bilibili_grouping_benchmark.json` | 3G-E 旧实现基准（`53 raw → 47 cards`） |
 | `build/audit/bilibili_grouping_runtime_probe.json` | 真实浏览器运行时 11 项桥接证明 |
 | `build/audit/bilibili_grouping_precision_probe.json` | 批次依赖性 / 黑金 / 下载·QQ / 低区分度 / 人口 |
-| `build/audit/bilibili_grouping_precision_audit.json` | 55 个大组逐条 + 被否决的 URL 启发式 |
-| `build/audit/bilibili_grouping_candidate_false_merge_check.json` | 5 例误合并的独立证据 + 新旧算法对比 |
-| `build/audit/bilibili_grouping_slogan_anchor_scan.json` | 口号锚点扫描（**建议性，故意过报**） |
+| `build/audit/bilibili_grouping_precision_audit.json` | 大组逐条 + 被否决的 URL 启发式 |
+| `build/audit/bilibili_grouping_candidate_false_merge_check.json` | **7 例**误合并的独立证据 + 新旧算法对比 |
+| `build/audit/bilibili_grouping_slogan_anchor_scan.json` | 口号锚点扫描（**建议性，故意过报且会漏报**，31 flagged） |
+| `build/audit/bilibili_grouping_anchor_adjudication.json` | **逐条裁定台账**（31 = 7 REAL + 23 LEGITIMATE + 1 UNDECIDED） |
 | `docs/audit/BILIBILI_GROUPING_AUDIT.md` §16–30 | 完整审计叙述 |

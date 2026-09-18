@@ -29,7 +29,16 @@ const oldImpl = require(path.join(REPO_ROOT, 'pipeline', 'audit', 'fixtures', 'b
 const OUT = path.join(REPO_ROOT, 'build', 'audit', 'bilibili_grouping_candidate_false_merge_check.json');
 const BILI_DATA = path.join(REPO_ROOT, 'converted_output', 'data', 'bili_data.js');
 
-const CANDIDATE_UPLOADERS = ['一个小寂哦', '墨言eclipse', '原界环'];
+// Uploaders carrying at least one adjudicated false merge. Keep this list in sync with
+// KNOWN_FALSE_MERGES in tests/test_bilibili_grouping_precision_audit.py - a false merge
+// whose uploader is absent here is silently invisible to the pinning test.
+const CANDIDATE_UPLOADERS = [
+  '一个小寂哦',
+  '墨言eclipse',
+  '原界环',
+  '叙利亚自爆民兵',
+  'tibsalta',
+];
 
 function loadBili() {
   const raw = fs.readFileSync(BILI_DATA, 'utf8');
@@ -51,7 +60,9 @@ function main() {
   const out = { generated_at: new Date().toISOString(), candidates: [] };
 
   for (const uploader of CANDIDATE_UPLOADERS) {
-    const recs = data.filter((p) => p.author === uploader);
+    // Compare on the SAME normalisation the grouping uses (authorScope lowercases),
+    // so a listing like 'tibsalta' still matches the payload's 'Tibsalta'.
+    const recs = data.filter((p) => String(p.author || '').trim().toLowerCase() === uploader);
     const groups = new Map();
     for (const p of recs) {
       const k = newMap[p.bvid].groupKey;
