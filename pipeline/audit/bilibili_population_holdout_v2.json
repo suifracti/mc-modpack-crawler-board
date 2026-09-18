@@ -1,6 +1,6 @@
 {
   "phase": "3G-F.1-B",
-  "generated_at": "2026-09-18T11:30:58.640Z",
+  "generated_at": "2026-08-06T07:06:40.000Z",
   "artifact": "bilibili_population_holdout_v2",
   "note": "ADDITIVE holdout. The old frozen corpus (bilibili_grouping_corpus.json) is untouched.",
   "old_corpus": {
