@@ -27,6 +27,7 @@ PROBE = os.path.join(REPO_ROOT, "build", "audit", "bilibili_grouping_precision_p
 AUDIT = os.path.join(REPO_ROOT, "build", "audit", "bilibili_grouping_precision_audit.json")
 CAND = os.path.join(REPO_ROOT, "build", "audit", "bilibili_grouping_candidate_false_merge_check.json")
 SLOGAN = os.path.join(REPO_ROOT, "build", "audit", "bilibili_grouping_slogan_anchor_scan.json")
+ADJUDICATION = os.path.join(REPO_ROOT, "build", "audit", "bilibili_grouping_anchor_adjudication.json")
 RUNTIME = os.path.join(REPO_ROOT, "build", "audit", "bilibili_grouping_runtime_probe.json")
 
 # Confirmed by manual adjudication in Phase 3G-F-A: groups the 3G-F identity-run
@@ -39,6 +40,25 @@ KNOWN_FALSE_MERGES = {
     "一个小寂哦::各大主播同款": 2,
     "墨言eclipse::颠覆性的": 2,
     "原界环::or not": 2,
+    # Added after widening the anchor-position scan (MIN_ANCHOR_INDEX 2 -> 1) closed a
+    # proven false negative (各大主播同款 sat at index 1). These two were MISSED by the
+    # first pass and are pinned here with their new root-cause classes:
+    #   voxy        -> a generic render-mod name used as the identity anchor
+    #   难度驱动    -> a bracketed SERIES TAG taken as the anchor while the real pack name
+    #                  sits in the preceding bracket 【抗争之际】/【旅途痕迹】
+    "叙利亚自爆民兵::voxy": 2,
+    "tibsalta::难度驱动": 2,
+}
+
+# Reverse finding: the pack 涅槃 (uploader 墨言eclipse) is ONE pack spread across FIVE
+# groupKeys. The two groups below are LEGITIMATE (members really are the same pack) and
+# must NOT be treated as false merges. Pinned so the count cannot silently drift.
+NIHUAN_UNDER_MERGED = {
+    "墨言eclipse::涅槃 无神明渡我 我亦是神明": 1,
+    "墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅": 1,
+    "墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频": 1,
+    "墨言eclipse::沉浸 深度 a 咒镰双生": 2,
+    "墨言eclipse::未尽之路涅槃": 2,
 }
 
 AUDIT_SCRIPTS = [
@@ -46,6 +66,8 @@ AUDIT_SCRIPTS = [
     "bilibili_grouping_precision_audit.js",
     "bilibili_grouping_candidate_false_merge_check.js",
     "bilibili_grouping_slogan_anchor_scan.js",
+    # must run AFTER the scan: it consumes the scan output
+    "bilibili_grouping_anchor_adjudication.js",
 ]
 
 
@@ -98,7 +120,7 @@ class TestBilibiliGroupingPrecisionAudit(unittest.TestCase):
 
     # ------------------------------------------------------------------ 1
     def test_p1_audit_artifacts_exist(self):
-        for p in (PROBE, AUDIT, CAND, SLOGAN):
+        for p in (PROBE, AUDIT, CAND, SLOGAN, ADJUDICATION):
             self.assertTrue(os.path.exists(p), f"missing audit artifact: {p}")
 
     # ------------------------------------------------------------------ 2
@@ -154,6 +176,8 @@ class TestBilibiliGroupingPrecisionAudit(unittest.TestCase):
             "一个小寂哦::四叶草": ("泰坦生物", "执行之龙"),
             "一个小寂哦::各大主播同款": ("幸运方块大全", "神器泰坦随机合成"),
             "墨言eclipse::颠覆性的": ("摄影奇境", "千界万锻"),
+            "叙利亚自爆民兵::voxy": ("新蒸程", "新世代"),
+            "tibsalta::难度驱动": ("抗争之际", "旅途痕迹"),
         }
         for g in candidate_groups(cand):
             if g["group_key"] not in expectations:
@@ -218,6 +242,54 @@ class TestBilibiliGroupingPrecisionAudit(unittest.TestCase):
         for f in scan["flagged"]:
             self.assertTrue(f["members"])
             self.assertTrue(f["distinct_prefixes"])
+
+    # ------------------------------------------------------------------ 12
+    def test_p12_every_flagged_group_is_adjudicated(self):
+        """The scan is a review-list generator; nothing may be left unjudged.
+
+        If this fails, the headline false-merge count is stale - either a new
+        flagged group appeared (adjudicate it) or a verdict key went unused.
+        """
+        ledger = load(ADJUDICATION)
+        self.assertEqual(ledger["unadjudicated"], [],
+                         "flagged groups exist with no recorded verdict")
+        self.assertEqual(ledger["declared_but_absent"], [],
+                         "a verdict was recorded for a group that is no longer flagged")
+        self.assertEqual(
+            ledger["real_false_merge_count"] + ledger["legitimate_count"]
+            + ledger["undecided_count"],
+            ledger["scan_flagged_count"],
+            "adjudication ledger does not account for every flagged group")
+
+    # ------------------------------------------------------------------ 13
+    def test_p13_adjudicated_real_false_merges_match_the_pin(self):
+        ledger = load(ADJUDICATION)
+        counted = {r["group_key"] for r in ledger["real_false_merges"]}
+        self.assertEqual(
+            counted, set(KNOWN_FALSE_MERGES),
+            "the hand adjudication and the pinned defect list disagree")
+
+    # ------------------------------------------------------------------ 14
+    def test_p14_nihuan_is_under_merged_not_false_merged(self):
+        """涅槃 is ONE pack split across five groupKeys (a false-SPLIT symptom).
+
+        All 7 records containing 涅槃 come from 墨言eclipse and are the same pack.
+        Two of those groups are internally legitimate - they must never be
+        reclassified as false merges just because their anchor is a bad anchor.
+        """
+        cand = load(CAND)
+        mixed = {
+            g["group_key"]: g["size"]
+            for g in candidate_groups(cand)
+            if g["group_key"] in NIHUAN_UNDER_MERGED
+        }
+        self.assertEqual(mixed, NIHUAN_UNDER_MERGED,
+                         "the 涅槃 under-merge shape changed - re-adjudicate §23.2b")
+        self.assertGreater(len(NIHUAN_UNDER_MERGED), 1,
+                           "涅槃 must still be fragmented; a single group would mean fixed")
+        overlap = set(NIHUAN_UNDER_MERGED) & set(KNOWN_FALSE_MERGES)
+        self.assertEqual(overlap, set(),
+                         "a 涅槃 group was reclassified as a false merge")
 
 
 if __name__ == "__main__":
