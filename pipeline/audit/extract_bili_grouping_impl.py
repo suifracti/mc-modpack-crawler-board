@@ -1,17 +1,22 @@
 """
-Phase 3G-E — Bilibili grouping benchmark evaluator (extraction step).
+Phase 3G-E - Bilibili grouping implementation extractor.
 
-The production bundle `converted_output/assets/index.js` ships UNMINIFIED, so the
-real grouping implementation can be extracted verbatim and executed in Node.
-This script extracts the exact source text of:
+Extracts the LEGACY (pre-Phase-3G-F) Bilibili grouping implementation verbatim
+from an UNMINIFIED production bundle:
 
     * the local generic-key set   (BILI_GENERIC_PACK_KEYS2)
     * cleanPackKey(...)
     * groupPacks(...)
 
-into build/audit/bili_grouping_impl.js, which the Node evaluator requires.
+Phase 3G-F note: the remediation replaced that code with
+`apps/web/src/domain/bilibiliGrouping.ts`, so the CURRENT production bundle no
+longer contains it. The extraction produced here at commit 5b1ebdd is frozen in
+`pipeline/audit/fixtures/bili_grouping_legacy_impl.js`, which is what the
+before/after evaluators now load. This script is kept so the fixture can be
+regenerated from a pre-3G-F bundle if one is ever restored from a backup.
 
-No reimplementation: the extracted text is the shipped production code.
+If the target bundle does not contain the legacy set (i.e. it is a post-3G-F
+bundle), the script reports that and exits 0 without touching the fixture.
 """
 import json
 import os
@@ -57,7 +62,11 @@ def main():
 
     decl = re.search(r"(?:var|const|let)\s+BILI_GENERIC_PACK_KEYS2\s*=\s*(?:/\*[^*]*\*/\s*)?new Set\(", src)
     if not decl:
-        raise SystemExit("generic key set not found in bundle")
+        print("[i] target bundle does not contain the legacy grouping implementation.")
+        print("    This is expected for any post-Phase-3G-F bundle: the algorithm now")
+        print("    lives in apps/web/src/domain/bilibiliGrouping.ts and the pre-3G-F")
+        print("    code is frozen at pipeline/audit/fixtures/bili_grouping_legacy_impl.js")
+        return 0
     set_src = extract_balanced(src, decl.start(), "(") + ";"
     # Re-declare as const for the CommonJS module scope.
     set_src = re.sub(r"^(?:var|const|let)\s+", "const ", set_src, count=1)

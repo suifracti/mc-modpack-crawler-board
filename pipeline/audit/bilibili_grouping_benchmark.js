@@ -18,7 +18,8 @@ const path = require('path');
 
 global.window = {};
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const impl = require(path.join(REPO_ROOT, 'build', 'audit', 'bili_grouping_impl.js'));
+// FROZEN pre-3G-F implementation (the live bundle no longer contains it).
+const impl = require(path.join(REPO_ROOT, 'pipeline', 'audit', 'fixtures', 'bili_grouping_legacy_impl.js'));
 
 const BILI_DATA = path.join(REPO_ROOT, 'converted_output', 'data', 'bili_data.js');
 const CORPUS = path.join(REPO_ROOT, 'pipeline', 'audit', 'bilibili_grouping_corpus.json');

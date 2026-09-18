@@ -11,7 +11,7 @@
 import { escHtml, escAttrJs } from '../utils/html';
 import { fmtBigNum, numFmt, formatVFileSize, asArray, getVPanClass } from '../utils/format';
 import { extractMcVersion as extractVersion } from '../domain/minecraft';
-import { cleanPackKey, BILI_GENRE_BUZZWORDS, BILI_GENERIC_PACK_KEYS } from '../domain/packName';
+import { cleanPackKey, BILI_GENRE_BUZZWORDS } from '../domain/packName';
 import { getTheme, setTheme, toggleTheme } from '../state/theme';
 import { LegacySidecarLoader } from '../data/LegacySidecarLoader';
 import { PLATFORM_CONFIGS } from '../data/platformRegistry';
@@ -1504,47 +1504,33 @@ function onPlatformLoaded(platId) {
 
     /* [Migrated to src/domain/packName.ts: cleanPackKey & BILI_GENRE_BUZZWORDS] */
 
-
-    var BILI_GENERIC_PACK_KEYS = new Set([
-        '', 'mc', '我的世界', 'minecraft', '模组', '整合', '游戏', '自制', '包', '整合包',
-        '全新', '纯净', '高配', '低配', '生存', '冒险', '科技', '魔法', '空岛', '大型',
-        '超好玩', '免费', '客户端', '体验'
-    ]);
-
-    /* 智能同包聚合器 (同作者作用域隔离 + 精准核心名聚类，实现同包多版无缝合并) */
+    /* 智能同包聚合器 (同作者作用域隔离 + 两级 identity/episode 聚类)
+     *
+     * Phase 3G-F: the grouping DECISION now lives in a single source of truth,
+     * `src/domain/bilibiliGrouping.ts::groupBilibiliPacks()`, invoked through the
+     * legacy bridge. The previous inline rule only merged keys that were exactly
+     * equal or >=4-char substrings of each other, which split same-pack episodes
+     * whose changelog wording differed (Phase 3G-E: Merge Recall 0.1250). The
+     * duplicated local BILI_GENERIC_PACK_KEYS copy was removed with it.
+     *
+     * This function is now only the AGGREGATOR: it consumes the precomputed
+     * group key per bvid and accumulates the card's aggregate stats.
+     */
     function groupPacks(packs) {
         var map = {};
         var groups = [];
         window.biliGroupsMap = map;
 
+        var decisions = (typeof window.groupBilibiliPacks === 'function')
+            ? window.groupBilibiliPacks(packs)
+            : null;
+
         packs.forEach(function(p) {
             var rawKey = cleanPackKey(p.title);
             var authorKey = (p.author || 'unknown').trim().toLowerCase();
-            var key = '';
-
-            // 规则1：如果提取出的名字为空、长度小于等于3、或者属于泛用通用词，坚决不跨视频聚合，保持单视频独立！
-            if (!rawKey || rawKey.length <= 3 || BILI_GENERIC_PACK_KEYS.has(rawKey)) {
-                key = '__raw_' + p.bvid;
-            } else {
-                // 规则2：同作者公共核心名二阶段聚类（如 UP 终极劲爽全家桶 的两期 逆转未来 视频）
-                var matchedExistingKey = null;
-                for (var k in map) {
-                    if (k.indexOf(authorKey + '::') === 0) {
-                        var existRaw = k.substring(authorKey.length + 2);
-                        if (existRaw === rawKey || 
-                            (existRaw.length >= 4 && rawKey.indexOf(existRaw) !== -1) || 
-                            (rawKey.length >= 4 && existRaw.indexOf(rawKey) !== -1)) {
-                            matchedExistingKey = k;
-                            break;
-                        }
-                    }
-                }
-                if (matchedExistingKey) {
-                    key = matchedExistingKey;
-                } else {
-                    key = authorKey + '::' + rawKey;
-                }
-            }
+            var key = decisions && decisions[p.bvid]
+                ? decisions[p.bvid].groupKey
+                : (rawKey ? authorKey + '::' + rawKey : '__raw_' + p.bvid);
 
             if (!map[key]) {
                 map[key] = {

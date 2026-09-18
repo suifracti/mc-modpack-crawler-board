@@ -8,6 +8,7 @@ import { escHtml, escAttrJs } from '../utils/html';
 import { fmtBigNum, numFmt, formatVFileSize, asArray, getVPanClass } from '../utils/format';
 import { extractMcVersion } from '../domain/minecraft';
 import { cleanPackKey, BILI_GENRE_BUZZWORDS, BILI_GENERIC_PACK_KEYS } from '../domain/packName';
+import { groupBilibiliPacks } from '../domain/bilibiliGrouping';
 import { getTheme, setTheme, toggleTheme, bindThemeControls, initTheme } from '../state/theme';
 import { LegacySidecarLoader } from '../data/LegacySidecarLoader';
 import { LegacySidecarRepository } from '../data/LegacySidecarRepository';
@@ -93,6 +94,15 @@ export function setupLegacyBridge(): { repository: LegacySidecarRepository } {
     win.cleanPackKey = cleanPackKey;
     win.BILI_GENRE_BUZZWORDS = BILI_GENRE_BUZZWORDS;
     win.BILI_GENERIC_PACK_KEYS = BILI_GENERIC_PACK_KEYS;
+    // Phase 3G-F: single source of truth for the Bilibili grouping decision.
+    // The domain function returns a Map; the legacy aggregator indexes by bvid as
+    // a plain object, so expose a keyed object here (a Map indexed with [] would
+    // silently yield undefined and quietly disable grouping).
+    win.groupBilibiliPacks = (records: Array<{ bvid: string; title: string; author?: string | null }>) => {
+      const out: Record<string, { groupKey: string; identityKey: string; episodeResidue: string; groupingReason: string }> = {};
+      for (const [bvid, decision] of groupBilibiliPacks(records)) out[bvid] = decision;
+      return out;
+    };
 
     // 3. Central Theme State
     win.getTheme = getTheme;

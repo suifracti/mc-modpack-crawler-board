@@ -420,3 +420,118 @@ python tests/test_bilibili_grouping_benchmark.py
 **未**新增泛用词、**未**改 min key length、**未**改 `cleanPackKey` 正则、
 **未**引入 download URL identity、**未**引入 QQ identity、**未**引入版本连续性、
 **未**改 group key、**未**改 UI、**未**改 `canonical.db`、**未**新增 Migration。
+
+---
+
+# Phase 3G-F — False-Split Remediation（同文件续）
+
+> base commit `5b1ebdd` · **本阶段修改了 grouping 实现**（3G-E 为纯审计）
+
+## 9. 冻结与防过拟合
+
+| 项 | 值 |
+| :--- | :--- |
+| 冻结 corpus SHA-256 | `b19b6653040c403aecc20ef04784752e7ab593670421bdf017a9b3d7f9b08577` |
+| 冻结 benchmark SHA-256 | `39d89710e1ab23274ce64e5a6b07afa6436db3b7e1f60f9c841ecd5f9bbc312c` |
+| 切分方式 | **uploader-disjoint**，确定性（`sha256(uploader)` 升序），非人工挑选 |
+| dev | 21 UP 主 / 18 positive + 10 negative |
+| holdout | 12 UP 主 / 6 positive + 12 negative |
+| 固定进 dev | `懂嗎懂嗎`、`ConfectionaryQwQ`（phase 已给定真值，属「不可回归」而非盲测） |
+
+## 10. 新算法（两级 identity / episode 模型）
+
+单一来源：**`apps/web/src/domain/bilibiliGrouping.ts`**（纯函数 `groupBilibiliPacks`）。
+`dashboard.legacy.js::groupPacks` 降级为**纯聚合器**，只消费预计算的 group key；
+重复的本地 `BILI_GENERIC_PACK_KEYS` 副本已删除，由 `legacyAdapter.ts` 经 window 桥接。
+
+```
+cleanPackKey(title) → tokens
+  ├─ 泛名守卫（不变）：空 / 长度 ≤ 3 / 属泛名白名单 → __raw_<bvid>
+  └─ 同作者作用域内挖掘 identity anchor：
+       任意相邻 token run，出现于 ≥ 2 条视频
+       且 identityChars(run) ≥ 3
+       且 run 含 ≥ 1 个「非噪声」token
+     ↓
+     每条记录取「覆盖视频数最多」的 anchor（并列比 specificity，再比字典序）
+     ↓
+     groupKey = authorKey::anchor
+```
+
+**噪声 token（不可锚定 identity，但仍保留在 key 中）**
+
+- 渠道/平台术语：`手机移植版` `移植版` `启动器` `fcl启动器移植` `一键自动导入` …
+- 更新/日志措辞：`版本` `正式` `更新` `发布` `前瞻` `日志` `内容` `优化` `支持` `添加` `免费` …
+- 题材/规模描述词：`末世` `末日` `大型` `史诗` `沉浸` `硬核` `生存` `冒险` `科技` …
+- **模组名**：`机械动力` `农夫乐事` `虚无世界` `匠魂` `等价交换` …
+- **源游戏名**：`地下城` `死亡细胞`
+
+**噪声按子串剥离**：中文描述词会连写（`大型`+`末世` → 一个 token `大型末世`），
+故 `identityCharsOfToken()` 逐个剥离子串后再计长；纯描述词 token 计 0 → 不可锚定，
+而真名里含噪声词者（`齿轮与腐肉` → `齿轮腐肉`）仍保留判别力。
+
+**token 归一化**：含 CJK 的 token 去掉 ASCII 字母数字后缀（`虚饰作品v` ≡ `虚饰作品`，
+`命运齿轮fom` ≡ `命运齿轮`）；纯拉丁 token（`mon`、`soa3`）保持原样。
+
+**为什么不用 union-find**：传递闭包会把不同包串成一个大组
+（实测出现 14 成员组混入 `弑神之路`/`神器收集计划`/`无尽幸运方块大陆`，
+以及 6 成员组混入 `命运齿轮`/`月亮工厂`）。改为**直接取最优 anchor**，杜绝链式合并。
+
+**download URL / QQ 群：本轮未参与算法**（仅作审计证据），满足「不得单独决定 merge」。
+
+## 11. 结果
+
+| 指标 | before | after |
+| :--- | ---: | ---: |
+| True Merge | 3 | **18** |
+| False Split | 21 | **6** |
+| True Separate | 22 | **22** |
+| False Merge | **0** | **0** |
+| Precision | 1.0000 | **1.0000** |
+| Recall | 0.1250 | **0.7500** |
+
+| 切分 | Recall | Precision |
+| :--- | ---: | ---: |
+| dev | 0.7222 | 1.0000 |
+| holdout | **0.8333** | 1.0000 |
+
+holdout 不低于 dev → **无过拟合迹象**。21 个旧 false split 中 **15 个已修复**。
+
+**全量 936 条**：857 → 668 组；`机械动力 53 raw` → **36 组**（原 47）。
+大 group（≥ 5）由 21 → **17**，逐个人工核对**全部为同一整合包系列**。
+
+## 12. 剩余 6 例 false split（主动保留）
+
+| case | UP 主 | 根因 |
+| :--- | :--- | :--- |
+| `POS-URL-09` | Karashok_Leo | 包名 `咒次元` 恰 3 字，被泛名守卫（`length <= 3`）截断 |
+| `POS-URL-10` | 墨言eclipse | 包名 `涅槃` 仅 2 字，低于 identity 阈值 |
+| `POS-URL-14` | Pork猪排 | 包名 `化龍` 仅 2 字 |
+| `POS-URL-19` | 芦苇草的梦想 | 包名即频道名 `芦苇`，仅 2 字 |
+| `POS-URL-20/21` | 辣某人 | 包名 `沉浸战斗` 完全由题材词构成 → 清洗后仅剩 `沉浸`，被守卫正确拦下 |
+
+修复它们必须放宽泛名守卫或降低 identity 阈值 —— 会直接牺牲 precision。
+按「**宁可保留少量 split，也不要引入已知 false merge**」原则**主动保留**。
+
+## 13. 审计中发现并修复的两类真实误合并（corpus 未覆盖）
+
+1. **模组名锚定**：`机械动力` 覆盖 5 条视频 → `命运齿轮` 与 `月亮工厂` 被并入一张卡片。
+   → 加入模组名噪声表。
+2. **源游戏名锚定**：`地下城` 覆盖 5 条视频 → `幻想的地下城` 与 `史诗的地下城` 合并。
+   两者百度网盘链接**不同**（`1VIbbLScc1Na4p__OARuqe` vs `1ADiGWC44mCoRD32_QQpt2`），
+   确证为不同整合包。→ 加入源游戏名噪声表。
+
+这两例说明：**「0 false merge」只在已枚举的 negative 形态下成立**，
+故 `BILI-GRP-02` 维持 **SUSPECT**，另以窄口径 `BILI-GRP-PRECISION-BENCH-01 = VERIFIED` 记录。
+
+## 14. 实现缺陷（已修复）
+
+`legacyAdapter` 初版直接把返回 `Map` 的 `groupBilibiliPacks` 挂到 window，
+而 `dashboard.legacy.js` 以对象下标访问（`decisions[bvid]`）→ 恒为 `undefined`
+→ **静默退化为「仅精确同 key 合并」**，浏览器实测 grouped cards = 48（应 36）。
+已在 bridge 中改为返回以 bvid 为键的普通对象；并在 wiring 门禁中新增
+`0 < groupedCards < rawMatches` 断言 —— 该断言正是能捕获此类「分组被静默禁用」的探针。
+
+## 15. Flat Mode
+
+`53 raw` 是**唯一不变量**并已固化为门禁断言；`47 grouped` **不再是 Golden**。
+`smoke_test_wiring.js`、`tests/test_bili_grouping_explanation.py` 均已同步改写。

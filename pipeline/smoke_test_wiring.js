@@ -67,7 +67,15 @@ class EdgeCDPClient {
   constructor(port) {
     this.port = port;
     this.proc = null;
-    this.userDataDir = path.join(REPO_ROOT, 'build', `.edge_cdp_wiring_${port}`);
+    // Phase 3G-F: the profile dir must be UNIQUE per run.
+    //
+    // Deriving it from the port alone (`.edge_cdp_wiring_<port>`) is unsafe: when
+    // a run is killed mid-flight the dir keeps a stale lock that this environment
+    // cannot delete (rm -rf and PowerShell Remove-Item are both refused), and
+    // every later run on that port then fails to launch Edge at all - the port
+    // stays LISTENING with zero msedge.exe processes and the gate hangs forever.
+    // A per-PID suffix guarantees a fresh profile, so no port can be poisoned.
+    this.userDataDir = path.join(REPO_ROOT, 'build', `.edge_cdp_wiring_${port}_${process.pid}`);
   }
 
   async start() {
@@ -221,7 +229,7 @@ async function main() {
     assert('MCMod Search Golden Match', top10Matches && mcmodSearchDebug.matchedCount === 93,
       `Matches: ${mcmodSearchDebug?.matchedCount} (Golden: 93), Top 10 sorted matches Golden: ${top10Matches} (${JSON.stringify(actualTop10Sorted)})`);
 
-    // 4. Bilibili 53 vs 47 Proof & Search Wiring
+    // 4. Bilibili search wiring & Flat-Mode raw invariant (Phase 3G-F revised)
     await evalFn(`
       switchPlatformTab('bilibili');
     `);
@@ -243,9 +251,21 @@ async function main() {
         filterCalls: dbg.filterCalls ? (dbg.filterCalls.bilibili || 0) : 0
       };
     })()`);
-    assert('Bilibili Search Wiring & 53 vs 47 Proof',
-      biliSearchDebug && biliSearchDebug.rawMatchedCount === 53 && biliSearchDebug.groupedCardsCount === 47,
-      `Raw Matches: ${biliSearchDebug?.rawMatchedCount} (Invariant: 53), Grouped Cards: ${biliSearchDebug?.groupedCardsCount} (Invariant: 47)`);
+    // 4. Bilibili search wiring & Flat-Mode raw invariant
+    //
+    // Phase 3G-F: `53 raw` is the invariant (Flat Mode must surface every raw
+    // record). `47 grouped` is NOT an invariant - it was only a snapshot of the
+    // pre-remediation algorithm and legitimately moved once false splits were
+    // repaired. What must still hold is that grouping is ACTIVE (cards < raw),
+    // which is the assertion that catches a silently disabled grouping bridge.
+    assert('Bilibili Search Wiring & Flat-Mode Raw Invariant',
+      biliSearchDebug
+        && biliSearchDebug.rawMatchedCount === 53
+        && biliSearchDebug.groupedCardsCount > 0
+        && biliSearchDebug.groupedCardsCount < biliSearchDebug.rawMatchedCount,
+      `Raw Matches: ${biliSearchDebug?.rawMatchedCount} (Invariant: 53), `
+      + `Grouped Cards: ${biliSearchDebug?.groupedCardsCount} (must be 0 < cards < raw; `
+      + `47 is NOT an invariant since Phase 3G-F)`);
 
     // Bilibili Flat mode check
     await evalFn(`

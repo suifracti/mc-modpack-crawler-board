@@ -67,7 +67,9 @@ class EdgeCDPClient {
   constructor(port) {
     this.port = port;
     this.proc = null;
-    this.userDataDir = path.join(REPO_ROOT, 'build', `.edge_cdp_${port}`);
+    // Phase 3G-F: unique per run - a stale, undeletable profile dir left behind by
+    // a killed run otherwise permanently prevents Edge from launching on that port.
+    this.userDataDir = path.join(REPO_ROOT, 'build', `.edge_cdp_${port}_${process.pid}`);
   }
 
   async start() {

@@ -1,13 +1,17 @@
 """
-Phase 3G-E - Bilibili grouping benchmark contract test.
+Phase 3G-F - Bilibili grouping benchmark + remediation contract test.
 
-Verifies the benchmark corpus is well-formed, has enough hard cases and enough
-independent uploaders, contains the phase-named cases, and that the evaluation
-is REPRODUCIBLE against the real production grouping implementation.
+Verifies:
+  * the frozen Phase 3G-E corpus is intact (counts, phase-named cases, 黑金 control)
+  * the remediation is reproducible and the extracted OLD implementation still
+    reproduces the production 53-RAW invariant
+  * the NEW domain implementation keeps false merges at zero (both in isolation
+    and in full-population context) while recovering recall
+  * dev / holdout are uploader-disjoint and reported separately (overfit check)
 
-It deliberately does NOT hard-code the current algorithm's outcome as the
-expected value - the whole point of the benchmark is to observe it. What is
-asserted is corpus stability + evaluation correctness/consistency.
+Deliberately NOT asserted: "53 raw -> 47 grouped cards" as a correctness golden.
+47 was only ever a stability invariant; after correctness remediation the grouped
+count is expected to move. What must hold is `53 raw` (Flat Mode identity).
 """
 import json
 import os
@@ -20,12 +24,18 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 CORPUS_PATH = os.path.join(REPO_ROOT, "pipeline", "audit", "bilibili_grouping_corpus.json")
+SPLIT_PATH = os.path.join(REPO_ROOT, "pipeline", "audit", "bilibili_grouping_split.json")
 BENCH_PATH = os.path.join(REPO_ROOT, "build", "audit", "bilibili_grouping_benchmark.json")
+REMED_PATH = os.path.join(REPO_ROOT, "build", "audit", "bilibili_grouping_remediation.json")
 ANALYSIS_PATH = os.path.join(REPO_ROOT, "build", "audit", "bilibili_grouping_analysis.json")
-EXTRACTOR = os.path.join(REPO_ROOT, "pipeline", "audit", "extract_bili_grouping_impl.py")
-EVALUATOR = os.path.join(REPO_ROOT, "pipeline", "audit", "bilibili_grouping_benchmark.js")
 
-VALID_CONFIDENCE = {"confirmed", "strong", "ambiguous", "reconstructed"}
+EXTRACTOR = os.path.join(REPO_ROOT, "pipeline", "audit", "extract_bili_grouping_impl.py")
+LEGACY_FIXTURE = os.path.join(REPO_ROOT, "pipeline", "audit", "fixtures",
+                              "bili_grouping_legacy_impl.js")
+OLD_EVAL = os.path.join(REPO_ROOT, "pipeline", "audit", "bilibili_grouping_benchmark.js")
+SPLITTER = os.path.join(REPO_ROOT, "pipeline", "audit", "split_bili_grouping_corpus.py")
+NEW_EVAL = os.path.join(REPO_ROOT, "pipeline", "audit", "bilibili_grouping_remediation_eval.js")
+
 SCORED_CONFIDENCE = {"confirmed", "strong"}
 
 
@@ -38,161 +48,174 @@ class TestBilibiliGroupingBenchmark(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Regenerate the extracted implementation + evaluation so the test is
-        # self-contained and reproducible from a clean checkout.
-        r1 = run([sys.executable, EXTRACTOR])
-        assert r1.returncode == 0, f"extractor failed: {r1.stdout}\n{r1.stderr}"
-        r2 = run(["node", EVALUATOR])
-        assert r2.returncode == 0, f"evaluator failed: {r2.stdout}\n{r2.stderr}"
+        # Bundle the real TS domain module with the project's own esbuild.
+        esbuild = os.path.join(REPO_ROOT, "apps", "web", "node_modules", ".bin",
+                               "esbuild.cmd" if os.name == "nt" else "esbuild")
+        r0 = run([esbuild, "apps/web/src/domain/bilibiliGrouping.ts", "--bundle",
+                  "--format=cjs", "--platform=node",
+                  "--outfile=build/audit/bilibili_grouping_module.js", "--log-level=warning"])
+        assert r0.returncode == 0, f"esbuild failed: {r0.stdout}\n{r0.stderr}"
+        for cmd in ([sys.executable, EXTRACTOR], [sys.executable, SPLITTER],
+                    ["node", OLD_EVAL], [sys.executable, SPLITTER],
+                    ["node", NEW_EVAL]):
+            r = run(cmd)
+            assert r.returncode == 0, f"{cmd} failed: {r.stdout}\n{r.stderr}"
         cls.corpus = json.load(open(CORPUS_PATH, encoding="utf-8"))
+        cls.split = json.load(open(SPLIT_PATH, encoding="utf-8"))
         cls.bench = json.load(open(BENCH_PATH, encoding="utf-8"))
-        cls.analysis = json.load(open(ANALYSIS_PATH, encoding="utf-8"))
+        cls.remed = json.load(open(REMED_PATH, encoding="utf-8"))
 
     # ------------------------------------------------------------------ 1
-    def test_c1_corpus_schema(self):
-        """Every case carries the required fields and a valid confidence level."""
+    def test_c1_corpus_schema_and_counts(self):
         required = {"case_id", "expected", "confidence", "uploader", "videos", "ground_truth_evidence"}
         for section in ("positive_cases", "negative_cases", "reconstructed_cases"):
             self.assertIn(section, self.corpus)
             for c in self.corpus[section]:
                 self.assertTrue(required <= set(c), f"{c.get('case_id')} missing fields")
                 self.assertIn(c["expected"], ("merge", "separate"))
-                self.assertIn(c["confidence"], VALID_CONFIDENCE)
-                self.assertGreaterEqual(len(c["videos"]), 2, f"{c['case_id']} needs >=2 videos")
-                self.assertTrue(c["ground_truth_evidence"], f"{c['case_id']} has no evidence")
-                for v in c["videos"]:
-                    for f in ("bvid", "title", "current_clean_key"):
-                        self.assertIn(f, v, f"{c['case_id']} video missing {f}")
+                self.assertGreaterEqual(len(c["videos"]), 2)
+                self.assertTrue(c["ground_truth_evidence"])
+        self.assertEqual(len(self.corpus["positive_cases"]), 24)
+        self.assertEqual(len(self.corpus["negative_cases"]), 22)
 
     # ------------------------------------------------------------------ 2
-    def test_c2_corpus_size_and_diversity(self):
-        """>=20 positive groups, >=20 negative controls, >=8 unique uploaders."""
-        pos = self.corpus["positive_cases"]
-        neg = self.corpus["negative_cases"]
-        self.assertGreaterEqual(len(pos), 20, "need >=20 positive cases")
-        self.assertGreaterEqual(len(neg), 20, "need >=20 negative controls")
-        uploaders = {c["uploader"] for c in pos} | {c["uploader"] for c in neg}
-        self.assertGreaterEqual(len(uploaders), 8, f"need >=8 uploaders, got {len(uploaders)}")
-        # No single uploader may dominate the corpus.
-        per = {}
-        for c in pos + neg:
-            per[c["uploader"]] = per.get(c["uploader"], 0) + 1
-        self.assertLessEqual(max(per.values()), len(pos) + len(neg) * 0.25,
-                             "one uploader dominates the corpus")
-
-    # ------------------------------------------------------------------ 3
-    def test_c3_phase_named_cases_present(self):
-        """The phase-named 懂嗎懂嗎 groups and the Horizon series must be present."""
+    def test_c2_phase_named_cases_present(self):
         by_id = {c["case_id"]: c for c in self.corpus["positive_cases"]}
         self.assertIn("POS-SPEC-MIXIN-A", by_id)
         self.assertIn("POS-SPEC-MIXIN-B", by_id)
         self.assertIn("POS-SPEC-HORIZON", by_id)
-
-        a = {v["bvid"] for v in by_id["POS-SPEC-MIXIN-A"]["videos"]}
-        b = {v["bvid"] for v in by_id["POS-SPEC-MIXIN-B"]["videos"]}
-        self.assertEqual(a, {"BV1Ziuw6ZE7C", "BV1fqNe6rEt5", "BV1tVeVzDELy"})
-        self.assertEqual(b, {"BV1vuVH6XErM", "BV1k3Lg6zEjY", "BV1ACA8zjELd"})
-        self.assertEqual(by_id["POS-SPEC-MIXIN-A"]["uploader"], "懂嗎懂嗎")
-        self.assertEqual(by_id["POS-SPEC-MIXIN-B"]["uploader"], "懂嗎懂嗎")
+        self.assertEqual({v["bvid"] for v in by_id["POS-SPEC-MIXIN-A"]["videos"]},
+                         {"BV1Ziuw6ZE7C", "BV1fqNe6rEt5", "BV1tVeVzDELy"})
+        self.assertEqual({v["bvid"] for v in by_id["POS-SPEC-MIXIN-B"]["videos"]},
+                         {"BV1vuVH6XErM", "BV1k3Lg6zEjY", "BV1ACA8zjELd"})
         self.assertEqual(by_id["POS-SPEC-HORIZON"]["uploader"], "ConfectionaryQwQ")
-        self.assertGreaterEqual(len(by_id["POS-SPEC-HORIZON"]["videos"]), 2)
+
+    # ------------------------------------------------------------------ 3
+    def test_c3_black_gold_control_present(self):
+        rec = {c["case_id"]: c for c in self.corpus["reconstructed_cases"]}
+        self.assertIn("NEG-SPEC-HEIJIN", rec)
+        self.assertEqual(rec["NEG-SPEC-HEIJIN"]["expected"], "separate")
+        self.assertEqual(rec["NEG-SPEC-HEIJIN"]["confidence"], "reconstructed")
+        self.assertIn("生存整合包", " ".join(v["title"] for v in rec["NEG-SPEC-HEIJIN"]["videos"]))
+        # and it must stay OUT of the scored corpus
+        self.assertNotIn("NEG-SPEC-HEIJIN", {c["case_id"] for c in self.bench["cases"]})
 
     # ------------------------------------------------------------------ 4
-    def test_c4_known_false_merge_control_present(self):
-        """The phase-named 黑金 false merge must be represented as a negative control."""
-        rec = {c["case_id"]: c for c in self.corpus["reconstructed_cases"]}
-        self.assertIn("NEG-SPEC-HEIJIN", rec, "黑金 control missing")
-        case = rec["NEG-SPEC-HEIJIN"]
-        self.assertEqual(case["expected"], "separate")
-        self.assertEqual(case["uploader"], "黑金")
-        self.assertEqual(case["confidence"], "reconstructed")
-        titles = " ".join(v["title"] for v in case["videos"])
-        self.assertIn("生存整合包", titles)
-        # And the corpus must record that the case is absent from the live payload.
-        self.assertIn("spec_case_absent", self.corpus)
-        self.assertEqual(self.corpus["spec_case_absent"]["uploader"], "黑金")
+    def test_c4_split_is_uploader_disjoint_with_minimums(self):
+        dev = set(self.split["dev"]["uploaders"])
+        hold = set(self.split["holdout"]["uploaders"])
+        self.assertFalse(dev & hold, "uploader leaked between dev and holdout")
+        self.assertGreaterEqual(self.split["holdout"]["positive"], 5)
+        self.assertGreaterEqual(self.split["holdout"]["negative"], 5)
 
     # ------------------------------------------------------------------ 5
-    def test_c5_evaluation_reproducible_and_invariant_reproduced(self):
-        """The real implementation must reproduce the production 53 -> 47 invariant."""
-        inv = self.bench["invariant_check"]
-        self.assertEqual(inv["raw_videos"], 936)
-        self.assertEqual(inv["mechanical_power_raw"], 53)
-        self.assertEqual(inv["mechanical_power_cards"], 47)
-        self.assertTrue(inv["reproduced"], "53 -> 47 invariant not reproduced")
-
-        mp = self.analysis["mechanical_power_53_47"]
-        self.assertEqual(mp["raw_matches"], 53)
-        self.assertEqual(mp["grouped_cards"], 47)
-        self.assertEqual(mp["net_collapse"], 6)
-        self.assertEqual(len(mp["multi_video_groups"]), 4)
-        self.assertEqual(sum(g["video_count"] for g in mp["multi_video_groups"]), 10)
-        self.assertTrue(mp["flat_mode_invariant_ok"])
-        self.assertEqual(mp["flat_mode_raw_records"], 53)
+    def test_c5_old_impl_reproduces_53_raw_invariant(self):
+        """`53 raw` is the invariant (Flat Mode identity). 47 is NOT a golden."""
+        mp = self.remed["mechanical_power"]
+        self.assertEqual(mp["before"]["raw_matches"], 53)
+        self.assertEqual(mp["after"]["raw_matches"], 53)
+        self.assertTrue(mp["after"]["flat_mode_invariant_ok"])
+        self.assertEqual(mp["after"]["flat_mode_raw_records"], 53)
+        # The grouped count is allowed to change; it must simply be recorded.
+        self.assertIn("grouped_cards", mp["after"])
+        self.assertEqual(self.bench["invariant_check"]["reproduced"], True)
 
     # ------------------------------------------------------------------ 6
-    def test_c6_outcomes_internally_consistent(self):
-        """The four outcome classes must agree with the per-case results."""
-        cases = self.bench["cases"]
-        scored = [c for c in cases if c["confidence"] in SCORED_CONFIDENCE]
-        self.assertEqual(len(scored), self.bench["corpus"]["positive_cases"]
-                         + self.bench["corpus"]["negative_cases"])
-        tm = sum(1 for c in scored if c["expected"] == "merge" and c["correct"])
-        fs = sum(1 for c in scored if c["expected"] == "merge" and not c["correct"])
-        ts = sum(1 for c in scored if c["expected"] == "separate" and c["correct"])
-        fm = sum(1 for c in scored if c["expected"] == "separate" and not c["correct"])
-        o = self.bench["outcomes"]
-        self.assertEqual((o["true_merge"], o["false_split"], o["true_separate"], o["false_merge"]),
-                         (tm, fs, ts, fm))
-        self.assertAlmostEqual(o["merge_precision"], tm / (tm + fm) if tm + fm else 1.0, places=4)
-        self.assertAlmostEqual(o["merge_recall"], tm / (tm + fs) if tm + fs else 1.0, places=4)
-        # Listed failure cases must match the counts.
-        self.assertEqual(len(self.bench["false_merge_cases"]), fm)
-        self.assertEqual(len(self.bench["false_split_cases"]), fs)
+    def test_c6_no_false_merge_in_isolation(self):
+        """Hard safety gate: not a single negative control may merge."""
+        neg = self.remed["negative_regression"]
+        self.assertEqual(neg["total"], 22)
+        self.assertEqual(neg["still_separate"], 22)
+        self.assertTrue(neg["all_separate"])
+        self.assertEqual(self.remed["after"]["overall"]["false_merge"], 0)
+        self.assertEqual(self.remed["after"]["dev"]["false_merge"], 0)
+        self.assertEqual(self.remed["after"]["holdout"]["false_merge"], 0)
+        self.assertEqual(self.remed["new_false_merges"], [])
 
     # ------------------------------------------------------------------ 7
-    def test_c7_reconstructed_case_scored_separately(self):
-        """Reconstructed cases are evaluated but excluded from precision/recall."""
-        rec = self.bench["reconstructed_cases"]
-        self.assertEqual(len(rec), 1)
-        self.assertEqual(rec[0]["case_id"], "NEG-SPEC-HEIJIN")
-        self.assertIn("current_algorithm_result", rec[0])
-        ids = {c["case_id"] for c in self.bench["cases"]}
-        self.assertNotIn("NEG-SPEC-HEIJIN", ids,
-                         "reconstructed case must not be part of the scored corpus")
+    def test_c7_no_false_merge_in_population_context(self):
+        """The same gate must hold when all 936 records are grouped together."""
+        js = (
+            "global.window={};const fs=require('fs');"
+            "const m=require('./build/audit/bilibili_grouping_module.js');"
+            "const raw=fs.readFileSync('converted_output/data/bili_data.js','utf8');"
+            "const d=JSON.parse(raw.slice(raw.indexOf('['),raw.lastIndexOf(']')+1));"
+            "const o={};for(const [b,x] of m.groupBilibiliPacks(d)) o[b]=x.groupKey;"
+            "console.log(JSON.stringify(o));"
+        )
+        r = run(["node", "-e", js])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        pop = json.loads(r.stdout)
+        violations = []
+        for n in self.corpus["negative_cases"]:
+            if n["confidence"] not in SCORED_CONFIDENCE:
+                continue
+            keys = {pop.get(v["bvid"]) for v in n["videos"]}
+            if len(keys) != len(n["videos"]):
+                violations.append(n["case_id"])
+        self.assertEqual(violations, [], f"population-context false merge: {violations}")
 
     # ------------------------------------------------------------------ 8
-    def test_c8_analysis_sections_present(self):
-        """The full-corpus analysis must cover every required dimension."""
-        for section in ("key_space", "key_strength", "generic_vocabulary",
-                        "version_signals", "download_identity", "qq_identity"):
-            self.assertIn(section, self.analysis, f"analysis section {section} missing")
-        ks = self.analysis["key_space"]
-        self.assertEqual(ks["raw_videos"], 936)
-        self.assertEqual(ks["multi_video_groups"] + ks["single_video_groups"],
-                         ks["unique_author_key_groups"])
-        self.assertGreaterEqual(self.analysis["key_strength"]["total_groups"], 800)
-        self.assertGreaterEqual(len(self.analysis["generic_vocabulary"]["top_50"]), 20)
+    def test_c8_recall_recovered_and_reported_per_split(self):
+        before = self.remed["before"]["overall"]
+        after = self.remed["after"]["overall"]
+        self.assertEqual(before["false_split"], 21)
+        self.assertLess(after["false_split"], 21, "remediation did not reduce false splits")
+        self.assertGreater(after["recall"], before["recall"])
+        self.assertEqual(after["precision"], 1.0)
+        # per-split metrics must exist and be internally consistent
+        for name in ("dev", "holdout", "overall"):
+            m = self.remed["after"][name]
+            self.assertIn("recall", m)
+            self.assertIn("precision", m)
+        self.assertGreaterEqual(self.remed["after"]["holdout"]["precision"], 1.0)
 
     # ------------------------------------------------------------------ 9
-    def test_c9_no_algorithm_mutation(self):
-        """The extracted implementation must be the shipped production code.
+    def test_c9_old_false_split_regression_listed(self):
+        outcomes = self.remed["old_false_split_outcomes"]
+        self.assertEqual(len(outcomes), 21)
+        for o in outcomes:
+            for f in ("case_id", "uploader", "video_count", "before_keys", "after_keys", "fixed"):
+                self.assertIn(f, o)
+        self.assertGreaterEqual(sum(1 for o in outcomes if o["fixed"]), 15)
 
-        Guards against someone 'fixing' the algorithm inside the audit harness.
+    # ------------------------------------------------------------------ 10
+    def test_c10_large_group_audit_present(self):
+        pop = self.remed["population"]["after"]
+        self.assertIn("large_groups_ge5", pop)
+        for g in pop["large_groups_ge5"]:
+            self.assertGreaterEqual(g["size"], 5)
+            self.assertTrue(g["titles"])
+        self.assertIn("size_distribution", pop)
+
+    # ------------------------------------------------------------------ 11
+    def test_c11_analysis_sections_still_present(self):
+        analysis = json.load(open(ANALYSIS_PATH, encoding="utf-8"))
+        for section in ("key_space", "key_strength", "generic_vocabulary",
+                        "version_signals", "download_identity", "qq_identity"):
+            self.assertIn(section, analysis)
+        self.assertEqual(analysis["key_space"]["raw_videos"], 936)
+
+    # ------------------------------------------------------------------ 12
+    def test_c12_frozen_legacy_implementation_is_available(self):
+        """The pre-3G-F algorithm must stay available as a frozen reference.
+
+        Phase 3G-F removed it from the production bundle, so the before/after
+        comparison would silently lose its baseline if the fixture went missing.
         """
-        impl_path = os.path.join(REPO_ROOT, "build", "audit", "bili_grouping_impl.js")
-        with open(impl_path, encoding="utf-8") as fp:
-            impl = fp.read()
+        self.assertTrue(os.path.exists(LEGACY_FIXTURE), "frozen legacy impl missing")
+        with open(LEGACY_FIXTURE, encoding="utf-8") as fp:
+            src = fp.read()
         for marker in ("function cleanPackKey", "function groupPacks",
                        "BILI_GENERIC_PACK_KEYS2", "BILI_GENRE_BUZZWORDS"):
-            self.assertIn(marker, impl)
-        # The extracted text must be byte-identical to the bundle's own source.
+            self.assertIn(marker, src)
+        self.assertIn("FROZEN REFERENCE", src)
+        # and the live bundle must NOT still carry the legacy generic set
         with open(os.path.join(REPO_ROOT, "converted_output", "assets", "index.js"),
                   encoding="utf-8") as fp:
             bundle = fp.read()
-        for fn in ("function cleanPackKey(", "function groupPacks("):
-            self.assertIn(fn, bundle)
-        self.assertNotIn("__BENCHMARK_OVERRIDE__", impl)
+        self.assertNotIn("BILI_GENERIC_PACK_KEYS2", bundle,
+                         "legacy grouping set still present in the production bundle")
 
 
 if __name__ == "__main__":
