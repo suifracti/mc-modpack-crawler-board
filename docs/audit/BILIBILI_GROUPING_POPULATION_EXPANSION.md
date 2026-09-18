@@ -296,10 +296,26 @@ uploaders with no `REAL_FALSE_MERGE`.
 
 ## 13. Reproduce
 
+Run the two detectors first — the adjudication ledger consumes their output, and
+the holdout builder consumes the ledger. Order matters.
+
 ```bash
 node pipeline/audit/bilibili_population_candidate_scan_v2.js
 node pipeline/audit/bilibili_cross_group_undermerge_scan.js
 node pipeline/audit/bilibili_population_adjudication_v2.js
 node pipeline/audit/build_population_holdout_v2.js
-python -m pytest tests/test_bilibili_population_audit_v2.py -v
+python -m unittest tests.test_bilibili_population_audit_v2 -v
 ```
+
+`bilibili_population_adjudication_v2.json` and `bilibili_population_holdout_v2.json`
+are **tracked**, so they must not churn. They carry a `generated_at` field; all four
+scripts honour `SOURCE_DATE_EPOCH`, and the test harness pins it:
+
+```bash
+SOURCE_DATE_EPOCH=1786000000 node pipeline/audit/bilibili_population_adjudication_v2.js
+```
+
+Without the pin, running the audit rewrites only a timestamp and `git status` reports
+two modified files after every run. That is not merely untidy — a permanently-dirty
+tracked artifact trains you to ignore drift, and genuine drift then hides behind the
+noise. `test_tracked_artifacts_are_byte_reproducible` fails if this regresses.
