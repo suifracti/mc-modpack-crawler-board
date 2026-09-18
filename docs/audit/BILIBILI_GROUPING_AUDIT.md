@@ -535,3 +535,293 @@ holdout 不低于 dev → **无过拟合迹象**。21 个旧 false split 中 **1
 
 `53 raw` 是**唯一不变量**并已固化为门禁断言；`47 grouped` **不再是 Golden**。
 `smoke_test_wiring.js`、`tests/test_bili_grouping_explanation.py` 均已同步改写。
+
+---
+
+# Phase 3G-F-A — 分组正确性 / Benchmark 终局验证
+
+本阶段**不修改算法**（`4bf5e0f` 已含 remediation），只做独立复核、收严结论与补充
+corpus 未覆盖的精度证据。
+
+## 16. 并行隔离与冻结产物
+
+| 项 | 值 |
+| --- | --- |
+| 起始提交 | `4bf5e0f`（`fix(arch-v2): Phase 3G-F - Bilibili grouping false-split remediation`） |
+| 工作区 | 独立 worktree `D:/ai/work/mc-3gf-a`（detached HEAD，与主 working tree 完全隔离） |
+| 冻结 corpus | `pipeline/audit/bilibili_grouping_corpus.json`<br>SHA-256 `b19b6653040c403aecc20ef04784752e7ab593670421bdf017a9b3d7f9b08577` |
+| corpus 未漂移证明 | 3G-E(`5b1ebdd`) 与 3G-F(`4bf5e0f`) 的 blob 同为 `859225f53b12b1c39bfc3246129aaaf5e10544a3`，`git diff` 为空 |
+| 冻结旧实现 fixture | `pipeline/audit/fixtures/bili_grouping_legacy_impl.js`<br>SHA-256 `249ebf86bc064875cf05a4c6d9de4e92cbaa88cae37a1b386db842dabf271643` |
+| 冻结 dev/holdout | `pipeline/audit/bilibili_grouping_split.json`<br>SHA-256 `fd021bf1afc5493a7aa20cb1eb7d9f465ca11e3a16b62950fac9b748b32010fa` |
+| 新算法源 | `apps/web/src/domain/bilibiliGrouping.ts` SHA-256 `cafb53a9be5325a5a2544f498579910c0b853a284de1aa221ef27dedb7853565` |
+| Production data layer | `converted_output/data` 2920 文件，rollup `4c3a05ff06fd3051291543b050c6fa46d678b2a6f494012a97707e7eec534c9a`（与基线一致） |
+
+`extract_bili_grouping_impl.py` 在 `4bf5e0f` 上正确识别为 post-3G-F bundle 并**拒绝覆写 fixture**；
+三个冻结产物在完整流水线跑完后 SHA **逐字节不变**，worktree `git status` 干净。
+
+## 17. Benchmark：before / after
+
+| 指标 | 3G-E 旧实现 | 4bf5e0f 新实现 |
+| --- | --- | --- |
+| True Merge | 3 | **18** |
+| False Split | 21 | **6** |
+| True Separate | 22 | 22 |
+| False Merge | 0 | **0** |
+| Merge Precision | 1.0000 | **1.0000** |
+| Merge Recall | 0.1250 | **0.7500** |
+| False Merge Rate | 0.0000 | **0.0000** |
+| False Split Rate | 0.8750 | **0.2500** |
+
+两个评估器均**可重复**（连跑两次，除 `generated_at` 外逐字节相同）。
+`53 raw` 不变量在 before / after 两侧均成立。
+
+## 18. 21 例旧 false split 逐条结果
+
+`expected groups` 对全部 21 例均为 **1**（positive case 期望合并为单卡片）。
+
+| case | uploader | before groups | after groups | expected | fixed | 修复原因 |
+| --- | --- | --- | --- | --- | --- | --- |
+| POS-SPEC-HORIZON | ConfectionaryQwQ | 6 | 1 | 1 | ✅ | identity run `地平线` |
+| POS-URL-04 | AC6_ | 8 | 1 | 1 | ✅ | identity run `云游四海` |
+| POS-URL-05 | Verre | 8 | 1 | 1 | ✅ | identity run `神秘启旅` |
+| POS-URL-06 | 绘名青棺 | 6 | 1 | 1 | ✅ | identity run `虚饰作品` |
+| POS-URL-07 | 缓慢的开始 | 6 | 1 | 1 | ✅ | identity run `soa3` |
+| POS-URL-08 | cyq2号机 | 3 | 1 | 1 | ✅ | identity run `foodie` |
+| POS-URL-09 | Karashok_Leo | 4 | 2 | 1 | ❌ | 见 §19（包名恰 3 字被守卫） |
+| POS-URL-10 | 墨言eclipse | 4 | 3 | 1 | ❌ | 见 §19（包名 `涅槃` 2 字） |
+| POS-URL-11 | 林点午安事睡觉 | 4 | 1 | 1 | ✅ | identity run `明日方舟` |
+| POS-URL-12 | 非茉涟柠 | 4 | 1 | 1 | ✅ | identity run `hunt history 1949` |
+| POS-URL-13 | ALTNOIR | 3 | 1 | 1 | ✅ | identity run `亚特兰深渊` |
+| POS-URL-14 | Pork猪排 | 2 | 2 | 1 | ❌ | 见 §19（包名 `化龍` 2 字） |
+| POS-URL-15 | 加一点芝士 | 3 | 1 | 1 | ✅ | identity run `剑痕纪元` |
+| POS-URL-16 | 啊liu22 | 3 | 1 | 1 | ✅ | identity run `群峦野望` |
+| POS-URL-18 | 白银_1223 | 2 | 1 | 1 | ✅ | identity run `血族机械师` |
+| POS-URL-19 | 芦苇草的梦想 | 3 | 3 | 1 | ❌ | 见 §19（包名 `芦苇` 2 字 + 共享 run 全为噪声） |
+| POS-URL-20 | 辣某人 | 3 | 3 | 1 | ❌ | 见 §19（`沉浸战斗` → `沉浸` 2 字） |
+| POS-URL-21 | 辣某人 | 3 | 3 | 1 | ❌ | 见 §19（同上） |
+| POS-URL-22 | 666sxss666 | 2 | 1 | 1 | ✅ | identity run `海洋主题` |
+| POS-URL-23 | Locknar | 2 | 1 | 1 | ✅ | identity run `mon` |
+| POS-URL-24 | P1nero | 2 | 1 | 1 | ✅ | identity run `远梦之棺` |
+
+**15/21 修复，6 例保留。无任何新 false merge。**
+
+## 19. 剩余 6 例根因（逐条独立复核）
+
+对每例逐条计算 `cleanPackKey` 长度、守卫命中与 `groupingReason`：
+
+| case | after | 根因（实测） |
+| --- | --- | --- |
+| POS-URL-09 | 2 | 包名 `咒次元` 恰 3 字：其中 1 期清洗后 key **正好等于** `咒次元`（3 字）→ 命中 `generic_guard` 落 `__raw_<bvid>`；其余 3 期正常锚定 `咒次元`（`identity_run`） |
+| POS-URL-10 | 3 | 包名 `涅槃` 2 字不可锚定；2 期靠副标题 run `沉浸 深度 a 咒镰双生` 合并，另 2 期标题结构完全不同 → `singleton` |
+| POS-URL-14 | 2 | 包名 `化龍` 2 字；2 期靠副标题 run `化龍 金鳞岂是池中物 一遇风云便化龙` 合并，第 3 期（`化龍 麒麟踏雪`）副标题不同 → `singleton` |
+| POS-URL-19 | 3 | 包名 `芦苇` 2 字；唯一共享 run 为 `芦苇的 宣传片`，其中 `宣传片` 属噪声词、`的` 属 filler → 有效 identity 字数 = 2 < 3，不可锚定 |
+| POS-URL-20 | 3 | 包名 `沉浸战斗` 清洗后仅剩 `沉浸`（2 字）→ 2 期命中 `generic_guard` 落 `__raw_` |
+| POS-URL-21 | 3 | 同上；第 3 期 key `沉浸 版 大量的内容改进` 未守卫但无可锚定 run → `singleton` |
+
+**结论**：6 例全部是「包名本身 ≤ 2 字，或清洗后 ≤ 3 字被泛名守卫截断」。
+修复它们必须放宽泛名守卫或降低 identity 阈值 —— 会直接牺牲 precision，
+按「精度优先」原则**主动保留**。
+
+## 20. 硬门与指定回归项
+
+| 项 | 结果 |
+| --- | --- |
+| 22 Negative Controls（硬门） | **22/22 保持分开**，`all_separate = true`，`new_false_merges = []` |
+| Horizon v1.2.0 ~ v2.1.0 | 6 → **1** 组，key `confectionaryqwq::地平线` ✅ |
+| 懂嗎懂嗎 Group A（卓越前线） | 3 → **1** 组 ✅ |
+| 懂嗎懂嗎 Group B（永无止境） | 3 → **1** 组 ✅ |
+| 黑金重建 negative（`NEG-SPEC-HEIJIN`） | 保持**分开**（`merged=false`, `correct=true`）✅ |
+
+> **注（新增观察）**：A 与 B 除各自成组外，在**全量 population** 下还共同落入
+> `懂嗎懂嗎::齿轮与腐肉`（8 条）。冻结 corpus 未就「A 与 B 是否同一包」作出裁定，
+> 故不计入 false merge；但这说明该 anchor 的粒度比 corpus 的 case 划分更粗，
+> 已记入 `BILI-GRP-PRECISION-POP-01` 的观察范围。
+
+## 21. Low-discriminative Key 审计
+
+对 3G-E 标记的低区分度 token 重跑（新实现下的实际分组）：
+
+| token | 匹配记录 | 卡片 | 多视频组 | 判定 |
+| --- | --- | --- | --- | --- |
+| `沉浸` | 41 | 39 | 2（`墨言eclipse::沉浸 深度 a 咒镰双生` 2 条、`墨言eclipse::未尽之路涅槃` 2 条） | 无异常大组 ✅ |
+| `生电` | 16 | 12 | 2（`红石生电` 3、`绿色版红石生电优化` 3） | 同包系列，正确 ✅ |
+| `原神` | 8 | 3 | 1（`小兜兜呀_::原神与机械 的时代` 6） | 同包系列，正确 ✅ |
+| `溯渊` | 2 | 2 | 0 | 无合并 ✅ |
+| `泰坦` | 40 | 30 | 5 | **含 2 例误合并，见 §23.2** ⚠️ |
+
+## 22. 大组审计（group size ≥ 5 全列）
+
+新实现下 **17 个** ≥ 5 的组（旧实现 4 个）。逐组人工核对成员标题与 UP 主：
+
+`时唅::辐射新世纪`(11)、`ac6_::云游四海`(9)、`瑶山枫叶::阿卡迪亚的天启`(9)、
+`verre::神秘启旅`(8)、`懂嗎懂嗎::齿轮与腐肉`(8)、`时唅::辐射次时代`(8)、
+`绘名青棺::虚饰作品`(7)、`爱吃土豆的界王::蛊真人 与`(7)、`勾圈剋尖326::香草纪元 食旅纪行`(7)、
+`缓慢的开始::soa3`(7)、`猛猛哒丶阿茗::农夫乐事附属大型`(7)、`小兜兜呀_::原神与机械 的时代`(6)、
+`一个小寂哦::弑神之路`(6)、`zicaiot::农场物语`(6)、`confectionaryqwq::地平线`(6)、
+`from火星::类幸存者 终末幸存者 last one`(5)、`科里森corrison::神之征伐 版本`(5)
+
+**17/17 均为同一 UP 主的同一整合包系列**（版本迭代），无跨 UP 主组
+（`cross_uploader_groups = 0`，作者作用域在结构上保证）。最大组 11 条。
+
+> 注意：**cards 越少 ≠ 越正确**。卡片数从 857 降到 668，其中既有真实修复，
+> 也包含 §23.2 的误合并。
+
+## 23. 新增发现（corpus 未覆盖）—— 全量 population 精度审计
+
+### 23.1 方法说明：URL 不相交启发式**已否决**
+
+最初用「同组成员 download_links 互不相交 ⇒ 不同包」扫描，得到 23 个候选。
+**该启发式无效**：整合包按版本发布时每个版本都会新建网盘分享链接，
+于是「宝可梦地平线 v1.0 → v2.0」「蛊真人 2.1 → 2.4」「生还者 1.0 → 3.1」
+全部呈现 URL 不相交却**确实是同一个包**。否决结论与反例已落盘
+（`bilibili_grouping_precision_audit.json` 的 `url_disjointness_heuristic`），避免后续复用。
+
+### 23.2 人工审计（55 个 size ≥ 3 的组）确认的 5 例**新**误合并
+
+全部满足：同 UP 主、成员属**不同整合包**、且**旧算法本来分得开**（`preExisting=false`），
+即由 3G-F 的 identity-run 规则**新引入**：
+
+| # | 组 key | 条数 | 被误合的包 | anchor（口号 / 功能名） |
+| --- | --- | --- | --- | --- |
+| 1 | `一个小寂哦::星辉死神` | 4 | `神器收集计划` + `无尽幸运方块大陆` + 全网最全神器 | `星辉死神`（Boss 名） |
+| 2 | `一个小寂哦::四叶草` | 2 | `泰坦生物` + `执行之龙生存整合包` | `四叶草`（道具名） |
+| 3 | `一个小寂哦::各大主播同款` | 2 | `幸运方块大全` + `神器泰坦随机合成` | `各大主播同款`（口号） |
+| 4 | `墨言eclipse::颠覆性的` | 2 | `摄影奇境` + `千界万锻` | `颠覆性的`（形容词） |
+| 5 | `原界环::or not` | 2 | `Minecraft or Not: Girl&Gun` + `Maiden or not` | `or not`（英文片段） |
+
+**为什么冻结 benchmark 仍报 FM = 0**：22 个 negative 只枚举了**特定配对**。
+例如 `一个小寂哦` 确实在 negative 语料中（NEG-03 / NEG-04），但覆盖的是
+`弑神之路` vs `小行星空岛`；本轮新发现的 `星辉死神` / `四叶草` / `各大主播同款`
+配对**不在语料内**。`墨言eclipse` 同理（NEG-14 / NEG-15 覆盖的是另一对）。
+→ 「0 false merge」只是**已枚举形态**下的结论，不是泛化保证。
+
+### 23.3 批次依赖性（分组非幂等）
+
+`机械动力` 过滤批（53 条）在**全量 936** 上下文下产出 **37** 张卡片，
+在**过滤批**上下文下产出 **36** 张卡片，**13 条记录的 groupKey 不同**：
+
+```
+BV1Ziuw6ZE7C  population=懂嗎懂嗎::齿轮与腐肉      batch=懂嗎懂嗎::真菌感染 模拟
+BV1Tx421X7nC  population=confectionaryqwq::地平线  batch=confectionaryqwq::horizon地平线 v 日志 ...
+BV1Gu4y14776  population=明月庄主::月亮工厂 f      batch=明月庄主::机械动力 月亮工厂
+```
+
+因为 identity run 是在**传入批次的同作者集合内**挖掘的：搜索视图只传过滤后的子集，
+锚点选择随之改变。`53 raw` 仍是唯一不变量；**grouped 数量是批次相关的**，
+不应作为跨视图的硬性 Golden。
+
+### 23.4 下载 / QQ 安全性
+
+`groupBilibiliPacks` 的入参只有 `(bvid, title, author)`，
+`download_links` / `qq_group` **从未被读取**，故「同网盘链接即合并」「同 QQ 群即合并」
+在结构上不可能。回归重点 `豆腐ki`（`手机移植版` 共享 URL 簇）：
+**30 条记录 → 30 张卡片**，未被聚成一组 ✅。
+
+## 24. 真实运行时证明（非离线 evaluator）
+
+| 门禁 | 结果 |
+| --- | --- |
+| `pipeline/smoke_test_wiring.js converted_output` | **18/18 PASSED**，其中 `Bilibili Search Wiring & Flat-Mode Raw Invariant`：**Raw 53 / Grouped 36**（`0 < 36 < 53`） |
+| `pipeline/audit/probe_bili_grouping_runtime.js` | **11/11 PASSED** |
+
+新增运行时探针专门针对 Map 桥接缺陷：
+
+```
+[PASS] bridge exposed                                typeof window.groupBilibiliPacks === 'function'
+[PASS] bridge returns a plain object (not a Map)      constructor=Object isMap=false
+[PASS] bridge is index-addressable by bvid            out['BVA1'].groupKey="confectionaryqwq::地平线"
+[PASS] bridge groups real sibling episodes            Horizon v1.2.0 / v2.1.0 同组
+[PASS] payload total is 936
+[PASS] 机械动力 raw matched = 53 (invariant)
+[PASS] 机械动力 grouped cards < raw                   grouped=36 < raw=53
+[PASS] grouped cards match the remediated algorithm   grouped=36（修复前为 47）
+[PASS] rendered cards equal aggregator map size       cards=36 biliGroupsMap=36
+[PASS] grouping is NOT naive per-title                grouped=36 < naiveDistinctTitleKeys=53
+[PASS] no uncaught runtime exceptions
+```
+
+这证明：**Map 桥接缺陷在 `4bf5e0f` 中确已修复**，且分组在真实浏览器运行时**确实生效**
+（若退化为对象下标失败，卡片数会回到「按标题去重」的 53 或旧算法的 47）。
+
+## 25. Dev / Holdout（uploader 隔离）
+
+切分方法：`uploader-disjoint, deterministic (sha256(uploader) ascending)`，
+dev 21 个 UP 主 / holdout 12 个 UP 主，**无交集**。
+
+| 集合 | before P | before R | after P | after R |
+| --- | --- | --- | --- | --- |
+| dev（18 pos / 10 neg） | 1.0000 | 0.1111 | **1.0000** | **0.7222** |
+| holdout（6 pos / 12 neg） | 1.0000 | 0.1667 | **1.0000** | **0.8333** |
+| overall | 1.0000 | 0.1250 | **1.0000** | **0.7500** |
+
+holdout 满足 ≥ 5 positive / ≥ 5 negative 的硬性要求，且 **holdout recall 不低于 dev**
+（0.8333 > 0.7222）→ **无过拟合迹象**。holdout 在规则冻结后**只运行一次**。
+
+## 26. 全量 936 Population
+
+| 指标 | before | after |
+| --- | --- | --- |
+| raw videos | 936 | 936 |
+| grouped cards | 857 | **668** |
+| net collapse | 79 | 268 |
+| multi-video groups | 39 | **129** |
+| videos in multi groups | 118 | 397 |
+| largest group | 9 | 11 |
+| size distribution | `{1:818, 2:22, 3-4:13, 5-9:4}` | `{1:539, 2:74, 3-4:38, 5-9:16, 10+:1}` |
+| cross-uploader groups | 0 | **0** |
+
+## 27. 机械动力（53 raw 是唯一不变量）
+
+```
+53 raw → 36 grouped（过滤批上下文；全量上下文为 37）
+```
+
+36 张卡片中 **9 个多视频组**：`懂嗎懂嗎::真菌感染 模拟`(7)、`zicaiot::农场物语`(3)、
+`白银_1223::血族机械师`(3)、`明月庄主::命运齿轮`(3)、`小兜兜呀_::原神与机械 的时代`(2)、
+`叙利亚自爆民兵::voxy`(2)、`橘子皮zero::拯救世界重建文明`(2)、
+`jsi我的世界制作组::create delight`(2)、`明月庄主::机械动力 月亮工厂`(2)。
+
+**precision 保持的关键证据**：`命运齿轮`(3) 与 `月亮工厂`(2) 仍为**两个独立组**，
+未被模组名 `机械动力` 重新吞并。
+
+## 28. Truth Matrix 结论
+
+| 项 | 3G-F 状态 | 3G-F-A 复核后 | 依据 |
+| --- | --- | --- | --- |
+| `BILI-GRP-01` | VERIFIED | **VERIFIED** | 运行时与全量均确认分组生效；`53 raw` 不变量双侧成立 |
+| `BILI-GRP-02` | SUSPECT | **SUSPECT（证据显著加强）** | benchmark FM = 0，但本轮**新确认 5 例 population 级误合并**（§23.2），全部为 3G-F 新引入。**不升 VERIFIED** |
+| `BILI-GRP-03` | SUSPECT | **SUSPECT（维持）** | Recall 0.125 → 0.750、FS 21 → 6、Precision 1.0；剩余 6 例根因已逐条复核，修复须牺牲精度 |
+| `BILI-GRP-MERGE-BENCH-01` | VERIFIED | **VERIFIED** | 两个 evaluator 可重复；fixture / corpus / split 三个 SHA 冻结且逐字节稳定 |
+| `BILI-GRP-PRECISION-BENCH-01` | VERIFIED | **VERIFIED（窄口径）** | 冻结 22 negative 在孤立 + 全量上下文均 0 误合并；**明确不推广** |
+| `BILI-GRP-PRECISION-POP-01` | — | **新增 `WRONG`** | §23.2 的 5 例新误合并已确证 |
+| `BILI-GRP-BATCH-01` | — | **新增 `SUSPECT`** | §23.3 批次依赖性 |
+
+**不强行 VERIFIED**：`BILI-GRP-02` 保持 SUSPECT；新增的 population 级窄项直接记 **WRONG**
+（该断言「全量无标题去重误合并」已被 5 个反例证伪）。
+
+## 29. 测试
+
+```
+npm --prefix apps/web run typecheck                      PASS
+npm --prefix apps/web test                               80 passed (11 files)
+python tests/test_bilibili_grouping_benchmark.py         12 tests OK
+python tests/test_bili_grouping_explanation.py           OK
+python tests/test_feature_truth_matrix_contract.py       ALL PASSED
+python tests/test_bilibili_grouping_precision_audit.py   11 tests OK  (新增)
+```
+
+## 30. 本轮新增审计工具
+
+| 文件 | 作用 |
+| --- | --- |
+| `pipeline/audit/probe_bili_grouping_runtime.js` | 真实浏览器运行时证明 Map 桥接 + 53 / 36 |
+| `pipeline/audit/bilibili_grouping_precision_probe.js` | 批次依赖性 / 黑金 / 下载·QQ 安全 / 低区分度 token / 人口统计 |
+| `pipeline/audit/bilibili_grouping_precision_audit.js` | 全量精度审计；**记录被否决的 URL 启发式**；输出全部 ≥ 3 的组供人工裁定 |
+| `pipeline/audit/bilibili_grouping_candidate_false_merge_check.js` | 3 个问题 UP 主的逐组独立证据（URL / QQ / desc + 新旧算法对比） |
+| `pipeline/audit/bilibili_grouping_slogan_anchor_scan.js` | 「口号锚点」扫描（**审查列表生成器，故意过报**） |
+| `tests/test_bilibili_grouping_precision_audit.py` | 固化上述证据；**把已知缺陷 pin 住**，修复时会失败以强制更新文档 |
+
+> `bilibili_grouping_slogan_anchor_scan.js` 是**建议性**工具而非判定器：19 个 flag 中
+> 只有 4 个是真误合并，其余为同一包（如 `hunt history 1949`、`去吧 方可梦大师`）。
+> 它还会**漏报**（`各大主播同款` 因某个成员 anchor index = 1 而未被 flag）。
+> 所有结论均以人工逐条裁定为准。
