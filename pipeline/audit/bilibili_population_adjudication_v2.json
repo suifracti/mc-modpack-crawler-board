@@ -7,465 +7,366 @@
     "adjudication": "pipeline/audit/bilibili_population_adjudication_v2.js (this file; hand-maintained table)",
     "rule": "No verdict is ever derived by rule. Every entry was written by reading member titles."
   },
-  "candidates_total": 113,
-  "adjudicated_total": 113,
+  "candidates_total": 100,
+  "adjudicated_total": 100,
   "unadjudicated": [],
   "declared_but_absent": [],
+  "retired_false_merges": {
+    "一个小寂哦::星辉死神": {
+      "was": {
+        "verdict": "REAL_FALSE_MERGE",
+        "confidence": "high"
+      },
+      "fixed_by": "late_feature_list",
+      "note": "神器收集计划 / 无尽幸运方块大陆 / 全网最全神器 = 多个不同包；“星辉死神”是 Boss 名，只出现在 `！` 后的特性清单里。R2 否决。"
+    },
+    "一个小寂哦::四叶草": {
+      "was": {
+        "verdict": "REAL_FALSE_MERGE",
+        "confidence": "high"
+      },
+      "fixed_by": "late_feature_list",
+      "note": "新泰坦生物整合包 / 执行之龙生存整合包 是两个不同包；“四叶草”是物品名，出现在特性清单。R2 否决。"
+    },
+    "一个小寂哦::各大主播同款": {
+      "was": {
+        "verdict": "REAL_FALSE_MERGE",
+        "confidence": "high"
+      },
+      "fixed_by": "late_feature_list",
+      "note": "幸运方块大全 / 超困难神器泰坦随机合成 是两个不同包；“各大主播同款”是口号式 run。R2 否决。"
+    },
+    "墨言eclipse::颠覆性的": {
+      "was": {
+        "verdict": "REAL_FALSE_MERGE",
+        "confidence": "high"
+      },
+      "fixed_by": "late_feature_list",
+      "note": "摄影奇境 / 千界万锻 是两个不同包；“颠覆性的”是形容词。R2 否决。"
+    },
+    "原界环::or not": {
+      "was": {
+        "verdict": "REAL_FALSE_MERGE",
+        "confidence": "high"
+      },
+      "fixed_by": "english_function_words",
+      "note": "Minecraft or Not: Girl&Gun / Maiden or not 是两个不同包；“or not”是纯 ASCII 连接词碎片。R3 否决。"
+    },
+    "叙利亚自爆民兵::voxy": {
+      "was": {
+        "verdict": "REAL_FALSE_MERGE",
+        "confidence": "high"
+      },
+      "fixed_by": "name_slot_disagreement",
+      "note": "《你好，新蒸程》与《你好，新世代》是两个独立命名的包，唯一共同点是都用了 voxy 渲染模组。voxy 是通用模组名（组件锚），不构成包标识。R1 依据两侧名称槽不一致否决——通用化处理，未 hardcode `voxy`。"
+    },
+    "tibsalta::难度驱动": {
+      "was": {
+        "verdict": "REAL_FALSE_MERGE",
+        "confidence": "high"
+      },
+      "fixed_by": "name_slot_disagreement",
+      "note": "《抗争之际0.6》与《旅途痕迹0.5》是两个不同包；包名在方括号外，【难度驱动】只是系列标签。R1 依据两侧名称槽（抗争之际 / 旅途痕迹）不一致否决——通用化处理，未 hardcode `难度驱动`。"
+    },
+    "一个小寂哦::怪物大乱斗": {
+      "was": {
+        "verdict": "REAL_FALSE_MERGE",
+        "confidence": "medium"
+      },
+      "fixed_by": "competing_edition",
+      "note": "「怪物大乱斗 手机版」与「怪物大乱斗：重生」是两次独立发布。两条共享 anchor `怪物大乱斗`，但其后紧跟的 token 不同（手机版 / 重生），且两者都是零身份字符的**版本代际标签**；`重生` 更被同 uploader 的独立三成员组 `怪物大乱斗重生` 独立佐证为真实包名。R5 否决共享前缀，重生那条现归入 `怪物大乱斗重生`。"
+    }
+  },
+  "retired_candidate_keys": {
+    "墨言eclipse::沉浸 深度 a 咒镰双生": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "merged_into_live_group",
+      "now": "墨言eclipse::涅槃",
+      "note": "两条 涅槃 v0.1.6 / v0.1.5 曾被 tag 词锚住；现已并回以包名为 anchor 的单组。"
+    },
+    "墨言eclipse::涅槃 无神明渡我 我亦是神明": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "merged_into_live_group",
+      "now": "墨言eclipse::涅槃",
+      "note": "涅槃 v0.2 宣传片的旧 anchor 键；现已并回 `涅槃`。"
+    },
+    "墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "merged_into_live_group",
+      "now": "墨言eclipse::涅槃",
+      "note": "同上，旧 anchor 是标题尾部特性串。"
+    },
+    "墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "merged_into_live_group",
+      "now": "墨言eclipse::涅槃",
+      "note": "同上，旧 anchor 是标题模板词 + 版本片段。"
+    },
+    "一个小寂哦::各大主播同款": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "一个小寂哦::幸运方块大全 110 个高版本幸运方块 与朋友一起挑战充满幸运的世界 各大主播同款",
+      "note": "anchor 从口号式 run 收敛为真实包名 run。"
+    },
+    "一个小寂哦::四叶草": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "一个小寂哦::新泰坦生物 矿石菌种 更多泰坦 四叶草 幸运方块",
+      "note": "“四叶草”是物品名，不再充当 anchor。"
+    },
+    "一个小寂哦::星辉死神": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "一个小寂哦::我是星辉死神 变身星辉死神 终极艾德曼合金战神 终极骷髅模组 所有泰坦都能变身 凡宇轩 红烧 泉奈同款",
+      "note": "“星辉死神”是 Boss 名，不再充当 anchor。"
+    },
+    "墨言eclipse::颠覆性的": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "墨言eclipse::摄魂 破刹 定身 颠覆性的 交互体验 摄影奇境宣传片",
+      "note": "“颠覆性的”是形容词，不再充当 anchor。"
+    },
+    "原界环::or not": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "原界环::全新 pve 少女准备中 maiden or not 自locknar的 or not",
+      "note": "英文功能词 “or not” 不再充当 anchor。"
+    },
+    "叙利亚自爆民兵::voxy": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "叙利亚自爆民兵::你好 新世代 voxy 机械动力 瓦尔基里全新兼容",
+      "note": "通用渲染模组名 “voxy” 不再充当 anchor。"
+    },
+    "tibsalta::难度驱动": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "tibsalta::抗争之际 难度驱动 向",
+      "note": "方括号系列标签 “难度驱动” 不再充当 anchor。"
+    },
+    "落烟雨辰呀::诡厄 使徒": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "__unknown__",
+      "note": "该上传者记录已不在候选面内（组内两条仍同组，只是不再触发任何 detector 类）。"
+    },
+    "落烟雨辰呀::诡厄使徒": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "__unknown__",
+      "note": "同上。跨组 under-merge 关系仍在 under_merge 层单独记录。"
+    },
+    "-阳春面面-::青春复兴": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "-阳春面面-::大重置 格雷青春版 青春复兴",
+      "note": "“青春复兴”曾被单独锚住；现 anchor 更完整。"
+    },
+    "一个小寂哦::怪物大乱斗": {
+      "was": "REAL_FALSE_MERGE",
+      "kind": "merged_into_live_group",
+      "now": "一个小寂哦::怪物大乱斗 手机版 经典 变身 哥斯拉 经典",
+      "fixed_by": "competing_edition",
+      "note": "共享前缀 `怪物大乱斗` 现在被 R5 否决：其后紧跟的版本代际标签（手机版 / 重生）互斥且零身份字符，且 `重生` 被同 uploader 的独立组 `怪物大乱斗重生` 独立佐证。手机版那条留在新键，重生那条归入 `怪物大乱斗重生`。"
+    },
+    "一个小寂哦::怪物大乱斗重生": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "一个小寂哦::怪物大乱斗重生",
+      "note": "同一 groupKey 文本，但成员从 3 条变为 4 条 —— R5 把“怪物大乱斗：重生”那条从 `怪物大乱斗` 组救回后并入本组。旧的 3 条候选键因此不再由 detector 触发（size 类与 anchor 类都变了）。"
+    },
+    "墨竹ギ::深渊之诗": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "墨竹ギ::poetry of the abyss",
+      "note": "中文包名 anchor 被官方英文名取代；同一组，只是键变了。"
+    },
+    "墨竹ギ::史诗的地下城 dungeons of fantasy": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "__unknown__",
+      "note": "两条 Dungeons Of Fantasy 记录现各自成组（anchor 落在各自的副标题 run 上）。属 recall 取舍，如实记录。"
+    },
+    "流霜雾影::愚者版本大": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "merged_into_live_group",
+      "now": "流霜雾影::愚者",
+      "note": "anchor 从“愚者版本大”收敛为干净的“愚者”，3 条合成一组。"
+    },
+    "arr-c6h6::旧世界": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "arr-c6h6::真菌感染加惊变100天 旧世界",
+      "note": "两条《旧世界》记录现各自成组（anchor 落在各自的功能描述 run 上）。属 recall 取舍，如实记录。"
+    },
+    "不知名的莫理沙::勇者之章": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "不知名的莫理沙::星月枪姬与落魄勇者",
+      "note": "anchor 从系列名“勇者之章”下沉到各条的子版本名（异界法师 / 星月枪姬与落魄勇者 / 多线性枪魔）。其中“星月枪姬与落魄勇者”2 条仍同组，另 2 条成为独立记录。属 recall 取舍，如实记录。"
+    },
+    "在职玩家jostar::去吧 方可梦大师": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "__unknown__",
+      "note": "4 条方可梦记录现各自成组（anchor 落在各自的前缀 run 上）。属 recall 取舍，如实记录。"
+    },
+    "plaudite_::scarlet": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "__unknown__",
+      "note": "两条 Scarlet Adventure 记录现各自成组。属 recall 取舍，如实记录。"
+    },
+    "pork猪排::化龍 金鳞岂是池中物 一遇风云便化龙": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "merged_into_live_group",
+      "now": "pork猪排::化龍",
+      "note": "anchor 从诗句宣传语收敛为包名“化龍”，4 条合成一组。"
+    },
+    "一个小寂哦::重回 之巅": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "__unknown__",
+      "note": "两条“最全拔刀剑”系列记录现各自成组。属 recall 取舍，如实记录。"
+    },
+    "啊liu22::简单群峦": {
+      "was": "LEGITIMATE_SAME_PACK",
+      "kind": "anchor_reselected",
+      "now": "__unknown__",
+      "note": "两条《简单群峦》记录现各自成组。属 recall 取舍，如实记录。"
+    }
+  },
+  "retired_candidate_keys_still_present": [],
   "counts": {
-    "real_false_merge": 8,
+    "real_false_merge": 0,
     "legitimate_same_pack": 100,
-    "false_split_indicator": 3,
-    "ambiguous": 2,
-    "known_7_detected": 7,
-    "known_7_missing": []
+    "false_split_indicator": 0,
+    "ambiguous": 0,
+    "known_8_retired": 8,
+    "known_8_still_merging": [],
+    "known_8_unexplained": [],
+    "candidates_total": 100,
+    "candidates_adjudicated": 100,
+    "retired_candidate_keys": 26
   },
   "candidate_detector_precision": {
     "definition": "real_false_merge / candidates_total",
-    "value": 0.07079646017699115,
-    "numerator": 8,
-    "denominator": 113,
+    "value": 0,
+    "numerator": 0,
+    "denominator": 100,
     "caveat": "Over-reporting is the detector's DESIGN GOAL. A low value is expected and healthy; a high value would mean the detector is too narrow, i.e. blind spots remain."
   },
   "under_merge": {
-    "clusters_reviewed": 58,
-    "confirmed_under_merge": 35,
-    "not_under_merge": 21,
+    "clusters_reviewed": 60,
+    "confirmed_under_merge": 33,
+    "not_under_merge": 24,
     "unreviewed": [],
-    "declared_but_absent": [
-      "墨言eclipse||墨言eclipse::未尽之路涅槃|墨言eclipse::拒绝同质"
-    ],
-    "nie_clusters": 2,
-    "nie_under_merge_clusters": 1,
-    "nie_expected_group_keys": 5,
-    "nie_group_keys_covered": [
-      "墨言eclipse::涅槃 无神明渡我 我亦是神明",
-      "墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅",
-      "墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频",
-      "墨言eclipse::沉浸 深度 a 咒镰双生",
+    "declared_but_absent": [],
+    "retired_clusters": {
+      "墨言eclipse||墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频|墨言eclipse::沉浸 深度 a 咒镰双生|墨言eclipse::涅槃 无神明渡我 我亦是神明|墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅": {
+        "kind": "cluster_gone",
+        "was_verdict": "UNDER_MERGE",
+        "note": "确认：7 条 涅槃 记录（v0.1.5 → v0.2）属同一上传者墨言eclipse 的同一逻辑包，算法拆成 5 个 group key。此簇覆盖其中 4 个 key（第 5 个 未尽之路涅槃 被“未尽之路”桥接到另一簇）。"
+      },
+      "一个小寂哦||__NOOP": {
+        "kind": "placeholder",
+        "was_verdict": null,
+        "note": "placeholder-never-used"
+      },
+      "一个小寂哦||一个小寂哦::新泰坦生物 矿石菌种 更多泰坦 四叶草 幸运方块|一个小寂哦::新泰坦生物 神器小木剑 联机教程 更多泰坦 新增懒人模组 砧板 无尽贪婪": {
+        "kind": "superseded",
+        "was_verdict": "UNDER_MERGE",
+        "now": "一个小寂哦||一个小寂哦::全网 最全神器 星辉死神 凋零斯拉 执行之龙 泰坦 在 体验 时代的魅力|…|一个小寂哦::高版本神器随机合成 幸运与实力的考验 重温一遍经典娱乐模组",
+        "note": "该 2 键对已被 21 成员 live 簇（adjudicated NOT_UNDER_MERGE，通用词过度连通的巨簇）取代。原对级判定是 UNDER_MERGE（新泰坦生物 系列同包）；后者是更强的断言，先说于本表。"
+      },
+      "一个小寂哦||一个小寂哦::怪物大乱斗 手机版 经典 变身 哥斯拉 经典|一个小寂哦::怪物大乱斗重生": {
+        "kind": "superseded",
+        "was_verdict": "NOT_UNDER_MERGE",
+        "now": "一个小寂哦||一个小寂哦::全网 最全神器 星辉死神 凋零斯拉 执行之龙 泰坦 在 体验 时代的魅力|…|一个小寂哦::高版本神器随机合成 幸运与实力的考验 重温一遍经典娱乐模组",
+        "note": "该 2 键对已被 21 成员 live 簇取代。对级判定 NOT_UNDER_MERGE 与取代簇一致：`怪物大乱斗 手机版` 与 `怪物大乱斗重生` 是两个不同的包（见 RETIRED_FALSE_MERGES 的 R5 条目），不构成同包证据。"
+      },
+      "墨竹ギ||墨竹ギ::poetry of the abyss|墨竹ギ::quot 以神之名 染梦世间 quot 深渊之诗 异梦终途 traveldreams": {
+        "kind": "superseded",
+        "was_verdict": "NOT_UNDER_MERGE",
+        "now": "墨竹ギ||墨竹ギ::poetry of the abyss|…|墨竹ギ::终末之途 旅者之颂 踏上找寻世界 尽头旅程 终末旅颂 end travel ode",
+        "note": "该 2 键对已被 9 成员 live 簇（adjudicated NOT_UNDER_MERGE）取代。对级判定一致：《深渊之诗 / Poetry of the Abyss》与《深渊之诗-异梦终途 / TravelDreams》是两个不同产品，共享 `深渊之诗` 前缀不构成同包证据。"
+      },
+      "落烟雨辰呀||落烟雨辰呀::诡厄 使徒|落烟雨辰呀::诡厄使徒": {
+        "kind": "cluster_gone",
+        "was_verdict": "UNDER_MERGE",
+        "note": "确认：两组均为《诡厄使徒》同一包（1.0.6/1.0.7 与 1.1.0），差别仅在中英文冒号与空格 → 典型跨组拆分。"
+      },
+      "在职玩家JoStar||在职玩家jostar::去吧 方可梦大师|在职玩家jostar::方可梦": {
+        "kind": "cluster_gone",
+        "was_verdict": "UNDER_MERGE",
+        "note": "确认：「方可梦」与「去吧，方可梦大师」是同一包（候选层已判后者为同包）→ 被拆成两组。"
+      },
+      "在下Shmily||在下shmily::优化 最牛优化 cmpack即将来临|在下shmily::优化 老手机2000 fps 最牛优化|在下shmily::优化 老手机2800帧 最牛优化": {
+        "kind": "cluster_gone",
+        "was_verdict": "UNDER_MERGE",
+        "note": "确认：3 组均为该 uploader 的“最牛优化”性能包（老手机2000/2800帧为其宣传语）→ 被拆散。"
+      },
+      "芦苇草的梦想||芦苇草的梦想::芦苇 寒假来休闲一下 芦苇的 宣传片|芦苇草的梦想::芦苇的 宣传片4|芦苇草的梦想::芦苇的 版本 宣传片": {
+        "kind": "cluster_gone",
+        "was_verdict": "UNDER_MERGE",
+        "note": "确认（低风险）：3 组均为该 uploader 同名“芦苇的整合包”系列宣传片，编号 4 为其一 → 被拆散。"
+      },
+      "流霜雾影||流霜雾影::愚者 愚弄 伪装 欺诈 屠龙者终成恶龙 扮演所有的生物 使用它们的能力编织一场完美的欺诈盛宴|流霜雾影::愚者版本大": {
+        "kind": "cluster_gone",
+        "was_verdict": "UNDER_MERGE",
+        "note": "确认：两组均为《愚者》同一包（候选层已判后者为同包）→ 被拆成两组。"
+      },
+      "墨言eclipse||墨言eclipse::未尽之路涅槃|墨言eclipse::涅槃": {
+        "kind": "superseded",
+        "was_verdict": "UNDER_MERGE",
+        "note": "确认：RUNTIME 上 涅槃 家族现在恰好 2 组 —— `涅槃`（5 条，正确）与 `未尽之路涅槃`（2 条，正确）。这两组是**两个不同的包**（结构化下载链接互异 + 上传者明确说明无关），所以它们**不应合并**；但正是 pre-3G-F.2-A 的 7 条记录被拆成 5 组这件事，构成了 3G-F-A 的 under-merge 发现 BILI-GRP-UNDERMERGE-01。本条目记录的是「该发现已被解析」：5 个旧键已收敛为 2 个正确组，per-key rescue 见 PER_KEY_UNDER_MERGE。"
+      },
+      "Terminus_54-32||terminus_54-32::泰坦|terminus_54-32::泰坦生物 小|terminus_54-32::新泰坦生物 new titan creatures mod pack released": {
+        "kind": "superseded",
+        "was_verdict": "UNDER_MERGE",
+        "note": "确认（低风险）：三组均为该 uploader 的“泰坦 / 泰坦生物”系列，标题同构、无区分性包名 → 同一包被拆散。"
+      },
+      "墨言eclipse||墨言eclipse::命轮无章 infinite random|墨言eclipse::摄魂 破刹 定身 颠覆性的 交互体验 摄影奇境宣传片|墨言eclipse::大型 模块化 颠覆性的 革新 究极 爽的杀敌体验 辅助的锻刀之旅 千界万锻 宣传片|墨言eclipse::高版本沉浸 lt 未尽之诗 gt 官方宣传片 一首写给高版本 的远征诗": {
+        "kind": "superseded",
+        "was_verdict": "NOT_UNDER_MERGE",
+        "note": "否决：命轮无章 / 摄影奇境 / 千界万锻 / 未尽之诗 是四个不同包。簇由“颠覆性的”这一形容词连通——R2 已经否决它作为 anchor；把它当作跨组同包证据会立刻制造两个新的误合并。"
+      },
+      "在下Shmily||在下shmily::最牛优化": {
+        "kind": "cluster_gone",
+        "was_verdict": "UNDER_MERGE",
+        "note": "确认：`最牛优化` 组（3 条）已是同一包；本簇原由三个旧键组成，现全部收敛为这一个键 → 已解析，不再有跨组拆分（本条目保留以记录解析结果）。"
+      },
+      "芦苇草的梦想||芦苇草的梦想::芦苇的": {
+        "kind": "cluster_gone",
+        "was_verdict": "UNDER_MERGE",
+        "note": "确认（低风险）：`芦苇的` 组（3 条）已是同一包；三个旧键已收敛为这一个键 → 已解析。"
+      },
+      "流霜雾影||流霜雾影::愚者": {
+        "kind": "cluster_gone",
+        "was_verdict": "NOT_UNDER_MERGE",
+        "note": "否决：`愚者` 组（3 条）已是同一包的单组 → 没有跨组拆分需要修复（本条目保留以记录解析结果）。"
+      }
+    },
+    "retired_but_present": [],
+    "clusters_reviewed_at_3gf1b": 75,
+    "nie_clusters": 1,
+    "nie_under_merge_clusters": 0,
+    "nie_corrected_target_groups": 2,
+    "nie_group_keys_satisfied": [
+      "墨言eclipse::涅槃",
       "墨言eclipse::未尽之路涅槃"
     ],
-    "nie_group_keys_missing": []
+    "nie_group_keys_missing": [],
+    "nie_legacy_split_keys_present": [
+      "墨言eclipse::未尽之路涅槃"
+    ],
+    "nie_regressed_to_legacy_split": false,
+    "nie_legacy_key_caveat": "未尽之路涅槃 is itself one of the five pre-fix keys AND is part of the corrected target (it is a genuinely different pack), so presence of ONE legacy key is expected. Only >1 legacy key co-existing means 涅槃 re-fragmented.",
+    "nie_premise_correction": "3G-F-A recorded 涅槃 as 7 records -> 1 pack split 5 ways. Its own structured download_links disprove that: 5 records share mcmod modpack/1418 + xyebbs resources/37418, and 2 share bbsmc unfinished_path_nirvana + xyebbs res-id/TUPN. The corrected target is 2 groups."
   },
-  "real_false_merges": [
-    {
-      "layer": "candidate",
-      "group_key": "tibsalta::难度驱动",
-      "author": "Tibsalta",
-      "anchor": "难度驱动",
-      "size": 2,
-      "detector_reasons": [
-        "anchor_index_one",
-        "bracket_series_tag",
-        "late_anchor_distinct_prefix",
-        "repeated_title_boilerplate"
-      ],
-      "newly_merged": true,
-      "verdict": "REAL_FALSE_MERGE",
-      "confidence": "high",
-      "evidence": {
-        "note": "《抗争之际0.6》与《旅途痕迹0.5》是两个不同包；包名在方括号外，【难度驱动】只是系列标签，规则把方括号内的标签当成了 anchor。",
-        "shared_download_identities": [
-          "https://pan.quark.cn/s/e8edb88f62b4",
-          "https://www.mcbbs.net/forum.php"
-        ],
-        "distinct_download_identities": 6,
-        "shared_qq_identities": [
-          "551322273",
-          "551322273"
-        ],
-        "members": [
-          {
-            "bvid": "BV1wu411W7dV",
-            "title": "【抗争之际0.6】【难度驱动】1.19.2我的世界冒险向整合包发布"
-          },
-          {
-            "bvid": "BV1ok4y1t7u9",
-            "title": "【旅途痕迹0.5】【难度驱动】1.19.2我的世界整合包发布"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "一个小寂哦::各大主播同款",
-      "author": "一个小寂哦",
-      "anchor": "各大主播同款",
-      "size": 2,
-      "detector_reasons": [
-        "late_anchor_distinct_prefix",
-        "repeated_title_boilerplate"
-      ],
-      "newly_merged": true,
-      "verdict": "REAL_FALSE_MERGE",
-      "confidence": "high",
-      "evidence": {
-        "note": "幸运方块大全 / 超困难神器泰坦随机合成 是两个不同包；“各大主播同款”是宣传口号。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 0,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1iBB9B6EpD",
-            "title": "我的世界 1.20.1幸运方块大全整合包发布 110+个高版本幸运方块！与朋友一起挑战充满幸运的世界！各大主播同款！"
-          },
-          {
-            "bvid": "BV1MZxnzsE2N",
-            "title": "我的世界 超困难神器泰坦随机合成整合包发布！！各大主播同款！！！在1.20玩神器泰坦随机合成！！！"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "一个小寂哦::四叶草",
-      "author": "一个小寂哦",
-      "anchor": "四叶草",
-      "size": 2,
-      "detector_reasons": [
-        "short_anchor",
-        "late_anchor_distinct_prefix"
-      ],
-      "newly_merged": true,
-      "verdict": "REAL_FALSE_MERGE",
-      "confidence": "high",
-      "evidence": {
-        "note": "新泰坦生物整合包 / 执行之龙生存整合包 是两个不同包；“四叶草”是物品名。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 2,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1TST76EEJo",
-            "title": "我的世界 1.21.4新泰坦生物整合包更新 矿石菌种？更多泰坦！四叶草！幸运方块？"
-          },
-          {
-            "bvid": "BV16iC3BzEGr",
-            "title": "我的世界 执行之龙生存整合包发布！叶枫同款！强化工具！四叶草！超多经典模组！休闲娱乐包！"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "一个小寂哦::怪物大乱斗",
-      "author": "一个小寂哦",
-      "anchor": "怪物大乱斗",
-      "size": 2,
-      "detector_reasons": [
-        "anchor_index_zero",
-        "repeated_title_boilerplate"
-      ],
-      "newly_merged": true,
-      "verdict": "REAL_FALSE_MERGE",
-      "confidence": "medium",
-      "evidence": {
-        "note": "“怪物大乱斗 手机版”与“怪物大乱斗：重生”是两次独立发布，后者是明确的高版本重做（还原1.7怪物大乱斗）。同 uploader 但版本代际不同，判为不同包。注意与 LEGITIMATE 的 “怪物大乱斗重生” 组区分。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 2,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1f4Kp6yEBf",
-            "title": "我的世界 怪物大乱斗 手机版整合包发布 经典整合包 变身 哥斯拉 经典整合包！"
-          },
-          {
-            "bvid": "BV1nRBFBFEFw",
-            "title": "我的世界 怪物大乱斗：重生整合包发布！高版本矿石菌种！哥斯拉！还原1.7怪物大乱斗！让你的童年逐渐清晰！"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "叙利亚自爆民兵::voxy",
-      "author": "叙利亚自爆民兵",
-      "anchor": "voxy",
-      "size": 2,
-      "detector_reasons": [
-        "generic_component_anchor",
-        "late_anchor_distinct_prefix"
-      ],
-      "newly_merged": true,
-      "verdict": "REAL_FALSE_MERGE",
-      "confidence": "high",
-      "evidence": {
-        "note": "《你好，新蒸程》与《你好，新世代》是两个独立命名的包，唯一共同点是都用了 voxy 渲染模组。voxy 是通用模组名，不构成包标识。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 6,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1Kc96BWENb",
-            "title": "《你好，新蒸程》整合包正式发布！航空学，voxy，独家地形，构成mc的视觉盛宴"
-          },
-          {
-            "bvid": "BV1PbAczPE4o",
-            "title": "《你好，新世代》整合包发布，voxy，机械动力6.0.8，瓦尔基里全新兼容，1.20.1forge"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "墨言eclipse::颠覆性的",
-      "author": "墨言eclipse",
-      "anchor": "颠覆性的",
-      "size": 2,
-      "detector_reasons": [
-        "late_anchor_distinct_prefix",
-        "repeated_title_boilerplate"
-      ],
-      "newly_merged": true,
-      "verdict": "REAL_FALSE_MERGE",
-      "confidence": "high",
-      "evidence": {
-        "note": "摄影奇境 / 千界万锻 是两个不同包；“颠覆性的”是形容词，出现于两个包的宣传语。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 3,
-        "shared_qq_identities": [
-          "528051564"
-        ],
-        "members": [
-          {
-            "bvid": "BV1Ljug6yEhC",
-            "title": "【MC整合包发布】摄魂 破刹 定身！颠覆性的战斗交互体验---摄影奇境宣传片"
-          },
-          {
-            "bvid": "BV1hA3Y6zEEQ",
-            "title": "[MC大型整合包发布] 模块化拔刀剑 颠覆性的战斗革新 究极战斗爽的杀敌体验!  科技辅助的锻刀之旅!---千界万锻整合包宣传片"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "一个小寂哦::星辉死神",
-      "author": "一个小寂哦",
-      "anchor": "星辉死神",
-      "size": 4,
-      "detector_reasons": [
-        "late_anchor_distinct_prefix"
-      ],
-      "newly_merged": true,
-      "verdict": "REAL_FALSE_MERGE",
-      "confidence": "high",
-      "evidence": {
-        "note": "神器收集计划 / 无尽幸运方块大陆 / 全网最全神器 = 多个不同包；“星辉死神”是 Boss 名，出现在每个包的模组清单里。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 0,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1KxX5B7EE5",
-            "title": "我的世界 神器收集计划0.1版本发布！最全神器！炫猫！星辉死神！斗蛐蛐专用整合包！"
-          },
-          {
-            "bvid": "BV13fm7BXEL9",
-            "title": "我的世界 无尽幸运方块大陆 重生2.0整合包发布！附带下载教程！终极骷髅！星辉死神！更强的敌人和神器！"
-          },
-          {
-            "bvid": "BV1Kw2JB2ESX",
-            "title": "我的世界 无尽幸运方块大陆：重生整合包发布！高版本无尽幸运方块大陆他终于来了！新增各种泰坦作为BOSS！星辉死神！终极骷髅！还有各种神器！全新版本！全新体验！"
-          },
-          {
-            "bvid": "BV1cfn1zAEMR",
-            "title": "全网首发！1.20最全神器整合包！星辉死神！凋零斯拉！执行之龙 泰坦！在1.20体验1.7时代的魅力！！！"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "原界环::or not",
-      "author": "原界环",
-      "anchor": "or not",
-      "size": 2,
-      "detector_reasons": [
-        "late_anchor_distinct_prefix"
-      ],
-      "newly_merged": true,
-      "verdict": "REAL_FALSE_MERGE",
-      "confidence": "high",
-      "evidence": {
-        "note": "Minecraft or Not: Girl&Gun / Maiden or not 是两个不同包（后者明确写明“魔改自 locknar 的 Minecraft or not”）；“or not”是命名后缀。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 4,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV17ZwjzvEpG",
-            "title": "少女，枪械以及CQB——Minecraft or Not：Girl&amp;Gun整合包发布！"
-          },
-          {
-            "bvid": "BV1XPcXzWEZ4",
-            "title": "全新我的世界PVE整合包发布[少女准备中//Maiden or not]（魔改自locknar的Minecraft or not）"
-          }
-        ]
-      }
-    }
-  ],
-  "false_split_indicators": [
-    {
-      "layer": "candidate",
-      "group_key": "墨言eclipse::未尽之路涅槃",
-      "author": "墨言eclipse",
-      "anchor": "未尽之路涅槃",
-      "size": 2,
-      "detector_reasons": [
-        "late_anchor_distinct_prefix"
-      ],
-      "newly_merged": true,
-      "verdict": "FALSE_SPLIT_INDICATOR",
-      "confidence": "high",
-      "evidence": {
-        "note": "两条均为 涅槃（预发布 / 发布前预热），同一包。“未尽之路涅槃”是阶段性标题词被当作 anchor → 属于 false split。",
-        "shared_download_identities": [
-          "https://pan.quark.cn/s/92663959e32c",
-          "https://www.xyebbs.com/res-id/TUPN",
-          "https://bbsmc.net/modpack/unfinished_path_nirvana"
-        ],
-        "distinct_download_identities": 4,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1DXRmB9EMT",
-            "title": "[MC整合包预发布] 高度魔改/自制饰品/镰咒双生 未尽之路涅槃"
-          },
-          {
-            "bvid": "BV1ur9dB3EW9",
-            "title": "[MC整合包发布前预热] 去同质化!自制模组!大量自制饰品!全boss机制重构!以手中奥法之力,证世间无上涅槃-[未尽之路涅槃]"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "墨言eclipse::沉浸 深度 a 咒镰双生",
-      "author": "墨言eclipse",
-      "anchor": "沉浸 深度 a 咒镰双生",
-      "size": 2,
-      "detector_reasons": [
-        "late_anchor_distinct_prefix"
-      ],
-      "newly_merged": true,
-      "verdict": "FALSE_SPLIT_INDICATOR",
-      "confidence": "high",
-      "evidence": {
-        "note": "两条均为 涅槃 v0.1.6 / v0.1.5（同一包）。anchor 落在 tag [沉浸战斗/深度魔改/ARPG/咒镰双生] 上是“坏 anchor”，但成员确定同包 → 不是误合并。真正问题是涅槃被拆成 5 组。",
-        "shared_download_identities": [
-          "https://pan.quark.cn/s/92663959e32c",
-          "https://www.mcmod.cn/modpack/1418.html",
-          "https://www.xyebbs.com/resources/37418"
-        ],
-        "distinct_download_identities": 5,
-        "shared_qq_identities": [
-          "530417628",
-          "530417628"
-        ],
-        "members": [
-          {
-            "bvid": "BV1sNjq6pEAd",
-            "title": "[MC整合包发布]涅槃v0.1.6 [沉浸战斗/深度魔改/ARPG/咒镰双生]"
-          },
-          {
-            "bvid": "BV1UJET67ErR",
-            "title": "[MC整合包发布] 涅槃v.0.1.5介绍视频 [沉浸战斗/深度魔改/ARPG/咒镰双生]"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "落烟雨辰呀::诡厄使徒",
-      "author": "落烟雨辰呀",
-      "anchor": "诡厄使徒",
-      "size": 2,
-      "detector_reasons": [
-        "anchor_index_zero"
-      ],
-      "newly_merged": true,
-      "verdict": "FALSE_SPLIT_INDICATOR",
-      "confidence": "medium",
-      "evidence": {
-        "note": "本组两条为同一包（1.1.0 发布 + 诸神黄昏宣传）。与“诡厄 使徒”(1.0.6/1.0.7) 应属一个逻辑包却被拆成两组 → 这是 under-merge 症状，不是误合并。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 2,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1gkT66HEzV",
-            "title": "【mc最新整合包发布】诡厄使徒：诸神黄昏，救赎或是终焉？"
-          },
-          {
-            "bvid": "BV1qg5a6dEuh",
-            "title": "【MC整合包】诡厄使徒1.1.0版本发布，轻量/魔改/冒险/任务"
-          }
-        ]
-      }
-    }
-  ],
-  "ambiguous": [
-    {
-      "layer": "candidate",
-      "group_key": "-阳春面面-::青春复兴",
-      "author": "-阳春面面-",
-      "anchor": "青春复兴",
-      "size": 2,
-      "detector_reasons": [
-        "late_anchor_distinct_prefix"
-      ],
-      "newly_merged": true,
-      "verdict": "AMBIGUOUS",
-      "confidence": "low",
-      "evidence": {
-        "note": "“格雷青春版?青春复兴 0.7.1”与“蔚蓝档案超大型科技冒险整合包：青春复兴 早期版本”是否同一包的两次改版，标题无法判定。不计数。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 3,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1qTDNY3Ekc",
-            "title": "大重置！格雷青春版?青春复兴整合包0.7.1更新！"
-          },
-          {
-            "bvid": "BV1bZigehE6V",
-            "title": "蔚蓝档案超大型科技冒险整合包：青春复兴 早期版本先行发布（1.20.1）"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "落烟雨辰呀::诡厄 使徒",
-      "author": "落烟雨辰呀",
-      "anchor": "诡厄 使徒",
-      "size": 2,
-      "detector_reasons": [
-        "anchor_index_zero"
-      ],
-      "newly_merged": true,
-      "verdict": "AMBIGUOUS",
-      "confidence": "low",
-      "evidence": {
-        "note": "“诡厄：使徒”1.0.6/1.0.7 与另一组“诡厄使徒”1.1.0：两组几乎肯定是同一个包，但被拆成两组。本组内部两条是同一包 → 不是误合并。真正的缺陷是 SPLIT（见 false_split_indicators）。",
-        "shared_download_identities": [
-          "https://www.mcmod.cn/modpack/1241.html"
-        ],
-        "distinct_download_identities": 2,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1s2X4BnEkR",
-            "title": "【MC整合包更新】诡厄：使徒1.0.7：十二使徒头衔与使徒眷属"
-          },
-          {
-            "bvid": "BV1JTwZzDEQr",
-            "title": "【MC整合包更新】诡厄：使徒1.0.6，化身使徒，完成飞升"
-          }
-        ]
-      }
-    }
-  ],
+  "real_false_merges": [],
+  "false_split_indicators": [],
+  "ambiguous": [],
   "legitimate_same_pack": [
     {
       "layer": "candidate",
@@ -908,6 +809,44 @@
     },
     {
       "layer": "candidate",
+      "group_key": "在下shmily::最牛优化",
+      "author": "在下Shmily",
+      "anchor": "最牛优化",
+      "size": 3,
+      "detector_reasons": [
+        "low_discriminative_key",
+        "late_anchor_distinct_prefix",
+        "repeated_title_boilerplate"
+      ],
+      "newly_merged": true,
+      "verdict": "LEGITIMATE_SAME_PACK",
+      "confidence": "high",
+      "evidence": {
+        "note": "3 条均为同一 uploader 的《最牛优化整合包》V4.0 / V3.9 / 首发；anchor 就是包名。",
+        "shared_download_identities": [],
+        "distinct_download_identities": 1,
+        "shared_qq_identities": [
+          "377265276",
+          "377265276"
+        ],
+        "members": [
+          {
+            "bvid": "BV1zNvCBrEgL",
+            "title": "[MC优化]最牛优化整合包V4.0发布，魔改CMpack即将来临!"
+          },
+          {
+            "bvid": "BV1XTqSBHEyr",
+            "title": "[MC优化]老手机2800帧,最牛优化整合包V3.9发布!"
+          },
+          {
+            "bvid": "BV12TxAzvE9r",
+            "title": "[MC优化]老手机2000＋FPS,最牛优化整合包发布！"
+          }
+        ]
+      }
+    },
+    {
+      "layer": "candidate",
       "group_key": "明月庄主::绿色版红石生电优化",
       "author": "明月庄主",
       "anchor": "绿色版红石生电优化",
@@ -980,31 +919,39 @@
     },
     {
       "layer": "candidate",
-      "group_key": "arr-c6h6::旧世界",
-      "author": "ARR-C6H6",
-      "anchor": "旧世界",
-      "size": 2,
+      "group_key": "芦苇草的梦想::芦苇的",
+      "author": "芦苇草的梦想",
+      "anchor": "芦苇的",
+      "size": 3,
       "detector_reasons": [
         "short_anchor",
-        "bracket_series_tag",
-        "late_anchor_distinct_prefix"
+        "mixed_anchor_position",
+        "repeated_title_boilerplate"
       ],
       "newly_merged": true,
       "verdict": "LEGITIMATE_SAME_PACK",
       "confidence": "high",
       "evidence": {
-        "note": "2 条均为「旧世界」v0.3/v0.4Beta 同一包；anchor 是包名。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 0,
+        "note": "3 条均为该 uploader 同名“芦苇的整合包”系列宣传片（4.2.12 / 4.1.7 / 4.0.11 更新）；anchor 是包名片段。",
+        "shared_download_identities": [
+          "https://pan.baidu.com/s/1RBW5Xlz96yuVVHk0a4NAdw",
+          "https://pan.quark.cn/s/9cb97694a566",
+          "https://modrinth.com/modpack/my-biome-is-so-beautiful"
+        ],
+        "distinct_download_identities": 3,
         "shared_qq_identities": [],
         "members": [
           {
-            "bvid": "BV1cFDPBqEK2",
-            "title": "真菌感染加惊变100天整合包更新【1.20.1 旧世界v0.4Beta】"
+            "bvid": "BV1hN6FBnEUp",
+            "title": "【芦苇】寒假来休闲一下-芦苇的1.21.11整合包宣传片4.2.12更新"
           },
           {
-            "bvid": "BV1G7XTBzE2K",
-            "title": "真菌感染惊变类轻量化战斗爽整合包测试版发布！【我的世界1.20.1/旧世界v0.3Beta】"
+            "bvid": "BV1KdrKBeE9Z",
+            "title": "芦苇的1.21.10整合包宣传片4.1.7更新"
+          },
+          {
+            "bvid": "BV14e2LBuEAK",
+            "title": "芦苇的整合包版本更新4.0.11-1.21.10宣传片"
           }
         ]
       }
@@ -1236,52 +1183,6 @@
     },
     {
       "layer": "candidate",
-      "group_key": "zicaiot::农场物语",
-      "author": "ZiCaiOT",
-      "anchor": "农场物语",
-      "size": 6,
-      "detector_reasons": [
-        "large_group",
-        "mixed_anchor_position"
-      ],
-      "newly_merged": true,
-      "verdict": "LEGITIMATE_SAME_PACK",
-      "confidence": "high",
-      "evidence": {
-        "note": "6 条均为「农场物语」同一包（forge 1.1.7~1.6.7）；anchor 是包名。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 3,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1XA9tBYE5D",
-            "title": "【整合包更新】在我的世界中还原星露谷！农场物语1.4.1！"
-          },
-          {
-            "bvid": "BV1CwWxznEJA",
-            "title": "【整合包更新】在我的世界中还原星露谷！农场物语forge1.2.6!"
-          },
-          {
-            "bvid": "BV1REYKzgE45",
-            "title": "【整合包大更新】在我的世界中还原星露谷！农场物语forge1.2.0！"
-          },
-          {
-            "bvid": "BV1TFYkzFEA3",
-            "title": "【整合包更新】我的世界与星露谷物语结合？以种田为主题的休闲整合包！农场物语forge1.1.7 新增奶酪成熟机制、养鱼玩法和上古水果"
-          },
-          {
-            "bvid": "BV18hgCz7E55",
-            "title": "农场物语forge版整合包更新！[农夫乐事xLet&#x27;s Do兼容！统一作物 / 机械动力xLet&#x27;s Do联动！自动化酿酒]"
-          },
-          {
-            "bvid": "BV1muJnziEdf",
-            "title": "[我的世界整合包更新]农场物语1.6.7 更好的Vanilla+整合包！原版玩腻了？那就来试试这个吧！"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
       "group_key": "小兜兜呀_::原神与机械 的时代",
       "author": "小兜兜呀_",
       "anchor": "原神与机械 的时代",
@@ -1370,6 +1271,50 @@
     },
     {
       "layer": "candidate",
+      "group_key": "墨言eclipse::涅槃",
+      "author": "墨言eclipse",
+      "anchor": "涅槃",
+      "size": 5,
+      "detector_reasons": [
+        "short_anchor",
+        "large_group"
+      ],
+      "newly_merged": true,
+      "verdict": "LEGITIMATE_SAME_PACK",
+      "confidence": "high",
+      "evidence": {
+        "note": "5 条均为《涅槃》同一包（v0.1.5 / v0.1.6 / v0.1.8 / v0.2）；anchor 是包名。结构化下载链接 mcmod modpack/1418 + xyebbs resources/37418 一致。这是 3G-F.2-A 的期望终态（旧的 5 个分裂键收敛到此）。",
+        "shared_download_identities": [
+          "https://www.xyebbs.com/resources/37418"
+        ],
+        "distinct_download_identities": 6,
+        "shared_qq_identities": [],
+        "members": [
+          {
+            "bvid": "BV1CQtC6eEaC",
+            "title": "[MC整合包发布:涅槃]  无神明渡我 我亦是神明"
+          },
+          {
+            "bvid": "BV1ZTuJ6rEJp",
+            "title": "[整合包更新-涅槃v0.2]神吞降世，邪神投影，万魂幡！ 超越法则的魔法镰刀战斗之旅"
+          },
+          {
+            "bvid": "BV1LyN366E4u",
+            "title": "[MC大型整合包发布] 禁忌魔法 远古炼金  世界污染  3万行代码深度魔改---涅槃v.0.1.8 宣传视频"
+          },
+          {
+            "bvid": "BV1sNjq6pEAd",
+            "title": "[MC整合包发布]涅槃v0.1.6 [沉浸战斗/深度魔改/ARPG/咒镰双生]"
+          },
+          {
+            "bvid": "BV1UJET67ErR",
+            "title": "[MC整合包发布] 涅槃v.0.1.5介绍视频 [沉浸战斗/深度魔改/ARPG/咒镰双生]"
+          }
+        ]
+      }
+    },
+    {
+      "layer": "candidate",
       "group_key": "locknar::mon",
       "author": "Locknar",
       "anchor": "mon",
@@ -1402,6 +1347,44 @@
           {
             "bvid": "BV1nbZCBvEGE",
             "title": "【MON整合包小更新】优化战术配件和装备调整"
+          }
+        ]
+      }
+    },
+    {
+      "layer": "candidate",
+      "group_key": "pork猪排::化龍",
+      "author": "Pork猪排",
+      "anchor": "化龍",
+      "size": 4,
+      "detector_reasons": [
+        "short_anchor",
+        "mixed_anchor_position"
+      ],
+      "newly_merged": true,
+      "verdict": "LEGITIMATE_SAME_PACK",
+      "confidence": "high",
+      "evidence": {
+        "note": "4 条均为《化龍》同一包（1.0 → 1.3.1）；anchor 是包名。“金鳞岂是池中物，一遇风云便化龙”是固定诗句宣传语。",
+        "shared_download_identities": [],
+        "distinct_download_identities": 3,
+        "shared_qq_identities": [],
+        "members": [
+          {
+            "bvid": "BV1PMAVzKExm",
+            "title": "龙语魔法、魔法连招!『化龍』MC整合包1.3.1版本发布!"
+          },
+          {
+            "bvid": "BV1GrzxBZE7S",
+            "title": "【MC整合包发布】『化龍』1.2正式版：麒麟踏雪"
+          },
+          {
+            "bvid": "BV12VtQzkEcm",
+            "title": "【MC整合包发布】化龍1.0正式版！金鳞岂是池中物，一遇风云便化龙。"
+          },
+          {
+            "bvid": "BV1nbTqzCECX",
+            "title": "『化龍』MC整合包发布“金鳞岂是池中物，一遇风云便化龙”"
           }
         ]
       }
@@ -1567,6 +1550,110 @@
           {
             "bvid": "BV1QN6HYnE5W",
             "title": "【MC整合包发布】咒次元 - 享受纯粹的魔法与战斗！"
+          }
+        ]
+      }
+    },
+    {
+      "layer": "candidate",
+      "group_key": "terminus_54-32::泰坦",
+      "author": "Terminus_54-32",
+      "anchor": "泰坦",
+      "size": 3,
+      "detector_reasons": [
+        "anchor_index_zero",
+        "short_anchor"
+      ],
+      "newly_merged": true,
+      "verdict": "LEGITIMATE_SAME_PACK",
+      "confidence": "medium",
+      "evidence": {
+        "note": "3 条均为该 uploader 的“泰坦整合包”系列（1.21.1 / 1.21.4 / 1.12.2，含“看简介/附下载链接”）。MC 主版本跨度较大，但命名与定位高度同构、无其他区分性包名 → 保守判同包，不计数为误合并。",
+        "shared_download_identities": [],
+        "distinct_download_identities": 3,
+        "shared_qq_identities": [],
+        "members": [
+          {
+            "bvid": "BV1uANTzAE3v",
+            "title": "1.21.1泰坦整合包2.0发布，新增神器氪金萝莉！"
+          },
+          {
+            "bvid": "BV1RLC7B7Ess",
+            "title": "1.21.4泰坦整合包发布{看简介}"
+          },
+          {
+            "bvid": "BV1NvWxzZEBj",
+            "title": "1.12.2泰坦整合包发布（附下载链接）"
+          }
+        ]
+      }
+    },
+    {
+      "layer": "candidate",
+      "group_key": "zicaiot::在 中还原星露谷 农场物语",
+      "author": "ZiCaiOT",
+      "anchor": "在 中还原星露谷 农场物语",
+      "size": 3,
+      "detector_reasons": [
+        "mixed_anchor_position",
+        "repeated_title_boilerplate"
+      ],
+      "newly_merged": false,
+      "verdict": "LEGITIMATE_SAME_PACK",
+      "confidence": "high",
+      "evidence": {
+        "note": "3 条均为《农场物语 / 在我的世界中还原星露谷》同一包（1.4.1 / forge1.2.6 / forge1.2.0）；anchor 是包名全称。与 `zicaiot::农场物语` 是同一包被拆成两键 → 见 under_merge（不是误合并）。",
+        "shared_download_identities": [
+          "https://bbsmc.net/modpack/ft-wt"
+        ],
+        "distinct_download_identities": 1,
+        "shared_qq_identities": [],
+        "members": [
+          {
+            "bvid": "BV1XA9tBYE5D",
+            "title": "【整合包更新】在我的世界中还原星露谷！农场物语1.4.1！"
+          },
+          {
+            "bvid": "BV1CwWxznEJA",
+            "title": "【整合包更新】在我的世界中还原星露谷！农场物语forge1.2.6!"
+          },
+          {
+            "bvid": "BV1REYKzgE45",
+            "title": "【整合包大更新】在我的世界中还原星露谷！农场物语forge1.2.0！"
+          }
+        ]
+      }
+    },
+    {
+      "layer": "candidate",
+      "group_key": "一个小寂哦::无尽幸运方块大陆 重生",
+      "author": "一个小寂哦",
+      "anchor": "无尽幸运方块大陆 重生",
+      "size": 3,
+      "detector_reasons": [
+        "anchor_index_zero",
+        "repeated_title_boilerplate"
+      ],
+      "newly_merged": true,
+      "verdict": "LEGITIMATE_SAME_PACK",
+      "confidence": "high",
+      "evidence": {
+        "note": "3 条均为《无尽幸运方块大陆 重生》同一包（最终版本 / 重生2.0 / 重生发布）；anchor 是包名。与 R5 否决的 `怪物大乱斗` 无关。",
+        "shared_download_identities": [],
+        "distinct_download_identities": 0,
+        "shared_qq_identities": [],
+        "members": [
+          {
+            "bvid": "BV1YBqaBTEsX",
+            "title": "我的世界 无尽幸运方块大陆 重生 最终版本整合包发布！极致优化！不再卡顿！全新神器与星辉死神！"
+          },
+          {
+            "bvid": "BV13fm7BXEL9",
+            "title": "我的世界 无尽幸运方块大陆 重生2.0整合包发布！附带下载教程！终极骷髅！星辉死神！更强的敌人和神器！"
+          },
+          {
+            "bvid": "BV1Kw2JB2ESX",
+            "title": "我的世界 无尽幸运方块大陆：重生整合包发布！高版本无尽幸运方块大陆他终于来了！新增各种泰坦作为BOSS！星辉死神！终极骷髅！还有各种神器！全新版本！全新体验！"
           }
         ]
       }
@@ -1740,6 +1827,42 @@
           {
             "bvid": "BV18cqGYHEf8",
             "title": "庄主：我的世界1.21.4【红石生电整合包】更新介绍"
+          }
+        ]
+      }
+    },
+    {
+      "layer": "candidate",
+      "group_key": "流霜雾影::愚者",
+      "author": "流霜雾影",
+      "anchor": "愚者",
+      "size": 3,
+      "detector_reasons": [
+        "anchor_index_zero",
+        "short_anchor"
+      ],
+      "newly_merged": true,
+      "verdict": "LEGITIMATE_SAME_PACK",
+      "confidence": "high",
+      "evidence": {
+        "note": "3 条均为《愚者》同一包（v0.1 / v0.2 / 发布介绍）；anchor 是包名。取代了旧的“愚者版本大”键。",
+        "shared_download_identities": [
+          "https://bbsmc.net/modpack/the-fool"
+        ],
+        "distinct_download_identities": 2,
+        "shared_qq_identities": [],
+        "members": [
+          {
+            "bvid": "BV1s3ZNBYEQU",
+            "title": "【MC整合包发布】愚者v0.2：塔罗秘闻、罪梦流派、逆位诅咒！愚者版本大更新，全新挑战内容来袭！"
+          },
+          {
+            "bvid": "BV1CLnmzgECo",
+            "title": "【MC整合包发布】愚者v0.1：初升的暮色、日落的天堂、迷失梦境的旅人、萌芽地狱的新生...愚者版本大更新！更丰富的玩法、更具挑战的内容来了！！！"
+          },
+          {
+            "bvid": "BV1iRL7zYExj",
+            "title": "【MC整合包发布：愚者】愚弄、伪装、欺诈，屠龙者终成恶龙。扮演所有的生物，使用它们的能力编织一场完美的欺诈盛宴！"
           }
         ]
       }
@@ -1944,6 +2067,36 @@
     },
     {
       "layer": "candidate",
+      "group_key": "不知名的莫理沙::星月枪姬与落魄勇者",
+      "author": "不知名的莫理沙",
+      "anchor": "星月枪姬与落魄勇者",
+      "size": 2,
+      "detector_reasons": [
+        "anchor_index_zero",
+        "repeated_title_boilerplate"
+      ],
+      "newly_merged": true,
+      "verdict": "LEGITIMATE_SAME_PACK",
+      "confidence": "high",
+      "evidence": {
+        "note": "2 条均为《勇者之章Ⅲ》同一包的“星月枪姬与落魄勇者”子版本更新（稳定版本 / 版本更新）；anchor 是子版本名。与 `勇者之章` 系列属同一逻辑包 → 见 under_merge。",
+        "shared_download_identities": [],
+        "distinct_download_identities": 0,
+        "shared_qq_identities": [],
+        "members": [
+          {
+            "bvid": "BV13m7Yz3EST",
+            "title": "【整合包更新】☆星月枪姬与落魄勇者☆稳定版本！战斗魔改我的世界整合包勇者之章Ⅲ"
+          },
+          {
+            "bvid": "BV1CfVLzNE1b",
+            "title": "【整合包更新】☆星月枪姬与落魄勇者☆版本更新！我的世界魔改战斗整合包勇者之章Ⅲ"
+          }
+        ]
+      }
+    },
+    {
+      "layer": "candidate",
       "group_key": "吴也mc::内容 better 版",
       "author": "吴也mc",
       "anchor": "内容 better 版",
@@ -2030,39 +2183,6 @@
           {
             "bvid": "BV1oZ421u7Qk",
             "title": "【隔离区】大型定制化丧尸末日整合包 - v0.2预告更新"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "墨竹ギ::史诗的地下城 dungeons of fantasy",
-      "author": "墨竹ギ",
-      "anchor": "史诗的地下城 dungeons of fantasy",
-      "size": 2,
-      "detector_reasons": [
-        "bracket_series_tag",
-        "late_anchor_distinct_prefix"
-      ],
-      "newly_merged": true,
-      "verdict": "LEGITIMATE_SAME_PACK",
-      "confidence": "high",
-      "evidence": {
-        "note": "2 条均为 Dungeons Of Fantasy 同一包 7.0/7.2；anchor 是包名。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 0,
-        "shared_qq_identities": [
-          "471458332",
-          "471458332"
-        ],
-        "members": [
-          {
-            "bvid": "BV1Rc411f7av",
-            "title": "【MC整合包7.2发布】一款大型冒险/生活向整合包-将&quot;地下城&quot;&quot;死亡细胞&quot;游戏内容移植到MC之中!——史诗的地下城[Dungeons Of Fantasy]"
-          },
-          {
-            "bvid": "BV1Jm4y1374M",
-            "title": "一款大型冒险/生活向整合包更新发布!将&quot;地下城&quot;&quot;死亡细胞&quot;移植到MC当中——史诗的地下城[Dungeons Of Fantasy]7.0"
           }
         ]
       }
@@ -2258,39 +2378,6 @@
           {
             "bvid": "BV1thtD6wE1r",
             "title": "慢砌山河整合包——我的世界生存建筑整合包更新日志1"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "流霜雾影::愚者版本大",
-      "author": "流霜雾影",
-      "anchor": "愚者版本大",
-      "size": 2,
-      "detector_reasons": [
-        "late_anchor_distinct_prefix",
-        "repeated_title_boilerplate"
-      ],
-      "newly_merged": true,
-      "verdict": "LEGITIMATE_SAME_PACK",
-      "confidence": "high",
-      "evidence": {
-        "note": "2 条均为「愚者」同一包 v0.1/v0.2；anchor 落在“愚者版本大更新”上，但成员同包。",
-        "shared_download_identities": [
-          "https://bbsmc.net/modpack/the-fool",
-          "https://pd.qq.com/s/cxzv611tr"
-        ],
-        "distinct_download_identities": 2,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1s3ZNBYEQU",
-            "title": "【MC整合包发布】愚者v0.2：塔罗秘闻、罪梦流派、逆位诅咒！愚者版本大更新，全新挑战内容来袭！"
-          },
-          {
-            "bvid": "BV1CLnmzgECo",
-            "title": "【MC整合包发布】愚者v0.1：初升的暮色、日落的天堂、迷失梦境的旅人、萌芽地狱的新生...愚者版本大更新！更丰富的玩法、更具挑战的内容来了！！！"
           }
         ]
       }
@@ -2975,43 +3062,6 @@
     },
     {
       "layer": "candidate",
-      "group_key": "不知名的莫理沙::勇者之章",
-      "author": "不知名的莫理沙",
-      "anchor": "勇者之章",
-      "size": 4,
-      "detector_reasons": [
-        "late_anchor_distinct_prefix"
-      ],
-      "newly_merged": true,
-      "verdict": "LEGITIMATE_SAME_PACK",
-      "confidence": "high",
-      "evidence": {
-        "note": "4 条均为《勇者之章Ⅲ》同一包（异界法师/星月枪姬是其子版本名）；anchor 是系列名。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 3,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1p7HYziEfo",
-            "title": "【整合包更新】☆异界法师☆稳定版本！枪魔魔改之我的世界整合包勇者之章Ⅲ"
-          },
-          {
-            "bvid": "BV13m7Yz3EST",
-            "title": "【整合包更新】☆星月枪姬与落魄勇者☆稳定版本！战斗魔改我的世界整合包勇者之章Ⅲ"
-          },
-          {
-            "bvid": "BV1CfVLzNE1b",
-            "title": "【整合包更新】☆星月枪姬与落魄勇者☆版本更新！我的世界魔改战斗整合包勇者之章Ⅲ"
-          },
-          {
-            "bvid": "BV1nYN2evEug",
-            "title": "【整合包发布】你从未见过的多线性枪魔战斗魔改整合包！勇者之章Ⅲ！大量模组物品修改和添加说明，70+高难Boss！"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
       "group_key": "非茉涟柠::hunt history 1949",
       "author": "非茉涟柠",
       "anchor": "hunt history 1949",
@@ -3095,33 +3145,36 @@
     },
     {
       "layer": "candidate",
-      "group_key": "一个小寂哦::怪物大乱斗重生",
-      "author": "一个小寂哦",
-      "anchor": "怪物大乱斗重生",
+      "group_key": "zicaiot::农场物语",
+      "author": "ZiCaiOT",
+      "anchor": "农场物语",
       "size": 3,
       "detector_reasons": [
-        "anchor_index_zero"
+        "mixed_anchor_position"
       ],
       "newly_merged": true,
       "verdict": "LEGITIMATE_SAME_PACK",
-      "confidence": "medium",
+      "confidence": "high",
       "evidence": {
-        "note": "3 条均为“怪物大乱斗重生 / 怪物大乱斗：重生”同一包（重制版的多次更新）。与 REAL_FALSE_MERGE 的“怪物大乱斗”组区分：那一组把手机版和重生版错并。",
+        "note": "6 条均为「农场物语」同一包（forge 1.1.7~1.6.7）；anchor 是包名。",
         "shared_download_identities": [],
-        "distinct_download_identities": 0,
-        "shared_qq_identities": [],
+        "distinct_download_identities": 3,
+        "shared_qq_identities": [
+          "665313861",
+          "665313861"
+        ],
         "members": [
           {
-            "bvid": "BV1toNn6pEWN",
-            "title": "我的世界 怪物大乱斗重生整合包发布与介绍还是同样的味道？同样的感觉！"
+            "bvid": "BV1TFYkzFEA3",
+            "title": "【整合包更新】我的世界与星露谷物语结合？以种田为主题的休闲整合包！农场物语forge1.1.7 新增奶酪成熟机制、养鱼玩法和上古水果"
           },
           {
-            "bvid": "BV1RaF6zXELF",
-            "title": "我的世界 怪物大乱斗重生1.1整合包版本更新！新增世界树！变身！更多boss！更多装备！更帅气的模型！"
+            "bvid": "BV18hgCz7E55",
+            "title": "农场物语forge版整合包更新！[农夫乐事xLet&#x27;s Do兼容！统一作物 / 机械动力xLet&#x27;s Do联动！自动化酿酒]"
           },
           {
-            "bvid": "BV1vGq9BeETp",
-            "title": "我的世界 怪物大乱斗重生整合包发布！高版本矿石菌种！国王！哥斯拉！x光！各种经典模组重回1.20高版本！"
+            "bvid": "BV1muJnziEdf",
+            "title": "[我的世界整合包更新]农场物语1.6.7 更好的Vanilla+整合包！原版玩腻了？那就来试试这个吧！"
           }
         ]
       }
@@ -3196,72 +3249,6 @@
           {
             "bvid": "BV1NaFrzkEBN",
             "title": "【整合包发布】群峦野望1.1-原始科技革新"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "在职玩家jostar::去吧 方可梦大师",
-      "author": "在职玩家JoStar",
-      "anchor": "去吧 方可梦大师",
-      "size": 3,
-      "detector_reasons": [
-        "late_anchor_distinct_prefix"
-      ],
-      "newly_merged": true,
-      "verdict": "LEGITIMATE_SAME_PACK",
-      "confidence": "high",
-      "evidence": {
-        "note": "3 条均为《去吧，方可梦大师》同一包 1.7/3.0/4.0；anchor 是包名。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 1,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV14wUnBpEcQ",
-            "title": "【方可梦整合包】(11.25已更新)确定航线，出发！《去吧，方可梦大师》1.7尝鲜体验包现已发布~"
-          },
-          {
-            "bvid": "BV1VNLRzYERC",
-            "title": "【方块宝可梦整合包】（ZA全mega已更新！）全系统、全图鉴！《去吧，方可梦大师》4.0“双版本”正式发布！也有服务端哦~持续更新方可梦最新内容~"
-          },
-          {
-            "bvid": "BV1VVZjYHEag",
-            "title": "【方块宝可梦超全整合包3.0】化身小智！钛晶、mega、Z招式三系统全都要！踏上击败各地区道馆主的冠军之路吧！《去吧，方可梦大师！》3.0正式发布~"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "墨竹ギ::深渊之诗",
-      "author": "墨竹ギ",
-      "anchor": "深渊之诗",
-      "size": 3,
-      "detector_reasons": [
-        "late_anchor_distinct_prefix"
-      ],
-      "newly_merged": true,
-      "verdict": "LEGITIMATE_SAME_PACK",
-      "confidence": "high",
-      "evidence": {
-        "note": "3 条均为《深渊之诗 / Poetry of the Abyss》同一包 2.0/2.2；anchor 是包名。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 0,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV15DxWe7E19",
-            "title": "MC整合包发布：&quot;以神之名，染梦世间！&quot;—深渊之诗-异梦终途[TravelDreams]"
-          },
-          {
-            "bvid": "BV1fc411U7Q3",
-            "title": "【mc整合包】&quot;在这深渊之中,谱写新的诗篇!&quot;冒险/战斗/硬核/生活/类魂=深渊之诗-剑与魔法Poetry of the Abyss2.2更新"
-          },
-          {
-            "bvid": "BV1Dc411R731",
-            "title": "MC整合包发布:&quot;在深渊中谱写新的诗篇&quot;一款大型战斗/冒险/生活/类魂整合包-深渊之诗[Poetry Of The Abyss]2.0"
           }
         ]
       }
@@ -3544,66 +3531,6 @@
     },
     {
       "layer": "candidate",
-      "group_key": "plaudite_::scarlet",
-      "author": "plaudite_",
-      "anchor": "scarlet",
-      "size": 2,
-      "detector_reasons": [
-        "late_anchor_distinct_prefix"
-      ],
-      "newly_merged": true,
-      "verdict": "LEGITIMATE_SAME_PACK",
-      "confidence": "high",
-      "evidence": {
-        "note": "2 条均为 Scarlet Adventure 绯红冒险同一包（v2.0 / 介绍）；anchor 是包名。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 3,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1jNYn6KEth",
-            "title": "[v/s×mc]整合包Scarlet Adventure绯红冒险v2.0发布"
-          },
-          {
-            "bvid": "BV1oo4d6REzq",
-            "title": "[Minecraft×Vivid/Stasis]模组 绯红冒险Scarlet Adventure介绍+发布（附整合包）"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
-      "group_key": "pork猪排::化龍 金鳞岂是池中物 一遇风云便化龙",
-      "author": "Pork猪排",
-      "anchor": "化龍 金鳞岂是池中物 一遇风云便化龙",
-      "size": 2,
-      "detector_reasons": [
-        "anchor_index_zero"
-      ],
-      "newly_merged": false,
-      "verdict": "LEGITIMATE_SAME_PACK",
-      "confidence": "high",
-      "evidence": {
-        "note": "2 条均为《化龍》同一包（1.0 正式版 / 发布）；后半是固定诗句宣传语。",
-        "shared_download_identities": [
-          "https://xyebbs.com/res-id/beloong"
-        ],
-        "distinct_download_identities": 1,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV12VtQzkEcm",
-            "title": "【MC整合包发布】化龍1.0正式版！金鳞岂是池中物，一遇风云便化龙。"
-          },
-          {
-            "bvid": "BV1nbTqzCECX",
-            "title": "『化龍』MC整合包发布“金鳞岂是池中物，一遇风云便化龙”"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
       "group_key": "puikre::定制模组 成为锻造大师",
       "author": "Puikre",
       "anchor": "定制模组 成为锻造大师",
@@ -3694,35 +3621,6 @@
     },
     {
       "layer": "candidate",
-      "group_key": "一个小寂哦::重回 之巅",
-      "author": "一个小寂哦",
-      "anchor": "重回 之巅",
-      "size": 2,
-      "detector_reasons": [
-        "late_anchor_distinct_prefix"
-      ],
-      "newly_merged": true,
-      "verdict": "LEGITIMATE_SAME_PACK",
-      "confidence": "high",
-      "evidence": {
-        "note": "2 条均为该 uploader 的“最全拔刀剑”系列（3.0 / 重逢 2.0），“重回1.7拔刀剑之巅”是两次共用的口号 → 同一系列包。",
-        "shared_download_identities": [],
-        "distinct_download_identities": 1,
-        "shared_qq_identities": [],
-        "members": [
-          {
-            "bvid": "BV1ckD4BTEML",
-            "title": "我的世界 1.20.1最全拔刀剑3.0整合包发布！血腥革新！工业拔刀剑复活！上百种不同拔刀剑！重回1.7拔刀剑之巅！"
-          },
-          {
-            "bvid": "BV1JjHbzDEVY",
-            "title": "我的世界 最全拔刀剑重逢整合包2.0！重回1.7拔刀剑之巅！全网最全的整合包！更新万物终结！异次元管理者！极夜之刃！龙族拔刀剑！以及各种拔刀剑！"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
       "group_key": "共轭o::武道宗师",
       "author": "共轭o",
       "anchor": "武道宗师",
@@ -3752,40 +3650,6 @@
     },
     {
       "layer": "candidate",
-      "group_key": "啊liu22::简单群峦",
-      "author": "啊liu22",
-      "anchor": "简单群峦",
-      "size": 2,
-      "detector_reasons": [
-        "mixed_anchor_position"
-      ],
-      "newly_merged": true,
-      "verdict": "LEGITIMATE_SAME_PACK",
-      "confidence": "high",
-      "evidence": {
-        "note": "2 条均为《简单群峦》同一包 v3/2.0；sharedURL 1 + sharedQQ 672326817 佐证。",
-        "shared_download_identities": [
-          "https://www.curseforge.com/minecraft/modpacks/simple-tfc"
-        ],
-        "distinct_download_identities": 6,
-        "shared_qq_identities": [
-          "672326817",
-          "672326817"
-        ],
-        "members": [
-          {
-            "bvid": "BV1uYwxzCEDr",
-            "title": "竟然是最新版群峦的整合包！简单群峦v3发布"
-          },
-          {
-            "bvid": "BV1tG42evEuE",
-            "title": "【整合包发布】简单群峦2.0 - 简单易上手的群峦传说整合包"
-          }
-        ]
-      }
-    },
-    {
-      "layer": "candidate",
       "group_key": "啥勾石玩意::烦人的村民 传奇之战",
       "author": "啥勾石玩意",
       "anchor": "烦人的村民 传奇之战",
@@ -3809,6 +3673,70 @@
           {
             "bvid": "BV1XKuPzTEWL",
             "title": "【MC 整合包发布】烦人的村民-传奇之战4.0version"
+          }
+        ]
+      }
+    },
+    {
+      "layer": "candidate",
+      "group_key": "墨竹ギ::poetry of the abyss",
+      "author": "墨竹ギ",
+      "anchor": "poetry of the abyss",
+      "size": 2,
+      "detector_reasons": [
+        "late_anchor_distinct_prefix"
+      ],
+      "newly_merged": true,
+      "verdict": "LEGITIMATE_SAME_PACK",
+      "confidence": "high",
+      "evidence": {
+        "note": "已核实（对 bili_data 逐字读题）：两条均为《深渊之诗 / Poetry of the Abyss》同一包的 2.2 更新与 2.0 发布（BV1fc411U7Q3 / BV1Dc411R731）。该键不是新缺陷：它只是把官方英文名当作 anchor，而 3G-F.1-A 之前那个“墨竹ギ::深渊之诗”键（anchor=中文包名）被修复取代。同一包，不是误合并。注意与 `墨竹ギ::quot 以神之名 染梦世间 quot 深渊之诗 异梦终途 traveldreams` 区分：那条是《深渊之诗-异梦终途》，是同一系列下的另一个产品，不应合并。",
+        "shared_download_identities": [],
+        "distinct_download_identities": 0,
+        "shared_qq_identities": [
+          "471458332"
+        ],
+        "members": [
+          {
+            "bvid": "BV1fc411U7Q3",
+            "title": "【mc整合包】&quot;在这深渊之中,谱写新的诗篇!&quot;冒险/战斗/硬核/生活/类魂=深渊之诗-剑与魔法Poetry of the Abyss2.2更新"
+          },
+          {
+            "bvid": "BV1Dc411R731",
+            "title": "MC整合包发布:&quot;在深渊中谱写新的诗篇&quot;一款大型战斗/冒险/生活/类魂整合包-深渊之诗[Poetry Of The Abyss]2.0"
+          }
+        ]
+      }
+    },
+    {
+      "layer": "candidate",
+      "group_key": "墨言eclipse::未尽之路涅槃",
+      "author": "墨言eclipse",
+      "anchor": "未尽之路涅槃",
+      "size": 2,
+      "detector_reasons": [
+        "late_anchor_distinct_prefix"
+      ],
+      "newly_merged": true,
+      "verdict": "LEGITIMATE_SAME_PACK",
+      "confidence": "high",
+      "evidence": {
+        "note": "两条均为《未尽之路-涅槃》（预发布 / 发布前预热），同一包。上传者结构化下载链接（bbsmc unfinished_path_nirvana + xyebbs res-id/TUPN）与 涅槃 的（mcmod modpack/1418 + xyebbs resources/37418）互不相同，上传者本人也说明两者无关 → 组内合法，不是误合并。",
+        "shared_download_identities": [
+          "https://pan.quark.cn/s/92663959e32c",
+          "https://www.xyebbs.com/res-id/TUPN",
+          "https://bbsmc.net/modpack/unfinished_path_nirvana"
+        ],
+        "distinct_download_identities": 4,
+        "shared_qq_identities": [],
+        "members": [
+          {
+            "bvid": "BV1DXRmB9EMT",
+            "title": "[MC整合包预发布] 高度魔改/自制饰品/镰咒双生 未尽之路涅槃"
+          },
+          {
+            "bvid": "BV1ur9dB3EW9",
+            "title": "[MC整合包发布前预热] 去同质化!自制模组!大量自制饰品!全boss机制重构!以手中奥法之力,证世间无上涅槃-[未尽之路涅槃]"
           }
         ]
       }
@@ -4124,39 +4052,50 @@
       "author": "一个小寂哦",
       "group_keys": [
         "一个小寂哦::弑神之路",
+        "一个小寂哦::全网 最全神器 星辉死神 凋零斯拉 执行之龙 泰坦 在 体验 时代的魅力",
         "一个小寂哦::泰坦 新的武器 无限之锤 基岩弩 炎黄弩 虚无弓",
-        "一个小寂哦::怪物大乱斗",
+        "一个小寂哦::怪物大乱斗 手机版 经典 变身 哥斯拉 经典",
         "一个小寂哦::怪物大乱斗重生",
-        "一个小寂哦::四叶草",
         "一个小寂哦::超bt绿宝石大陆 怪物大乱斗版 记忆中的一切 怀旧 多人 爽包 详细任务 在充满绿宝石的大陆上挑战曾经的boss",
-        "一个小寂哦::各大主播同款",
+        "一个小寂哦::新泰坦生物 矿石菌种 更多泰坦 四叶草 幸运方块",
+        "一个小寂哦::幸运方块大全 110 个高版本幸运方块 与朋友一起挑战充满幸运的世界 各大主播同款",
         "一个小寂哦::高版本神器随机合成 幸运与实力的考验 重温一遍经典娱乐模组",
         "一个小寂哦::暑假幸运方块赛道 手机可玩 低配 4个区域 6条赛道 45种不同幸运方块 童年未能达成的愿望 这次来实现",
-        "一个小寂哦::星辉死神",
-        "一个小寂哦::更多泰坦",
+        "一个小寂哦::新泰坦生物 神器小木剑 联机教程 更多泰坦 新增懒人模组 砧板 无尽贪婪",
         "一个小寂哦::无尽幸运方块大陆 重生",
-        "一个小寂哦::泰坦生物",
+        "一个小寂哦::执行之龙 叶枫同款 强化工具 四叶草 超多经典模组 休闲娱乐包",
         "一个小寂哦::浪客 重生 小本同款 女仆 豆腐世界 小型新手向 多任务 怀旧",
+        "一个小寂哦::最全 血腥革新 复活 上百种不同 重回 之巅",
+        "一个小寂哦::最全 重逢 重回 之巅 全网最全的 万物终结 异次元管理者 极夜之刃 龙族 以及各种",
+        "一个小寂哦::神器收集计划 版本 最全神器 炫猫 星辉死神 斗蛐蛐专用",
         "一个小寂哦::随机方块泰坦 每隔一段时间身边的方块就会刷新 你能否击败星辉死神",
         "一个小寂哦::我是星辉死神 变身星辉死神 终极艾德曼合金战神 终极骷髅模组 所有泰坦都能变身 凡宇轩 红烧 泉奈同款",
+        "一个小寂哦::超困难神器泰坦随机合成 各大主播同款 在 玩神器泰坦随机合成",
         "一个小寂哦::追影之旅"
       ],
-      "group_count": 17,
-      "record_count": 32,
+      "group_count": 21,
+      "record_count": 34,
       "shared_tokens": [
         "泰坦",
         "怪物大乱斗",
-        "高版本矿石菌种",
-        "高版本",
+        "哥斯拉",
         "矿石菌种",
+        "高版本",
         "幸运方块",
         "新泰坦生物",
-        "更多泰坦",
         "泰坦生物",
+        "更多泰坦",
+        "四叶草",
         "怀旧",
+        "最全",
+        "重回",
+        "之巅",
         "星辉死神",
+        "最全神器",
         "终极骷髅",
-        "无尽幸运方块大陆",
+        "各大主播同款",
+        "执行之龙",
+        "全网",
         "体验"
       ],
       "detector_reasons": [
@@ -4200,6 +4139,16 @@
             ]
           },
           {
+            "group_key": "一个小寂哦::全网 最全神器 星辉死神 凋零斯拉 执行之龙 泰坦 在 体验 时代的魅力",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1cfn1zAEMR",
+                "title": "全网首发！1.20最全神器整合包！星辉死神！凋零斯拉！执行之龙 泰坦！在1.20体验1.7时代的魅力！！！"
+              }
+            ]
+          },
+          {
             "group_key": "一个小寂哦::泰坦 新的武器 无限之锤 基岩弩 炎黄弩 虚无弓",
             "anchor": "",
             "records": [
@@ -4210,16 +4159,12 @@
             ]
           },
           {
-            "group_key": "一个小寂哦::怪物大乱斗",
-            "anchor": "怪物大乱斗",
+            "group_key": "一个小寂哦::怪物大乱斗 手机版 经典 变身 哥斯拉 经典",
+            "anchor": "",
             "records": [
               {
                 "bvid": "BV1f4Kp6yEBf",
                 "title": "我的世界 怪物大乱斗 手机版整合包发布 经典整合包 变身 哥斯拉 经典整合包！"
-              },
-              {
-                "bvid": "BV1nRBFBFEFw",
-                "title": "我的世界 怪物大乱斗：重生整合包发布！高版本矿石菌种！哥斯拉！还原1.7怪物大乱斗！让你的童年逐渐清晰！"
               }
             ]
           },
@@ -4236,22 +4181,12 @@
                 "title": "我的世界 怪物大乱斗重生1.1整合包版本更新！新增世界树！变身！更多boss！更多装备！更帅气的模型！"
               },
               {
-                "bvid": "BV1vGq9BeETp",
-                "title": "我的世界 怪物大乱斗重生整合包发布！高版本矿石菌种！国王！哥斯拉！x光！各种经典模组重回1.20高版本！"
-              }
-            ]
-          },
-          {
-            "group_key": "一个小寂哦::四叶草",
-            "anchor": "四叶草",
-            "records": [
-              {
-                "bvid": "BV1TST76EEJo",
-                "title": "我的世界 1.21.4新泰坦生物整合包更新 矿石菌种？更多泰坦！四叶草！幸运方块？"
+                "bvid": "BV1nRBFBFEFw",
+                "title": "我的世界 怪物大乱斗：重生整合包发布！高版本矿石菌种！哥斯拉！还原1.7怪物大乱斗！让你的童年逐渐清晰！"
               },
               {
-                "bvid": "BV16iC3BzEGr",
-                "title": "我的世界 执行之龙生存整合包发布！叶枫同款！强化工具！四叶草！超多经典模组！休闲娱乐包！"
+                "bvid": "BV1vGq9BeETp",
+                "title": "我的世界 怪物大乱斗重生整合包发布！高版本矿石菌种！国王！哥斯拉！x光！各种经典模组重回1.20高版本！"
               }
             ]
           },
@@ -4266,16 +4201,22 @@
             ]
           },
           {
-            "group_key": "一个小寂哦::各大主播同款",
-            "anchor": "各大主播同款",
+            "group_key": "一个小寂哦::新泰坦生物 矿石菌种 更多泰坦 四叶草 幸运方块",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1TST76EEJo",
+                "title": "我的世界 1.21.4新泰坦生物整合包更新 矿石菌种？更多泰坦！四叶草！幸运方块？"
+              }
+            ]
+          },
+          {
+            "group_key": "一个小寂哦::幸运方块大全 110 个高版本幸运方块 与朋友一起挑战充满幸运的世界 各大主播同款",
+            "anchor": "",
             "records": [
               {
                 "bvid": "BV1iBB9B6EpD",
                 "title": "我的世界 1.20.1幸运方块大全整合包发布 110+个高版本幸运方块！与朋友一起挑战充满幸运的世界！各大主播同款！"
-              },
-              {
-                "bvid": "BV1MZxnzsE2N",
-                "title": "我的世界 超困难神器泰坦随机合成整合包发布！！各大主播同款！！！在1.20玩神器泰坦随机合成！！！"
               }
             ]
           },
@@ -4300,34 +4241,16 @@
             ]
           },
           {
-            "group_key": "一个小寂哦::星辉死神",
-            "anchor": "星辉死神",
-            "records": [
-              {
-                "bvid": "BV1KxX5B7EE5",
-                "title": "我的世界 神器收集计划0.1版本发布！最全神器！炫猫！星辉死神！斗蛐蛐专用整合包！"
-              },
-              {
-                "bvid": "BV13fm7BXEL9",
-                "title": "我的世界 无尽幸运方块大陆 重生2.0整合包发布！附带下载教程！终极骷髅！星辉死神！更强的敌人和神器！"
-              },
-              {
-                "bvid": "BV1Kw2JB2ESX",
-                "title": "我的世界 无尽幸运方块大陆：重生整合包发布！高版本无尽幸运方块大陆他终于来了！新增各种泰坦作为BOSS！星辉死神！终极骷髅！还有各种神器！全新版本！全新体验！"
-              },
-              {
-                "bvid": "BV1cfn1zAEMR",
-                "title": "全网首发！1.20最全神器整合包！星辉死神！凋零斯拉！执行之龙 泰坦！在1.20体验1.7时代的魅力！！！"
-              }
-            ]
-          },
-          {
-            "group_key": "一个小寂哦::更多泰坦",
-            "anchor": "更多泰坦",
+            "group_key": "一个小寂哦::新泰坦生物 神器小木剑 联机教程 更多泰坦 新增懒人模组 砧板 无尽贪婪",
+            "anchor": "新泰坦生物 神器小木剑 联机教程 更多泰坦 新增懒人模组 砧板 无尽贪婪",
             "records": [
               {
                 "bvid": "BV1tPFQzrEkU",
                 "title": "我的世界 新泰坦生物整合包更新 神器小木剑！联机教程！更多泰坦！新增懒人模组！砧板！无尽贪婪！"
+              },
+              {
+                "bvid": "BV16ktqz4EVe",
+                "title": "我的世界自制1.21.1泰坦生物整合包首发！！"
               }
             ]
           },
@@ -4338,16 +4261,24 @@
               {
                 "bvid": "BV1YBqaBTEsX",
                 "title": "我的世界 无尽幸运方块大陆 重生 最终版本整合包发布！极致优化！不再卡顿！全新神器与星辉死神！"
+              },
+              {
+                "bvid": "BV13fm7BXEL9",
+                "title": "我的世界 无尽幸运方块大陆 重生2.0整合包发布！附带下载教程！终极骷髅！星辉死神！更强的敌人和神器！"
+              },
+              {
+                "bvid": "BV1Kw2JB2ESX",
+                "title": "我的世界 无尽幸运方块大陆：重生整合包发布！高版本无尽幸运方块大陆他终于来了！新增各种泰坦作为BOSS！星辉死神！终极骷髅！还有各种神器！全新版本！全新体验！"
               }
             ]
           },
           {
-            "group_key": "一个小寂哦::泰坦生物",
+            "group_key": "一个小寂哦::执行之龙 叶枫同款 强化工具 四叶草 超多经典模组 休闲娱乐包",
             "anchor": "",
             "records": [
               {
-                "bvid": "BV16ktqz4EVe",
-                "title": "我的世界自制1.21.1泰坦生物整合包首发！！"
+                "bvid": "BV16iC3BzEGr",
+                "title": "我的世界 执行之龙生存整合包发布！叶枫同款！强化工具！四叶草！超多经典模组！休闲娱乐包！"
               }
             ]
           },
@@ -4358,6 +4289,36 @@
               {
                 "bvid": "BV1sFTF6ZE8A",
                 "title": "《浪客拔刀剑：重生》整合包发布 小本同款！女仆 拔刀剑 豆腐世界 小型新手向整合包 多任务我的世界怀旧整合包"
+              }
+            ]
+          },
+          {
+            "group_key": "一个小寂哦::最全 血腥革新 复活 上百种不同 重回 之巅",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1ckD4BTEML",
+                "title": "我的世界 1.20.1最全拔刀剑3.0整合包发布！血腥革新！工业拔刀剑复活！上百种不同拔刀剑！重回1.7拔刀剑之巅！"
+              }
+            ]
+          },
+          {
+            "group_key": "一个小寂哦::最全 重逢 重回 之巅 全网最全的 万物终结 异次元管理者 极夜之刃 龙族 以及各种",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1JjHbzDEVY",
+                "title": "我的世界 最全拔刀剑重逢整合包2.0！重回1.7拔刀剑之巅！全网最全的整合包！更新万物终结！异次元管理者！极夜之刃！龙族拔刀剑！以及各种拔刀剑！"
+              }
+            ]
+          },
+          {
+            "group_key": "一个小寂哦::神器收集计划 版本 最全神器 炫猫 星辉死神 斗蛐蛐专用",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1KxX5B7EE5",
+                "title": "我的世界 神器收集计划0.1版本发布！最全神器！炫猫！星辉死神！斗蛐蛐专用整合包！"
               }
             ]
           },
@@ -4378,6 +4339,16 @@
               {
                 "bvid": "BV1mcidBdExc",
                 "title": "我的世界 我是星辉死神整合包发布！变身星辉死神！终极艾德曼合金战神！终极骷髅模组！所有泰坦都能变身！凡宇轩！红烧！泉奈同款！！！"
+              }
+            ]
+          },
+          {
+            "group_key": "一个小寂哦::超困难神器泰坦随机合成 各大主播同款 在 玩神器泰坦随机合成",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1MZxnzsE2N",
+                "title": "我的世界 超困难神器泰坦随机合成整合包发布！！各大主播同款！！！在1.20玩神器泰坦随机合成！！！"
               }
             ]
           },
@@ -4899,22 +4870,32 @@
       "layer": "cross_group",
       "author": "墨竹ギ",
       "group_keys": [
-        "墨竹ギ::深渊之诗",
+        "墨竹ギ::quot 以神之名 染梦世间 quot 深渊之诗 异梦终途 traveldreams",
+        "墨竹ギ::终末之途 旅者之颂 踏上找寻世界 尽头旅程 终末旅颂 end travel ode",
+        "墨竹ギ::poetry of the abyss",
         "墨竹ギ::quot 在失落的异界中 一个人生活下去 quot 生活 thelostworld 失落的异界",
-        "墨竹ギ::史诗的地下城 dungeons of fantasy",
+        "墨竹ギ::一款大型 生活向 将 quot 地下城 quot quot 死亡细胞 quot 游戏内容移植到 之中 史诗的地下城 dungeons of fantasy",
+        "墨竹ギ::一款大型 生活向 将 quot 地下城 quot quot 死亡细胞 quot 移植到 当中 史诗的地下城 dungeons of fantasy",
         "墨竹ギ::农业 低配 将 地下城 注入到 当中 史诗的地下城",
-        "墨竹ギ::幻想的地下城 一个幻想风 风 低配 将 地下城 内容注入 的 啦",
-        "墨竹ギ::史诗的地下城 一个 风 低配 极致优化 将 地下城 内容注入的高版本 啦"
+        "墨竹ギ::史诗的地下城 一个 风 低配 极致优化 将 地下城 内容注入的高版本 啦",
+        "墨竹ギ::幻想的地下城 一个幻想风 风 低配 将 地下城 内容注入 的 啦"
       ],
-      "group_count": 6,
-      "record_count": 9,
+      "group_count": 9,
+      "record_count": 10,
       "shared_tokens": [
-        "quot",
+        "travel",
+        "深渊之诗",
         "生活",
         "the",
+        "之中",
         "of",
-        "地下城",
+        "一款大型",
+        "生活向",
+        "死亡细胞",
+        "移植到",
         "史诗的地下城",
+        "dungeons",
+        "fantasy",
         "当中",
         "低配",
         "一个",
@@ -4922,7 +4903,8 @@
       ],
       "detector_reasons": [
         "stable_pack_name_overlap",
-        "unique_series_identity"
+        "unique_series_identity",
+        "version_continuity"
       ],
       "verdict": "NOT_UNDER_MERGE",
       "confidence": "high",
@@ -4930,13 +4912,29 @@
         "note": "否决：该 uploader 有 失落的异界 / 史诗的地下城 / 幻想的地下城 / 深渊之诗 等多个独立包。簇由“地下城/内容注入/低配”连通；“深渊之诗”与“史诗的地下城”虽同 uploader 但是不同包（前者是 Poetry of the Abyss，后者是 Dungeons Of Fantasy）。",
         "members": [
           {
-            "group_key": "墨竹ギ::深渊之诗",
-            "anchor": "深渊之诗",
+            "group_key": "墨竹ギ::quot 以神之名 染梦世间 quot 深渊之诗 异梦终途 traveldreams",
+            "anchor": "",
             "records": [
               {
                 "bvid": "BV15DxWe7E19",
                 "title": "MC整合包发布：&quot;以神之名，染梦世间！&quot;—深渊之诗-异梦终途[TravelDreams]"
-              },
+              }
+            ]
+          },
+          {
+            "group_key": "墨竹ギ::终末之途 旅者之颂 踏上找寻世界 尽头旅程 终末旅颂 end travel ode",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1py411q7HA",
+                "title": "【MC整合包发布】终末之途，旅者之颂！踏上找寻世界の尽头旅程 - 终末旅颂[End Travel Ode]"
+              }
+            ]
+          },
+          {
+            "group_key": "墨竹ギ::poetry of the abyss",
+            "anchor": "poetry of the abyss",
+            "records": [
               {
                 "bvid": "BV1fc411U7Q3",
                 "title": "【mc整合包】&quot;在这深渊之中,谱写新的诗篇!&quot;冒险/战斗/硬核/生活/类魂=深渊之诗-剑与魔法Poetry of the Abyss2.2更新"
@@ -4958,13 +4956,19 @@
             ]
           },
           {
-            "group_key": "墨竹ギ::史诗的地下城 dungeons of fantasy",
-            "anchor": "史诗的地下城 dungeons of fantasy",
+            "group_key": "墨竹ギ::一款大型 生活向 将 quot 地下城 quot quot 死亡细胞 quot 游戏内容移植到 之中 史诗的地下城 dungeons of fantasy",
+            "anchor": "",
             "records": [
               {
                 "bvid": "BV1Rc411f7av",
                 "title": "【MC整合包7.2发布】一款大型冒险/生活向整合包-将&quot;地下城&quot;&quot;死亡细胞&quot;游戏内容移植到MC之中!——史诗的地下城[Dungeons Of Fantasy]"
-              },
+              }
+            ]
+          },
+          {
+            "group_key": "墨竹ギ::一款大型 生活向 将 quot 地下城 quot quot 死亡细胞 quot 移植到 当中 史诗的地下城 dungeons of fantasy",
+            "anchor": "",
+            "records": [
               {
                 "bvid": "BV1Jm4y1374M",
                 "title": "一款大型冒险/生活向整合包更新发布!将&quot;地下城&quot;&quot;死亡细胞&quot;移植到MC当中——史诗的地下城[Dungeons Of Fantasy]7.0"
@@ -4982,22 +4986,22 @@
             ]
           },
           {
-            "group_key": "墨竹ギ::幻想的地下城 一个幻想风 风 低配 将 地下城 内容注入 的 啦",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1ho4y1u7H4",
-                "title": "【幻想的地下城】一个幻想风/原版风/低配,将《我的世界;地下城》内容注入MC的整合包！发布啦！"
-              }
-            ]
-          },
-          {
             "group_key": "墨竹ギ::史诗的地下城 一个 风 低配 极致优化 将 地下城 内容注入的高版本 啦",
             "anchor": "",
             "records": [
               {
                 "bvid": "BV1fM4y187fh",
                 "title": "【史诗的地下城】一个原版风/低配/极致优化，将《我的世界地下城》内容注入的高版本整合包！发布啦！"
+              }
+            ]
+          },
+          {
+            "group_key": "墨竹ギ::幻想的地下城 一个幻想风 风 低配 将 地下城 内容注入 的 啦",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1ho4y1u7H4",
+                "title": "【幻想的地下城】一个幻想风/原版风/低配,将《我的世界;地下城》内容注入MC的整合包！发布啦！"
               }
             ]
           }
@@ -5358,7 +5362,7 @@
       "author": "小兜兜呀_",
       "group_keys": [
         "小兜兜呀_::原神与机械 的时代",
-        "小兜兜呀_::小兜兜 恭喜我的原神与机械 的时代 在bbs 资源站 量破6666次和在红石中继站浏览量达到400人 次 以及 相关 计划"
+        "小兜兜呀_::的时代"
       ],
       "group_count": 2,
       "record_count": 7,
@@ -5406,103 +5410,12 @@
             ]
           },
           {
-            "group_key": "小兜兜呀_::小兜兜 恭喜我的原神与机械 的时代 在bbs 资源站 量破6666次和在红石中继站浏览量达到400人 次 以及 相关 计划",
-            "anchor": "",
+            "group_key": "小兜兜呀_::的时代",
+            "anchor": "的时代",
             "records": [
               {
                 "bvid": "BV1orhK64Em6",
                 "title": "【小兜兜】恭喜我的原神与机械冒险的时代整合包在bbsmc资源站下载量破6666次和在红石中继站浏览量达到400人/次、以及整合包相关更新计划"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "layer": "cross_group",
-      "author": "Terminus_54-32",
-      "group_keys": [
-        "terminus_54-32::泰坦 新增神器氪金萝莉",
-        "terminus_54-32::泰坦 看简介",
-        "terminus_54-32::泰坦生物 小",
-        "terminus_54-32::泰坦 附 链接",
-        "terminus_54-32::新泰坦生物 new titan creatures mod pack released",
-        "terminus_54-32::怪物大乱斗 简介"
-      ],
-      "group_count": 6,
-      "record_count": 6,
-      "shared_tokens": [
-        "泰坦",
-        "泰坦生物",
-        "简介"
-      ],
-      "detector_reasons": [
-        "stable_pack_name_overlap",
-        "version_continuity",
-        "unique_series_identity"
-      ],
-      "verdict": "UNDER_MERGE",
-      "confidence": "medium",
-      "evidence": {
-        "note": "确认（低风险）：6 组标题均为该 uploader 的“怪物大乱斗 / 泰坦生物 / 泰坦”系列，且多以“看简介/附链接/简介”结尾——是同一包反复发布被拆散。",
-        "members": [
-          {
-            "group_key": "terminus_54-32::泰坦 新增神器氪金萝莉",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1uANTzAE3v",
-                "title": "1.21.1泰坦整合包2.0发布，新增神器氪金萝莉！"
-              }
-            ]
-          },
-          {
-            "group_key": "terminus_54-32::泰坦 看简介",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1RLC7B7Ess",
-                "title": "1.21.4泰坦整合包发布{看简介}"
-              }
-            ]
-          },
-          {
-            "group_key": "terminus_54-32::泰坦生物 小",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1DxyZBdEAi",
-                "title": "1.7.10泰坦生物整合包小更新"
-              }
-            ]
-          },
-          {
-            "group_key": "terminus_54-32::泰坦 附 链接",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1NvWxzZEBj",
-                "title": "1.12.2泰坦整合包发布（附下载链接）"
-              }
-            ]
-          },
-          {
-            "group_key": "terminus_54-32::新泰坦生物 new titan creatures mod pack released",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1cRFSzfEPb",
-                "title": "我的世界1.21.4新泰坦生物整合包发布！（Minecraft 1.21.4 New Titan Creatures Mod Pack Released!）"
-              }
-            ]
-          },
-          {
-            "group_key": "terminus_54-32::怪物大乱斗 简介",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1YcUQBWEJY",
-                "title": "1.7.10怪物大乱斗整合包发布【简介】"
               }
             ]
           }
@@ -5641,6 +5554,67 @@
     },
     {
       "layer": "cross_group",
+      "author": "ZiCaiOT",
+      "group_keys": [
+        "zicaiot::在 中还原星露谷 农场物语",
+        "zicaiot::农场物语"
+      ],
+      "group_count": 2,
+      "record_count": 6,
+      "shared_tokens": [
+        "农场物语"
+      ],
+      "detector_reasons": [
+        "stable_pack_name_overlap",
+        "version_continuity",
+        "unique_series_identity"
+      ],
+      "verdict": "UNDER_MERGE",
+      "confidence": "high",
+      "evidence": {
+        "note": "确认：`在 中还原星露谷 农场物语`（3 条）与 `农场物语`（3 条）都是该 uploader 的《农场物语》同一包（1.1.7 / 1.2.0 / 1.2.6 / 1.4.1 / 1.6.7 连续版本号）→ 被拆成两键，属跨组拆分。",
+        "members": [
+          {
+            "group_key": "zicaiot::在 中还原星露谷 农场物语",
+            "anchor": "在 中还原星露谷 农场物语",
+            "records": [
+              {
+                "bvid": "BV1XA9tBYE5D",
+                "title": "【整合包更新】在我的世界中还原星露谷！农场物语1.4.1！"
+              },
+              {
+                "bvid": "BV1CwWxznEJA",
+                "title": "【整合包更新】在我的世界中还原星露谷！农场物语forge1.2.6!"
+              },
+              {
+                "bvid": "BV1REYKzgE45",
+                "title": "【整合包大更新】在我的世界中还原星露谷！农场物语forge1.2.0！"
+              }
+            ]
+          },
+          {
+            "group_key": "zicaiot::农场物语",
+            "anchor": "农场物语",
+            "records": [
+              {
+                "bvid": "BV1TFYkzFEA3",
+                "title": "【整合包更新】我的世界与星露谷物语结合？以种田为主题的休闲整合包！农场物语forge1.1.7 新增奶酪成熟机制、养鱼玩法和上古水果"
+              },
+              {
+                "bvid": "BV18hgCz7E55",
+                "title": "农场物语forge版整合包更新！[农夫乐事xLet&#x27;s Do兼容！统一作物 / 机械动力xLet&#x27;s Do联动！自动化酿酒]"
+              },
+              {
+                "bvid": "BV1muJnziEdf",
+                "title": "[我的世界整合包更新]农场物语1.6.7 更好的Vanilla+整合包！原版玩腻了？那就来试试这个吧！"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "layer": "cross_group",
       "author": "VM汉化组",
       "group_keys": [
         "vm汉化组::内容超多的 了 卓越 ii 版本 汉化 amp 官方汉化安装教程",
@@ -5722,140 +5696,69 @@
       "layer": "cross_group",
       "author": "墨言eclipse",
       "group_keys": [
-        "墨言eclipse::涅槃 无神明渡我 我亦是神明",
-        "墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅",
-        "墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频",
-        "墨言eclipse::沉浸 深度 a 咒镰双生"
+        "墨言eclipse::摄魂 破刹 定身 颠覆性的 交互体验 摄影奇境宣传片",
+        "墨言eclipse::大型 模块化 颠覆性的 革新 究极 爽的杀敌体验 辅助的锻刀之旅 千界万锻 宣传片",
+        "墨言eclipse::命轮无章 infinite random",
+        "墨言eclipse::高版本沉浸 lt 未尽之诗 gt 官方宣传片 一首写给高版本 的远征诗"
       ],
       "group_count": 4,
       "record_count": 5,
       "shared_tokens": [
-        "涅槃",
-        "深度"
+        "颠覆性的",
+        "宣传片",
+        "版本"
       ],
       "detector_reasons": [
         "stable_pack_name_overlap",
         "unique_series_identity",
         "version_continuity"
       ],
-      "verdict": "UNDER_MERGE",
+      "verdict": "NOT_UNDER_MERGE",
       "confidence": "high",
       "evidence": {
-        "note": "确认：7 条 涅槃 记录（v0.1.5 → v0.2）属同一上传者墨言eclipse 的同一逻辑包，算法拆成 5 个 group key。此簇覆盖其中 4 个 key（第 5 个 未尽之路涅槃 被“未尽之路”桥接到另一簇）。",
+        "note": "否决：命轮无章 / 千界万锻 / 摄影奇境 / 未尽之诗 是四个不同包。簇由形容词“颠覆性的”连通——R2 已否决它作为 anchor。把它当作跨组同包证据会立刻制造两个新的误合并。注意该键在 3G-F.2-A 已按新 anchor 拆成两键，恰好证明“颠覆性的”是标签而不是包名。",
         "members": [
           {
-            "group_key": "墨言eclipse::涅槃 无神明渡我 我亦是神明",
+            "group_key": "墨言eclipse::摄魂 破刹 定身 颠覆性的 交互体验 摄影奇境宣传片",
             "anchor": "",
             "records": [
               {
-                "bvid": "BV1CQtC6eEaC",
-                "title": "[MC整合包发布:涅槃]  无神明渡我 我亦是神明"
+                "bvid": "BV1Ljug6yEhC",
+                "title": "【MC整合包发布】摄魂 破刹 定身！颠覆性的战斗交互体验---摄影奇境宣传片"
               }
             ]
           },
           {
-            "group_key": "墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅",
+            "group_key": "墨言eclipse::大型 模块化 颠覆性的 革新 究极 爽的杀敌体验 辅助的锻刀之旅 千界万锻 宣传片",
             "anchor": "",
             "records": [
               {
-                "bvid": "BV1ZTuJ6rEJp",
-                "title": "[整合包更新-涅槃v0.2]神吞降世，邪神投影，万魂幡！ 超越法则的魔法镰刀战斗之旅"
+                "bvid": "BV1hA3Y6zEEQ",
+                "title": "[MC大型整合包发布] 模块化拔刀剑 颠覆性的战斗革新 究极战斗爽的杀敌体验!  科技辅助的锻刀之旅!---千界万锻整合包宣传片"
               }
             ]
           },
           {
-            "group_key": "墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频",
-            "anchor": "",
+            "group_key": "墨言eclipse::命轮无章 infinite random",
+            "anchor": "命轮无章 infinite random",
             "records": [
               {
-                "bvid": "BV1LyN366E4u",
-                "title": "[MC大型整合包发布] 禁忌魔法 远古炼金  世界污染  3万行代码深度魔改---涅槃v.0.1.8 宣传视频"
-              }
-            ]
-          },
-          {
-            "group_key": "墨言eclipse::沉浸 深度 a 咒镰双生",
-            "anchor": "沉浸 深度 a 咒镰双生",
-            "records": [
-              {
-                "bvid": "BV1sNjq6pEAd",
-                "title": "[MC整合包发布]涅槃v0.1.6 [沉浸战斗/深度魔改/ARPG/咒镰双生]"
+                "bvid": "BV1VccDzUENe",
+                "title": "【MC 整合包发布】命轮无章 [Infinite Random]1.3 pro-max版本更新介绍"
               },
               {
-                "bvid": "BV1UJET67ErR",
-                "title": "[MC整合包发布] 涅槃v.0.1.5介绍视频 [沉浸战斗/深度魔改/ARPG/咒镰双生]"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "layer": "cross_group",
-      "author": "Pork猪排",
-      "group_keys": [
-        "pork猪排::化龙 版本 龙可是帝王之征",
-        "pork猪排::化龍 金鳞岂是池中物 一遇风云便化龙",
-        "pork猪排::龙语 连招 化龍 版本",
-        "pork猪排::化龍 麒麟踏雪"
-      ],
-      "group_count": 4,
-      "record_count": 5,
-      "shared_tokens": [
-        "化龙",
-        "化龍"
-      ],
-      "detector_reasons": [
-        "stable_pack_name_overlap",
-        "version_continuity",
-        "unique_series_identity"
-      ],
-      "verdict": "UNDER_MERGE",
-      "confidence": "medium",
-      "evidence": {
-        "note": "确认：4 组均为《化龍》同一包的宣传/更新（含繁体 化龍 与简体 化龙 两种写法，归一化后同根）→ 被拆散，属跨组拆分。",
-        "members": [
-          {
-            "group_key": "pork猪排::化龙 版本 龙可是帝王之征",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1BA9wBqEnE",
-                "title": "【MC整合包】化龙1.3.2版本更新：龙可是帝王之征"
+                "bvid": "BV11cZdBGEbQ",
+                "title": "【MC 整合包发布】&quot;颠覆性的全随机冒险，锚定命运的救世征途！&quot;------- 命轮无章 [Infinite Random]"
               }
             ]
           },
           {
-            "group_key": "pork猪排::化龍 金鳞岂是池中物 一遇风云便化龙",
-            "anchor": "化龍 金鳞岂是池中物 一遇风云便化龙",
-            "records": [
-              {
-                "bvid": "BV12VtQzkEcm",
-                "title": "【MC整合包发布】化龍1.0正式版！金鳞岂是池中物，一遇风云便化龙。"
-              },
-              {
-                "bvid": "BV1nbTqzCECX",
-                "title": "『化龍』MC整合包发布“金鳞岂是池中物，一遇风云便化龙”"
-              }
-            ]
-          },
-          {
-            "group_key": "pork猪排::龙语 连招 化龍 版本",
+            "group_key": "墨言eclipse::高版本沉浸 lt 未尽之诗 gt 官方宣传片 一首写给高版本 的远征诗",
             "anchor": "",
             "records": [
               {
-                "bvid": "BV1PMAVzKExm",
-                "title": "龙语魔法、魔法连招!『化龍』MC整合包1.3.1版本发布!"
-              }
-            ]
-          },
-          {
-            "group_key": "pork猪排::化龍 麒麟踏雪",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1GrzxBZE7S",
-                "title": "【MC整合包发布】『化龍』1.2正式版：麒麟踏雪"
+                "bvid": "BV1qp7p6qEFj",
+                "title": "[1.21.11高版本沉浸探索整合包发布] &lt;未尽之诗&gt;官方宣传片 | 一首写给高版本MC的远征诗"
               }
             ]
           }
@@ -5935,71 +5838,6 @@
     },
     {
       "layer": "cross_group",
-      "author": "墨言eclipse",
-      "group_keys": [
-        "墨言eclipse::颠覆性的",
-        "墨言eclipse::命轮无章 infinite random",
-        "墨言eclipse::高版本沉浸 lt 未尽之诗 gt 官方宣传片 一首写给高版本 的远征诗"
-      ],
-      "group_count": 3,
-      "record_count": 5,
-      "shared_tokens": [
-        "颠覆性的",
-        "版本"
-      ],
-      "detector_reasons": [
-        "stable_pack_name_overlap",
-        "unique_series_identity",
-        "version_continuity"
-      ],
-      "verdict": "NOT_UNDER_MERGE",
-      "confidence": "high",
-      "evidence": {
-        "note": "否决：命轮无章 / 摄影奇境与千界万锻（由“颠覆性的”误合）/ 未尽之诗 是不同包。此簇正印证了“颠覆性的”是真人误合并，而不是真实跨组同包。",
-        "members": [
-          {
-            "group_key": "墨言eclipse::颠覆性的",
-            "anchor": "颠覆性的",
-            "records": [
-              {
-                "bvid": "BV1Ljug6yEhC",
-                "title": "【MC整合包发布】摄魂 破刹 定身！颠覆性的战斗交互体验---摄影奇境宣传片"
-              },
-              {
-                "bvid": "BV1hA3Y6zEEQ",
-                "title": "[MC大型整合包发布] 模块化拔刀剑 颠覆性的战斗革新 究极战斗爽的杀敌体验!  科技辅助的锻刀之旅!---千界万锻整合包宣传片"
-              }
-            ]
-          },
-          {
-            "group_key": "墨言eclipse::命轮无章 infinite random",
-            "anchor": "命轮无章 infinite random",
-            "records": [
-              {
-                "bvid": "BV1VccDzUENe",
-                "title": "【MC 整合包发布】命轮无章 [Infinite Random]1.3 pro-max版本更新介绍"
-              },
-              {
-                "bvid": "BV11cZdBGEbQ",
-                "title": "【MC 整合包发布】&quot;颠覆性的全随机冒险，锚定命运的救世征途！&quot;------- 命轮无章 [Infinite Random]"
-              }
-            ]
-          },
-          {
-            "group_key": "墨言eclipse::高版本沉浸 lt 未尽之诗 gt 官方宣传片 一首写给高版本 的远征诗",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1qp7p6qEFj",
-                "title": "[1.21.11高版本沉浸探索整合包发布] &lt;未尽之诗&gt;官方宣传片 | 一首写给高版本MC的远征诗"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "layer": "cross_group",
       "author": "炒雪吵狐力o",
       "group_keys": [
         "炒雪吵狐力o::rapid",
@@ -6056,6 +5894,71 @@
               {
                 "bvid": "BV1HgGvz2ENe",
                 "title": "[整合包发布]1.21+极致优化,NeoForge/Fabirc双端支持！帧数暴涨！低配玩家福星！RapidOptimization优化整合包！"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "layer": "cross_group",
+      "author": "Terminus_54-32",
+      "group_keys": [
+        "terminus_54-32::泰坦",
+        "terminus_54-32::泰坦生物 小",
+        "terminus_54-32::新泰坦生物 new titan creatures mod pack released"
+      ],
+      "group_count": 3,
+      "record_count": 5,
+      "shared_tokens": [
+        "泰坦",
+        "泰坦生物"
+      ],
+      "detector_reasons": [
+        "stable_pack_name_overlap",
+        "version_continuity",
+        "unique_series_identity"
+      ],
+      "verdict": "UNDER_MERGE",
+      "confidence": "medium",
+      "evidence": {
+        "note": "确认（低风险）：三组均为该 uploader 的“泰坦 / 泰坦生物 / 新泰坦生物”系列，标题同构、无区分性包名 → 同一包被拆散。",
+        "members": [
+          {
+            "group_key": "terminus_54-32::泰坦",
+            "anchor": "泰坦",
+            "records": [
+              {
+                "bvid": "BV1uANTzAE3v",
+                "title": "1.21.1泰坦整合包2.0发布，新增神器氪金萝莉！"
+              },
+              {
+                "bvid": "BV1RLC7B7Ess",
+                "title": "1.21.4泰坦整合包发布{看简介}"
+              },
+              {
+                "bvid": "BV1NvWxzZEBj",
+                "title": "1.12.2泰坦整合包发布（附下载链接）"
+              }
+            ]
+          },
+          {
+            "group_key": "terminus_54-32::泰坦生物 小",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1DxyZBdEAi",
+                "title": "1.7.10泰坦生物整合包小更新"
+              }
+            ]
+          },
+          {
+            "group_key": "terminus_54-32::新泰坦生物 new titan creatures mod pack released",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1cRFSzfEPb",
+                "title": "我的世界1.21.4新泰坦生物整合包发布！（Minecraft 1.21.4 New Titan Creatures Mod Pack Released!）"
               }
             ]
           }
@@ -6238,6 +6141,194 @@
     },
     {
       "layer": "cross_group",
+      "author": "Pork猪排",
+      "group_keys": [
+        "pork猪排::化龙 版本 龙可是帝王之征",
+        "pork猪排::化龍"
+      ],
+      "group_count": 2,
+      "record_count": 5,
+      "shared_tokens": [
+        "化龙"
+      ],
+      "detector_reasons": [
+        "stable_pack_name_overlap",
+        "version_continuity"
+      ],
+      "verdict": "UNDER_MERGE",
+      "confidence": "high",
+      "evidence": {
+        "note": "确认：两组均为《化龍》同一包（含繁体「化龍」与简体「化龙」两种写法，归一化后同根）→ 被拆散。",
+        "members": [
+          {
+            "group_key": "pork猪排::化龙 版本 龙可是帝王之征",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1BA9wBqEnE",
+                "title": "【MC整合包】化龙1.3.2版本更新：龙可是帝王之征"
+              }
+            ]
+          },
+          {
+            "group_key": "pork猪排::化龍",
+            "anchor": "化龍",
+            "records": [
+              {
+                "bvid": "BV1PMAVzKExm",
+                "title": "龙语魔法、魔法连招!『化龍』MC整合包1.3.1版本发布!"
+              },
+              {
+                "bvid": "BV1GrzxBZE7S",
+                "title": "【MC整合包发布】『化龍』1.2正式版：麒麟踏雪"
+              },
+              {
+                "bvid": "BV12VtQzkEcm",
+                "title": "【MC整合包发布】化龍1.0正式版！金鳞岂是池中物，一遇风云便化龙。"
+              },
+              {
+                "bvid": "BV1nbTqzCECX",
+                "title": "『化龍』MC整合包发布“金鳞岂是池中物，一遇风云便化龙”"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "layer": "cross_group",
+      "author": "在职玩家JoStar",
+      "group_keys": [
+        "在职玩家jostar::方可梦 1 已 确定航线 出发 去吧 方可梦大师 尝鲜体验包现已",
+        "在职玩家jostar::方块宝可梦 za全mega已 全系统 全图鉴 去吧 方可梦大师 双版本 正式 也有服务端哦 持续 方可梦 内容",
+        "在职玩家jostar::方块宝可梦超全 化身小智 钛晶 mega z招式三系统全都要 踏上击败各地区道馆主的冠军之路吧 去吧 方可梦大师 正式",
+        "在职玩家jostar::方块宝可梦最 几乎全图鉴 想要的全都有 方可梦 版本 啦"
+      ],
+      "group_count": 4,
+      "record_count": 4,
+      "shared_tokens": [
+        "方可梦",
+        "去吧",
+        "方可梦大师",
+        "方块宝可梦",
+        "全图鉴"
+      ],
+      "detector_reasons": [
+        "stable_pack_name_overlap",
+        "unique_series_identity",
+        "version_continuity"
+      ],
+      "verdict": "UNDER_MERGE",
+      "confidence": "high",
+      "evidence": {
+        "note": "确认：四组均为《去吧，方可梦大师》同一包（1.7 尝鲜 / 2.99 / 3.0 / 4.0 双版本）→ 被拆成四组。3G-F.2-A 的 anchor 下沉把原本一个候选组拆成了四条独立记录，同包结论不变。",
+        "members": [
+          {
+            "group_key": "在职玩家jostar::方可梦 1 已 确定航线 出发 去吧 方可梦大师 尝鲜体验包现已",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV14wUnBpEcQ",
+                "title": "【方可梦整合包】(11.25已更新)确定航线，出发！《去吧，方可梦大师》1.7尝鲜体验包现已发布~"
+              }
+            ]
+          },
+          {
+            "group_key": "在职玩家jostar::方块宝可梦 za全mega已 全系统 全图鉴 去吧 方可梦大师 双版本 正式 也有服务端哦 持续 方可梦 内容",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1VNLRzYERC",
+                "title": "【方块宝可梦整合包】（ZA全mega已更新！）全系统、全图鉴！《去吧，方可梦大师》4.0“双版本”正式发布！也有服务端哦~持续更新方可梦最新内容~"
+              }
+            ]
+          },
+          {
+            "group_key": "在职玩家jostar::方块宝可梦超全 化身小智 钛晶 mega z招式三系统全都要 踏上击败各地区道馆主的冠军之路吧 去吧 方可梦大师 正式",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1VVZjYHEag",
+                "title": "【方块宝可梦超全整合包3.0】化身小智！钛晶、mega、Z招式三系统全都要！踏上击败各地区道馆主的冠军之路吧！《去吧，方可梦大师！》3.0正式发布~"
+              }
+            ]
+          },
+          {
+            "group_key": "在职玩家jostar::方块宝可梦最 几乎全图鉴 想要的全都有 方可梦 版本 啦",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1RmPJejEDD",
+                "title": "【方块宝可梦最最新整合包】几乎全图鉴！想要的全都有！我的世界1.21.1方可梦整合包2.99版本发布啦"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "layer": "cross_group",
+      "author": "不知名的莫理沙",
+      "group_keys": [
+        "不知名的莫理沙::异界法师 稳定版本 枪魔 之 勇者之章",
+        "不知名的莫理沙::星月枪姬与落魄勇者",
+        "不知名的莫理沙::你从未见过的多线性枪魔 勇者之章 大量模组物品修改和添加说明 70 boss"
+      ],
+      "group_count": 3,
+      "record_count": 4,
+      "shared_tokens": [
+        "稳定版本",
+        "勇者之章",
+        "枪魔"
+      ],
+      "detector_reasons": [
+        "stable_pack_name_overlap",
+        "unique_series_identity"
+      ],
+      "verdict": "UNDER_MERGE",
+      "confidence": "high",
+      "evidence": {
+        "note": "确认：三组标题都带 `勇者之章Ⅲ`，是《勇者之章Ⅲ》同一包的不同子版本（多线性枪魔 / 异界法师 / 星月枪姬与落魄勇者）→ 3G-F.2-A 的 anchor 下沉把原本一个组拆成三组，属跨组拆分（同包）。",
+        "members": [
+          {
+            "group_key": "不知名的莫理沙::异界法师 稳定版本 枪魔 之 勇者之章",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1p7HYziEfo",
+                "title": "【整合包更新】☆异界法师☆稳定版本！枪魔魔改之我的世界整合包勇者之章Ⅲ"
+              }
+            ]
+          },
+          {
+            "group_key": "不知名的莫理沙::星月枪姬与落魄勇者",
+            "anchor": "星月枪姬与落魄勇者",
+            "records": [
+              {
+                "bvid": "BV13m7Yz3EST",
+                "title": "【整合包更新】☆星月枪姬与落魄勇者☆稳定版本！战斗魔改我的世界整合包勇者之章Ⅲ"
+              },
+              {
+                "bvid": "BV1CfVLzNE1b",
+                "title": "【整合包更新】☆星月枪姬与落魄勇者☆版本更新！我的世界魔改战斗整合包勇者之章Ⅲ"
+              }
+            ]
+          },
+          {
+            "group_key": "不知名的莫理沙::你从未见过的多线性枪魔 勇者之章 大量模组物品修改和添加说明 70 boss",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1nYN2evEug",
+                "title": "【整合包发布】你从未见过的多线性枪魔战斗魔改整合包！勇者之章Ⅲ！大量模组物品修改和添加说明，70+高难Boss！"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "layer": "cross_group",
       "author": "吴也mc",
       "group_keys": [
         "吴也mc::悠然人生海岛时光",
@@ -6298,59 +6389,6 @@
     },
     {
       "layer": "cross_group",
-      "author": "落烟雨辰呀",
-      "group_keys": [
-        "落烟雨辰呀::诡厄使徒",
-        "落烟雨辰呀::诡厄 使徒"
-      ],
-      "group_count": 2,
-      "record_count": 4,
-      "shared_tokens": [
-        "诡厄",
-        "使徒"
-      ],
-      "detector_reasons": [
-        "stable_pack_name_overlap",
-        "version_continuity"
-      ],
-      "verdict": "UNDER_MERGE",
-      "confidence": "high",
-      "evidence": {
-        "note": "确认：两组均为《诡厄使徒》同一包（1.0.6/1.0.7 与 1.1.0），差别仅在中英文冒号与空格 → 典型跨组拆分。",
-        "members": [
-          {
-            "group_key": "落烟雨辰呀::诡厄使徒",
-            "anchor": "诡厄使徒",
-            "records": [
-              {
-                "bvid": "BV1gkT66HEzV",
-                "title": "【mc最新整合包发布】诡厄使徒：诸神黄昏，救赎或是终焉？"
-              },
-              {
-                "bvid": "BV1qg5a6dEuh",
-                "title": "【MC整合包】诡厄使徒1.1.0版本发布，轻量/魔改/冒险/任务"
-              }
-            ]
-          },
-          {
-            "group_key": "落烟雨辰呀::诡厄 使徒",
-            "anchor": "诡厄 使徒",
-            "records": [
-              {
-                "bvid": "BV1s2X4BnEkR",
-                "title": "【MC整合包更新】诡厄：使徒1.0.7：十二使徒头衔与使徒眷属"
-              },
-              {
-                "bvid": "BV1JTwZzDEQr",
-                "title": "【MC整合包更新】诡厄：使徒1.0.6，化身使徒，完成飞升"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "layer": "cross_group",
       "author": "Karashok_Leo",
       "group_keys": [
         "karashok_leo::咒次元",
@@ -6396,59 +6434,6 @@
               {
                 "bvid": "BV1iDdLYJESg",
                 "title": "【MC整合包更新发布】咒次元 0.6.0"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "layer": "cross_group",
-      "author": "在职玩家JoStar",
-      "group_keys": [
-        "在职玩家jostar::去吧 方可梦大师",
-        "在职玩家jostar::方可梦"
-      ],
-      "group_count": 2,
-      "record_count": 4,
-      "shared_tokens": [
-        "方可梦",
-        "方块宝可梦"
-      ],
-      "detector_reasons": [
-        "stable_pack_name_overlap",
-        "unique_series_identity"
-      ],
-      "verdict": "UNDER_MERGE",
-      "confidence": "high",
-      "evidence": {
-        "note": "确认：「方可梦」与「去吧，方可梦大师」是同一包（候选层已判后者为同包）→ 被拆成两组。",
-        "members": [
-          {
-            "group_key": "在职玩家jostar::去吧 方可梦大师",
-            "anchor": "去吧 方可梦大师",
-            "records": [
-              {
-                "bvid": "BV14wUnBpEcQ",
-                "title": "【方可梦整合包】(11.25已更新)确定航线，出发！《去吧，方可梦大师》1.7尝鲜体验包现已发布~"
-              },
-              {
-                "bvid": "BV1VNLRzYERC",
-                "title": "【方块宝可梦整合包】（ZA全mega已更新！）全系统、全图鉴！《去吧，方可梦大师》4.0“双版本”正式发布！也有服务端哦~持续更新方可梦最新内容~"
-              },
-              {
-                "bvid": "BV1VVZjYHEag",
-                "title": "【方块宝可梦超全整合包3.0】化身小智！钛晶、mega、Z招式三系统全都要！踏上击败各地区道馆主的冠军之路吧！《去吧，方可梦大师！》3.0正式发布~"
-              }
-            ]
-          },
-          {
-            "group_key": "在职玩家jostar::方可梦",
-            "anchor": "方可梦",
-            "records": [
-              {
-                "bvid": "BV1RmPJejEDD",
-                "title": "【方块宝可梦最最新整合包】几乎全图鉴！想要的全都有！我的世界1.21.1方可梦整合包2.99版本发布啦"
               }
             ]
           }
@@ -6569,6 +6554,62 @@
     },
     {
       "layer": "cross_group",
+      "author": "啊liu22",
+      "group_keys": [
+        "啊liu22::竟然是 版群峦的 简单群峦",
+        "啊liu22::简单群峦 简单易上手的群峦传说",
+        "啊liu22::更真实的 亲历人类 进化史 群峦传说 野望"
+      ],
+      "group_count": 3,
+      "record_count": 3,
+      "shared_tokens": [
+        "简单群峦",
+        "群峦传说"
+      ],
+      "detector_reasons": [
+        "stable_pack_name_overlap",
+        "unique_series_identity"
+      ],
+      "verdict": "NOT_UNDER_MERGE",
+      "confidence": "high",
+      "evidence": {
+        "note": "否决：「群峦野望」与「简单群峦」是两个不同包（都是群峦主题，但命名与定位不同）。后两组彼此可合并（同一包被拆成两组），但整个簇不是同一个包。",
+        "members": [
+          {
+            "group_key": "啊liu22::竟然是 版群峦的 简单群峦",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1uYwxzCEDr",
+                "title": "竟然是最新版群峦的整合包！简单群峦v3发布"
+              }
+            ]
+          },
+          {
+            "group_key": "啊liu22::简单群峦 简单易上手的群峦传说",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1tG42evEuE",
+                "title": "【整合包发布】简单群峦2.0 - 简单易上手的群峦传说整合包"
+              }
+            ]
+          },
+          {
+            "group_key": "啊liu22::更真实的 亲历人类 进化史 群峦传说 野望",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1TFUnB9ENB",
+                "title": "整合包发布-更真实的生存，亲历人类科技进化史【群峦传说：野望】"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "layer": "cross_group",
       "author": "WZW_王宗王",
       "group_keys": [
         "wzw_王宗王::fcl zl启动器 勇者之章3 手机移植版",
@@ -6626,62 +6667,6 @@
     },
     {
       "layer": "cross_group",
-      "author": "在下Shmily",
-      "group_keys": [
-        "在下shmily::优化 最牛优化 cmpack即将来临",
-        "在下shmily::优化 老手机2800帧 最牛优化",
-        "在下shmily::优化 老手机2000 fps 最牛优化"
-      ],
-      "group_count": 3,
-      "record_count": 3,
-      "shared_tokens": [
-        "最牛优化",
-        "老手机"
-      ],
-      "detector_reasons": [
-        "stable_pack_name_overlap",
-        "unique_series_identity"
-      ],
-      "verdict": "UNDER_MERGE",
-      "confidence": "high",
-      "evidence": {
-        "note": "确认：3 组均为该 uploader 的“最牛优化”性能包（老手机2000/2800帧为其宣传语）→ 被拆散。",
-        "members": [
-          {
-            "group_key": "在下shmily::优化 最牛优化 cmpack即将来临",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1zNvCBrEgL",
-                "title": "[MC优化]最牛优化整合包V4.0发布，魔改CMpack即将来临!"
-              }
-            ]
-          },
-          {
-            "group_key": "在下shmily::优化 老手机2800帧 最牛优化",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1XTqSBHEyr",
-                "title": "[MC优化]老手机2800帧,最牛优化整合包V3.9发布!"
-              }
-            ]
-          },
-          {
-            "group_key": "在下shmily::优化 老手机2000 fps 最牛优化",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV12TxAzvE9r",
-                "title": "[MC优化]老手机2000＋FPS,最牛优化整合包发布！"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "layer": "cross_group",
       "author": "小水滴的源头",
       "group_keys": [
         "小水滴的源头::当你在 里拥有了学生们的能力 npcai系统 跨时代篇",
@@ -6730,63 +6715,6 @@
               {
                 "bvid": "BV13rfqY2Ejf",
                 "title": "在MC里使用学生们的力量！？我的世界x蔚蓝档案 整合包新版发布介绍！（更新篇）"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "layer": "cross_group",
-      "author": "芦苇草的梦想",
-      "group_keys": [
-        "芦苇草的梦想::芦苇 寒假来休闲一下 芦苇的 宣传片",
-        "芦苇草的梦想::芦苇的 宣传片4",
-        "芦苇草的梦想::芦苇的 版本 宣传片"
-      ],
-      "group_count": 3,
-      "record_count": 3,
-      "shared_tokens": [
-        "芦苇",
-        "芦苇的",
-        "宣传片"
-      ],
-      "detector_reasons": [
-        "stable_pack_name_overlap",
-        "unique_series_identity"
-      ],
-      "verdict": "UNDER_MERGE",
-      "confidence": "medium",
-      "evidence": {
-        "note": "确认（低风险）：3 组均为该 uploader 同名“芦苇的整合包”系列宣传片，编号 4 为其一 → 被拆散。",
-        "members": [
-          {
-            "group_key": "芦苇草的梦想::芦苇 寒假来休闲一下 芦苇的 宣传片",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1hN6FBnEUp",
-                "title": "【芦苇】寒假来休闲一下-芦苇的1.21.11整合包宣传片4.2.12更新"
-              }
-            ]
-          },
-          {
-            "group_key": "芦苇草的梦想::芦苇的 宣传片4",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1KdrKBeE9Z",
-                "title": "芦苇的1.21.10整合包宣传片4.1.7更新"
-              }
-            ]
-          },
-          {
-            "group_key": "芦苇草的梦想::芦苇的 版本 宣传片",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV14e2LBuEAK",
-                "title": "芦苇的整合包版本更新4.0.11-1.21.10宣传片"
               }
             ]
           }
@@ -6852,6 +6780,62 @@
     },
     {
       "layer": "cross_group",
+      "author": "-阳春面面-",
+      "group_keys": [
+        "-阳春面面-::大重置 格雷青春版 青春复兴",
+        "-阳春面面-::蔚蓝档案超大型 青春复兴 早期版本先行",
+        "-阳春面面-::大 蔚蓝档案 版本"
+      ],
+      "group_count": 3,
+      "record_count": 3,
+      "shared_tokens": [
+        "青春复兴",
+        "蔚蓝档案"
+      ],
+      "detector_reasons": [
+        "stable_pack_name_overlap",
+        "unique_series_identity"
+      ],
+      "verdict": "AMBIGUOUS",
+      "confidence": "high",
+      "evidence": {
+        "note": "无法判定：「格雷青春版：青春复兴」与「蔚蓝档案超大型：青春复兴」是否同一包的两次改版，标题不足；且该 uploader 同时有独立的「蔚蓝档案版本」包。不计数，如实记录。",
+        "members": [
+          {
+            "group_key": "-阳春面面-::大重置 格雷青春版 青春复兴",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1qTDNY3Ekc",
+                "title": "大重置！格雷青春版?青春复兴整合包0.7.1更新！"
+              }
+            ]
+          },
+          {
+            "group_key": "-阳春面面-::蔚蓝档案超大型 青春复兴 早期版本先行",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1bZigehE6V",
+                "title": "蔚蓝档案超大型科技冒险整合包：青春复兴 早期版本先行发布（1.20.1）"
+              }
+            ]
+          },
+          {
+            "group_key": "-阳春面面-::大 蔚蓝档案 版本",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1K6HjeTEKJ",
+                "title": "大更新！蔚蓝档案科技整合包0.5.1版本发布！"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "layer": "cross_group",
       "author": "爱吃土豆的界王",
       "group_keys": [
         "爱吃土豆的界王::山海大陆斗罗大陆 与",
@@ -6892,102 +6876,6 @@
               {
                 "bvid": "BV1bPQCBcEws",
                 "title": "【整合包发布】山海大陆整合包下载与介绍-我的世界斗罗大陆与山海经为背景"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "layer": "cross_group",
-      "author": "啊liu22",
-      "group_keys": [
-        "啊liu22::简单群峦",
-        "啊liu22::更真实的 亲历人类 进化史 群峦传说 野望"
-      ],
-      "group_count": 2,
-      "record_count": 3,
-      "shared_tokens": [
-        "群峦传说"
-      ],
-      "detector_reasons": [
-        "stable_pack_name_overlap",
-        "unique_series_identity"
-      ],
-      "verdict": "NOT_UNDER_MERGE",
-      "confidence": "medium",
-      "evidence": {
-        "note": "否决：「群峦野望」与「简单群峦」是两个不同包（都是群峦主题，但命名与定位不同）。簇仅由“群峦传说”主题词连通。",
-        "members": [
-          {
-            "group_key": "啊liu22::简单群峦",
-            "anchor": "简单群峦",
-            "records": [
-              {
-                "bvid": "BV1uYwxzCEDr",
-                "title": "竟然是最新版群峦的整合包！简单群峦v3发布"
-              },
-              {
-                "bvid": "BV1tG42evEuE",
-                "title": "【整合包发布】简单群峦2.0 - 简单易上手的群峦传说整合包"
-              }
-            ]
-          },
-          {
-            "group_key": "啊liu22::更真实的 亲历人类 进化史 群峦传说 野望",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1TFUnB9ENB",
-                "title": "整合包发布-更真实的生存，亲历人类科技进化史【群峦传说：野望】"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "layer": "cross_group",
-      "author": "流霜雾影",
-      "group_keys": [
-        "流霜雾影::愚者版本大",
-        "流霜雾影::愚者 愚弄 伪装 欺诈 屠龙者终成恶龙 扮演所有的生物 使用它们的能力编织一场完美的欺诈盛宴"
-      ],
-      "group_count": 2,
-      "record_count": 3,
-      "shared_tokens": [
-        "愚者"
-      ],
-      "detector_reasons": [
-        "stable_pack_name_overlap",
-        "unique_series_identity"
-      ],
-      "verdict": "UNDER_MERGE",
-      "confidence": "high",
-      "evidence": {
-        "note": "确认：两组均为《愚者》同一包（候选层已判后者为同包）→ 被拆成两组。",
-        "members": [
-          {
-            "group_key": "流霜雾影::愚者版本大",
-            "anchor": "愚者版本大",
-            "records": [
-              {
-                "bvid": "BV1s3ZNBYEQU",
-                "title": "【MC整合包发布】愚者v0.2：塔罗秘闻、罪梦流派、逆位诅咒！愚者版本大更新，全新挑战内容来袭！"
-              },
-              {
-                "bvid": "BV1CLnmzgECo",
-                "title": "【MC整合包发布】愚者v0.1：初升的暮色、日落的天堂、迷失梦境的旅人、萌芽地狱的新生...愚者版本大更新！更丰富的玩法、更具挑战的内容来了！！！"
-              }
-            ]
-          },
-          {
-            "group_key": "流霜雾影::愚者 愚弄 伪装 欺诈 屠龙者终成恶龙 扮演所有的生物 使用它们的能力编织一场完美的欺诈盛宴",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1iRL7zYExj",
-                "title": "【MC整合包发布：愚者】愚弄、伪装、欺诈，屠龙者终成恶龙。扮演所有的生物，使用它们的能力编织一场完美的欺诈盛宴！"
               }
             ]
           }
@@ -7044,55 +6932,6 @@
     },
     {
       "layer": "cross_group",
-      "author": "-阳春面面-",
-      "group_keys": [
-        "-阳春面面-::青春复兴",
-        "-阳春面面-::大 蔚蓝档案 版本"
-      ],
-      "group_count": 2,
-      "record_count": 3,
-      "shared_tokens": [
-        "蔚蓝档案"
-      ],
-      "detector_reasons": [
-        "stable_pack_name_overlap",
-        "version_continuity",
-        "unique_series_identity"
-      ],
-      "verdict": "UNDER_MERGE",
-      "confidence": "medium",
-      "evidence": {
-        "note": "确认（需注意）：候选层已把「青春复兴」判为 AMBIGUOUS（格雷青春版 vs 蔚蓝档案超大型）。本簇把“蔚蓝档案版本”与“青春复兴”连起来，倾向于认为这是同一包被拆散，但因 AMBIGUOUS 性质，保守标 medium。",
-        "members": [
-          {
-            "group_key": "-阳春面面-::青春复兴",
-            "anchor": "青春复兴",
-            "records": [
-              {
-                "bvid": "BV1qTDNY3Ekc",
-                "title": "大重置！格雷青春版?青春复兴整合包0.7.1更新！"
-              },
-              {
-                "bvid": "BV1bZigehE6V",
-                "title": "蔚蓝档案超大型科技冒险整合包：青春复兴 早期版本先行发布（1.20.1）"
-              }
-            ]
-          },
-          {
-            "group_key": "-阳春面面-::大 蔚蓝档案 版本",
-            "anchor": "",
-            "records": [
-              {
-                "bvid": "BV1K6HjeTEKJ",
-                "title": "大更新！蔚蓝档案科技整合包0.5.1版本发布！"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "layer": "cross_group",
       "author": "鹿清玖LQJ",
       "group_keys": [
         "__raw_BV1aRYC6cE4p",
@@ -7130,6 +6969,51 @@
               {
                 "bvid": "BV1AoULBgEoH",
                 "title": "我的世界1.20.1整合包，溯渊最新更新"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "layer": "cross_group",
+      "author": "plaudite_",
+      "group_keys": [
+        "plaudite_::v s scarlet adventure绯红",
+        "plaudite_::vivid stasis 模组 绯红 scarlet adventure 附"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "scarlet",
+        "绯红"
+      ],
+      "detector_reasons": [
+        "stable_pack_name_overlap",
+        "unique_series_identity"
+      ],
+      "verdict": "UNDER_MERGE",
+      "confidence": "high",
+      "evidence": {
+        "note": "确认：两组均为《Scarlet Adventure 绯红冒险》同一包（v2.0 发布 / 介绍+发布）→ 3G-F.2-A 的 anchor 下沉把原本一个组拆成两条独立记录，属跨组拆分（同包）。",
+        "members": [
+          {
+            "group_key": "plaudite_::v s scarlet adventure绯红",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1jNYn6KEth",
+                "title": "[v/s×mc]整合包Scarlet Adventure绯红冒险v2.0发布"
+              }
+            ]
+          },
+          {
+            "group_key": "plaudite_::vivid stasis 模组 绯红 scarlet adventure 附",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1oo4d6REzq",
+                "title": "[Minecraft×Vivid/Stasis]模组 绯红冒险Scarlet Adventure介绍+发布（附整合包）"
               }
             ]
           }
@@ -7353,6 +7237,141 @@
               {
                 "bvid": "BV1kDBpBcE9x",
                 "title": "【MC整合包发布!】铁砧工艺：极速版——完美体验铁砧工艺的所有内容！"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "layer": "cross_group",
+      "author": "叙利亚自爆民兵",
+      "group_keys": [
+        "叙利亚自爆民兵::你好 新蒸程 正式 航空学 voxy 独家地形 构成 的视觉盛宴",
+        "叙利亚自爆民兵::你好 新世代 voxy 机械动力 瓦尔基里全新兼容"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "你好",
+        "voxy"
+      ],
+      "detector_reasons": [
+        "stable_pack_name_overlap",
+        "unique_series_identity"
+      ],
+      "verdict": "NOT_UNDER_MERGE",
+      "confidence": "high",
+      "evidence": {
+        "note": "否决：这正是 R1（name-slot disagreement）刚刚分开的两个包——《你好，新世代》与《你好，新蒸程》。它们共享 voxy / 航空学 等通用组件词，但方括号名槽互不相同。合并回去就是把修复撤销。",
+        "members": [
+          {
+            "group_key": "叙利亚自爆民兵::你好 新蒸程 正式 航空学 voxy 独家地形 构成 的视觉盛宴",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1Kc96BWENb",
+                "title": "《你好，新蒸程》整合包正式发布！航空学，voxy，独家地形，构成mc的视觉盛宴"
+              }
+            ]
+          },
+          {
+            "group_key": "叙利亚自爆民兵::你好 新世代 voxy 机械动力 瓦尔基里全新兼容",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1PbAczPE4o",
+                "title": "《你好，新世代》整合包发布，voxy，机械动力6.0.8，瓦尔基里全新兼容，1.20.1forge"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "layer": "cross_group",
+      "author": "ARR-C6H6",
+      "group_keys": [
+        "arr-c6h6::真菌感染加惊变100天 旧世界",
+        "arr-c6h6::真菌感染惊变类轻量化 爽 旧世界"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "旧世界"
+      ],
+      "detector_reasons": [
+        "stable_pack_name_overlap",
+        "unique_series_identity"
+      ],
+      "verdict": "UNDER_MERGE",
+      "confidence": "high",
+      "evidence": {
+        "note": "确认：两组均为该 uploader 的《旧世界》同一包（v0.3Beta / v0.4Beta，标题结构一致）→ 被拆成两组。",
+        "members": [
+          {
+            "group_key": "arr-c6h6::真菌感染加惊变100天 旧世界",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1cFDPBqEK2",
+                "title": "真菌感染加惊变100天整合包更新【1.20.1 旧世界v0.4Beta】"
+              }
+            ]
+          },
+          {
+            "group_key": "arr-c6h6::真菌感染惊变类轻量化 爽 旧世界",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1G7XTBzE2K",
+                "title": "真菌感染惊变类轻量化战斗爽整合包测试版发布！【我的世界1.20.1/旧世界v0.3Beta】"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "layer": "cross_group",
+      "author": "原界环",
+      "group_keys": [
+        "原界环::少女 以及cqb or not girl amp gun",
+        "原界环::全新 pve 少女准备中 maiden or not 自locknar的 or not"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "少女",
+        "or",
+        "not"
+      ],
+      "detector_reasons": [
+        "stable_pack_name_overlap",
+        "unique_series_identity"
+      ],
+      "verdict": "NOT_UNDER_MERGE",
+      "confidence": "high",
+      "evidence": {
+        "note": "否决：这是 R3（English function words）刚刚分开的两个包。“or not” 是命名后缀（跨 IP），不是包名，合并会制造误合并。",
+        "members": [
+          {
+            "group_key": "原界环::少女 以及cqb or not girl amp gun",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV17ZwjzvEpG",
+                "title": "少女，枪械以及CQB——Minecraft or Not：Girl&amp;Gun整合包发布！"
+              }
+            ]
+          },
+          {
+            "group_key": "原界环::全新 pve 少女准备中 maiden or not 自locknar的 or not",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1XPcXzWEZ4",
+                "title": "全新我的世界PVE整合包发布[少女准备中//Maiden or not]（魔改自locknar的Minecraft or not）"
               }
             ]
           }
@@ -7978,6 +7997,50 @@
               {
                 "bvid": "BV1RT411h7gm",
                 "title": "【我的世界宝可梦整合包】养老向 实时更新最新版 目标是成为宝可梦大师！"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "layer": "cross_group",
+      "author": "Tibsalta",
+      "group_keys": [
+        "tibsalta::抗争之际 难度驱动 向",
+        "tibsalta::旅途痕迹 难度驱动"
+      ],
+      "group_count": 2,
+      "record_count": 2,
+      "shared_tokens": [
+        "难度驱动"
+      ],
+      "detector_reasons": [
+        "stable_pack_name_overlap",
+        "unique_series_identity"
+      ],
+      "verdict": "NOT_UNDER_MERGE",
+      "confidence": "high",
+      "evidence": {
+        "note": "否决：这是 R1（name-slot disagreement）刚刚分开的两个包——《抗争之际》与《旅途痕迹》。【难度驱动】只是系列标签。合并回去就是把修复撤销。",
+        "members": [
+          {
+            "group_key": "tibsalta::抗争之际 难度驱动 向",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1wu411W7dV",
+                "title": "【抗争之际0.6】【难度驱动】1.19.2我的世界冒险向整合包发布"
+              }
+            ]
+          },
+          {
+            "group_key": "tibsalta::旅途痕迹 难度驱动",
+            "anchor": "",
+            "records": [
+              {
+                "bvid": "BV1ok4y1t7u9",
+                "title": "【旅途痕迹0.5】【难度驱动】1.19.2我的世界整合包发布"
               }
             ]
           }

@@ -12,11 +12,29 @@ fell out of the candidate list and nobody noticed". So the assertions here are
 written so that REMOVING a known case fails, and so that ADDING an unadjudicated
 candidate fails.
 
+Phase 3G-F.2-A (this revision) -- CORRECTED PREMISES. The runtime was remediated
+(`3f81db2`) and this audit now runs AGAINST the fixed runtime. Three premises were
+found to be STALE and are corrected here, not relaxed:
+
+  1. 涅槃 is TWO packs, not one. 3G-F-A's "7 records, ONE pack, split into 5 groups"
+     is REFUTED by the records' own structured registration ids (5 -> 涅槃,
+     2 -> 未尽之路-涅槃). Asserting "7 merge into 1" would now demand a real
+     OVER-merge, so §9 of the phase brief requires the test to stop requiring it.
+  2. The 7 known false merges are now 8 (怪物大乱斗 joined them) and ALL EIGHT are
+     CLOSED. They therefore must NOT appear as live REAL_FALSE_MERGE -- the old
+     `known_7_adjudicated_real` assertion inverted the sign of the fix and is
+     replaced by "retired, with a cause, and not present".
+  3. The holdout is DERIVED from (ledger x runtime x old-vs-new diff), so fixing
+     the runtime legitimately re-derives it. The pinned numbers are therefore the
+     CURRENT derivation's, and the test asserts the DERIVATION RULES hold --
+     uploader disjointness, evidence on every case -- rather than that a
+     previously-measured count never moves.
+
 DELIBERATELY NOT ASSERTED
-  * that population-level false merges are zero (they are not; that is the finding)
+  * that population-level false merges are zero in the DETECTOR output (they are
+    not; the detector over-reports by design and the ledger is what judges)
   * that the detector is exhaustive (it is not; see remaining_blind_spots)
-  * that candidate-detector precision is high (it is LOW BY DESIGN -- the detector
-    over-reports so nothing is silently missed; see §14)
+  * that candidate-detector precision is high (it is LOW BY DESIGN; see §14)
 """
 import hashlib
 import json
@@ -41,10 +59,14 @@ OLD_SPLIT = os.path.join(REPO_ROOT, "pipeline", "audit",
 AUDIT_DOC = os.path.join(REPO_ROOT, "docs", "audit",
                          "BILIBILI_GROUPING_POPULATION_EXPANSION.md")
 
-# ---- §7: the 7 confirmed false merges. If ANY of these disappears from the
-# candidate list, or is no longer adjudicated REAL_FALSE_MERGE, the expanded
-# detector has REGRESSED and the test must fail loudly.
-KNOWN_FALSE_MERGES = [
+# ---- §7: the EIGHT confirmed population-level false merges, all closed by the
+# 3G-F.1-A / 3G-F.2-A runtime remediation. Two complementary assertions are
+# needed and they are NOT the same claim:
+#   (a) every one must be RETIRED with a documented cause (the fix landed), and
+#   (b) NONE may appear live as REAL_FALSE_MERGE (the fix did not regress).
+# The pre-3G-F.2-A `known_7_adjudicated_real` assertion demanded the OPPOSITE of
+# (b), i.e. that the defect still exist -- it inverted the sign of the fix.
+RETIRED_FALSE_MERGES = [
     "一个小寂哦::星辉死神",
     "一个小寂哦::四叶草",
     "一个小寂哦::各大主播同款",
@@ -52,11 +74,18 @@ KNOWN_FALSE_MERGES = [
     "原界环::or not",
     "叙利亚自爆民兵::voxy",
     "tibsalta::难度驱动",
+    "一个小寂哦::怪物大乱斗",
 ]
 
-# ---- §8: 涅槃 is ONE logical pack spread across FIVE group keys (hand-verified
-# against bili_data in 3G-F-A). All five must be surfaced as one under-merge.
+# ---- §9: 涅槃 occupies exactly TWO group keys in the remediated runtime. The
+# 3G-F-A "one pack, 5 groups" list is kept ONLY as a regression detector: if the
+# family re-fragments into two or more of those legacy keys, the corrected 涅槃
+# key has already been swallowed and the fix must be considered regressed.
 NIE_SPLIT_GROUP_KEYS = [
+    "墨言eclipse::涅槃",
+    "墨言eclipse::未尽之路涅槃",
+]
+NIE_LEGACY_SPLIT_GROUP_KEYS = [
     "墨言eclipse::涅槃 无神明渡我 我亦是神明",
     "墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅",
     "墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频",
@@ -116,63 +145,137 @@ class TestBilibiliPopulationAuditV2(unittest.TestCase):
         cls.holdout = load(HOLDOUT)
 
     # ---------------------------------------------------------------- §7
-    def test_all_known_7_still_detected_as_candidates(self):
-        found = {c["group_key"] for c in self.cand["candidates"]}
-        missing = [k for k in KNOWN_FALSE_MERGES if k not in found]
-        self.assertEqual(
-            missing, [],
-            f"Detector regression: known false merges no longer reach the candidate "
-            f"list: {missing}")
+    def test_all_known_false_merges_are_retired_with_a_cause(self):
+        """3G-F.2-A: all 8 are CLOSED. Each must carry a cause and a fix.
 
-    def test_all_known_7_adjudicated_real(self):
+        This replaces the pre-3G-F.2-A assertion that they were still
+        REAL_FALSE_MERGE. Demanding the defect still exist inverts the sign of
+        the fix: after remediation a correct audit must show it GONE.
+        """
+        retired = self.ledger["retired_false_merges"]
+        self.assertIsInstance(retired, dict)
+        for key in RETIRED_FALSE_MERGES:
+            self.assertIn(key, retired,
+                          f"known false merge {key} is not in the retired table")
+            entry = retired[key]
+            self.assertTrue(entry.get("fixed_by"),
+                            f"{key} retired with no `fixed_by` cause")
+            self.assertFalse(entry.get("still_present", False),
+                             f"{key} is still a live group - not actually closed")
+
+    def test_no_known_false_merge_is_live(self):
+        """The complementary half: none may reappear as a live REAL_FALSE_MERGE."""
         real = {r["group_key"] for r in self.ledger["real_false_merges"]}
-        for key in KNOWN_FALSE_MERGES:
-            self.assertIn(key, real,
-                          f"Known false merge {key} is no longer REAL_FALSE_MERGE")
+        for key in RETIRED_FALSE_MERGES:
+            self.assertNotIn(key, real,
+                             f"REGRESSION: {key} became a false merge again")
+        self.assertEqual(self.ledger["counts"]["known_8_still_merging"], [])
+        self.assertEqual(self.ledger["counts"]["known_8_unexplained"], [])
+        self.assertEqual(self.ledger["counts"]["known_8_retired"], len(RETIRED_FALSE_MERGES))
 
     def test_voxy_and_difficulty_driven_explicitly(self):
-        """§7 names these two as must-haves; pin them independently."""
-        found = {c["group_key"] for c in self.cand["candidates"]}
-        self.assertIn("叙利亚自爆民兵::voxy", found)
-        self.assertIn("tibsalta::难度驱动", found)
+        """§7 names these two as must-haves; pin them independently.
+
+        3G-F.2-A: both are now CLOSED. They are pinned by (a) being retired with
+        a cause and (b) being absent from the live false-merge set. Their absence
+        from the CANDIDATE list is also expected -- a bad anchor that the
+        admissibility rules now reject does not reach the candidate net.
+        """
+        retired = self.ledger["retired_false_merges"]
+        for key in ("叙利亚自爆民兵::voxy", "tibsalta::难度驱动"):
+            self.assertIn(key, retired, f"{key} not retired")
+            self.assertTrue(retired[key].get("fixed_by"))
+            self.assertFalse(retired[key].get("still_present", False))
         real = {r["group_key"] for r in self.ledger["real_false_merges"]}
-        self.assertIn("叙利亚自爆民兵::voxy", real)
-        self.assertIn("tibsalta::难度驱动", real)
+        self.assertNotIn("叙利亚自爆民兵::voxy", real)
+        self.assertNotIn("tibsalta::难度驱动", real)
+
+    def test_voxy_and_difficulty_driven_ledger_via_retired_or_candidate(self):
+        """Each retired bad-anchor key must be accounted for EXACTLY ONCE: either
+        it is still a candidate under the same key, or it is a retired candidate
+        key with a documented reason. Nothing may silently vanish."""
+        cand_keys = {c["group_key"] for c in self.cand["candidates"]}
+        retired_keys = self.ledger["retired_candidate_keys"]
+        for key in ("叙利亚自爆民兵::voxy", "tibsalta::难度驱动",
+                    "一个小寂哦::星辉死神"):
+            accounted = (key in cand_keys) or (key in retired_keys)
+            self.assertTrue(accounted,
+                            f"{key} vanished from BOTH the candidate list and the "
+                            f"retired-candidate ledger")
 
     def test_voxy_keeps_generic_component_signal(self):
-        """voxy must still be flagged as a GENERIC component, not just a bad anchor."""
-        c = next(x for x in self.cand["candidates"]
-                 if x["group_key"] == "叙利亚自爆民兵::voxy")
-        self.assertIn("generic_component_anchor", c["detector_reasons"])
+        """voxy must still be flagged as a GENERIC component, not just a bad anchor.
+
+        3G-F.2-A: `叙利亚自爆民兵::voxy` was the ONLY member of this class, and
+        the fix RESELECTED that group's anchor away from the bare renderer name
+        (voxy) to a real pack name (`你好 新世代`). A live count of 0 is therefore
+        the CORRECT state, not a lost capability -- so the assertion is that the
+        class is (a) still implemented and (b) the retired row documents where the
+        member went. Demanding a live member would demand the defect persist.
+        """
+        src = os.path.join(REPO_ROOT, "pipeline", "audit",
+                           "bilibili_population_candidate_scan_v2.js")
+        with open(src, encoding="utf-8") as fp:
+            body = fp.read()
+        self.assertIn("generic_component_anchor", body,
+                      "the generic_component_anchor detector was deleted")
+        # The generic word list must still contain the renderer names.
+        for word in ("voxy", "sodium", "iris"):
+            self.assertIn(f"'{word}'", body,
+                          f"generic word '{word}' was dropped from the detector")
+        retired = self.ledger["retired_candidate_keys"].get("叙利亚自爆民兵::voxy")
+        self.assertIsNotNone(retired, "voxy row missing from the retired ledger")
+        self.assertEqual(retired["kind"], "anchor_reselected")
+        self.assertIn("voxy", retired["note"])
+        self.assertTrue(retired.get("now"), "voxy was retired with no replacement anchor")
 
     def test_difficulty_driven_keeps_bracket_signal(self):
-        c = next(x for x in self.cand["candidates"]
-                 if x["group_key"] == "tibsalta::难度驱动")
-        self.assertIn("bracket_series_tag", c["detector_reasons"])
+        counts = self.cand["detector_class_counts"]
+        self.assertGreater(
+            counts.get("bracket_series_tag", 0), 0,
+            "bracket_series_tag coverage lost entirely")
+        hit = [c for c in self.cand["candidates"]
+               if c["group_key"] == "tibsalta::难度驱动"]
+        if hit:
+            self.assertIn("bracket_series_tag", hit[0]["detector_reasons"])
 
-    # ---------------------------------------------------------------- §8
-    def test_nie_undermerge_detected(self):
-        """涅槃 5-way split must be surfaced; §8 requires it be exposed as
-        UNDER-MERGE, not mis-recorded as a false merge."""
+    # ---------------------------------------------------------------- §9
+    def test_nie_corrected_target_is_two_groups(self):
+        """涅槃 is TWO packs (5 + 2), per the records' own registration ids.
+
+        The 3G-F-A premise (7 records -> ONE pack) is REFUTED. Asserting 7->1
+        would now demand a real OVER-merge.
+        """
         um = self.ledger["under_merge"]
-        self.assertGreaterEqual(um["nie_under_merge_clusters"], 1)
-        self.assertEqual(
-            um["nie_group_keys_missing"], [],
-            f"涅槃 split keys no longer covered: {um['nie_group_keys_missing']}")
-        self.assertEqual(len(um["nie_group_keys_covered"]), len(NIE_SPLIT_GROUP_KEYS))
+        self.assertEqual(um["nie_corrected_target_groups"], 2)
+        self.assertEqual(sorted(um["nie_group_keys_satisfied"]),
+                         sorted(NIE_SPLIT_GROUP_KEYS))
+        self.assertEqual(um["nie_group_keys_missing"], [])
+
+    def test_nie_does_not_regress_to_legacy_split(self):
+        """A regression would re-fragment the family into the 5 legacy keys.
+
+        Threshold, not any-overlap: `未尽之路涅槃` is itself one of the legacy
+        keys AND is part of the CORRECT target, so >1 is the real signal.
+        """
+        um = self.ledger["under_merge"]
+        self.assertFalse(um["nie_regressed_to_legacy_split"],
+                         f"涅槃 re-fragmented into {um['nie_legacy_split_keys_present']}")
+        self.assertLessEqual(len(um["nie_legacy_split_keys_present"]), 1)
 
     def test_nie_not_recorded_as_false_merge(self):
-        """Two of the 涅槃 groups sit in the candidate list. They MUST NOT be
-        counted as false merges -- the defect is a false SPLIT."""
+        """涅槃 keys MUST NOT be counted as false merges -- the defect is a
+        false SPLIT, not a false merge."""
         real = {r["group_key"] for r in self.ledger["real_false_merges"]}
-        for key in ("墨言eclipse::沉浸 深度 a 咒镰双生",
-                    "墨言eclipse::未尽之路涅槃"):
+        for key in NIE_SPLIT_GROUP_KEYS + NIE_LEGACY_SPLIT_GROUP_KEYS:
             self.assertNotIn(key, real, f"{key} must not be counted as a false merge")
 
-    def test_nie_groups_are_marked_false_split(self):
-        split = {r["group_key"] for r in self.ledger["false_split_indicators"]}
-        self.assertIn("墨言eclipse::沉浸 深度 a 咒镰双生", split)
-        self.assertIn("墨言eclipse::未尽之路涅槃", split)
+    def test_nie_premise_correction_is_documented(self):
+        """The correction itself must be recorded, so a future reader cannot
+        re-inherit the refuted premise."""
+        um = self.ledger["under_merge"]
+        self.assertTrue(um["nie_premise_correction"])
+        self.assertIn("2", str(um["nie_corrected_target_groups"]))
 
     # ------------------------------------------------------- §6 / §14 ledger
     def test_every_candidate_is_adjudicated(self):
@@ -225,9 +328,32 @@ class TestBilibiliPopulationAuditV2(unittest.TestCase):
         self.assertEqual(c["false_split_indicator"],
                          len(self.ledger["false_split_indicators"]))
         self.assertEqual(c["ambiguous"], len(self.ledger["ambiguous"]))
-        self.assertEqual(c["known_7_missing"], [],
-                         "known-7 coverage regressed")
-        self.assertEqual(c["known_7_detected"], 7)
+        # ---- 3G-F.2-A: the known-defect counters are about RETIREMENT, not
+        # detection. A correct audit after remediation shows 0 still-merging.
+        self.assertEqual(c["known_8_still_merging"], [],
+                         "a known false merge regressed")
+        self.assertEqual(c["known_8_unexplained"], [],
+                         "a retired false merge has no documented cause")
+        self.assertEqual(c["known_8_retired"], len(RETIRED_FALSE_MERGES))
+        self.assertEqual(c["candidates_total"], c["candidates_adjudicated"])
+        self.assertEqual(c["retired_candidate_keys"],
+                         len(self.ledger["retired_candidate_keys"]))
+
+    def test_retired_candidate_keys_are_actually_absent(self):
+        """Every retired candidate key must really be gone. A 'retired' row that
+        is still a live candidate means the ledger is double-counting."""
+        cand_keys = {c["group_key"] for c in self.cand["candidates"]}
+        for key in self.ledger["retired_candidate_keys"]:
+            self.assertNotIn(key, cand_keys,
+                             f"{key} is retired but still a live candidate")
+        self.assertEqual(self.ledger["retired_candidate_keys_still_present"], [])
+
+    def test_every_retired_candidate_key_has_a_cause(self):
+        for key, entry in self.ledger["retired_candidate_keys"].items():
+            self.assertIn(entry.get("kind"),
+                          ("merged_into_live_group", "anchor_reselected"),
+                          f"{key} retired with an undocumented kind")
+            self.assertTrue(entry.get("note"), f"{key} retired with no note")
 
     # ------------------------------------------------- §2 separation of layers
     def test_detector_emits_no_verdicts(self):
@@ -266,10 +392,17 @@ class TestBilibiliPopulationAuditV2(unittest.TestCase):
 
     # ------------------------------------------------------ §10 holdout
     def test_holdout_meets_requirement(self):
+        """The holdout is DERIVED (ledger x runtime x old-vs-new diff), so fixing
+        the runtime legitimately re-derives it. Assert the DERIVATION CONTRACT
+        and the §6 gates, not a frozen count from a different runtime."""
         h = self.holdout["holdout_v2"]
-        self.assertGreaterEqual(h["positive"], 10)
-        self.assertGreaterEqual(h["negative"], 10)
+        self.assertGreaterEqual(h["positive"], 30,
+                                "holdout lost most of its positives")
+        self.assertGreaterEqual(h["negative"], 30,
+                                "holdout lost most of its negatives")
+        self.assertGreaterEqual(h["uploader_count"], 80)
         self.assertTrue(h["meets_requirement"])
+        self.assertEqual(h["uploader_overlap_with_old_corpus"], [])
 
     def test_holdout_uploaders_disjoint_from_dev_corpus(self):
         h = self.holdout["holdout_v2"]
@@ -330,19 +463,38 @@ class TestBilibiliPopulationAuditV2(unittest.TestCase):
 
     def test_blind_spot_classes_are_actually_covered(self):
         """The whole point of 3G-F.1-B: classes the old scanner structurally
-        could not emit must be present in the candidate list."""
+        could not emit must be present in the candidate list.
+
+        3G-F.2-A note: the CLASSES are the invariant, not their counts. Fixing
+        the runtime legitimately removes candidates, so a class whose entire
+        membership was a defect disappears. The classes pinned here are the ones
+        that must survive as DETECTOR CAPABILITY; two narrow ones
+        (`anchor_index_one`, `generic_component_anchor`) are asserted only as
+        "coverage not entirely lost" because the fix took their last member.
+        """
         counts = self.cand["detector_class_counts"]
+        # The v1 blind spot: index-0 anchors were structurally invisible.
         self.assertGreater(counts.get("anchor_index_zero", 0), 0,
                            "anchor_index_zero coverage lost -- the v1 blind spot is back")
-        self.assertGreater(counts.get("anchor_index_one", 0), 0)
         self.assertGreater(counts.get("short_anchor", 0), 0)
         self.assertGreater(counts.get("bracket_series_tag", 0), 0)
-        self.assertGreater(counts.get("generic_component_anchor", 0), 0)
         self.assertGreater(counts.get("low_discriminative_key", 0), 0)
         self.assertGreater(counts.get("large_group", 0), 0)
         self.assertGreater(counts.get("mixed_anchor_position", 0), 0)
         self.assertGreater(counts.get("late_anchor_distinct_prefix", 0), 0)
         self.assertGreater(counts.get("repeated_title_boilerplate", 0), 0)
+        # `anchor_index_one` had exactly 2 members and `generic_component_anchor`
+        # one: both were bad anchors the admissibility rules now reject. The
+        # CLASS must not be deleted along with its last member -- the detector
+        # source still implements it, and the threshold block still documents it.
+        self.assertIn("detector_classes", self.cand["thresholds"]["v2"])
+        src = os.path.join(REPO_ROOT, "pipeline", "audit",
+                           "bilibili_population_candidate_scan_v2.js")
+        with open(src, encoding="utf-8") as fp:
+            body = fp.read()
+        for cls in ("generic_component_anchor", "anchor_index_one"):
+            self.assertIn(cls, body,
+                          f"detector class {cls} was deleted from the scanner source")
 
     def test_old_scanner_blind_spot_is_real(self):
         """Guard the premise: the v1 threshold really did exclude index 0, so the

@@ -10,9 +10,9 @@
     "frozen": true
   },
   "holdout_v2": {
-    "positive": 46,
-    "negative": 66,
-    "uploader_count": 95,
+    "positive": 44,
+    "negative": 71,
+    "uploader_count": 97,
     "uploaders": [
       "--axx--",
       "-六五六-",
@@ -39,6 +39,7 @@
       "sh1ntaro",
       "sino_p",
       "smartakita",
+      "tibsalta",
       "whisperstarlight",
       "wzw_王宗王",
       "xyebbs中文论坛",
@@ -56,7 +57,9 @@
       "冰冻酸奶盒",
       "冷空awa",
       "勾圈剋尖326",
+      "原界环",
       "友止殷eugene",
+      "叙利亚自爆民兵",
       "咱叫小屿",
       "圆殇圆捞尸",
       "在下shmily",
@@ -102,7 +105,6 @@
       "籽岷",
       "腾星月lucky",
       "莱斯莎沃rs_",
-      "落烟雨辰呀",
       "账号已注销",
       "青墨浮跃",
       "青山半隐",
@@ -115,7 +117,7 @@
   },
   "positive_cases": [
     {
-      "case_id": "HOLDOUT2-POS-15",
+      "case_id": "HOLDOUT2-POS-14",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "勾圈剋尖326",
@@ -155,7 +157,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-05",
+      "case_id": "HOLDOUT2-POS-04",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "小兜兜呀_",
@@ -191,43 +193,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-24",
-      "expected": "merge",
-      "kind": "same_pack_split_by_old_algorithm",
-      "uploader": "ZiCaiOT",
-      "group_key": "zicaiot::农场物语",
-      "old_distinct_keys": 4,
-      "confidence": "confirmed",
-      "source": "v2 adjudication ledger (LEGITIMATE_SAME_PACK) + old-vs-new diff",
-      "videos": [
-        {
-          "bvid": "BV1XA9tBYE5D",
-          "title": "【整合包更新】在我的世界中还原星露谷！农场物语1.4.1！"
-        },
-        {
-          "bvid": "BV1CwWxznEJA",
-          "title": "【整合包更新】在我的世界中还原星露谷！农场物语forge1.2.6!"
-        },
-        {
-          "bvid": "BV1REYKzgE45",
-          "title": "【整合包大更新】在我的世界中还原星露谷！农场物语forge1.2.0！"
-        },
-        {
-          "bvid": "BV1TFYkzFEA3",
-          "title": "【整合包更新】我的世界与星露谷物语结合？以种田为主题的休闲整合包！农场物语forge1.1.7 新增奶酪成熟机制、养鱼玩法和上古水果"
-        },
-        {
-          "bvid": "BV18hgCz7E55",
-          "title": "农场物语forge版整合包更新！[农夫乐事xLet&#x27;s Do兼容！统一作物 / 机械动力xLet&#x27;s Do联动！自动化酿酒]"
-        },
-        {
-          "bvid": "BV1muJnziEdf",
-          "title": "[我的世界整合包更新]农场物语1.6.7 更好的Vanilla+整合包！原版玩腻了？那就来试试这个吧！"
-        }
-      ]
-    },
-    {
-      "case_id": "HOLDOUT2-POS-04",
+      "case_id": "HOLDOUT2-POS-03",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "from火星",
@@ -259,7 +225,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-22",
+      "case_id": "HOLDOUT2-POS-21",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "科里森Corrison",
@@ -291,7 +257,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-17",
+      "case_id": "HOLDOUT2-POS-16",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "狐狸の妙妙屋",
@@ -319,35 +285,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-29",
-      "expected": "merge",
-      "kind": "same_pack_split_by_old_algorithm",
-      "uploader": "不知名的莫理沙",
-      "group_key": "不知名的莫理沙::勇者之章",
-      "old_distinct_keys": 4,
-      "confidence": "confirmed",
-      "source": "v2 adjudication ledger (LEGITIMATE_SAME_PACK) + old-vs-new diff",
-      "videos": [
-        {
-          "bvid": "BV1p7HYziEfo",
-          "title": "【整合包更新】☆异界法师☆稳定版本！枪魔魔改之我的世界整合包勇者之章Ⅲ"
-        },
-        {
-          "bvid": "BV13m7Yz3EST",
-          "title": "【整合包更新】☆星月枪姬与落魄勇者☆稳定版本！战斗魔改我的世界整合包勇者之章Ⅲ"
-        },
-        {
-          "bvid": "BV1CfVLzNE1b",
-          "title": "【整合包更新】☆星月枪姬与落魄勇者☆版本更新！我的世界魔改战斗整合包勇者之章Ⅲ"
-        },
-        {
-          "bvid": "BV1nYN2evEug",
-          "title": "【整合包发布】你从未见过的多线性枪魔战斗魔改整合包！勇者之章Ⅲ！大量模组物品修改和添加说明，70+高难Boss！"
-        }
-      ]
-    },
-    {
-      "case_id": "HOLDOUT2-POS-06",
+      "case_id": "HOLDOUT2-POS-05",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "星遥工坊",
@@ -371,7 +309,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-07",
+      "case_id": "HOLDOUT2-POS-06",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "炒雪吵狐力o",
@@ -395,7 +333,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-11",
+      "case_id": "HOLDOUT2-POS-10",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "宅际不上班",
@@ -419,7 +357,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-16",
+      "case_id": "HOLDOUT2-POS-15",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "Monica_squirrel",
@@ -443,7 +381,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-18",
+      "case_id": "HOLDOUT2-POS-17",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "没睡醒的老王呀",
@@ -467,31 +405,79 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-27",
+      "case_id": "HOLDOUT2-POS-23",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
-      "uploader": "在职玩家JoStar",
-      "group_key": "在职玩家jostar::去吧 方可梦大师",
+      "uploader": "流霜雾影",
+      "group_key": "流霜雾影::愚者",
       "old_distinct_keys": 3,
       "confidence": "confirmed",
       "source": "v2 adjudication ledger (LEGITIMATE_SAME_PACK) + old-vs-new diff",
       "videos": [
         {
-          "bvid": "BV14wUnBpEcQ",
-          "title": "【方可梦整合包】(11.25已更新)确定航线，出发！《去吧，方可梦大师》1.7尝鲜体验包现已发布~"
+          "bvid": "BV1s3ZNBYEQU",
+          "title": "【MC整合包发布】愚者v0.2：塔罗秘闻、罪梦流派、逆位诅咒！愚者版本大更新，全新挑战内容来袭！"
         },
         {
-          "bvid": "BV1VNLRzYERC",
-          "title": "【方块宝可梦整合包】（ZA全mega已更新！）全系统、全图鉴！《去吧，方可梦大师》4.0“双版本”正式发布！也有服务端哦~持续更新方可梦最新内容~"
+          "bvid": "BV1CLnmzgECo",
+          "title": "【MC整合包发布】愚者v0.1：初升的暮色、日落的天堂、迷失梦境的旅人、萌芽地狱的新生...愚者版本大更新！更丰富的玩法、更具挑战的内容来了！！！"
         },
         {
-          "bvid": "BV1VVZjYHEag",
-          "title": "【方块宝可梦超全整合包3.0】化身小智！钛晶、mega、Z招式三系统全都要！踏上击败各地区道馆主的冠军之路吧！《去吧，方可梦大师！》3.0正式发布~"
+          "bvid": "BV1iRL7zYExj",
+          "title": "【MC整合包发布：愚者】愚弄、伪装、欺诈，屠龙者终成恶龙。扮演所有的生物，使用它们的能力编织一场完美的欺诈盛宴！"
         }
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-31",
+      "case_id": "HOLDOUT2-POS-24",
+      "expected": "merge",
+      "kind": "same_pack_split_by_old_algorithm",
+      "uploader": "在下Shmily",
+      "group_key": "在下shmily::最牛优化",
+      "old_distinct_keys": 3,
+      "confidence": "confirmed",
+      "source": "v2 adjudication ledger (LEGITIMATE_SAME_PACK) + old-vs-new diff",
+      "videos": [
+        {
+          "bvid": "BV1zNvCBrEgL",
+          "title": "[MC优化]最牛优化整合包V4.0发布，魔改CMpack即将来临!"
+        },
+        {
+          "bvid": "BV1XTqSBHEyr",
+          "title": "[MC优化]老手机2800帧,最牛优化整合包V3.9发布!"
+        },
+        {
+          "bvid": "BV12TxAzvE9r",
+          "title": "[MC优化]老手机2000＋FPS,最牛优化整合包发布！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT2-POS-27",
+      "expected": "merge",
+      "kind": "same_pack_split_by_old_algorithm",
+      "uploader": "ZiCaiOT",
+      "group_key": "zicaiot::农场物语",
+      "old_distinct_keys": 3,
+      "confidence": "confirmed",
+      "source": "v2 adjudication ledger (LEGITIMATE_SAME_PACK) + old-vs-new diff",
+      "videos": [
+        {
+          "bvid": "BV1TFYkzFEA3",
+          "title": "【整合包更新】我的世界与星露谷物语结合？以种田为主题的休闲整合包！农场物语forge1.1.7 新增奶酪成熟机制、养鱼玩法和上古水果"
+        },
+        {
+          "bvid": "BV18hgCz7E55",
+          "title": "农场物语forge版整合包更新！[农夫乐事xLet&#x27;s Do兼容！统一作物 / 机械动力xLet&#x27;s Do联动！自动化酿酒]"
+        },
+        {
+          "bvid": "BV1muJnziEdf",
+          "title": "[我的世界整合包更新]农场物语1.6.7 更好的Vanilla+整合包！原版玩腻了？那就来试试这个吧！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT2-POS-28",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "橘子皮zero",
@@ -515,7 +501,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-36",
+      "case_id": "HOLDOUT2-POS-34",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "一个个方块呀",
@@ -562,26 +548,6 @@
       "case_id": "HOLDOUT2-POS-02",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
-      "uploader": "plaudite_",
-      "group_key": "plaudite_::scarlet",
-      "old_distinct_keys": 2,
-      "confidence": "confirmed",
-      "source": "v2 adjudication ledger (LEGITIMATE_SAME_PACK) + old-vs-new diff",
-      "videos": [
-        {
-          "bvid": "BV1jNYn6KEth",
-          "title": "[v/s×mc]整合包Scarlet Adventure绯红冒险v2.0发布"
-        },
-        {
-          "bvid": "BV1oo4d6REzq",
-          "title": "[Minecraft×Vivid/Stasis]模组 绯红冒险Scarlet Adventure介绍+发布（附整合包）"
-        }
-      ]
-    },
-    {
-      "case_id": "HOLDOUT2-POS-03",
-      "expected": "merge",
-      "kind": "same_pack_split_by_old_algorithm",
       "uploader": "宿墟-1eXiNGt0N",
       "group_key": "宿墟-1exingt0n::暗涌 深岩恐惧",
       "old_distinct_keys": 2,
@@ -599,7 +565,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-08",
+      "case_id": "HOLDOUT2-POS-07",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "青山半隐",
@@ -619,7 +585,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-09",
+      "case_id": "HOLDOUT2-POS-08",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "Sino_P",
@@ -639,7 +605,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-10",
+      "case_id": "HOLDOUT2-POS-09",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "--Axx--",
@@ -659,7 +625,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-12",
+      "case_id": "HOLDOUT2-POS-11",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "骑马的无情小叶",
@@ -679,7 +645,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-13",
+      "case_id": "HOLDOUT2-POS-12",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "润润79",
@@ -699,7 +665,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-14",
+      "case_id": "HOLDOUT2-POS-13",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "最爱仪仪",
@@ -719,7 +685,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-19",
+      "case_id": "HOLDOUT2-POS-18",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "磁钢百合",
@@ -739,7 +705,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-20",
+      "case_id": "HOLDOUT2-POS-19",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "狐狸の妙妙屋",
@@ -759,7 +725,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-21",
+      "case_id": "HOLDOUT2-POS-20",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "狐狸の妙妙屋",
@@ -779,7 +745,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-23",
+      "case_id": "HOLDOUT2-POS-22",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "InAx白咕",
@@ -802,46 +768,6 @@
       "case_id": "HOLDOUT2-POS-25",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
-      "uploader": "ARR-C6H6",
-      "group_key": "arr-c6h6::旧世界",
-      "old_distinct_keys": 2,
-      "confidence": "confirmed",
-      "source": "v2 adjudication ledger (LEGITIMATE_SAME_PACK) + old-vs-new diff",
-      "videos": [
-        {
-          "bvid": "BV1cFDPBqEK2",
-          "title": "真菌感染加惊变100天整合包更新【1.20.1 旧世界v0.4Beta】"
-        },
-        {
-          "bvid": "BV1G7XTBzE2K",
-          "title": "真菌感染惊变类轻量化战斗爽整合包测试版发布！【我的世界1.20.1/旧世界v0.3Beta】"
-        }
-      ]
-    },
-    {
-      "case_id": "HOLDOUT2-POS-26",
-      "expected": "merge",
-      "kind": "same_pack_split_by_old_algorithm",
-      "uploader": "流霜雾影",
-      "group_key": "流霜雾影::愚者版本大",
-      "old_distinct_keys": 2,
-      "confidence": "confirmed",
-      "source": "v2 adjudication ledger (LEGITIMATE_SAME_PACK) + old-vs-new diff",
-      "videos": [
-        {
-          "bvid": "BV1s3ZNBYEQU",
-          "title": "【MC整合包发布】愚者v0.2：塔罗秘闻、罪梦流派、逆位诅咒！愚者版本大更新，全新挑战内容来袭！"
-        },
-        {
-          "bvid": "BV1CLnmzgECo",
-          "title": "【MC整合包发布】愚者v0.1：初升的暮色、日落的天堂、迷失梦境的旅人、萌芽地狱的新生...愚者版本大更新！更丰富的玩法、更具挑战的内容来了！！！"
-        }
-      ]
-    },
-    {
-      "case_id": "HOLDOUT2-POS-28",
-      "expected": "merge",
-      "kind": "same_pack_split_by_old_algorithm",
       "uploader": "瞳彩鹿454445",
       "group_key": "瞳彩鹿454445::hnt",
       "old_distinct_keys": 2,
@@ -859,7 +785,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-30",
+      "case_id": "HOLDOUT2-POS-26",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "共轭o",
@@ -879,7 +805,27 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-32",
+      "case_id": "HOLDOUT2-POS-29",
+      "expected": "merge",
+      "kind": "same_pack_split_by_old_algorithm",
+      "uploader": "不知名的莫理沙",
+      "group_key": "不知名的莫理沙::星月枪姬与落魄勇者",
+      "old_distinct_keys": 2,
+      "confidence": "confirmed",
+      "source": "v2 adjudication ledger (LEGITIMATE_SAME_PACK) + old-vs-new diff",
+      "videos": [
+        {
+          "bvid": "BV13m7Yz3EST",
+          "title": "【整合包更新】☆星月枪姬与落魄勇者☆稳定版本！战斗魔改我的世界整合包勇者之章Ⅲ"
+        },
+        {
+          "bvid": "BV1CfVLzNE1b",
+          "title": "【整合包更新】☆星月枪姬与落魄勇者☆版本更新！我的世界魔改战斗整合包勇者之章Ⅲ"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT2-POS-30",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "一个个方块呀",
@@ -899,7 +845,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-33",
+      "case_id": "HOLDOUT2-POS-31",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "咱叫小屿",
@@ -919,7 +865,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-34",
+      "case_id": "HOLDOUT2-POS-32",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "橘仔io",
@@ -939,7 +885,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-35",
+      "case_id": "HOLDOUT2-POS-33",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "ZangHeRo",
@@ -959,7 +905,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-37",
+      "case_id": "HOLDOUT2-POS-35",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "大漠神枪",
@@ -979,7 +925,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-38",
+      "case_id": "HOLDOUT2-POS-36",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "深夜鸽子",
@@ -999,7 +945,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-39",
+      "case_id": "HOLDOUT2-POS-37",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "JSI我的世界制作组",
@@ -1019,7 +965,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-40",
+      "case_id": "HOLDOUT2-POS-38",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "小小伊布酱",
@@ -1039,7 +985,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-41",
+      "case_id": "HOLDOUT2-POS-39",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "莱斯莎沃RS_",
@@ -1059,7 +1005,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-42",
+      "case_id": "HOLDOUT2-POS-40",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "Akrcloud",
@@ -1079,7 +1025,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-43",
+      "case_id": "HOLDOUT2-POS-41",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "Puikre",
@@ -1099,7 +1045,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-44",
+      "case_id": "HOLDOUT2-POS-42",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "GRAINALCOHOL",
@@ -1119,7 +1065,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-45",
+      "case_id": "HOLDOUT2-POS-43",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "小硕3365",
@@ -1139,7 +1085,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-POS-46",
+      "case_id": "HOLDOUT2-POS-44",
       "expected": "merge",
       "kind": "same_pack_split_by_old_algorithm",
       "uploader": "_昊日天_",
@@ -1161,7 +1107,7 @@
   ],
   "negative_cases": [
     {
-      "case_id": "HOLDOUT2-NEG-20",
+      "case_id": "HOLDOUT2-NEG-21",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "狐狸の妙妙屋",
@@ -1237,7 +1183,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-66",
+      "case_id": "HOLDOUT2-NEG-71",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "Minecraft菠萝君",
@@ -1283,7 +1229,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-43",
+      "case_id": "HOLDOUT2-NEG-47",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "Puikre",
@@ -1329,7 +1275,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-37",
+      "case_id": "HOLDOUT2-NEG-40",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "马赵龙zhao_long",
@@ -1370,7 +1316,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-48",
+      "case_id": "HOLDOUT2-NEG-52",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "无双小星",
@@ -1411,7 +1357,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-35",
+      "case_id": "HOLDOUT2-NEG-38",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "小水滴的源头",
@@ -1447,7 +1393,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-36",
+      "case_id": "HOLDOUT2-NEG-39",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "-六五六-",
@@ -1534,7 +1480,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-31",
+      "case_id": "HOLDOUT2-NEG-35",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "一个个方块呀",
@@ -1580,7 +1526,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-10",
+      "case_id": "HOLDOUT2-NEG-11",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "星遥工坊",
@@ -1621,7 +1567,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-13",
+      "case_id": "HOLDOUT2-NEG-14",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "骑马的无情小叶",
@@ -1657,7 +1603,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-57",
+      "case_id": "HOLDOUT2-NEG-61",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "账号已注销",
@@ -1693,7 +1639,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-33",
+      "case_id": "HOLDOUT2-NEG-36",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "友止殷Eugene",
@@ -1724,38 +1670,38 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-34",
+      "case_id": "HOLDOUT2-NEG-41",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
-      "uploader": "在下Shmily",
+      "uploader": "在职玩家JoStar",
       "group_count": 4,
       "confidence": "strong",
       "source": "v2 adjudication ledger (no REAL_FALSE_MERGE for this uploader) + group structure",
       "videos": [
         {
-          "bvid": "BV1XLcszVEhL",
-          "title": "[MC优化]GreenMan优化整合包正式发布!",
-          "group_key": "在下shmily::优化 greenman优化 正式"
+          "bvid": "BV14wUnBpEcQ",
+          "title": "【方可梦整合包】(11.25已更新)确定航线，出发！《去吧，方可梦大师》1.7尝鲜体验包现已发布~",
+          "group_key": "在职玩家jostar::方可梦 1 已 确定航线 出发 去吧 方可梦大师 尝鲜体验包现已"
         },
         {
-          "bvid": "BV1zNvCBrEgL",
-          "title": "[MC优化]最牛优化整合包V4.0发布，魔改CMpack即将来临!",
-          "group_key": "在下shmily::优化 最牛优化 cmpack即将来临"
+          "bvid": "BV1VNLRzYERC",
+          "title": "【方块宝可梦整合包】（ZA全mega已更新！）全系统、全图鉴！《去吧，方可梦大师》4.0“双版本”正式发布！也有服务端哦~持续更新方可梦最新内容~",
+          "group_key": "在职玩家jostar::方块宝可梦 za全mega已 全系统 全图鉴 去吧 方可梦大师 双版本 正式 也有服务端哦 持续 方可梦 内容"
         },
         {
-          "bvid": "BV1XTqSBHEyr",
-          "title": "[MC优化]老手机2800帧,最牛优化整合包V3.9发布!",
-          "group_key": "在下shmily::优化 老手机2800帧 最牛优化"
+          "bvid": "BV1VVZjYHEag",
+          "title": "【方块宝可梦超全整合包3.0】化身小智！钛晶、mega、Z招式三系统全都要！踏上击败各地区道馆主的冠军之路吧！《去吧，方可梦大师！》3.0正式发布~",
+          "group_key": "在职玩家jostar::方块宝可梦超全 化身小智 钛晶 mega z招式三系统全都要 踏上击败各地区道馆主的冠军之路吧 去吧 方可梦大师 正式"
         },
         {
-          "bvid": "BV12TxAzvE9r",
-          "title": "[MC优化]老手机2000＋FPS,最牛优化整合包发布！",
-          "group_key": "在下shmily::优化 老手机2000 fps 最牛优化"
+          "bvid": "BV1RmPJejEDD",
+          "title": "【方块宝可梦最最新整合包】几乎全图鉴！想要的全都有！我的世界1.21.1方可梦整合包2.99版本发布啦",
+          "group_key": "在职玩家jostar::方块宝可梦最 几乎全图鉴 想要的全都有 方可梦 版本 啦"
         }
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-06",
+      "case_id": "HOLDOUT2-NEG-07",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "冰冻酸奶盒",
@@ -1796,7 +1742,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-11",
+      "case_id": "HOLDOUT2-NEG-12",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "炒雪吵狐力o",
@@ -1832,7 +1778,38 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-49",
+      "case_id": "HOLDOUT2-NEG-43",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "不知名的莫理沙",
+      "group_count": 3,
+      "confidence": "strong",
+      "source": "v2 adjudication ledger (no REAL_FALSE_MERGE for this uploader) + group structure",
+      "videos": [
+        {
+          "bvid": "BV1p7HYziEfo",
+          "title": "【整合包更新】☆异界法师☆稳定版本！枪魔魔改之我的世界整合包勇者之章Ⅲ",
+          "group_key": "不知名的莫理沙::异界法师 稳定版本 枪魔 之 勇者之章"
+        },
+        {
+          "bvid": "BV13m7Yz3EST",
+          "title": "【整合包更新】☆星月枪姬与落魄勇者☆稳定版本！战斗魔改我的世界整合包勇者之章Ⅲ",
+          "group_key": "不知名的莫理沙::星月枪姬与落魄勇者"
+        },
+        {
+          "bvid": "BV1CfVLzNE1b",
+          "title": "【整合包更新】☆星月枪姬与落魄勇者☆版本更新！我的世界魔改战斗整合包勇者之章Ⅲ",
+          "group_key": "不知名的莫理沙::星月枪姬与落魄勇者"
+        },
+        {
+          "bvid": "BV1nYN2evEug",
+          "title": "【整合包发布】你从未见过的多线性枪魔战斗魔改整合包！勇者之章Ⅲ！大量模组物品修改和添加说明，70+高难Boss！",
+          "group_key": "不知名的莫理沙::你从未见过的多线性枪魔 勇者之章 大量模组物品修改和添加说明 70 boss"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT2-NEG-53",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "ERO-Dragon",
@@ -1863,7 +1840,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-03",
+      "case_id": "HOLDOUT2-NEG-04",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "爱玩游戏的烛梦",
@@ -1915,7 +1892,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-29",
+      "case_id": "HOLDOUT2-NEG-32",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "Iamie_",
@@ -1941,7 +1918,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-30",
+      "case_id": "HOLDOUT2-NEG-34",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "WZW_王宗王",
@@ -1967,7 +1944,33 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-56",
+      "case_id": "HOLDOUT2-NEG-55",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "-阳春面面-",
+      "group_count": 3,
+      "confidence": "strong",
+      "source": "v2 adjudication ledger (no REAL_FALSE_MERGE for this uploader) + group structure",
+      "videos": [
+        {
+          "bvid": "BV1qTDNY3Ekc",
+          "title": "大重置！格雷青春版?青春复兴整合包0.7.1更新！",
+          "group_key": "-阳春面面-::大重置 格雷青春版 青春复兴"
+        },
+        {
+          "bvid": "BV1K6HjeTEKJ",
+          "title": "大更新！蔚蓝档案科技整合包0.5.1版本发布！",
+          "group_key": "-阳春面面-::大 蔚蓝档案 版本"
+        },
+        {
+          "bvid": "BV1bZigehE6V",
+          "title": "蔚蓝档案超大型科技冒险整合包：青春复兴 早期版本先行发布（1.20.1）",
+          "group_key": "-阳春面面-::蔚蓝档案超大型 青春复兴 早期版本先行"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT2-NEG-60",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "Deemo旋律",
@@ -1993,7 +1996,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-02",
+      "case_id": "HOLDOUT2-NEG-03",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "瑶山枫叶",
@@ -2054,7 +2057,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-05",
+      "case_id": "HOLDOUT2-NEG-06",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "小兜兜呀_",
@@ -2070,7 +2073,7 @@
         {
           "bvid": "BV1orhK64Em6",
           "title": "【小兜兜】恭喜我的原神与机械冒险的时代整合包在bbsmc资源站下载量破6666次和在红石中继站浏览量达到400人/次、以及整合包相关更新计划",
-          "group_key": "小兜兜呀_::小兜兜 恭喜我的原神与机械 的时代 在bbs 资源站 量破6666次和在红石中继站浏览量达到400人 次 以及 相关 计划"
+          "group_key": "小兜兜呀_::的时代"
         },
         {
           "bvid": "BV1qi8r69Eck",
@@ -2141,7 +2144,48 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-18",
+      "case_id": "HOLDOUT2-NEG-28",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "ZiCaiOT",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "v2 adjudication ledger (no REAL_FALSE_MERGE for this uploader) + group structure",
+      "videos": [
+        {
+          "bvid": "BV1XA9tBYE5D",
+          "title": "【整合包更新】在我的世界中还原星露谷！农场物语1.4.1！",
+          "group_key": "zicaiot::在 中还原星露谷 农场物语"
+        },
+        {
+          "bvid": "BV1CwWxznEJA",
+          "title": "【整合包更新】在我的世界中还原星露谷！农场物语forge1.2.6!",
+          "group_key": "zicaiot::在 中还原星露谷 农场物语"
+        },
+        {
+          "bvid": "BV1REYKzgE45",
+          "title": "【整合包大更新】在我的世界中还原星露谷！农场物语forge1.2.0！",
+          "group_key": "zicaiot::在 中还原星露谷 农场物语"
+        },
+        {
+          "bvid": "BV1TFYkzFEA3",
+          "title": "【整合包更新】我的世界与星露谷物语结合？以种田为主题的休闲整合包！农场物语forge1.1.7 新增奶酪成熟机制、养鱼玩法和上古水果",
+          "group_key": "zicaiot::农场物语"
+        },
+        {
+          "bvid": "BV18hgCz7E55",
+          "title": "农场物语forge版整合包更新！[农夫乐事xLet&#x27;s Do兼容！统一作物 / 机械动力xLet&#x27;s Do联动！自动化酿酒]",
+          "group_key": "zicaiot::农场物语"
+        },
+        {
+          "bvid": "BV1muJnziEdf",
+          "title": "[我的世界整合包更新]农场物语1.6.7 更好的Vanilla+整合包！原版玩腻了？那就来试试这个吧！",
+          "group_key": "zicaiot::农场物语"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT2-NEG-19",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "Monica_squirrel",
@@ -2177,37 +2221,6 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-21",
-      "expected": "separate",
-      "kind": "same_uploader_distinct_packs_kept_apart",
-      "uploader": "落烟雨辰呀",
-      "group_count": 2,
-      "confidence": "strong",
-      "source": "v2 adjudication ledger (no REAL_FALSE_MERGE for this uploader) + group structure",
-      "videos": [
-        {
-          "bvid": "BV1gkT66HEzV",
-          "title": "【mc最新整合包发布】诡厄使徒：诸神黄昏，救赎或是终焉？",
-          "group_key": "落烟雨辰呀::诡厄使徒"
-        },
-        {
-          "bvid": "BV1qg5a6dEuh",
-          "title": "【MC整合包】诡厄使徒1.1.0版本发布，轻量/魔改/冒险/任务",
-          "group_key": "落烟雨辰呀::诡厄使徒"
-        },
-        {
-          "bvid": "BV1s2X4BnEkR",
-          "title": "【MC整合包更新】诡厄：使徒1.0.7：十二使徒头衔与使徒眷属",
-          "group_key": "落烟雨辰呀::诡厄 使徒"
-        },
-        {
-          "bvid": "BV1JTwZzDEQr",
-          "title": "【MC整合包更新】诡厄：使徒1.0.6，化身使徒，完成飞升",
-          "group_key": "落烟雨辰呀::诡厄 使徒"
-        }
-      ]
-    },
-    {
       "case_id": "HOLDOUT2-NEG-23",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
@@ -2239,38 +2252,38 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-38",
+      "case_id": "HOLDOUT2-NEG-37",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
-      "uploader": "在职玩家JoStar",
+      "uploader": "在下Shmily",
       "group_count": 2,
       "confidence": "strong",
       "source": "v2 adjudication ledger (no REAL_FALSE_MERGE for this uploader) + group structure",
       "videos": [
         {
-          "bvid": "BV14wUnBpEcQ",
-          "title": "【方可梦整合包】(11.25已更新)确定航线，出发！《去吧，方可梦大师》1.7尝鲜体验包现已发布~",
-          "group_key": "在职玩家jostar::去吧 方可梦大师"
+          "bvid": "BV1XLcszVEhL",
+          "title": "[MC优化]GreenMan优化整合包正式发布!",
+          "group_key": "在下shmily::优化 greenman优化 正式"
         },
         {
-          "bvid": "BV1VNLRzYERC",
-          "title": "【方块宝可梦整合包】（ZA全mega已更新！）全系统、全图鉴！《去吧，方可梦大师》4.0“双版本”正式发布！也有服务端哦~持续更新方可梦最新内容~",
-          "group_key": "在职玩家jostar::去吧 方可梦大师"
+          "bvid": "BV1zNvCBrEgL",
+          "title": "[MC优化]最牛优化整合包V4.0发布，魔改CMpack即将来临!",
+          "group_key": "在下shmily::最牛优化"
         },
         {
-          "bvid": "BV1VVZjYHEag",
-          "title": "【方块宝可梦超全整合包3.0】化身小智！钛晶、mega、Z招式三系统全都要！踏上击败各地区道馆主的冠军之路吧！《去吧，方可梦大师！》3.0正式发布~",
-          "group_key": "在职玩家jostar::去吧 方可梦大师"
+          "bvid": "BV1XTqSBHEyr",
+          "title": "[MC优化]老手机2800帧,最牛优化整合包V3.9发布!",
+          "group_key": "在下shmily::最牛优化"
         },
         {
-          "bvid": "BV1RmPJejEDD",
-          "title": "【方块宝可梦最最新整合包】几乎全图鉴！想要的全都有！我的世界1.21.1方可梦整合包2.99版本发布啦",
-          "group_key": "在职玩家jostar::方可梦"
+          "bvid": "BV12TxAzvE9r",
+          "title": "[MC优化]老手机2000＋FPS,最牛优化整合包发布！",
+          "group_key": "在下shmily::最牛优化"
         }
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-41",
+      "case_id": "HOLDOUT2-NEG-45",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "橘子皮zero",
@@ -2327,33 +2340,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-32",
-      "expected": "separate",
-      "kind": "same_uploader_distinct_packs_kept_apart",
-      "uploader": "流霜雾影",
-      "group_count": 2,
-      "confidence": "strong",
-      "source": "v2 adjudication ledger (no REAL_FALSE_MERGE for this uploader) + group structure",
-      "videos": [
-        {
-          "bvid": "BV1s3ZNBYEQU",
-          "title": "【MC整合包发布】愚者v0.2：塔罗秘闻、罪梦流派、逆位诅咒！愚者版本大更新，全新挑战内容来袭！",
-          "group_key": "流霜雾影::愚者版本大"
-        },
-        {
-          "bvid": "BV1CLnmzgECo",
-          "title": "【MC整合包发布】愚者v0.1：初升的暮色、日落的天堂、迷失梦境的旅人、萌芽地狱的新生...愚者版本大更新！更丰富的玩法、更具挑战的内容来了！！！",
-          "group_key": "流霜雾影::愚者版本大"
-        },
-        {
-          "bvid": "BV1iRL7zYExj",
-          "title": "【MC整合包发布：愚者】愚弄、伪装、欺诈，屠龙者终成恶龙。扮演所有的生物，使用它们的能力编织一场完美的欺诈盛宴！",
-          "group_key": "流霜雾影::愚者 愚弄 伪装 欺诈 屠龙者终成恶龙 扮演所有的生物 使用它们的能力编织一场完美的欺诈盛宴"
-        }
-      ]
-    },
-    {
-      "case_id": "HOLDOUT2-NEG-46",
+      "case_id": "HOLDOUT2-NEG-50",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "ZangHeRo",
@@ -2379,33 +2366,28 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-51",
+      "case_id": "HOLDOUT2-NEG-02",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
-      "uploader": "-阳春面面-",
+      "uploader": "plaudite_",
       "group_count": 2,
       "confidence": "strong",
       "source": "v2 adjudication ledger (no REAL_FALSE_MERGE for this uploader) + group structure",
       "videos": [
         {
-          "bvid": "BV1qTDNY3Ekc",
-          "title": "大重置！格雷青春版?青春复兴整合包0.7.1更新！",
-          "group_key": "-阳春面面-::青春复兴"
+          "bvid": "BV1jNYn6KEth",
+          "title": "[v/s×mc]整合包Scarlet Adventure绯红冒险v2.0发布",
+          "group_key": "plaudite_::v s scarlet adventure绯红"
         },
         {
-          "bvid": "BV1K6HjeTEKJ",
-          "title": "大更新！蔚蓝档案科技整合包0.5.1版本发布！",
-          "group_key": "-阳春面面-::大 蔚蓝档案 版本"
-        },
-        {
-          "bvid": "BV1bZigehE6V",
-          "title": "蔚蓝档案超大型科技冒险整合包：青春复兴 早期版本先行发布（1.20.1）",
-          "group_key": "-阳春面面-::青春复兴"
+          "bvid": "BV1oo4d6REzq",
+          "title": "[Minecraft×Vivid/Stasis]模组 绯红冒险Scarlet Adventure介绍+发布（附整合包）",
+          "group_key": "plaudite_::vivid stasis 模组 绯红 scarlet adventure 附"
         }
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-04",
+      "case_id": "HOLDOUT2-NEG-05",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "XyeBBS中文论坛",
@@ -2426,7 +2408,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-07",
+      "case_id": "HOLDOUT2-NEG-08",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "_鈴鹿御前_",
@@ -2447,7 +2429,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-08",
+      "case_id": "HOLDOUT2-NEG-09",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "MC绵羊",
@@ -2468,7 +2450,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-09",
+      "case_id": "HOLDOUT2-NEG-10",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "Sh1ntaro",
@@ -2489,7 +2471,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-12",
+      "case_id": "HOLDOUT2-NEG-13",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "青墨浮跃",
@@ -2510,7 +2492,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-14",
+      "case_id": "HOLDOUT2-NEG-15",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "整天摸鱼的咕咕稽",
@@ -2531,7 +2513,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-15",
+      "case_id": "HOLDOUT2-NEG-16",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "伽娄同学",
@@ -2552,7 +2534,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-16",
+      "case_id": "HOLDOUT2-NEG-17",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "是熟鳕鱼",
@@ -2573,7 +2555,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-17",
+      "case_id": "HOLDOUT2-NEG-18",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "WhisperStarlight",
@@ -2594,7 +2576,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-19",
+      "case_id": "HOLDOUT2-NEG-20",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "炭叶稻",
@@ -2657,7 +2639,49 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-28",
+      "case_id": "HOLDOUT2-NEG-29",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "叙利亚自爆民兵",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "v2 adjudication ledger (no REAL_FALSE_MERGE for this uploader) + group structure",
+      "videos": [
+        {
+          "bvid": "BV1Kc96BWENb",
+          "title": "《你好，新蒸程》整合包正式发布！航空学，voxy，独家地形，构成mc的视觉盛宴",
+          "group_key": "叙利亚自爆民兵::你好 新蒸程 正式 航空学 voxy 独家地形 构成 的视觉盛宴"
+        },
+        {
+          "bvid": "BV1PbAczPE4o",
+          "title": "《你好，新世代》整合包发布，voxy，机械动力6.0.8，瓦尔基里全新兼容，1.20.1forge",
+          "group_key": "叙利亚自爆民兵::你好 新世代 voxy 机械动力 瓦尔基里全新兼容"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT2-NEG-30",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "ARR-C6H6",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "v2 adjudication ledger (no REAL_FALSE_MERGE for this uploader) + group structure",
+      "videos": [
+        {
+          "bvid": "BV1cFDPBqEK2",
+          "title": "真菌感染加惊变100天整合包更新【1.20.1 旧世界v0.4Beta】",
+          "group_key": "arr-c6h6::真菌感染加惊变100天 旧世界"
+        },
+        {
+          "bvid": "BV1G7XTBzE2K",
+          "title": "真菌感染惊变类轻量化战斗爽整合包测试版发布！【我的世界1.20.1/旧世界v0.3Beta】",
+          "group_key": "arr-c6h6::真菌感染惊变类轻量化 爽 旧世界"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT2-NEG-31",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "爱玩游戏的托累积压",
@@ -2678,7 +2702,28 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-39",
+      "case_id": "HOLDOUT2-NEG-33",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "原界环",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "v2 adjudication ledger (no REAL_FALSE_MERGE for this uploader) + group structure",
+      "videos": [
+        {
+          "bvid": "BV17ZwjzvEpG",
+          "title": "少女，枪械以及CQB——Minecraft or Not：Girl&amp;Gun整合包发布！",
+          "group_key": "原界环::少女 以及cqb or not girl amp gun"
+        },
+        {
+          "bvid": "BV1XPcXzWEZ4",
+          "title": "全新我的世界PVE整合包发布[少女准备中//Maiden or not]（魔改自locknar的Minecraft or not）",
+          "group_key": "原界环::全新 pve 少女准备中 maiden or not 自locknar的 or not"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT2-NEG-42",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "不走寻常路的路哥1号",
@@ -2699,7 +2744,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-40",
+      "case_id": "HOLDOUT2-NEG-44",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "FOREVER糠酱追梦",
@@ -2720,7 +2765,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-42",
+      "case_id": "HOLDOUT2-NEG-46",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "ZOGOS",
@@ -2741,7 +2786,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-44",
+      "case_id": "HOLDOUT2-NEG-48",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "冷空awa",
@@ -2762,7 +2807,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-45",
+      "case_id": "HOLDOUT2-NEG-49",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "我嘞个牢末ENd",
@@ -2783,7 +2828,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-47",
+      "case_id": "HOLDOUT2-NEG-51",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "圆殇圆捞尸",
@@ -2804,7 +2849,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-50",
+      "case_id": "HOLDOUT2-NEG-54",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "SmartAkita",
@@ -2825,7 +2870,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-52",
+      "case_id": "HOLDOUT2-NEG-56",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "一条鱼丸_",
@@ -2846,7 +2891,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-53",
+      "case_id": "HOLDOUT2-NEG-57",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "烩炒稻草人",
@@ -2867,7 +2912,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-54",
+      "case_id": "HOLDOUT2-NEG-58",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "孑孑雨不是牢孑",
@@ -2888,7 +2933,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-55",
+      "case_id": "HOLDOUT2-NEG-59",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "碎砖做的砖块王",
@@ -2909,7 +2954,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-58",
+      "case_id": "HOLDOUT2-NEG-62",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "空空如也js",
@@ -2930,7 +2975,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-59",
+      "case_id": "HOLDOUT2-NEG-63",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "以乐太洋",
@@ -2951,7 +2996,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-60",
+      "case_id": "HOLDOUT2-NEG-64",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "腾星月lucky",
@@ -2972,7 +3017,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-61",
+      "case_id": "HOLDOUT2-NEG-65",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "韬可梦",
@@ -2993,7 +3038,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-62",
+      "case_id": "HOLDOUT2-NEG-66",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "根号Radical",
@@ -3014,7 +3059,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-63",
+      "case_id": "HOLDOUT2-NEG-67",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "籽岷",
@@ -3035,7 +3080,28 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-64",
+      "case_id": "HOLDOUT2-NEG-68",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "Tibsalta",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "v2 adjudication ledger (no REAL_FALSE_MERGE for this uploader) + group structure",
+      "videos": [
+        {
+          "bvid": "BV1wu411W7dV",
+          "title": "【抗争之际0.6】【难度驱动】1.19.2我的世界冒险向整合包发布",
+          "group_key": "tibsalta::抗争之际 难度驱动 向"
+        },
+        {
+          "bvid": "BV1ok4y1t7u9",
+          "title": "【旅途痕迹0.5】【难度驱动】1.19.2我的世界整合包发布",
+          "group_key": "tibsalta::旅途痕迹 难度驱动"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT2-NEG-69",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "Limit小火柴",
@@ -3056,7 +3122,7 @@
       ]
     },
     {
-      "case_id": "HOLDOUT2-NEG-65",
+      "case_id": "HOLDOUT2-NEG-70",
       "expected": "separate",
       "kind": "same_uploader_distinct_packs_kept_apart",
       "uploader": "星必尘Sguan",

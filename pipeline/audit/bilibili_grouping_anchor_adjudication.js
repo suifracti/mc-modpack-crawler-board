@@ -128,6 +128,9 @@ const VERDICTS = {
   // 3G-F scan never flagged). Adjudicated by reading every member title against bili_data.
   '在下shmily::最牛优化': { verdict: 'LEGITIMATE', note: '已核实：三条均为同一上传者 在下Shmily 的《最牛优化整合包》V4.0 / V3.9 / 首发，同一包的不同版本；anchor 就是包名本身。' },
   '小兜兜呀_::的时代': { verdict: 'LEGITIMATE', note: '已核实：七条均为同一上传者 小兜兜呀_ 的《原神与机械冒险的时代》v3.5.4.2~v3.5.12 版本更新；anchor “的时代”是完整包名“原神与机械冒险的时代”的尾部片段 → 同一包，不是误合并。' },
+  // Surfaced by the 3G-F.2-A bracket-name rule (Rule 6): the anchor is the Official
+  // English name of the pack, not a slogan fragment.
+  '墨竹ギ::poetry of the abyss': { verdict: 'LEGITIMATE', note: '已核实（对 bili_data 逐字读题）：两条均为《深渊之诗 / Poetry of the Abyss》同一包的 2.2 更新与 2.0 发布（BV1fc411U7Q3 / BV1Dc411R731）；anchor 是官方英文名，正是 Rule 6 期望保留的那种强 anchor。同一包，不是误合并。注意与「墨竹ギ::quot 以神之名 染梦世间 quot 深渊之诗 异梦终途 traveldreams」区分：那条是《深渊之诗-异梦终途》，同一系列下的另一个产品，不应合并。' },
 };
 
 /**
@@ -153,6 +156,7 @@ const RETIRED_GROUPS = {
   '流霜雾影::愚者版本大': { kind: 'dissolved_singleton', was: 'LEGITIMATE', note: '两条本属「愚者」同一包；修复后 anchor 收敛为更干净的“愚者”（3 条一组），旧的“愚者版本大”键消失。' },
   '-阳春面面-::青春复兴': { kind: 'dissolved_singleton', was: 'UNDECIDED', note: '本就无法判定是否同包；修复后三条变独立卡片（保守结果）。' },
   '墨竹ギ::史诗的地下城 dungeons of fantasy': { kind: 'dissolved_singleton', was: 'LEGITIMATE', note: '两条本属 Dungeons Of Fantasy 同一包；修复后 anchor 落在各自的副标题 run 上 → 拆为独立卡片。' },
+  '小兜兜呀_::的时代': { kind: 'dissolved_singleton', was: 'LEGITIMATE', note: '该组本属《原神与机械冒险的时代》同一包（v3.5.4.2~v3.5.12 七条）。3G-F.2-A 后该 uploader 已不在 flagged 扫描面内（anchor “的时代”是包名尾部片段，被更具体的 run 取代），键不再存在 → 记录为聚合变化，非回归。' },
 };
 
 function main() {
@@ -178,7 +182,18 @@ function main() {
   const legit = byVerdict('LEGITIMATE');
   const und = byVerdict('UNDECIDED');
 
-  const extraDeclared = Object.keys(VERDICTS).filter((k) => !rows.some((r) => r.group_key === k));
+  // A key VERDICTS names but the scan no longer flags. Every one of these must be
+  // accounted for in RETIRED_GROUPS - an unexplained absence is exactly the failure
+  // mode this ledger exists to prevent. Keys that have a RETIRED_GROUPS row are
+  // DOCUMENTED drift (closed_bad_anchor / dissolved_singleton), not drift.
+  const extraDeclared = Object.keys(VERDICTS).filter(
+    (k) => !rows.some((r) => r.group_key === k) && !RETIRED_GROUPS[k],
+  );
+  // The converse: a retired row that is STILL live would mean the ledger is
+  // double-counting - it claims a group is gone while the scan still produces it.
+  const retiredButPresent = Object.keys(RETIRED_GROUPS).filter((k) =>
+    rows.some((r) => r.group_key === k),
+  );
 
   // ---- 涅槃 premise correction, verified live against bili_data ----------------
   // Partition the author's 涅槃 records the SAME way the ledger claims they split:
@@ -232,6 +247,7 @@ function main() {
     undecided_count: und.length,
     unadjudicated: unknown,
     declared_but_absent: extraDeclared,
+    retired_but_present: retiredButPresent,
     real_false_merges: real,
     undecided: und,
     legitimate: legit,
@@ -273,6 +289,7 @@ function main() {
   console.log(`retired (fixed) : ${result.retired_false_merges.length}`);
   if (unknown.length) console.log(`!! UNADJUDICATED : ${unknown.join(', ')}`);
   if (extraDeclared.length) console.log(`!! DECLARED-BUT-ABSENT : ${extraDeclared.join(', ')}`);
+  if (retiredButPresent.length) console.log(`!! RETIRED-BUT-PRESENT : ${retiredButPresent.join(', ')}`);
   console.log('\n-- 涅槃 premise (BILI-GRP-UNDERMERGE-01) --');
   console.log(`  verdict: ${nirvanaVerdict}  (distinct resource-id signatures: ${signatures.length})`);
   for (const s of signatures) {
@@ -295,7 +312,7 @@ function main() {
   console.log('\n-- UNDECIDED --');
   for (const r of und) console.log(`  [${r.size}] ${r.group_key}  (anchor='${r.anchor}')`);
   console.log(`\nwritten: ${path.relative(REPO_ROOT, OUT)}`);
-  return unknown.length ? 1 : 0;
+  return unknown.length || extraDeclared.length || retiredButPresent.length ? 1 : 0;
 }
 
 process.exit(main());

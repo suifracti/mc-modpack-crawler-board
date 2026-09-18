@@ -278,3 +278,94 @@ describe('bilibiliGrouping — Phase 3G-F.1-A population false-merge regressions
     expect(new Set(Object.values(keys)).size).toBe(1);
   });
 });
+
+describe('bilibiliGrouping — Phase 3G-F.2-A edition / bracket-name rules', () => {
+  // ---- R5: mutually-exclusive edition labels after a shared bare PREFIX -----
+  it('R5 separates 怪物大乱斗 手机版 from 怪物大乱斗重生', () => {
+    const keys = keyOf([
+      rec('E1', '我的世界怪物大乱斗 手机版整合包发布 经典整合包 变身 哥斯拉 经典整合包！', '一个小寂哦'),
+      rec('E2', '我的世界怪物大乱斗：重生整合包发布！高版本矿石菌种！哥斯拉！还原1.7怪物大乱斗！', '一个小寂哦'),
+      // the longer real name is independently attested by the uploader
+      rec('E3', '我的世界怪物大乱斗重生整合包 更新 新增内容介绍', '一个小寂哦'),
+      rec('E4', '怪物大乱斗重生 整合包 生存实况', '一个小寂哦'),
+    ]);
+    expect(keys.E1).not.toBe(keys.E2);
+  });
+
+  it('R5 does NOT fire when the following token is shared (same pack)', () => {
+    const keys = keyOf([
+      rec('S1', '【整合包更新】星辉大陆整合包 v1.2 版本更新日志', '作者A'),
+      rec('S2', '【整合包发布】星辉大陆整合包 v1.0 正式发布介绍', '作者A'),
+    ]);
+    expect(keys.S1).toBe(keys.S2);
+  });
+
+  it('R5 does NOT fire when the run is more than one token (real name)', () => {
+    const keys = keyOf([
+      rec('T1', '【MC整合包】地平线 Horizon v2.1.0 更新！全新的冒险体验', 'confectionaryqwq'),
+      rec('T2', '【MC整合包】地平线 Horizon v1.2.0 正式发布！', 'confectionaryqwq'),
+    ]);
+    expect(keys.T1).toBe(keys.T2);
+  });
+
+  // ---- R6: bracketed real name outranks a flattened descriptor -------------
+  it('R6 does not turn a descriptive run into an anchor across two packs', () => {
+    const keys = keyOf([
+      rec('B1', '一款大型生活向整合包 将「地下城」「死亡细胞」游戏内容移植到MC之中 史诗的地下城[Dungeons Of Fantasy]', '墨竹ギ'),
+      rec('B2', '一款大型生活向整合包 将「地下城」「死亡细胞」移植到MC当中 史诗的地下城[Dungeons Of Fantasy]', '墨竹ギ'),
+      rec('B3', '【整合包发布】深渊之诗[Poetry Of The Abyss] 2.2 版本更新', '墨竹ギ'),
+      rec('B4', '【整合包发布】深渊之诗[Poetry Of The Abyss] 2.0 正式发布', '墨竹ギ'),
+    ]);
+    // the two bracketed names are different packs -> must not fuse
+    expect(keys.B3).toBe(keys.B4);
+    expect(keys.B1).not.toBe(keys.B3);
+  });
+
+  it('R6 keeps 深渊之诗 separate from 深渊之诗-异梦终途', () => {
+    const keys = keyOf([
+      rec('A1', '【整合包发布】深渊之诗[Poetry Of The Abyss] 2.2 版本更新', '墨竹ギ'),
+      rec('A2', '「以神之名，染梦世间」深渊之诗-异梦终途[TravelDreams] 正式发布', '墨竹ギ'),
+    ]);
+    expect(keys.A1).not.toBe(keys.A2);
+  });
+
+  it('R6 does not veto when the shared run is itself the strongest name', () => {
+    const keys = keyOf([
+      rec('P1', '【MC整合包更新】原神与机械冒险的时代v3.5.12版本更新——新增部分模组实机演示', '小兜兜呀_'),
+      rec('P2', '【MC整合包发布】原神与机械冒险的时代--在方块世界体验提瓦特式的冒险', '小兜兜呀_'),
+    ]);
+    expect(keys.P1).toBe(keys.P2);
+  });
+
+  // ---- channel self-name bracket must not become the name slot -------------
+  it('does not read a channel self-name bracket as a pack name', () => {
+    const keys = keyOf([
+      rec('N1', '【天晓の整合包发布】匠魂之旅整合包 全新玩法介绍', '星辉の天晓'),
+      rec('N2', '【天晓の整合包发布】血肉寄生虫整合包 感染玩法介绍', '星辉の天晓'),
+    ]);
+    expect(keys.N1).not.toBe(keys.N2);
+  });
+
+  // ---- author scope must still hold --------------------------------------
+  it('never merges across uploaders even with identical titles', () => {
+    const keys = keyOf([
+      rec('X1', '我的世界整合包发布 生存之旅 版本更新', '作者甲'),
+      rec('X2', '我的世界整合包发布 生存之旅 版本更新', '作者乙'),
+    ]);
+    expect(keys.X1).not.toBe(keys.X2);
+  });
+
+  it('authorScope lowercases and is scope-local', () => {
+    expect(authorScope('作者甲')).toBe(authorScope('作者甲'));
+    expect(authorScope('ABC')).toBe(authorScope('abc'));
+  });
+
+  it('identity helpers stay available to downstream callers', () => {
+    // A NOISE token (a generic component word) carries zero identity chars --
+    // that is precisely why it may not serve as an anchor.
+    expect(identityCharsOfToken('机械动力')).toBe(0);
+    // A real pack name carries identity chars.
+    expect(identityCharsOfToken('深渊之诗')).toBeGreaterThanOrEqual(BILI_MIN_IDENTITY_CHARS);
+    expect(typeof normalizeTokenForMatch('测试')).toBe('string');
+  });
+});

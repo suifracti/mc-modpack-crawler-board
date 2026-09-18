@@ -219,6 +219,27 @@ const BILI_BOILERPLATE_SEGMENTS = new Set<string>([
 ]);
 
 /**
+ * A bracket segment of the shape `<self-name>の整合包发布` / `<self-name>整合包发布`
+ * is the CHANNEL introducing itself, not the pack: `【天晓の整合包发布】匠魂之旅`
+ * brackets the uploader's handle, and the actual pack name (匠魂之旅) sits in the
+ * NEXT slot. Treating the handle as the name slot made R1 blind, so two different
+ * packs of that channel merged on the shared handle (found by the Phase 3G-F.2-A
+ * expanded audit: 匠魂之旅 vs 血肉寄生虫).
+ *
+ * The test is structural — an optional self-name followed by the release phrase —
+ * so it generalises to any handle; no handle is enumerated.
+ */
+const BILI_SELF_NAME_SEGMENT = /^[^】\]）)》」』]{1,16}?(?:的|の)?(?:mc)?(?:大型)?(?:整合包|模组包)(?:发布|更新|预发布|发布前预热)$/i;
+
+/** Is this raw bracketed segment channel self-identification rather than a pack name? */
+function isSelfNameSegment(seg: string): boolean {
+  const s = seg.replace(/\s+/g, '').replace(/^mc/i, 'mc');
+  if (!s) return true;
+  if (BILI_BOILERPLATE_SEGMENTS.has(s)) return true;
+  return BILI_SELF_NAME_SEGMENT.test(s);
+}
+
+/**
  * Marketing / slogan vocabulary. Such a run praises or compares; it never names
  * a pack (and it very often sits inside a `！`-separated feature list).
  */
@@ -275,7 +296,19 @@ function isEnglishFunctionRun(run: string[]): boolean {
   return run.every((t) => BILI_EN_FUNCTION_WORDS.has(t.replace(/[^A-Za-z]/g, '').toLowerCase()));
 }
 
-/** Does `tokens` contain `run` as a contiguous token run? */
+/**
+ * Does `tokens` contain `run` as a contiguous token run?
+ *
+ * Phase 3G-F.2-A: also accepts the CONCATENATED spelling. `cleanPackKey` maps `：`
+ * and `：`-like separators to a space, so one author's `怪物大乱斗：重生` becomes the
+ * two tokens `['怪物大乱斗','重生']` while another's `怪物大乱斗重生` stays a single
+ * token. Both denote the same pack name, and without this the same anchor could not
+ * be found in all of the pack's own episodes (the containment pass would leave one
+ * record behind and an unrelated downstream anchor would then claim it).
+ *
+ * The concatenation test only joins a WHOLE run against a WHOLE run, so it cannot
+ * make a shorter prefix match a longer unrelated token.
+ */
 function containsRun(tokens: string[], run: string[]): boolean {
   if (run.length === 0 || run.length > tokens.length) return false;
   for (let i = 0; i + run.length <= tokens.length; i++) {
@@ -284,6 +317,17 @@ function containsRun(tokens: string[], run: string[]): boolean {
       if (tokens[i + j] !== run[j]) { ok = false; break; }
     }
     if (ok) return true;
+  }
+  if (run.length === 1) {
+    const joined = run[0];
+    // a single-token run may be spelled across adjacent tokens
+    for (let i = 0; i + 1 < tokens.length; i++) {
+      if (tokens[i] + tokens[i + 1] === joined) return true;
+    }
+  } else {
+    // a multi-token run may be spelled inside one token
+    const joined = run.join('');
+    for (const t of tokens) if (t === joined) return true;
   }
   return false;
 }
@@ -295,26 +339,39 @@ interface AdmissibilityEntry {
   title: string;
   /** the author's own name slot: first non-boilerplate bracketed segment, cleaned */
   nameSlotTokens: string[] | null;
+  /**
+   * Phase 3G-F.2-A: DISTINCT non-boilerplate bracket segments of the raw title,
+   * cleaned but NOT merged into the flattened key.
+   *
+   * `cleanPackKey` turns every bracket into a space, so a bracketed pack name
+   * (`史诗的地下城[Dungeons Of Fantasy]`, `深渊之诗[Poetry Of The Abyss]`) is
+   * flattened into the same token soup as the surrounding changelog and can lose
+   * the anchor race to a descriptive run like `一款大型`. Keeping the bracket
+   * contents as their own channel lets a genuine bracketed name corroborate.
+   */
+  bracketNames: string[][];
   /** character offsets of `！!?？`-style list boundaries in the raw title */
   listBoundaries: number[];
 }
 
 function admissibilityEntryOf(title: string, matchTokens: string[]): AdmissibilityEntry {
   let nameSlotTokens: string[] | null = null;
+  const bracketNames: string[][] = [];
   for (const seg of bracketSegmentsOf(title)) {
+    if (isSelfNameSegment(seg)) continue;
     const cleaned = cleanPackKey(seg);
     const toks = tokensOf(cleaned).map(normalizeTokenForMatch);
     if (!toks.length) continue;
     if (BILI_BOILERPLATE_SEGMENTS.has(toks.join(''))) continue;
-    nameSlotTokens = toks;
-    break;
+    bracketNames.push(toks);
+    if (!nameSlotTokens) nameSlotTokens = toks;
   }
   const listBoundaries: number[] = [];
   const raw = title || '';
   for (let i = 0; i < raw.length; i++) {
     if ('！!?？\n'.includes(raw[i])) listBoundaries.push(i);
   }
-  return { matchTokens, title: raw, nameSlotTokens, listBoundaries };
+  return { matchTokens, title: raw, nameSlotTokens, bracketNames, listBoundaries };
 }
 
 /**
@@ -413,13 +470,147 @@ function shortRunAdmissible(
 }
 
 /**
+ * RULE 6 — BRACKETED NAME OUTRANKS A FLATTENED DESCRIPTOR  (Phase 3G-F.2-A).
+ *
+ * `cleanPackKey` replaces every bracket with a space, so a pack whose real name is
+ * bracketed (`…史诗的地下城[Dungeons Of Fantasy]`) competes for the anchor on equal
+ * terms with the descriptive run surrounding it (`一款大型`) — and can lose. When
+ * that happens a descriptive run becomes the shared "identity" of packs that are
+ * actually distinct.
+ *
+ * The expanded audit found this twice under one uploader (墨竹ギ):
+ *   `一款大型` anchored 深渊之诗 together with an unrelated 史诗的地下城.
+ *
+ * The veto is narrow: it fires only when BOTH records expose bracketed names, those
+ * bracket channels DISAGREE, and the contested run is NOT itself one of them. That
+ * is positive evidence that the real names were flattened away and something else
+ * took their place — so the run is a descriptor, not an identity.
+ *
+ * Note this rule is about the BRACKET CHANNEL, not about position: a bracketed name
+ * in either slot counts, so a genuine series that shares one bracketed name
+ * (`[Poetry Of The Abyss]` in both 深渊之诗 episodes) still anchors normally.
+ */
+function violatesBracketName(
+  a: AdmissibilityEntry, b: AdmissibilityEntry, run: string[],
+): boolean {
+  const ba = a.bracketNames;
+  const bb = b.bracketNames;
+  if (!ba.length || !bb.length) return false;
+  const runJoined = run.join(' ');
+  // The contested run must not itself be a bracketed name in either record.
+  const isOwnBracketName = (list: string[][]): boolean =>
+    list.some((toks) => toks.join(' ') === runJoined);
+  if (isOwnBracketName(ba) || isOwnBracketName(bb)) return false;
+  // Every bracketed name must be a genuine name, not a descriptor sitting in a slot.
+  const isName = (list: string[][]): boolean =>
+    list.some((toks) => qualifiesAsIdentity(toks));
+  if (!isName(ba) || !isName(bb)) return false;
+  // The two bracket channels must have NO name in common.
+  const joinedOf = (list: string[][]): Set<string> =>
+    new Set(list.map((toks) => toks.join(' ')));
+  const sa = joinedOf(ba);
+  const sb = joinedOf(bb);
+  for (const s of sa) if (sb.has(s)) return false;
+  // The contested run must be WEAKER than the names it is displacing. `一款大型`
+  // carries 2 identity chars while the bracketed 深渊之诗 / 史诗的地下城 carry far
+  // more, so the descriptor is clearly winning the race it should lose. But a run
+  // like `享受纯粹的` (4 chars) is the ONLY identity two 咒次元 episodes share, so
+  // displacing it would split a real pack — leave it alone.
+  const runChars = identityChars(run);
+  const bestBracketChars = (list: string[][]): number =>
+    Math.max(...list.map((toks) => identityChars(toks)));
+  return runChars < bestBracketChars(ba) && runChars < bestBracketChars(bb);
+}
+
+/**
+ * RULE 5 — MUTUALLY-EXCLUSIVE EDITION LABELS  (Phase 3G-F.2-A).
+ *
+ * The 3G-F.1-B expanded population audit found ONE residual confirmed false merge
+ * on top of the 3G-F.1-A set: `一个小寂哦::怪物大乱斗`, which absorbed the record
+ * `…怪物大乱斗：重生…` because the mined anchor `怪物大乱斗` is a plain PREFIX of
+ * that title's key.
+ *
+ * What makes this a real defect (see docs/audit/BILIBILI_GROUPING_POPULATION_EXPANSION.md §5):
+ *   BV1f4Kp6yEBf  key `怪物大乱斗 手机版 …`  head = 手机版
+ *   BV1nRBFBFEFw  key `怪物大乱斗 重生 …`    head = 重生
+ * Both records sit in the SAME group on the shared anchor `怪物大乱斗`, yet they
+ * disagree on the token IMMEDIATELY AFTER it, and neither head carries any
+ * identity-bearing character — they are pure, mutually-exclusive EDITION labels
+ * (a hardware target and a product generation), not version numbers and not
+ * description words.
+ *
+ * Merely "the head differs" is FAR too weak: measured on the population, 77 groups
+ * have a differing head, and splitting them would shatter correctly-merged packs
+ * (涅槃, 齿轮与腐肉, 的时代 …). The discriminator that isolates the defect is
+ * POSITIVE CORROBORATION: the competing head must be RECURRING as a real pack name
+ * inside the SAME author scope. Here `重生` is independently attested — the uploader
+ * publishes `一个小寂哦::怪物大乱斗重生` as its own 3-member group. So `重生` names a
+ * genuinely different pack, and the shared anchor is NOT sufficient identity.
+ *
+ * With this extra requirement the rule fires on exactly 1 of the 10 groups that
+ * have pure-noise competing heads (the other 9 — 辐射新世纪 / soa3 / 宝可梦地平线 /
+ * 蛊真人 / 追影之旅 / 血族机械师 / 模拟大都市 / 全新雾中人 / 海洋主题 — keep their
+ * correct merges, because none of their heads is attested anywhere as a name).
+ * This is a CLASS rule over title structure; no title, token or uploader is
+ * special-cased.
+ */
+function violatesCompetingEdition(
+  a: AdmissibilityEntry, b: AdmissibilityEntry, run: string[],
+  corroborates: (anchor: string[], head: string) => boolean,
+): boolean {
+  // Only a single-token anchor can be a bare prefix of a longer name.
+  if (run.length !== 1) return false;
+  const headsA = headAfter(a, run);
+  const headsB = headAfter(b, run);
+  if (!headsA.length || !headsB.length) return false;
+  // Disjoint head sets, every head a pure edition/update word.
+  const all = [...headsA, ...headsB];
+  if (!all.every((t) => identityCharsOfToken(t) === 0)) return false;
+  if (headsA.some((t) => headsB.includes(t))) return false;
+  // At least one competing head must be independently attested as a real name.
+  return all.some((t) => corroborates(run, t));
+}
+
+/**
+ * The token immediately following `run` inside this entry's key, as a set-wrapped
+ * single-element list (empty when `run` ends the key).
+ *
+ * Both spellings must be recognised: the author may write `怪物大乱斗 重生` (two
+ * tokens) or `怪物大乱斗重生` (one concatenated token, which is what
+ * `cleanPackKey` produces for the titles that omit the space/colon).
+ */
+function headAfter(e: AdmissibilityEntry, run: string[]): string[] {
+  const toks = e.matchTokens;
+  for (let i = 0; i + run.length <= toks.length; i++) {
+    let ok = true;
+    for (let j = 0; j < run.length; j++) {
+      if (toks[i + j] !== run[j]) { ok = false; break; }
+    }
+    if (!ok) continue;
+    const next = toks[i + run.length];
+    if (next) return [next];
+    // concatenated form: the anchor token itself equals run[0] + head
+    break;
+  }
+  const head = run[0];
+  for (const t of toks) {
+    if (t.length > head.length && t.startsWith(head)) {
+      return [t.slice(head.length)];
+    }
+  }
+  return [];
+}
+
+/**
  * A human-readable reason why a candidate anchor was rejected, for debug output.
  */
 export type BilibiliRejectedAnchorReason =
   | 'name_slot_disagreement'
   | 'late_feature_list'
   | 'english_function_words'
-  | 'short_run_not_distinctive';
+  | 'short_run_not_distinctive'
+  | 'bracketed_name_disagreement'
+  | 'competing_edition';
 
 export interface BilibiliRejectedAnchor {
   anchor: string;
@@ -497,6 +688,23 @@ export function groupBilibiliPacks(
       return n;
     };
 
+    // Phase 3G-F.2-A: is `head` independently attested as a real pack name in this
+    // same author scope? Count the records of this scope — EXCLUDING the two that
+    // are colliding — whose key carries `anchor`+`head` in the concatenated form
+    // `anchorhead` (or adjacently), i.e. the scope spells that longer name out.
+    // `重生` qualifies for 怪物大乱斗 (the uploader runs a separate three-member
+    // `怪物大乱斗重生` group); the one-off formatting words in the other nine
+    // structurally similar groups are never attested this way.
+    const corroboratedHead = (anchor: string[], head: string, a: Entry, b: Entry): boolean => {
+      const joined = anchor.join('') + head;
+      let attestations = 0;
+      for (const e of list) {
+        if (e === a || e === b) continue;
+        if (e.matchTokens.some((t) => t === joined || t.startsWith(joined))) attestations += 1;
+      }
+      return attestations >= 1;
+    };
+
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
         const a = list[i];
@@ -523,11 +731,35 @@ export function groupBilibiliPacks(
         if (!rejection && violatesEnglishFunction(run)) {
           rejection = 'english_function_words';
         }
+        if (!rejection && violatesBracketName(a.adm, b.adm, run)) {
+          rejection = 'bracketed_name_disagreement';
+        }
+        if (!rejection && violatesCompetingEdition(
+          a.adm, b.adm, run,
+          (anchor, head) => corroboratedHead(anchor, head, a, b),
+        )) {
+          rejection = 'competing_edition';
+        }
         if (rejection) {
           const anchor = run.join(' ');
           for (const e of [a, b]) {
             if (!e.rejected.some((x) => x.anchor === anchor && x.reason === rejection)) {
               e.rejected.push({ anchor, reason: rejection });
+            }
+          }
+          // Phase 3G-F.2-A: a competing-edition rejection tells us the shared
+          // anchor is a PREFIX of a longer real name. Register that longer name
+          // (`怪物大乱斗重生`) so the affected record lands on its own pack instead
+          // of being re-attracted by an unrelated downstream anchor.
+          if (rejection === 'competing_edition') {
+            for (const e of [a, b]) {
+              const head = headAfter(e.adm, run)[0];
+              if (!head || identityCharsOfToken(head) !== 0) continue;
+              const extended = run[0] + head;
+              if (!containsRun(e.matchTokens, [extended])) continue;
+              let s = anchorMembers.get(extended);
+              if (!s) { s = new Set<string>(); anchorMembers.set(extended, s); }
+              s.add(e.bvid);
             }
           }
           continue;
