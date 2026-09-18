@@ -25,6 +25,20 @@ export interface FrontendDebugState {
     curseforge: number;
     mcmod: number;
   };
+  /**
+   * Phase 3G-F.1-A: explainability surface for Bilibili pack grouping.
+   * Lets a runtime gate (or a human in devtools) read WHY a record was grouped
+   * where it was, including which candidate anchors the admissibility rules
+   * REJECTED and under which rule. Without this the rejection reasons are only
+   * reachable by re-running the offline evaluator.
+   */
+  lastGroupingDecisions?: Record<string, {
+    groupKey: string;
+    identityKey: string;
+    episodeResidue: string;
+    groupingReason: string;
+    rejectedAnchors?: { anchor: string; reason: string }[];
+  }>;
 }
 
 declare global {
@@ -137,5 +151,26 @@ export function recordRendererDebug(platform: 'bilibili' | 'bbsmc' | 'xyebbs' | 
   const debug = getFrontendDebug();
   if (debug) {
     debug.rendererCalls[platform] = (debug.rendererCalls[platform] || 0) + 1;
+  }
+}
+
+/**
+ * Phase 3G-F.1-A: publish the per-record grouping decisions (including rejected
+ * candidate anchors) for runtime inspection. Called by the Bilibili platform
+ * renderer path so `window.__frontendDebug.lastGroupingDecisions` is populated
+ * whenever grouping actually ran.
+ */
+export function recordGroupingDecisionsDebug(
+  decisions: Record<string, {
+    groupKey: string;
+    identityKey: string;
+    episodeResidue: string;
+    groupingReason: string;
+    rejectedAnchors?: { anchor: string; reason: string }[];
+  }>
+): void {
+  const debug = getFrontendDebug();
+  if (debug) {
+    debug.lastGroupingDecisions = decisions;
   }
 }

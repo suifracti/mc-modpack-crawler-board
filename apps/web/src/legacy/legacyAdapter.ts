@@ -9,6 +9,7 @@ import { fmtBigNum, numFmt, formatVFileSize, asArray, getVPanClass } from '../ut
 import { extractMcVersion } from '../domain/minecraft';
 import { cleanPackKey, BILI_GENRE_BUZZWORDS, BILI_GENERIC_PACK_KEYS } from '../domain/packName';
 import { groupBilibiliPacks } from '../domain/bilibiliGrouping';
+import type { BilibiliGroupingDecision } from '../domain/bilibiliGrouping';
 import { getTheme, setTheme, toggleTheme, bindThemeControls, initTheme } from '../state/theme';
 import { LegacySidecarLoader } from '../data/LegacySidecarLoader';
 import { LegacySidecarRepository } from '../data/LegacySidecarRepository';
@@ -64,6 +65,7 @@ import {
   recordNavigationDebug,
   recordModalDebug,
   recordRendererDebug,
+  recordGroupingDecisionsDebug,
 } from '../debug';
 
 export function setupLegacyBridge(): { repository: LegacySidecarRepository } {
@@ -98,9 +100,19 @@ export function setupLegacyBridge(): { repository: LegacySidecarRepository } {
     // The domain function returns a Map; the legacy aggregator indexes by bvid as
     // a plain object, so expose a keyed object here (a Map indexed with [] would
     // silently yield undefined and quietly disable grouping).
+    //
+    // Phase 3G-F.1-A: each decision also carries the explainability payload
+    // (`identityKey`, `episodeResidue`, `groupingReason`, and `rejectedAnchors` —
+    // the candidate anchors the admissibility rules refused and why). The whole
+    // decision object is forwarded verbatim so debug tooling can read the
+    // rejection reasons without a second code path.
     win.groupBilibiliPacks = (records: Array<{ bvid: string; title: string; author?: string | null }>) => {
-      const out: Record<string, { groupKey: string; identityKey: string; episodeResidue: string; groupingReason: string }> = {};
+      const out: Record<string, BilibiliGroupingDecision> = {};
       for (const [bvid, decision] of groupBilibiliPacks(records)) out[bvid] = decision;
+      // Phase 3G-F.1-A: publish the explainability payload (identity anchor,
+      // residue, and the REJECTED candidate anchors) to the debug surface so a
+      // runtime gate can assert on rejection reasons without a second code path.
+      recordGroupingDecisionsDebug(out);
       return out;
     };
 

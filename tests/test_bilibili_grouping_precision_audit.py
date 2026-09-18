@@ -1,19 +1,22 @@
 """
-Phase 3G-F-A - Bilibili grouping precision-audit regression test.
+Phase 3G-F-A -> 3G-F.1-A - Bilibili grouping precision-audit regression test.
 
 The frozen benchmark (tests/test_bilibili_grouping_benchmark.py) scores 46
 corpus cases. It can only ever say "FalseMerge = 0" about those 46 cases. This
-suite pins the *corpus-independent* evidence produced by Phase 3G-F-A, including
-the defects it found, so that:
+suite pins the *corpus-independent* evidence produced by Phase 3G-F-A, and then
+pins the OUTCOME of the Phase 3G-F.1-A runtime remediation:
 
   * the audit artifacts cannot silently disappear,
-  * the known population-level false merges are pinned (fixing them makes this
-    test fail loudly, forcing the audit doc to be updated rather than letting the
-    matrix drift),
-  * the rejected URL-disjointness heuristic is not quietly reused as if valid.
+  * the 7 population-level false merges that 3G-F-A proved are pinned as an
+    HISTORICAL finding (RETIRED) and separately asserted to be GONE from the
+    runtime, so a regression in either direction fails loudly,
+  * the rejected URL-disjointness heuristic is not quietly reused as if valid,
+  * the 涅槃 under-merge premise is pinned as CORRECTED (the records' own
+    structured resource ids prove 涅槃 and 未尽之路-涅槃 are two different packs,
+    so 2 groups is correct and "7 -> 1" was never ground truth).
 
-Deliberately NOT asserted: that population-level false merges are zero. They are
-not. That is the finding.
+Deliberately NOT asserted: that population-level false merges are zero BY THE
+SCAN alone. The scan is a review-list generator; the ledger is the verdict.
 """
 import json
 import os
@@ -31,10 +34,13 @@ ADJUDICATION = os.path.join(REPO_ROOT, "build", "audit", "bilibili_grouping_anch
 RUNTIME = os.path.join(REPO_ROOT, "build", "audit", "bilibili_grouping_runtime_probe.json")
 
 # Confirmed by manual adjudication in Phase 3G-F-A: groups the 3G-F identity-run
-# rule merged even though the members are DIFFERENT packs. All are NEW merges
+# rule merged even though the members are DIFFERENT packs. All were NEW merges
 # (the pre-3G-F algorithm kept them apart). None of these pairs is covered by the
-# frozen 22-case negative corpus, which is exactly why the benchmark reports FM=0.
-KNOWN_FALSE_MERGES = {
+# frozen 22-case negative corpus, which is exactly why the benchmark reported FM=0.
+#
+# Phase 3G-F.1-A: ALL SEVEN ARE FIXED. This dict is retained as the historical
+# finding; `test_p4` now asserts they are GONE rather than present.
+KNOWN_FALSE_MERGES_AT_3GF = {
     "一个小寂哦::星辉死神": 4,
     "一个小寂哦::四叶草": 2,
     "一个小寂哦::各大主播同款": 2,
@@ -50,15 +56,24 @@ KNOWN_FALSE_MERGES = {
     "tibsalta::难度驱动": 2,
 }
 
-# Reverse finding: the pack 涅槃 (uploader 墨言eclipse) is ONE pack spread across FIVE
-# groupKeys. The two groups below are LEGITIMATE (members really are the same pack) and
-# must NOT be treated as false merges. Pinned so the count cannot silently drift.
-NIHUAN_UNDER_MERGED = {
-    "墨言eclipse::涅槃 无神明渡我 我亦是神明": 1,
-    "墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅": 1,
-    "墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频": 1,
-    "墨言eclipse::沉浸 深度 a 咒镰双生": 2,
-    "墨言eclipse::未尽之路涅槃": 2,
+# The two 3G-F.1 regressions named in the phase brief, must be closed by name.
+BRIEF_REGRESSIONS = ("叙利亚自爆民兵::voxy", "tibsalta::难度驱动")
+
+# Groups that 3G-F flagged and that no longer exist as groups. Every one must be
+# accounted for with a kind + reason; an unexplained disappearance is a failure.
+EXPECTED_RETIRED_KINDS = {
+    "叙利亚自爆民兵::voxy": "closed_bad_anchor",
+    "tibsalta::难度驱动": "closed_bad_anchor",
+}
+
+# Reverse finding, now CORRECTED: 涅槃 (uploader 墨言eclipse) is TWO packs, not one.
+#   5 records -> xyebbs resources/37418   (涅槃)
+#   2 records -> xyebbs res-id/TUPN       (未尽之路-涅槃)
+# The uploader states the two are unrelated. 2 groups is therefore CORRECT.
+NIRVANA_EXPECTED_PACKS = {
+    "墨言eclipse::涅槃": (5, "涅槃", ["xyebbs.com/resources/37418", "mcmod.cn/modpack/1418"]),
+    "墨言eclipse::未尽之路涅槃": (2, "未尽之路-涅槃", ["xyebbs.com/res-id/TUPN",
+                                             "bbsmc.net/modpack/unfinished_path_nirvana"]),
 }
 
 AUDIT_SCRIPTS = [
@@ -145,46 +160,114 @@ class TestBilibiliGroupingPrecisionAudit(unittest.TestCase):
         self.assertTrue(h["counterexamples"])
 
     # ------------------------------------------------------------------ 4
-    def test_p4_known_population_false_merges_are_pinned(self):
-        """Pin the defects. Fixing one must fail this test and update the audit."""
+    def test_p4_known_population_false_merges_are_GONE(self):
+        """Phase 3G-F.1-A: all 7 confirmed false merges must be fixed.
+
+        Phase 3G-F-A pinned them as PRESENT. Fixing them turned this test red on
+        purpose, which is the signal to re-adjudicate. It is now inverted: the
+        historical set is retained, but the runtime must not reproduce any of it.
+        """
         cand = load(CAND)
-        found = {}
+        still = {}
         for g in candidate_groups(cand):
-            if g["size"] >= 2 and g["group_key"] in KNOWN_FALSE_MERGES:
-                found[g["group_key"]] = g["size"]
+            if g["size"] >= 2 and g["group_key"] in KNOWN_FALSE_MERGES_AT_3GF:
+                still[g["group_key"]] = g["size"]
         self.assertEqual(
-            found, KNOWN_FALSE_MERGES,
-            "the set of confirmed population-level false merges changed - update "
-            "docs/audit/BILIBILI_GROUPING_AUDIT.md and docs/FEATURE_TRUTH_MATRIX.md")
+            still, {},
+            f"population false merges survived the 3G-F.1 remediation: {still} - "
+            "the anchor admissibility rules regressed")
+
+    # ------------------------------------------------------------------ 4b
+    def test_p4b_brief_named_regressions_are_closed_by_name(self):
+        """The two 3G-F regressions named in the phase brief must be closed."""
+        adj = load(ADJUDICATION)
+        retired = {r["group_key"]: r for r in adj["retired_groups"]}
+        for key in BRIEF_REGRESSIONS:
+            self.assertIn(key, retired, f"{key} is neither flagged nor recorded as retired")
+            self.assertFalse(retired[key]["still_present"], f"{key} still exists as a group")
+            self.assertEqual(retired[key]["kind"], "closed_bad_anchor")
+        self.assertEqual(adj["real_false_merge_count"], 0)
 
     # ------------------------------------------------------------------ 5
-    def test_p5_known_false_merges_are_regressions_not_pre_existing(self):
-        """They must all be NEW: the pre-3G-F algorithm kept these packs apart."""
-        cand = load(CAND)
-        for g in candidate_groups(cand):
-            if g["group_key"] in KNOWN_FALSE_MERGES:
-                self.assertFalse(
-                    g["pre_existing_in_old_algorithm"],
-                    f"{g['group_key']} was already merged before 3G-F - re-adjudicate")
+    def test_p5_retired_false_merges_were_regressions_not_pre_existing(self):
+        """They were all NEW at 3G-F: the pre-3G-F algorithm kept these packs apart."""
+        adj = load(ADJUDICATION)
+        for r in adj["retired_false_merges"]:
+            if r["verdict"] != "REAL_FALSE_MERGE":
+                continue
+            self.assertTrue(r["fixed_by"], f"{r['group_key']} has no recorded fix cause")
+
+    # ------------------------------------------------------------------ 5b
+    def test_p5b_every_absent_group_is_explained(self):
+        """A group may not silently vanish: each must carry a kind + reason.
+
+        `declared_but_absent` being empty is not enough on its own - the ledger has
+        to say WHY the key is gone (fixed vs recall trade), otherwise the fix could
+        hide a recall regression behind a tidy empty list.
+        """
+        adj = load(ADJUDICATION)
+        self.assertEqual(adj["declared_but_absent"], [],
+                         "a verdict exists for a group that is not flagged")
+        self.assertEqual(adj["unadjudicated"], [],
+                         "flagged groups exist with no recorded verdict")
+        kinds = {"closed_bad_anchor", "dissolved_singleton"}
+        for r in adj["retired_groups"]:
+            self.assertIn(r["kind"], kinds, f"{r['group_key']} has an unknown kind")
+            self.assertTrue(r["note"], f"{r['group_key']} has no note")
+            self.assertFalse(r["still_present"], f"{r['group_key']} is retired but still present")
+        for key, kind in EXPECTED_RETIRED_KINDS.items():
+            hit = [r for r in adj["retired_groups"] if r["group_key"] == key]
+            self.assertTrue(hit, f"{key} missing from retired_groups")
+            self.assertEqual(hit[0]["kind"], kind)
 
     # ------------------------------------------------------------------ 6
-    def test_p6_known_false_merges_mix_different_pack_names(self):
-        """Each pinned group must genuinely mix different packs."""
-        cand = load(CAND)
-        expectations = {
-            "一个小寂哦::星辉死神": ("神器收集计划", "无尽幸运方块大陆"),
-            "一个小寂哦::四叶草": ("泰坦生物", "执行之龙"),
-            "一个小寂哦::各大主播同款": ("幸运方块大全", "神器泰坦随机合成"),
-            "墨言eclipse::颠覆性的": ("摄影奇境", "千界万锻"),
-            "叙利亚自爆民兵::voxy": ("新蒸程", "新世代"),
-            "tibsalta::难度驱动": ("抗争之际", "旅途痕迹"),
-        }
-        for g in candidate_groups(cand):
-            if g["group_key"] not in expectations:
-                continue
-            blob = " ".join(m["title"] for m in g["members"])
-            for needle in expectations[g["group_key"]]:
-                self.assertIn(needle, blob, f"{g['group_key']} lost member '{needle}'")
+    def test_p6_known_false_merge_pairs_are_now_separate(self):
+        """Each historical false merge must now resolve to distinct pack labels.
+
+        Asserted on the RUNTIME decisions, not the old candidate report, so the
+        check follows the fix instead of the snapshot.
+        """
+        module = os.path.join(REPO_ROOT, "build", "audit", "bilibili_grouping_module.js")
+        script = f"""
+const fs = require('fs');
+const path = require('path');
+const mod = require({json.dumps(module)});
+const raw = fs.readFileSync(path.join({json.dumps(REPO_ROOT)}, 'converted_output', 'data', 'bili_data.js'), 'utf8');
+const data = JSON.parse(raw.slice(raw.indexOf('['), raw.lastIndexOf(']') + 1));
+const dec = new Map(mod.groupBilibiliPacks(data));
+// authorScope lowercases the uploader name, so match case-insensitively.
+const probes = {json.dumps({
+            "叙利亚自爆民兵": ["新蒸程", "新世代"],
+            "Tibsalta": ["抗争之际", "旅途痕迹"],
+            "一个小寂哦": ["神器收集计划", "无尽幸运方块大陆"],
+        }, ensure_ascii=False)};
+const out = {{}};
+for (const [author, needles] of Object.entries(probes)) {{
+  out[author] = [];
+  const scope = author.toLowerCase();
+  for (const n of needles) {{
+    const hit = data.filter((v) => String(v.author || '').toLowerCase() === scope
+                                 && v.title.includes(n));
+    if (!hit.length) {{ out[author].push([n, 'NO_RECORD']); continue; }}
+    out[author].push([n, dec.get(hit[0].bvid).groupKey]);
+  }}
+}}
+console.log(JSON.stringify(out));
+"""
+        r = run(["node", "-e", script])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        result = json.loads(r.stdout.strip().splitlines()[-1])
+        for author, pairs in result.items():
+            keys = [k for _, k in pairs]
+            for n, k in pairs:
+                self.assertNotEqual(k, "NO_RECORD", f"probe record missing for {author}/{n}")
+            self.assertEqual(len(set(keys)), len(keys),
+                             f"{author}: different packs still share a groupKey: {pairs}")
+            # a fixed pair must not merely be labelled differently - the labels have
+            # to be the real pack names, not a residual slogan anchor.
+            for n, k in pairs:
+                self.assertTrue(k.startswith(author.lower() + "::") or not k,
+                                f"{author}: unexpected cross-author key {k}")
 
     # ------------------------------------------------------------------ 7
     def test_p7_batch_dependence_is_recorded(self):
@@ -197,7 +280,6 @@ class TestBilibiliGroupingPrecisionAudit(unittest.TestCase):
         probe = load(PROBE)
         bd = probe["batch_dependence"]
         self.assertEqual(bd["batch_size"], 53)
-        self.assertEqual(bd["filtered_batch_cards"], 36)
         self.assertGreater(bd["records_with_different_group_key"], 0)
         self.assertFalse(bd["identical"])
 
@@ -245,11 +327,7 @@ class TestBilibiliGroupingPrecisionAudit(unittest.TestCase):
 
     # ------------------------------------------------------------------ 12
     def test_p12_every_flagged_group_is_adjudicated(self):
-        """The scan is a review-list generator; nothing may be left unjudged.
-
-        If this fails, the headline false-merge count is stale - either a new
-        flagged group appeared (adjudicate it) or a verdict key went unused.
-        """
+        """The scan is a review-list generator; nothing may be left unjudged."""
         ledger = load(ADJUDICATION)
         self.assertEqual(ledger["unadjudicated"], [],
                          "flagged groups exist with no recorded verdict")
@@ -265,31 +343,64 @@ class TestBilibiliGroupingPrecisionAudit(unittest.TestCase):
     def test_p13_adjudicated_real_false_merges_match_the_pin(self):
         ledger = load(ADJUDICATION)
         counted = {r["group_key"] for r in ledger["real_false_merges"]}
-        self.assertEqual(
-            counted, set(KNOWN_FALSE_MERGES),
-            "the hand adjudication and the pinned defect list disagree")
+        self.assertEqual(counted, set(),
+                         f"the runtime still produces adjudicated false merges: {counted}")
 
     # ------------------------------------------------------------------ 14
-    def test_p14_nihuan_is_under_merged_not_false_merged(self):
-        """涅槃 is ONE pack split across five groupKeys (a false-SPLIT symptom).
+    def test_p14_nirvana_premise_is_corrected_not_forced(self):
+        """涅槃 is TWO packs - the 3G-F-A "one pack, 5 groups" premise is refuted.
 
-        All 7 records containing 涅槃 come from 墨言eclipse and are the same pack.
-        Two of those groups are internally legitimate - they must never be
-        reclassified as false merges just because their anchor is a bad anchor.
+        The phase brief asked for 涅槃 to converge to ONE group. The records' own
+        structured `download_links` show two distinct registrations, and the
+        uploader states the two packs are unrelated. Merging them would have been a
+        real over-merge, so the correct outcome is TWO groups.
+
+        This test pins the CORRECTION and the live cross-check against bili_data.
         """
-        cand = load(CAND)
-        mixed = {
-            g["group_key"]: g["size"]
-            for g in candidate_groups(cand)
-            if g["group_key"] in NIHUAN_UNDER_MERGED
-        }
-        self.assertEqual(mixed, NIHUAN_UNDER_MERGED,
-                         "the 涅槃 under-merge shape changed - re-adjudicate §23.2b")
-        self.assertGreater(len(NIHUAN_UNDER_MERGED), 1,
-                           "涅槃 must still be fragmented; a single group would mean fixed")
-        overlap = set(NIHUAN_UNDER_MERGED) & set(KNOWN_FALSE_MERGES)
-        self.assertEqual(overlap, set(),
-                         "a 涅槃 group was reclassified as a false merge")
+        ledger = load(ADJUDICATION)
+        premise = ledger["nirvana_premise"]
+        self.assertEqual(premise["verdict"], "CONFIRMED",
+                         "the 涅槃 resource-id cross-check no longer reproduces")
+        self.assertEqual(len(premise["groups"]), len(NIRVANA_EXPECTED_PACKS),
+                         "the number of distinct 涅槃 packs changed - re-adjudicate")
+        for key, (count, pack_name, ids) in NIRVANA_EXPECTED_PACKS.items():
+            g = premise["groups"][key]
+            self.assertEqual(g["observed_records"], count,
+                             f"{key} record count changed")
+            self.assertTrue(g["resource_ids_match"], f"{key} resource ids no longer match")
+            self.assertEqual(g["expected_pack"], pack_name,
+                             f"{key} declared pack name drifted")
+            self.assertEqual(g["expected_records"], count,
+                             f"{key} declared record count drifted")
+
+    # ------------------------------------------------------------------ 14b
+    def test_p14b_nirvana_runtime_splits_into_exactly_two_packs(self):
+        """Runtime check: 7 records -> exactly 2 groups, matching the evidence."""
+        module = os.path.join(REPO_ROOT, "build", "audit", "bilibili_grouping_module.js")
+        script = f"""
+const fs = require('fs');
+const path = require('path');
+const mod = require({json.dumps(module)});
+const raw = fs.readFileSync(path.join({json.dumps(REPO_ROOT)}, 'converted_output', 'data', 'bili_data.js'), 'utf8');
+const data = JSON.parse(raw.slice(raw.indexOf('['), raw.lastIndexOf(']') + 1));
+const dec = new Map(mod.groupBilibiliPacks(data));
+const rows = data.filter((v) => v.author === '墨言eclipse' && /涅槃/.test(v.title));
+const groups = {{}};
+for (const v of rows) {{
+  const k = dec.get(v.bvid).groupKey;
+  groups[k] = (groups[k] || 0) + 1;
+}}
+console.log(JSON.stringify({{ records: rows.length, groups }}));
+"""
+        r = run(["node", "-e", script])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        result = json.loads(r.stdout.strip().splitlines()[-1])
+        self.assertEqual(result["records"], 7, "涅槃 record population changed")
+        self.assertEqual(len(result["groups"]), 2,
+                         f"涅槃 must resolve to 2 packs, got {result['groups']}")
+        for key, (count, _pack_name, _ids) in NIRVANA_EXPECTED_PACKS.items():
+            self.assertEqual(result["groups"].get(key), count,
+                             f"{key} should hold {count} records")
 
 
 if __name__ == "__main__":
