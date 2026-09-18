@@ -2,162 +2,24 @@
  * Architecture V2 - Phase 3C.1 Integration Wiring Test Suite.
  * Automates proof that Phase 3C TypeScript subsystems are actively executing
  * in the Preview browser runtime path.
+ *
+ * Phase 3G-F-B: process lifecycle moved to pipeline/lib/browser_harness.js.
+ * Two defects are fixed here:
+ *   1. Edge was launched *outside* the try/finally, so a failed launch leaked
+ *      the static server and left its port LISTENING.
+ *   2. Nothing verified that the CDP port belonged to this run's Edge, so a
+ *      stale browser answering on the port made `start()` "succeed" and every
+ *      subsequent evaluate() waited on a page that would never load.
  */
-const http = require('http');
-const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
 
-const REPO_ROOT = path.resolve(__dirname, '..');
+const harness = require('./lib/browser_harness');
+const { REPO_ROOT, createStaticServer, EdgeCDPClient, installExitHooks } = harness;
+
 const targetArg = process.argv[2] || path.join('build', 'frontend_preview');
 const targetDir = path.isAbsolute(targetArg) ? targetArg : path.join(REPO_ROOT, targetArg);
 const PORT = parseInt(process.argv[3] || '8780', 10);
 const CDP_PORT = PORT + 1000;
-const EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
-
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'application/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.png': 'image/png',
-  '.svg': 'image/svg+xml',
-};
-
-function createStaticServer(rootDir, startPort) {
-  return new Promise((resolve, reject) => {
-    let currentPort = startPort;
-    function tryListen() {
-      const server = http.createServer((req, res) => {
-        let reqPath = decodeURIComponent(req.url.split('?')[0]);
-        if (reqPath === '/' || reqPath === '') {
-          reqPath = fs.existsSync(path.join(rootDir, '看板.html')) ? '/看板.html' : '/index.html';
-        }
-        const filePath = path.join(rootDir, reqPath);
-
-        if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-          res.writeHead(404);
-          res.end('Not found: ' + reqPath);
-          return;
-        }
-
-        const ext = path.extname(filePath).toLowerCase();
-        res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
-        fs.createReadStream(filePath).pipe(res);
-      });
-
-      server.on('error', (err) => {
-        if (err.code === 'EADDRINUSE') {
-          currentPort++;
-          tryListen();
-        } else {
-          reject(err);
-        }
-      });
-
-      server.listen(currentPort, '127.0.0.1', () => {
-        resolve({ server, port: currentPort });
-      });
-    }
-    tryListen();
-  });
-}
-
-class EdgeCDPClient {
-  constructor(port) {
-    this.port = port;
-    this.proc = null;
-    // Phase 3G-F: the profile dir must be UNIQUE per run.
-    //
-    // Deriving it from the port alone (`.edge_cdp_wiring_<port>`) is unsafe: when
-    // a run is killed mid-flight the dir keeps a stale lock that this environment
-    // cannot delete (rm -rf and PowerShell Remove-Item are both refused), and
-    // every later run on that port then fails to launch Edge at all - the port
-    // stays LISTENING with zero msedge.exe processes and the gate hangs forever.
-    // A per-PID suffix guarantees a fresh profile, so no port can be poisoned.
-    this.userDataDir = path.join(REPO_ROOT, 'build', `.edge_cdp_wiring_${port}_${process.pid}`);
-  }
-
-  async start() {
-    fs.mkdirSync(this.userDataDir, { recursive: true });
-    const args = [
-      '--headless=new',
-      `--remote-debugging-port=${this.port}`,
-      `--user-data-dir=${this.userDataDir}`,
-      '--disable-gpu',
-      '--no-sandbox',
-      '--no-first-run',
-      '--no-default-browser-check',
-      'about:blank'
-    ];
-    this.proc = spawn(EDGE_PATH, args);
-
-    for (let i = 0; i < 35; i++) {
-      await new Promise(r => setTimeout(r, 200));
-      try {
-        const res = await fetch(`http://127.0.0.1:${this.port}/json/version`);
-        if (res.ok) return;
-      } catch (e) {}
-    }
-    throw new Error('Could not connect to Edge CDP on port ' + this.port);
-  }
-
-  async createPage(url) {
-    const res = await fetch(`http://127.0.0.1:${this.port}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' });
-    const target = await res.json();
-    const ws = new WebSocket(target.webSocketDebuggerUrl);
-
-    let msgId = 1;
-    const pending = new Map();
-    const consoleLogs = [];
-    const uncaughtErrors = [];
-
-    await new Promise((resolve, reject) => {
-      ws.onopen = resolve;
-      ws.onerror = reject;
-    });
-
-    ws.onmessage = (evt) => {
-      const msg = JSON.parse(evt.data);
-      if (msg.id && pending.has(msg.id)) {
-        const { resolve, reject } = pending.get(msg.id);
-        pending.delete(msg.id);
-        if (msg.error) reject(msg.error);
-        else resolve(msg.result);
-      } else if (msg.method === 'Runtime.consoleAPICalled') {
-        const text = msg.params.args.map(a => a.value || a.description || '').join(' ');
-        consoleLogs.push({ type: msg.params.type, text });
-      } else if (msg.method === 'Runtime.exceptionThrown') {
-        const desc = msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text;
-        console.error(`  [CDP UNCAUGHT EXCEPTION]`, desc);
-        uncaughtErrors.push(desc);
-      }
-    };
-
-    const sendCDP = (method, params = {}) => {
-      return new Promise((resolve, reject) => {
-        const id = msgId++;
-        pending.set(id, { resolve, reject });
-        ws.send(JSON.stringify({ id, method, params }));
-      });
-    };
-
-    await sendCDP('Runtime.enable');
-    await sendCDP('Page.enable');
-
-    const evaluate = async (expr) => {
-      const evalRes = await sendCDP('Runtime.evaluate', { expression: expr, returnByValue: true });
-      return evalRes.result ? evalRes.result.value : undefined;
-    };
-
-    return { ws, sendCDP, evaluate, consoleLogs, uncaughtErrors };
-  }
-
-  cleanup() {
-    try { if (this.proc) this.proc.kill('SIGKILL'); } catch (e) {}
-    try { fs.rmSync(this.userDataDir, { recursive: true, force: true }); } catch (e) {}
-  }
-}
 
 async function main() {
   console.log('============================================================');
@@ -167,12 +29,17 @@ async function main() {
   const { server, port } = await createStaticServer(targetDir, PORT);
   console.log(`[+] Static server listening at http://127.0.0.1:${port}`);
 
-  const cdp = new EdgeCDPClient(CDP_PORT);
-  await cdp.start();
-  console.log(`[+] Edge headless launched on CDP port ${CDP_PORT}`);
+  const cdp = new EdgeCDPClient(CDP_PORT, { suite: 'wiring' });
+
+  // Registered before the launch: a failed launch must still release the
+  // static server and remove the profile directory.
+  const teardown = installExitHooks({ clients: [cdp], servers: [server] });
 
   try {
-    const page = await cdp.createPage(`http://127.0.0.1:${port}/看板.html`);
+    await cdp.start();
+    console.log(`[+] Edge headless launched on CDP port ${CDP_PORT}`);
+
+    const page = await cdp.createPage(`http://127.0.0.1:${port}/看板.html`, { returnByValue: true });
     const evalFn = page.evaluate;
 
     // Wait for page initialization
@@ -459,8 +326,10 @@ async function main() {
 
     if (!allPassed) process.exitCode = 1;
   } finally {
-    cdp.cleanup();
-    server.close();
+    teardown();
+    // Safety net: an unclosed handle must never keep the gate alive after its
+    // verdict has already been printed.
+    setTimeout(() => process.exit(process.exitCode || 0), 5000).unref();
   }
 }
 
