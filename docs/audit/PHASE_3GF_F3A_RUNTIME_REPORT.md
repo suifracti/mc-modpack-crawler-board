@@ -110,3 +110,24 @@ general rule supported by evidence; implementing that rule is outside this
 auditable A closure after the scope correction. Therefore the runtime closure
 is explicitly **blocked**, while the mapping/probe fixture remains available
 for a future general runtime design.
+
+## Verification record
+
+| Command | Exit | Result / log |
+|---|---:|---|
+| `npm ci --prefix apps/web` | 0 | dependency install recorded in `docs/audit/logs/phase3gf-f3a-runtime-tests.log` |
+| `npm --prefix apps/web run typecheck` | 0 | passed; `docs/audit/logs/phase3gf-f3a-runtime-finalization.log` |
+| `npm --prefix apps/web test -- --run` | 0 | 11 files / 103 tests passed; same finalization log |
+| `python -m unittest tests.test_bilibili_undermerge_runtime_closure -v` | 0 | 5 closure-contract tests passed; same finalization log |
+| `apps/web/node_modules/.bin/esbuild.cmd apps/web/src/domain/bilibiliGrouping.ts --bundle --platform=node --format=cjs --target=node20 --outfile=build/audit/bilibili_grouping_runtime_current.js` | 0 | current bundle hash recorded above |
+| `node pipeline/audit/probe_bilibili_undermerge_runtime.js build/audit/bilibili_grouping_runtime_current.js` | 2 | expected diagnostic `BLOCKED`; `docs/audit/logs/phase3gf-f3a-runtime-probe-rerun.log` |
+
+An earlier combined Python command exited 1: the population benchmark setup lacked
+`converted_output/assets/index.js`, the adjudication setup observed regenerated
+candidate drift after that population run, and the closure test still had the
+pre-correction partition assertions. Those failures are retained in
+`docs/audit/logs/phase3gf-f3a-runtime-tests.log`; the corrected standalone
+closure-contract test above is the final test result. The standalone cbb/a690
+adjudication test was not rerun after the stable probe because its setup runs
+extractors that rewrite evidence/gate artifacts; input regeneration was outside
+this finalization scope.
