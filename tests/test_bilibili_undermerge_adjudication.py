@@ -20,6 +20,7 @@ DELIBERATELY NOT ASSERTED
   * anything about the runtime grouping algorithm (this audit does not touch it)
 """
 import hashlib
+import gzip
 import json
 import os
 import subprocess
@@ -62,8 +63,15 @@ NOT_NIRVANA_GROUP = "墨言eclipse::未尽之路涅槃"
 
 
 def load(path):
-    with open(path, encoding="utf-8") as fp:
-        return json.load(fp)
+    # 1bee6de stores the two large legacy audit JSON files as gzip bytes while
+    # retaining their historical .json paths.  Keep the raw-file identity
+    # unchanged and adapt only the read path; never regenerate labels or
+    # ground-truth from the current runtime.
+    with open(path, "rb") as fp:
+        raw = fp.read()
+    if raw[:2] == b"\x1f\x8b":
+        raw = gzip.decompress(raw)
+    return json.loads(raw.decode("utf-8"))
 
 
 def run(cmd):
