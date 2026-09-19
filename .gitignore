@@ -54,3 +54,21 @@ docs/screenshots/
 build/
 node_modules/
 
+# Local credentials and sessions
+.env
+.env.*
+!.env.example
+cookies*.json
+cookies*.txt
+*.pem
+*.key
+
+# Reproducible development / packaging outputs
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+coverage/
+dist/
+out/
+*.tsbuildinfo

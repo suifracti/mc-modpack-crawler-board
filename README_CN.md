@@ -1,109 +1,40 @@
-# Minecraft 整合包数据看板
+# Minecraft 整合包看板
 
-[English](README.md) | 中文
+[English](README.md) · [当前状态](docs/PROJECT_STATUS.md) · [开发说明](docs/DEVELOPMENT.md) · [桌面软件任务书](docs/DESKTOP_TASK.md)
 
-一个用于整理、搜索和分析 Minecraft 整合包信息的本地数据工具。
+用于本地查找、筛选、查看 Minecraft 整合包的工具。已有 **MC百科、哔哩哔哩、BBSMC、XYEBBS、Modrinth、CurseForge** 六个平台的采集与展示代码，可查看版本、模组和来源记录并跳转原站。
 
-本项目将 [MC百科（MCMod）](https://www.mcmod.cn/) 上的整合包相关信息整理到本地，并生成一个可直接打开的 HTML 数据看板，方便进行搜索、筛选、比较和趋势查看。
+目前形态是 **Python 数据流水线 + TypeScript/Vite 网页前端**。下一步做带采集更新功能的 Windows 桌面软件，目前还没有交付桌面安装包。
 
-> 当前版本主要接入 MC百科数据。  
-> 「多平台」是未来扩展方向，目前并非已完整接入多个数据源。
+## 使用已有看板
 
----
-
-## ✨ 功能特点
-
-- 🔍 **快速搜索**
-  - 按名称、介绍、评论、标签、包含模组搜索整合包
-- 🏷️ **多维筛选**
-  - 分类
-  - 整合包标签
-  - 模组类型
-  - 指定模组
-  - 趋势时间范围
-- 📊 **数据排序**
-  - 综合指数
-  - 浏览量
-  - 趋势变化
-  - 社区互动数据
-- 📈 **趋势分析**
-  - 保存本地历史趋势数据
-  - 查看整合包热度变化
-- 🧩 **模组反查**
-  - 根据模组查看包含该模组的整合包
-- 💻 **离线使用**
-  - 数据保存在本地
-  - HTML 看板无需服务器即可打开
-
----
-
-## 📷 使用效果
-
-打开生成的 HTML 文件即可使用本地看板：
-
-- 搜索整合包
-- 查看介绍
-- 浏览评论数据
-- 对比不同整合包
-- 查看趋势变化
-
-
----
-
-## 🚀 使用方法
-
-环境：
-
-- Python 3
-- 浏览器自动化环境（用于数据采集）
-
-在项目目录运行：
+本机已有完整 `converted_output/index.html`、`assets/` 和 `data/` 时，在仓库根目录运行：
 
 ```powershell
-# 运行主爬虫（提供交互式数字菜单，选择抓取 B站自制 / MC百科 / 全平台）
-python "多平台聚合爬虫_v1.0.py"
-
-# 命令行直接采集 B站自制整合包（免登录、秒级响应，支持指定截止日期与页数）
-python "多平台聚合爬虫_v1.0.py" --platform bilibili --until 2026-08-01
-
-# 命令行采集 MC百科 整合包数据（增量刷新 / 全量刷新）
-python "多平台聚合爬虫_v1.0.py" --platform mcmod --refresh-days 1
-
-# 全平台连续采集，并在完成后自动生成/更新 HTML 看板
-python "多平台聚合爬虫_v1.0.py" --platform all --auto-convert
-
-# 单独生成/更新 HTML 看板
-python "多平台聚合转换器_v1.0.py"
+python -m http.server 8765 --bind 127.0.0.1 --directory converted_output
 ```
 
-生成后打开：
+浏览器打开 <http://127.0.0.1:8765/>。现代前端使用 JS 模块，应使用本地 HTTP 打开；整个输出目录要保留完整。
 
-```text
-converted_output/点击打开.html
-```
+刚 clone 的仓库只有源码，没有抓取数据或预生成看板。首次采集和预览步骤见[开发说明](docs/DEVELOPMENT.md)。
 
-直接双击即可打开。分享时请打包整个 `converted_output/` 目录（含相邻的 `data/`），不要只发送单个 HTML。
+## 目录说明
 
-日常更新流程：
-
-**抓取数据 → 生成看板 → 浏览器刷新**
-
----
-
-## 📂 项目结构
-
-| 文件 / 目录 | 说明 |
+| 路径 | 用途 |
 | --- | --- |
-| `多平台聚合爬虫_v1.0.py` | 数据采集脚本 |
-| `多平台聚合转换器_v1.0.py` | HTML 看板生成 |
-| `多平台爬虫数据_v1.0.jsonl` | 当前数据快照（本地生成，默认不提交） |
-| `trend_history.jsonl` | 本地长期趋势历史（本地生成，默认不提交） |
-| `converted_output/` | 生成的看板与按需加载数据（本地生成，默认不提交） |
-| `feedback/` | 意见反馈部署模板 |
-| `ignored_local_files/` | 本机临时文件、浏览器登录状态等 |
-| `README.md` | English documentation（仓库首页默认） |
+| `多平台聚合爬虫_v1.0.py`、各平台 crawler | 统一采集入口及六平台实现 |
+| `pipeline/` | Canonical SQLite 数据模型、平台适配、导出与发布工具 |
+| `apps/web/` | 现代前端源码和单元测试 |
+| `web/`、`多平台聚合转换器_v1.0.py` | 共用样式及仍在使用的旧转换兼容路径 |
+| `tests/`、`pipeline/tests/` | Python 检查，部分依赖本地数据 |
+| `docs/` | 当前状态、契约、开发说明和历史证据 |
+| `feedback/` | 可选反馈服务模板 |
 
----
+采集数据 `crawler_output/`、看板 `converted_output/`、数据库和构建 `build/`、登录凭据及缓存留在本地，不提交 Git。
+
+## 当前边界
+
+六平台有实现不等于所有字段和包身份都已核实。未知信息保留未知。B站归组仍有启发式判断，最新 A 候选尚未集成、独立安全覆盖不完整。详见[当前状态](docs/PROJECT_STATUS.md)；历史 Truth Matrix 不代表当前版本完整安全认证。
 
 ## ⚠️ 使用说明与限制
 
