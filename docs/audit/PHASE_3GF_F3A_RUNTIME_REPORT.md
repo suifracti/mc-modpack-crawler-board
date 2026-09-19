@@ -168,6 +168,13 @@ frozen benchmark 与 remediation evaluator：
 
 旧套件的失败不被包装成 PASS：
 
+- known-8/population/holdout read-only 组合日志
+  docs/audit/logs/phase3gf-f3a-known8-population-holdout-61fd4e0.log 中的
+  naive full-population partition check 输出 HOLDOUT_RESULT=FAIL。该检查把
+  冻结 negative control 的旧 runtime group boundary 当成 identity，违反本轮
+  “不得仅以旧 group 边界代替 ground truth”的约束，因此被拒绝，不计为有效
+  holdout gate；上面列出的 remediation evaluator holdout FM=0 / recall=1
+  才是本轮采用的冻结 holdout 结果。
 - tests.test_bilibili_grouping_benchmark：exit 1，Python wrapper 需要缺失的
   converted_output/assets/index.js；对应直接 Node frozen benchmark 已 exit 0。
 - tests.test_bilibili_undermerge_adjudication：exit 1，旧 scanner/evidence
