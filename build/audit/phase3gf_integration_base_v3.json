@@ -1,0 +1,67 @@
+{
+  "artifact": "phase3gf_integration_base_v3",
+  "phase": "Phase 3G-F.3-B",
+  "title": "Final Audit Integration Base",
+  "infra_integrated": true,
+  "expanded_false_merge_audit_integrated": true,
+  "final_undermerge_adjudication_integrated": true,
+  "runtime_fix_integrated": false,
+  "runtime_accepted": false,
+  "truth_matrix_reconciliation_pending": true,
+  "production_cutover_performed": false,
+  "starting_head": "d5ebebca8b30e894fcea876a77a2c5a54495d771",
+  "integration_branch": "integration/phase3gf-ab-v2",
+  "integration_worktree": "D:/ai/work/mc-3gf-i3v2",
+  "cherry_picks": [
+    {
+      "source": "cbbfb588262d06d386dab645deee88e0c4acb7c3",
+      "result": "f97d7cb",
+      "scope": "audit + tests only",
+      "conflicts": 0
+    },
+    {
+      "source": "a690d3dfddc66d4260960b83c9cece7bdb3af72a",
+      "result": "d05ffea",
+      "scope": "docs/audit only",
+      "conflicts": 0
+    }
+  ],
+  "runtime_untouched_proof": {
+    "apps_web_src_diff": "empty",
+    "pipeline_grouping_runtime_diff": "empty",
+    "cutover_infra_diff": "empty",
+    "production_state_written": false,
+    "final_runtime_integration_performed": false
+  },
+  "final_adjudication": {
+    "available": true,
+    "ledger": "pipeline/audit/bilibili_undermerge_adjudication_v2.json",
+    "runtime_gate_artifact": "pipeline/audit/confirmed_undermerge_runtime_gate.json",
+    "adjudication_test_count": 26,
+    "ambiguous_leaked_to_runtime_gate": false
+  },
+  "nirvana_corrected_evidence": {
+    "available": true,
+    "source": "pipeline/audit/bilibili_undermerge_adjudication_v2.json",
+    "truth_matrix_change": false,
+    "reconciliation_plan": "build/audit/phase3gf_truth_matrix_reconciliation.json"
+  },
+  "gzip_audit_json_compatibility": {
+    "io_only_check": true,
+    "original_json_bytes_hash_distinct_from_gzip_container_hash": true,
+    "decompressed_bytes_equal_original": true,
+    "decompressed_semantic_json_equal": true,
+    "labels_regenerated": false,
+    "sample_population_reduced": false,
+    "ground_truth_changed": false
+  },
+  "production_state": {
+    "production_build_commit": "unavailable: build/production_state.json is absent in this worktree",
+    "manifest_100_percent": true,
+    "canonical_hash_unchanged": true,
+    "data_rollup_unchanged": true,
+    "cutover": "not performed"
+  },
+  "test_log_directory": "build/audit/test-logs",
+  "final_head": "recorded by post-commit git rev-parse in the implementation report"
+}

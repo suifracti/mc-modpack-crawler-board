@@ -1,0 +1,30 @@
+{
+  "artifact": "phase3gf_truth_matrix_reconciliation",
+  "phase": "Phase 3G-F.3-B",
+  "kind": "reconciliation_plan",
+  "final_status": "PENDING",
+  "not_a_final_truth_matrix_adjudication": true,
+  "retire_or_rewrite": [
+    "old 涅槃-specific undermerge premise"
+  ],
+  "pending_runtime_result": [
+    "broad population undermerge status"
+  ],
+  "keep": [
+    "BILI-GRP-02 SUSPECT unless final evidence supports more"
+  ],
+  "evidence_policy": {
+    "runtime_fix_integrated": false,
+    "runtime_accepted": false,
+    "production_cutover_performed": false,
+    "truth_matrix_file_modified": false,
+    "ground_truth_rewritten": false,
+    "sample_population_reduced": false,
+    "labels_regenerated": false
+  },
+  "plan_notes": [
+    "The 涅槃-specific premise is queued for retire-or-rewrite because the adjudication ledger distinguishes one pack from its namesake series subtitle.",
+    "The broad population undermerge status remains pending runtime evidence and is deliberately not hard-coded here.",
+    "The Truth Matrix must be reconciled by the owning final step; this artifact is only a plan."
+  ]
+}
