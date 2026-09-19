@@ -65,6 +65,17 @@ class TestBilibiliUndermergeRuntimeAcceptance(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
         self.assertIn("empty/incomplete group", r.stdout + r.stderr)
 
+    def test_fixture_evidence_mapping_drift_fails_closed(self):
+        data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        data["source_artifacts"]["population"]["sha256"] = "0" * 64
+        bad = self.tmp_path / "fixture-input-hash-drift.json"
+        bad.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        r = subprocess.run([NODE, str(SCRIPT), "--validate-only", "--fixture", str(bad)],
+                           cwd=ROOT, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("fixture provenance hash mismatch", r.stdout + r.stderr)
+
     def test_changed_current_runtime_cannot_reuse_a_stale_pass_report(self):
         fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
         target = next(c for c in fixture["cases"] if c["case_type"] == "gate")["bvids"][0]
@@ -110,6 +121,46 @@ class TestBilibiliUndermergeRuntimeAcceptance(unittest.TestCase):
         failures = [x for x in report["protected_cases"] if x["result"] == "FAIL"]
         self.assertTrue(any("cannot-link violation" in reason
                             for x in failures for reason in x["failure_reasons"]))
+
+    def test_unknown_member_merge_is_not_a_safe_pass(self):
+        fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        target_case = next(c for c in fixture["cases"]
+                           if c["case_type"] == "protected"
+                           and c["verdict"] == "DIFFERENT_PACKS"
+                           and c["relations"]["unknown_pairs"])
+        left, right = target_case["relations"]["unknown_pairs"][0]
+        wrapper = self.tmp_path / "unknown-merge.js"
+        base = json.dumps(str(self.current_module).replace("\\", "/"))
+        left_json = json.dumps(left)
+        right_json = json.dumps(right)
+        wrapper.write_text(
+            "const base=require(" + base + ");\n"
+            "exports.groupBilibiliPacks=(records)=>{const out=base.groupBilibiliPacks(records);"
+            "out.get(" + right_json + ").groupKey=out.get(" + left_json + ").groupKey; return out;};\n",
+            encoding="utf-8",
+        )
+        output = self.tmp_path / "unknown-merge-result.json"
+        r = run_acceptance(wrapper, output=output)
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        report = json.loads(output.read_text(encoding="utf-8"))
+        failures = [x for x in report["protected_cases"] if x["result"] == "FAIL"]
+        self.assertTrue(any("unknown relation merged" in reason
+                            for x in failures for reason in x["failure_reasons"]))
+
+    def test_group_key_rename_preserves_member_relations(self):
+        wrapper = self.tmp_path / "renamed-keys.js"
+        base = json.dumps(str(self.current_module).replace("\\", "/"))
+        wrapper.write_text(
+            "const base=require(" + base + ");\n"
+            "exports.groupBilibiliPacks=(records)=>{const out=base.groupBilibiliPacks(records);"
+            "for(const d of out.values()) d.groupKey='renamed::'+d.groupKey; return out;};\n",
+            encoding="utf-8",
+        )
+        output = self.tmp_path / "renamed-keys-result.json"
+        r = run_acceptance(wrapper, output=output)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        report = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(report["status"], "PASS")
 
     def test_real_current_runtime_is_invoked_and_result_matches_exit_code(self):
         output = self.tmp_path / "current-result.json"

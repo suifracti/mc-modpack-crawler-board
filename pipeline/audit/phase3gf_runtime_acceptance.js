@@ -62,6 +62,30 @@ function loadPayload() {
   if (start < 0 || end < start) fail('population payload is not an array');
   return JSON.parse(raw.slice(start, end + 1));
 }
+function stableValue(value) {
+  if (Array.isArray(value)) return `[${value.map(stableValue).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${stableValue(value[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+function linkSha256(links) { return sha256Text(stableValue(links || [])); }
+function registeredIdentityIdsFromLinks(links) {
+  const ids = new Set();
+  for (const item of links || []) {
+    const raw = String(item?.url || '').trim();
+    let m;
+    if ((m = raw.match(/curseforge\.com\/minecraft\/modpacks\/([^/?#]+)/i))) ids.add(`curseforge:${m[1].toLowerCase()}`);
+    if ((m = raw.match(/mcmod\.cn\/modpack\/(\d+)/i))) ids.add(`mcmod:modpack/${m[1]}`);
+    if ((m = raw.match(/bbsmc\.net\/modpack\/([^/?#]+)/i))) ids.add(`bbsmc:modpack/${m[1].replace(/\/$/, '').toLowerCase()}`);
+    if ((m = raw.match(/github\.com\/([^/]+)\/([^/?#]+)/i))) ids.add(`github:${m[1].toLowerCase()}/${m[2].replace(/\.git$/, '').toLowerCase()}`);
+    if ((m = raw.match(/(?:www\.)?xyebbs\.com\/resources\/(\d+)/i))) ids.add(`xyebbs:resource/${m[1]}`);
+    if ((m = raw.match(/(?:www\.)?xyebbs\.com\/res-id\/([^/?#]+)/i))) ids.add(`xyebbs:res-id/${m[1].toLowerCase()}`);
+    if ((m = raw.match(/modrinth\.com\/modpack\/([^/?#]+)/i))) ids.add(`modrinth:modpack/${m[1].toLowerCase()}`);
+  }
+  return [...ids].sort();
+}
+function evidenceKey(author, groupKeys) { return `${author}||${sorted(groupKeys).join('|')}`; }
 function sourceRecordSha(member) {
   const value = {
     bvid: member.bvid,
@@ -70,12 +94,7 @@ function sourceRecordSha(member) {
     evidence_download_link_count: member.evidence_download_link_count || 0,
     evidence_download_links_sha256: member.evidence_download_links_sha256 || null,
   };
-  const stable = (x) => Array.isArray(x)
-    ? `[${x.map(stable).join(',')}]`
-    : x && typeof x === 'object'
-      ? `{${Object.keys(x).sort().map((k) => `${JSON.stringify(k)}:${stable(x[k])}`).join(',')}}`
-      : JSON.stringify(x);
-  return sha256Text(stable(value));
+  return sha256Text(stableValue(value));
 }
 function loadAndValidateFixture(file, payload) {
   if (!fs.existsSync(file)) fail(`fixture missing: ${file}`);
@@ -89,6 +108,13 @@ function loadAndValidateFixture(file, payload) {
   for (const row of payload) {
     if (!row || !row.bvid || byPayload.has(row.bvid)) fail(`payload duplicate/empty BVID: ${row && row.bvid}`);
     byPayload.set(row.bvid, row);
+  }
+  const evidence = readJson(EVIDENCE_PATH);
+  const evidenceByKey = new Map();
+  for (const finding of evidence.findings || []) {
+    const key = evidenceKey(finding.author, finding.group_keys || []);
+    if (evidenceByKey.has(key)) fail(`duplicate evidence finding: ${key}`);
+    evidenceByKey.set(key, finding);
   }
   const keys = new Set(); const gateBvids = new Set();
   for (const c of f.cases) {
@@ -109,6 +135,46 @@ function loadAndValidateFixture(file, payload) {
     }
     if (!sameSet(seen, c.bvids) || seen.size !== c.record_count) fail(`fixture member coverage mismatch: ${c.cluster_key}`);
     if (!c.mapping || c.mapping.complete !== true || !c.mapping.source_evidence_key) fail(`fixture mapping is not complete: ${c.cluster_key}`);
+    const source = evidenceByKey.get(c.mapping.source_evidence_key);
+    if (!source || source.author !== c.author
+      || source.record_count !== c.record_count || source.group_count !== c.group_count
+      || evidenceKey(source.author, source.group_keys || []) !== c.mapping.source_evidence_key) {
+      fail(`fixture/evidence mapping mismatch: ${c.cluster_key}`);
+    }
+    for (const fg of c.groups) {
+      const sourceGroups = (source.groups || []).filter((g) => g.group_key === fg.source_group_key);
+      if (sourceGroups.length !== 1) fail(`fixture/evidence group mapping mismatch: ${c.cluster_key}/${fg.source_group_key}`);
+      const sg = sourceGroups[0];
+      if (sg.member_count !== fg.member_count || sg.members.length !== fg.member_count) {
+        fail(`fixture/evidence member count mismatch: ${c.cluster_key}/${fg.source_group_key}`);
+      }
+      const sourceMembers = new Map((sg.members || []).map((m) => [m.bvid, m]));
+      for (const fm of fg.members) {
+        const sm = sourceMembers.get(fm.bvid);
+        if (!sm || sm.title !== fm.title) fail(`fixture/evidence member mismatch: ${c.cluster_key}/${fm.bvid}`);
+        const ids = registeredIdentityIdsFromLinks(sm.download_links || []);
+        const linkCount = Array.isArray(sm.download_links) ? sm.download_links.length : 0;
+        const linkHash = linkSha256(sm.download_links || []);
+        if (!sameSet(ids, fm.registered_identity_ids || [])
+          || linkCount !== fm.evidence_download_link_count
+          || linkHash !== fm.evidence_download_links_sha256
+          || fm.source_member_sha256 !== sourceRecordSha({
+            bvid: sm.bvid,
+            title: sm.title,
+            registered_identity_ids: ids,
+            evidence_download_link_count: linkCount,
+            evidence_download_links_sha256: linkHash,
+          })) {
+          fail(`fixture/evidence member provenance mismatch: ${c.cluster_key}/${fm.bvid}`);
+        }
+      }
+      const sourceUrls = [...(sg.download_urls || [])].sort();
+      if (sourceUrls.length !== fg.evidence_download_url_count
+        || linkSha256(sourceUrls) !== fg.evidence_download_urls_sha256
+        || !sameSet(sg.qq_ids || [], fg.evidence_qq_ids || [])) {
+        fail(`fixture/evidence group provenance mismatch: ${c.cluster_key}/${fg.source_group_key}`);
+      }
+    }
     const rel = c.relations;
     if (!rel || !Array.isArray(rel.must_link) || !Array.isArray(rel.cannot_link) || !Array.isArray(rel.unknown_pairs) || !Array.isArray(rel.partitions)) fail(`fixture relations missing: ${c.cluster_key}`);
     const pairSet = (pairs) => new Set(pairs.map(([a, b]) => pairKey(a, b)));
@@ -289,8 +355,8 @@ function main() {
     const cannotAfter = relationList(current, c.relations.cannot_link);
     const unknownBefore = relationList(preFix, c.relations.unknown_pairs);
     const unknownAfter = relationList(current, c.relations.unknown_pairs);
-    for (const x of mustAfter) if (x.result !== 'SAME') failures.push(`must-link split: ${x.a}/${x.b}`);
     if (c.case_type === 'gate') {
+      for (const x of mustAfter) if (x.result !== 'SAME') failures.push(`must-link split: ${x.a}/${x.b}`);
       if (groupCount(current, bvids) !== 1) failures.push(`candidate has ${groupCount(current, bvids)} groups; expected one identity`);
       const external = [];
       const seen = new Set(bvids);
@@ -312,7 +378,20 @@ function main() {
       for (let i = 0; i < bvids.length; i++) for (let j = i + 1; j < bvids.length; j++) { const a = bvids[i]; const b = bvids[j]; const beforeRel = relation(preFix, a, b); const afterRel = relation(current, a, b); if (beforeRel === 'DIFFERENT' && afterRel === 'SAME') result.relations.new_merges_vs_1bee.push({ a, b }); if (beforeRel === 'SAME' && afterRel === 'DIFFERENT') result.relations.new_splits_vs_1bee.push({ a, b }); if (oldPairs.has(pairKey(a, b)) && beforeRel === 'SAME' && afterRel === 'SAME' && preFix[a]?.groupKey !== current[a]?.groupKey) result.relations.pure_renames_vs_1bee.push({ a, b }); }
       gateResults.push(result);
     } else {
+      // A protection case must not introduce a new split of an already valid
+      // in-group relation. If the 1bee6de runtime had already split that pair,
+      // retain the historical diagnostic but do not manufacture a new failure.
+      for (let i = 0; i < mustAfter.length; i++) {
+        if (mustAfter[i].result !== 'SAME' && mustBefore[i].result === 'SAME') {
+          failures.push(`new must-link split: ${mustAfter[i].a}/${mustAfter[i].b}`);
+        }
+      }
       for (const x of cannotAfter) if (x.result !== 'DIFFERENT') failures.push(`cannot-link violation: ${x.a}/${x.b} (${x.result})`);
+      if (c.verdict === 'DIFFERENT_PACKS') {
+        for (const x of unknownAfter) {
+          if (x.result === 'SAME') failures.push(`unknown relation merged: ${x.a}/${x.b}`);
+        }
+      }
       if (c.verdict === 'AMBIGUOUS') {
         for (let i = 0; i < unknownAfter.length; i++) {
           const was = unknownBefore[i]; const now = unknownAfter[i];

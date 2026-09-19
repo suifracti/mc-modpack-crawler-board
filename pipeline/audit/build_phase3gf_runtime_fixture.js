@@ -93,6 +93,47 @@ function pairwise(items) {
   return out;
 }
 
+// These are ledger-backed same-pack relations that cross an old evidence
+// group boundary. They are fixture partitions only; the production matcher
+// never sees BVIDs, group keys, or this table. Keeping the source relation
+// here prevents a count-only projection from turning an adjudicated must-link
+// into a false cannot-link.
+const EVIDENCE_BACKED_CROSS_GROUP_MUST_LINKS = [
+  ['BV1y6YbzWEhD', 'BV1MiHLz8Emm'], // 爱吃土豆的界王: 原初修真
+  ['BV1b2h36bEvA', 'BV1EPgA6eEfT'], // Drunk耀爵: 晴小姐 raw/group
+  ['BV1FT8kzCE6R', 'BV1Gm7Yz3EVu', 'BV1QJKWzEEV3', 'BV1CiV5zwEdU'], // 时唅: 潜行者 line
+  ['BV12scGeMEAb', 'BV167ZLYfE5w', 'BV1AemXY7ESi', 'BV1scFcewEPN', 'BV1F5C3YLE3N'], // 时唅: 生还者 line
+  ['BV1nRBFBFEFw', 'BV1RaF6zXELF', 'BV1toNn6pEWN', 'BV1vGq9BeETp'], // 一个小寂哦: 怪物大乱斗重生 line
+  ['BV13fm7BXEL9', 'BV1Kw2JB2ESX', 'BV1YBqaBTEsX'], // 一个小寂哦: 无尽幸运方块大陆重生 release chain
+  ['BV1WA4m1L7QY', 'BV1qK411v7Ad', 'BV1ZW421N76z', 'BV1yr421n7yL', 'BV1yB34zhEKs'], // Puikre: 锻造大师 line
+  ['BV1uN411Y7eC', 'BV1Jm4y1374M', 'BV1Rc411f7av'], // 墨竹ギ: 史诗的地下城
+];
+
+// A named source group is a must-link only when the ledger/evidence titles
+// provide the same non-generic product anchor for every member. These are
+// audit-side adjudication inputs, not runtime rules; mixed token-connectivity
+// groups such as `星辉死神`, `各大主播同款`, and the mobile `怪物大乱斗`
+// group are intentionally absent.
+const EVIDENCE_BACKED_SOURCE_GROUP_MUST_LINKS = new Set([
+  '爱吃土豆的界王::山海大陆斗罗大陆 与',
+  '爱吃土豆的界王::时光牧场',
+  '冰冻酸奶盒::宝可梦地平线',
+  '明月庄主::命运齿轮',
+  '明月庄主::月亮工厂 f',
+  '墨竹ギ::深渊之诗',
+  '墨竹ギ::史诗的地下城 dungeons of fantasy',
+  '时唅::大型末世 辐射 生还者',
+  '时唅::辐射次时代',
+  '时唅::辐射新世纪',
+  '我的世界peaunt::泰坦生物 仿照',
+  '我的世界peaunt::泰坦生物复刻',
+  '一个小寂哦::弑神之路',
+  '一个小寂哦::怪物大乱斗重生',
+  '一个小寂哦::四叶草',
+  '一个小寂哦::追影之旅',
+  'zanghero::机械殖民地',
+]);
+
 function unionFind(values) {
   const parent = new Map(values.map((v) => [v, v]));
   function find(x) { let p = parent.get(x); while (p !== parent.get(p)) { parent.set(p, parent.get(p)); p = parent.get(p); } return p; }
@@ -143,31 +184,81 @@ function buildIdentityRelations(kind, adjudication, groups) {
     };
   }
 
-  // For DIFFERENT_PACKS, registered IDs split a mixed source group (e.g. two
-  // registered projects in one old runtime group). Where no registered ID is
-  // available, the adjudication note's named source group is retained as an
-  // evidence-backed partition; it is never treated as an identity trigger.
-  const partitions = new Map();
+  // For DIFFERENT_PACKS, a source group without a registered identity is not
+  // itself a ground-truth identity: the old runtime may have connected several
+  // products through a component token. Keep such relations UNKNOWN unless a
+  // ledger/evidence-backed relation below establishes them. A source group
+  // with exactly one registered identity can provisionally cover its unlinked
+  // siblings; a mixed registered group is partitioned by the member identity.
+  const memberSet = new Set(members.map((m) => m.bvid));
+  const partitionUf = unionFind([...memberSet]);
+  const knownMembers = new Set();
+  const labelForMember = new Map();
   for (const g of groups) {
-    for (const m of g.members) {
-      let label = labelFor.get(m.bvid);
-      if (!label) label = `evidence_partition:${g.source_group_key}`;
-      const arr = partitions.get(label) || [];
-      arr.push(m.bvid); partitions.set(label, arr);
+    const roots = [...new Set(g.members.flatMap((m) => m.registered_identity_ids || []).map((id) => uf.find(id)))].sort();
+    if (EVIDENCE_BACKED_SOURCE_GROUP_MUST_LINKS.has(g.source_group_key)) {
+      const label = `adjudicated_source_group:${g.source_group_key}`;
+      for (const m of g.members) {
+        labelForMember.set(m.bvid, label);
+        knownMembers.add(m.bvid);
+      }
+    } else if (roots.length === 1) {
+      const label = roots.length
+        ? `registered:${roots[0]}`
+        : `evidence_partition:${g.source_group_key}`;
+      for (const m of g.members) {
+        labelForMember.set(m.bvid, label);
+        knownMembers.add(m.bvid);
+      }
+    } else {
+      for (const m of g.members) {
+        const label = labelFor.get(m.bvid);
+        if (label) {
+          labelForMember.set(m.bvid, label);
+          knownMembers.add(m.bvid);
+        }
+      }
     }
   }
-  const partitionValues = [...partitions.entries()].map(([identity, bvids]) => ({ identity, bvids: [...new Set(bvids)].sort() }));
+  const byLabel = new Map();
+  for (const [bvid, label] of labelForMember) {
+    const arr = byLabel.get(label) || [];
+    arr.push(bvid); byLabel.set(label, arr);
+  }
+  for (const bvids of byLabel.values()) for (const [a, b] of pairwise(bvids)) partitionUf.join(a, b);
+  for (const bvids of EVIDENCE_BACKED_CROSS_GROUP_MUST_LINKS) {
+    const present = bvids.filter((bvid) => memberSet.has(bvid));
+    if (present.length >= 2) {
+      for (const bvid of present) knownMembers.add(bvid);
+      for (const [a, b] of pairwise(present)) partitionUf.join(a, b);
+    }
+  }
+  const partitions = new Map();
+  for (const bvid of knownMembers) {
+    const root = partitionUf.find(bvid);
+    const arr = partitions.get(root) || [];
+    arr.push(bvid); partitions.set(root, arr);
+  }
+  const partitionValues = [...partitions.entries()].map(([root, bvids]) => {
+    const labels = [...new Set(bvids.map((bvid) => labelForMember.get(bvid)))].sort();
+    return { identity: labels.join('|') || `partition:${root}`, bvids: bvids.sort() };
+  });
   const must = partitionValues.flatMap((p) => pairwise(p.bvids));
   const cannot = [];
   for (let i = 0; i < partitionValues.length; i++) for (let j = i + 1; j < partitionValues.length; j++) {
-    // Expand the cross-partition relation to every member, not just counts.
+    // Expand only evidence-backed cross-partition relations to every member.
     for (const a of partitionValues[i].bvids) for (const b of partitionValues[j].bvids) cannot.push([a, b]);
   }
+  const relationKey = (a, b) => a < b ? `${a}\0${b}` : `${b}\0${a}`;
+  const mustKeys = new Set(must.map(([a, b]) => relationKey(a, b)));
+  const cannotKeys = new Set(cannot.map(([a, b]) => relationKey(a, b)));
+  const unknown_pairs = pairwise([...memberSet].sort())
+    .filter(([a, b]) => !mustKeys.has(relationKey(a, b)) && !cannotKeys.has(relationKey(a, b)));
   return {
     basis: 'different_pack_adjudication_note plus registered_identity_partitioning',
     must_link: must,
     cannot_link: cannot,
-    unknown_pairs: [],
+    unknown_pairs,
     partitions: partitionValues,
   };
 }
