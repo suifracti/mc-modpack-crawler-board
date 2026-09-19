@@ -166,8 +166,10 @@ function main() {
     });
   }
 
-  const confirmed = excludedResults.filter((x) => x.verdict === 'DIFFERENT_PACKS').length;
-  const ambiguous = excludedResults.filter((x) => x.verdict === 'AMBIGUOUS').length;
+  const differentPacks = excludedResults.filter((x) => x.verdict === 'DIFFERENT_PACKS');
+  const ambiguous = excludedResults.filter((x) => x.verdict === 'AMBIGUOUS');
+  const differentPacksProtected = differentPacks.filter((x) => x.result === 'PROTECTED').length;
+  const ambiguousProtected = ambiguous.filter((x) => x.result === 'PROTECTED').length;
   const failedGate = gateResults.filter((x) => x.result !== 'PASS');
   const failedExcluded = excludedResults.filter((x) => x.result === 'FAIL');
   const result = {
@@ -195,9 +197,9 @@ function main() {
       gate_cases_passed: gateResults.filter((x) => x.result === 'PASS').length,
       gate_cases_failed: failedGate.length,
       different_packs_expected: 27,
-      different_packs_checked: confirmed,
+      different_packs_checked: differentPacks.length,
       ambiguous_expected: 5,
-      ambiguous_checked: ambiguous,
+      ambiguous_checked: ambiguous.length,
       unique_gate_bvids: new Set(gateResults.flatMap((x) => Object.keys(x.before.group_keys_by_bvid))).size,
     },
     gate_cases: gateResults,
@@ -205,8 +207,8 @@ function main() {
   };
   fs.writeFileSync(OUT, JSON.stringify(result, null, 2), 'utf8');
   console.log(`gate cases: ${result.coverage.gate_cases_passed}/${result.coverage.gate_cases_expected} PASS`);
-  console.log(`DIFFERENT_PACKS protected: ${confirmed}/${result.coverage.different_packs_expected}`);
-  console.log(`AMBIGUOUS protected: ${ambiguous}/${result.coverage.ambiguous_expected}`);
+  console.log(`DIFFERENT_PACKS protected: ${differentPacksProtected}/${result.coverage.different_packs_expected}`);
+  console.log(`AMBIGUOUS protected: ${ambiguousProtected}/${result.coverage.ambiguous_expected}`);
   console.log(`status: ${result.status}`);
   console.log(`written: ${path.relative(REPO_ROOT, OUT)}`);
   process.exitCode = result.status === 'PASS' ? 0 : 2;

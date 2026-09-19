@@ -37,8 +37,8 @@ The source blob `apps/web/src/domain/bilibiliGrouping.ts` has `git diff` exit
 code 0 against `1bee6de`; Windows may still show a stale stat because of
 LF/CRLF normalization. The current bundle above was freshly compiled from that
 source after the production-map attempt was removed; it is not the rejected
-static-map bundle. The probe rerun log is
-`docs/audit/logs/phase3gf-f3a-runtime-probe-rerun.log`.
+static-map bundle. The corrected probe rerun log is
+`docs/audit/logs/phase3gf-probe-corrected.log`.
 
 ## Legacy audit-artifact read compatibility
 
@@ -140,7 +140,7 @@ for a future general runtime design.
 | `python -m unittest tests.test_bilibili_undermerge_runtime_closure -v` | 0 | 5 closure-contract tests passed; same finalization log |
 | `node pipeline/audit/build_bilibili_undermerge_runtime_closure.js` | 0 | 26/26 original gate cases mapped; 80 unique BVIDs; closure artifact |
 | `apps/web/node_modules/.bin/esbuild.cmd apps/web/src/domain/bilibiliGrouping.ts --bundle --platform=node --format=cjs --target=node20 --outfile=build/audit/bilibili_grouping_runtime_current.js` | 0 | current bundle hash recorded above |
-| `node pipeline/audit/probe_bilibili_undermerge_runtime.js build/audit/bilibili_grouping_runtime_current.js` | 2 | expected diagnostic `BLOCKED`; `docs/audit/logs/phase3gf-f3a-runtime-probe-rerun.log` |
+| `node pipeline/audit/probe_bilibili_undermerge_runtime.js build/audit/bilibili_grouping_runtime_current.js` | 2 | expected diagnostic `BLOCKED`; corrected console `22/27`, `4/5`; `docs/audit/logs/phase3gf-probe-corrected.log` |
 | `python -m unittest tests.test_bilibili_undermerge_adjudication -v` (after gzip compatibility) | 0 | 26 tests passed; `build/audit/test-logs/05-undermerge-adjudication-after-gzip.log` |
 
 An earlier combined Python command exited 1: the population benchmark setup lacked
@@ -149,6 +149,14 @@ candidate drift after that population run, and the closure test still had the
 pre-correction partition assertions. Those failures are retained in
 `docs/audit/logs/phase3gf-f3a-runtime-tests.log`; the corrected standalone
 closure-contract and adjudication tests above are the final results. The
-adjudication rerun used the frozen restored candidate/evidence bytes and the
-gzip-compatible reader; it did not promote the 21 runtime failures or rewrite
-any verdict.
+adjudication setup necessarily rewrites its ignored evidence/candidate outputs;
+therefore the final probe was run only after restoring the frozen evidence and
+candidate hashes listed above. The corrected probe script now counts actual
+`PROTECTED` results in its console summary; its JSON remains the authority for
+the 22/27 and 4/5 partition. No verdict was rewritten.
+
+The later combined handoff command exited 1 because it intentionally ran
+adjudication before the probe and left the tracked probe fixtures regenerated;
+that dirty-state failure is retained in
+`docs/audit/logs/phase3gf-final-handoff.log`. The stable-input rerun is the
+corrected `phase3gf-probe-corrected.log` above.
