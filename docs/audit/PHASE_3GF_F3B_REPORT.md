@@ -164,5 +164,4 @@ ref 或 packed-refs，也没有做 hidden-ref 测试。
 - `runtime`: untouched
 - `Truth Matrix`: not finalized
 - `production cutover`: not performed
-- `final HEAD`: 以交付前最后一次 `git rev-parse HEAD` 为准，见交付回复中的完整 SHA
-
+- `final HEAD`: `dbaa5679fea4ce0a3a85c3342456338899e1ba86`
