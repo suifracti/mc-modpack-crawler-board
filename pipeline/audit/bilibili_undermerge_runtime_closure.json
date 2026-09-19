@@ -1,0 +1,1320 @@
+{
+  "phase": "3G-F.3-A",
+  "artifact": "bilibili_undermerge_runtime_closure",
+  "generated_at": "2026-09-19T11:53:19.357Z",
+  "purpose": "Auditable runtime projection of the frozen under-merge gate. It is not a new candidate scan or ground-truth adjudication.",
+  "ground_truth": {
+    "adjudication_commit": "cbbfb588262d06d386dab645deee88e0c4acb7c3",
+    "report_commit": "a690d3dfddc66d4260960b83c9cece7bdb3af72a",
+    "rule": "Only the cbbfb58 CONFIRMED_SAME_PACK / STRONG_SAME_PACK gate is projected; no verdict is inferred here."
+  },
+  "source_artifacts": {
+    "runtime_gate": {
+      "path": "pipeline/audit/confirmed_undermerge_runtime_gate.json",
+      "working_tree_sha256": "cafec9955c5e589315279b348dc5520a17594bebfc5d43dde08b4a810dfafad7",
+      "source_commit_sha256": "4e91fe1d8bc3c16a8fe1b3cc65be9a64dcc56f47b29b2a218524029ca82a9d90",
+      "source_commit_expected_sha256": "4e91fe1d8bc3c16a8fe1b3cc65be9a64dcc56f47b29b2a218524029ca82a9d90"
+    },
+    "candidate_baseline": {
+      "path": "build/audit/bilibili_cross_group_undermerge_v2.json",
+      "sha256": "c32814f6926c2c5c6e2be5552d3e7cd0b61e7ead82d0e10e1d8c007c8ff846a4"
+    },
+    "original_evidence": {
+      "path": "build/audit/undermerge_evidence_v2.json",
+      "sha256": "bd8b76a51dba40079f258183ef27cbe438c7e220af972a5fe877a1f9ff2df083"
+    },
+    "population_bytes": {
+      "path": "converted_output/data/bili_data.js",
+      "sha256": "049fe4c567fabafb4e4c58018b606c1aa23d01d2d1511933856454915e79bebe"
+    }
+  },
+  "population_records": 936,
+  "gate_size": 26,
+  "distinct_uploaders": 25,
+  "records_involved_sum": 80,
+  "records_involved_unique_bvids": 80,
+  "packs_to_unify": 34,
+  "semantics": {
+    "packs_to_unify": "sum(group_count - 1): excess runtime groups awaiting unification, not target-pack count",
+    "records_involved": "deduplicated BVID count; duplicate or empty members fail the closure",
+    "population_check": "Every mapped BVID is checked against the full 936-record payload; every original source group member is retained.",
+    "selection": "The 26 original gate cases are matched by author + original group-key set. No new runtime group-key candidate filtering is performed.",
+    "exclusions": "DIFFERENT_PACKS and AMBIGUOUS remain outside this runtime projection; they are not rewritten as same-pack evidence."
+  },
+  "coverage": {
+    "gate_cases_expected": 26,
+    "gate_cases_mapped": 26,
+    "gate_case_coverage": 1,
+    "bvids_expected": 80,
+    "bvids_mapped_unique": 80,
+    "bvid_coverage": 1,
+    "missing_cases": [],
+    "duplicate_bvids": [],
+    "empty_groups": [],
+    "non_unique_mappings": []
+  },
+  "cases": [
+    {
+      "cluster_key": "-阳春面面-||-阳春面面-::大 蔚蓝档案 版本|-阳春面面-::青春复兴",
+      "author": "-阳春面面-",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "medium",
+      "group_count": 2,
+      "record_count": 3,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "-阳春面面-::大 蔚蓝档案 版本",
+        "-阳春面面-::青春复兴"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "-阳春面面-::大 蔚蓝档案 版本",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1K6HjeTEKJ",
+              "title": "大更新！蔚蓝档案科技整合包0.5.1版本发布！"
+            }
+          ]
+        },
+        {
+          "source_group_key": "-阳春面面-::青春复兴",
+          "member_count": 2,
+          "members": [
+            {
+              "bvid": "BV1bZigehE6V",
+              "title": "蔚蓝档案超大型科技冒险整合包：青春复兴 早期版本先行发布（1.20.1）"
+            },
+            {
+              "bvid": "BV1qTDNY3Ekc",
+              "title": "大重置！格雷青春版?青春复兴整合包0.7.1更新！"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1K6HjeTEKJ",
+        "BV1bZigehE6V",
+        "BV1qTDNY3Ekc"
+      ],
+      "evidence": "SAME PACK. “青春复兴” IS the pack name (蔚蓝档案超大型科技冒险整合包：青春复兴) and the other group is its earlier “0.5.1版本发布”. Explicit version continuity on a named pack: 0.5.1 -> 0.7.1. The uploader’s own update wording is the decisive evidence."
+    },
+    {
+      "cluster_key": "爱吃土豆的界王||爱吃土豆的界王::考古与化石 侏罗纪 与|爱吃土豆的界王::考古与化石x侏罗纪 与",
+      "author": "爱吃土豆的界王",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "爱吃土豆的界王::考古与化石 侏罗纪 与",
+        "爱吃土豆的界王::考古与化石x侏罗纪 与"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "爱吃土豆的界王::考古与化石 侏罗纪 与",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1ZsFbzZE1b",
+              "title": "【整合包发布】考古与化石-侏罗纪整合包-下载与介绍"
+            }
+          ]
+        },
+        {
+          "source_group_key": "爱吃土豆的界王::考古与化石x侏罗纪 与",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1RiPWzDE4Q",
+              "title": "【我的世界】考古与化石X侏罗纪整合包发布与介绍"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1RiPWzDE4Q",
+        "BV1ZsFbzZE1b"
+      ],
+      "evidence": "SAME PACK. Both titles name “考古与化石X侏罗纪” - literally the same pack, one with an “X” separator instead of a space. Split only by punctuation normalisation. One pack split two ways."
+    },
+    {
+      "cluster_key": "爱吃土豆的界王||爱吃土豆的界王::山海大陆 与 斗罗大陆与山海经为背景|爱吃土豆的界王::山海大陆斗罗大陆 与",
+      "author": "爱吃土豆的界王",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 3,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "爱吃土豆的界王::山海大陆 与 斗罗大陆与山海经为背景",
+        "爱吃土豆的界王::山海大陆斗罗大陆 与"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "爱吃土豆的界王::山海大陆 与 斗罗大陆与山海经为背景",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1bPQCBcEws",
+              "title": "【整合包发布】山海大陆整合包下载与介绍-我的世界斗罗大陆与山海经为背景"
+            }
+          ]
+        },
+        {
+          "source_group_key": "爱吃土豆的界王::山海大陆斗罗大陆 与",
+          "member_count": 2,
+          "members": [
+            {
+              "bvid": "BV19vto6XETe",
+              "title": "[MC整合包发布]山海大陆X斗罗大陆整合包发布与介绍"
+            },
+            {
+              "bvid": "BV1zRjv6gEAp",
+              "title": "[MC整合包发布]山海大陆X斗罗大陆整合包发布与介绍"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV19vto6XETe",
+        "BV1bPQCBcEws",
+        "BV1zRjv6gEAp"
+      ],
+      "evidence": "SAME PACK. All three titles are the same pack: “山海大陆X斗罗大陆” / “山海大陆·斗罗大陆与山海经为背景”. Two of them are near-identical duplicate announcements. One pack split two ways."
+    },
+    {
+      "cluster_key": "爱玩游戏的烛梦||爱玩游戏的烛梦::基岩版 仿亡者世界|爱玩游戏的烛梦::基岩版仿亡者世界 v",
+      "author": "爱玩游戏的烛梦",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "爱玩游戏的烛梦::基岩版 仿亡者世界",
+        "爱玩游戏的烛梦::基岩版仿亡者世界 v"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "爱玩游戏的烛梦::基岩版 仿亡者世界",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1u34162EuC",
+              "title": "我的世界基岩版（自制）仿亡者世界整合包发布"
+            }
+          ]
+        },
+        {
+          "source_group_key": "爱玩游戏的烛梦::基岩版仿亡者世界 v",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1iYt46kEtC",
+              "title": "我的世界基岩版仿亡者世界整合包 V1.2 更新"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1iYt46kEtC",
+        "BV1u34162EuC"
+      ],
+      "evidence": "SAME PACK. Same uploader, same title “基岩版仿亡者世界整合包”, one is the V1.2 update of the other, same QQ 1082956985. One pack split two ways."
+    },
+    {
+      "cluster_key": "炒雪吵狐力o||炒雪吵狐力o::rapid|炒雪吵狐力o::你电脑玩 很卡 极致优化 帧数提升超过10倍|炒雪吵狐力o::极致优化 fabirc双端支持 帧数暴涨 低配玩家福星 rapidoptimization优化",
+      "author": "炒雪吵狐力o",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 3,
+      "record_count": 5,
+      "expected_identity_count": 1,
+      "packs_to_unify": 2,
+      "original_group_keys": [
+        "炒雪吵狐力o::rapid",
+        "炒雪吵狐力o::你电脑玩 很卡 极致优化 帧数提升超过10倍",
+        "炒雪吵狐力o::极致优化 fabirc双端支持 帧数暴涨 低配玩家福星 rapidoptimization优化"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "炒雪吵狐力o::极致优化 fabirc双端支持 帧数暴涨 低配玩家福星 rapidoptimization优化",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1HgGvz2ENe",
+              "title": "[整合包发布]1.21+极致优化,NeoForge/Fabirc双端支持！帧数暴涨！低配玩家福星！RapidOptimization优化整合包！"
+            }
+          ]
+        },
+        {
+          "source_group_key": "炒雪吵狐力o::你电脑玩 很卡 极致优化 帧数提升超过10倍",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1MzGAzqEsq",
+              "title": "【MC】你电脑玩MC很卡？极致优化整合包更新！帧数提升超过10倍！"
+            }
+          ]
+        },
+        {
+          "source_group_key": "炒雪吵狐力o::rapid",
+          "member_count": 3,
+          "members": [
+            {
+              "bvid": "BV16dcgzUEm2",
+              "title": "【MC】极致优化！Rapid Opt优化整合包再次更新！不用再纠结用哪个整合包了！RapidOptimization优化整合包"
+            },
+            {
+              "bvid": "BV1f3eAz3Env",
+              "title": "【MC】极致优化！Rapid Opt优化整合包再次更新！拯救你的游戏！RapidOptimization优化整合包"
+            },
+            {
+              "bvid": "BV1zr8V62EvF",
+              "title": "【MC】低帧救星！Rapid Opt极致优化整合再次更新！Rapid Optimization快速优化整合包！"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV16dcgzUEm2",
+        "BV1HgGvz2ENe",
+        "BV1MzGAzqEsq",
+        "BV1f3eAz3Env",
+        "BV1zr8V62EvF"
+      ],
+      "evidence": "SAME PACK. All three groups carry the SAME registered id mcmod:modpack/1159 and every title names the same optimisation pack across successive updates. One pack split three ways."
+    },
+    {
+      "cluster_key": "孑孑雨不是牢孑||孑孑雨不是牢孑::annoying villagers烦村|孑孑雨不是牢孑::烦村 史诗级",
+      "author": "孑孑雨不是牢孑",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "孑孑雨不是牢孑::annoying villagers烦村",
+        "孑孑雨不是牢孑::烦村 史诗级"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "孑孑雨不是牢孑::烦村 史诗级",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1ej411q7Kj",
+              "title": "我的世界烦村，整合包5.0史诗级更新。"
+            }
+          ]
+        },
+        {
+          "source_group_key": "孑孑雨不是牢孑::annoying villagers烦村",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1of421v7ug",
+              "title": "annoying_villagers烦村整合包1.0发布"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1ej411q7Kj",
+        "BV1of421v7ug"
+      ],
+      "evidence": "SAME PACK. Both are 烦村 / annoying_villagers: one is the 1.0 release, the other the 5.0 “史诗级更新”. Chinese title and English alias are given for the same pack in the first video, and the second is an explicit version update. One pack split two ways."
+    },
+    {
+      "cluster_key": "科里森Corrison||科里森corrison::apotheosis conquest|科里森corrison::神之征伐 版本",
+      "author": "科里森Corrison",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 6,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "科里森corrison::apotheosis conquest",
+        "科里森corrison::神之征伐 版本"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "科里森corrison::神之征伐 版本",
+          "member_count": 5,
+          "members": [
+            {
+              "bvid": "BV1ApFYz2E7v",
+              "title": "神之征伐 1.21.1冒险整合包 2.0版本更新！"
+            },
+            {
+              "bvid": "BV1bzPMzYE91",
+              "title": "神之征伐1.21冒险整合包v2.1版本更新介绍【Apotheosis Conquest】"
+            },
+            {
+              "bvid": "BV1iCrMBnEG5",
+              "title": "【mc冒险整合包】神之征伐v1.1版本更新介绍！"
+            },
+            {
+              "bvid": "BV1j5V56TEoE",
+              "title": "神之征伐1.21.1冒险整合包v2.3版本更新介绍【Apotheosis Conquest】"
+            },
+            {
+              "bvid": "BV1zGduBhEt2",
+              "title": "神之征伐1.21.1冒险整合包v2.2版本更新介绍【Apotheosis Conquest】"
+            }
+          ]
+        },
+        {
+          "source_group_key": "科里森corrison::apotheosis conquest",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1xnvvBbEbj",
+              "title": "【MC】1.21.1原版风格冒险整合包发布！Apotheosis Conquest—神之征伐"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1ApFYz2E7v",
+        "BV1bzPMzYE91",
+        "BV1iCrMBnEG5",
+        "BV1j5V56TEoE",
+        "BV1xnvvBbEbj",
+        "BV1zGduBhEt2"
+      ],
+      "evidence": "SAME PACK. Both groups carry the SAME registered id xyebbs:resource/1421, and the second group is literally the English title of the first (Apotheosis Conquest). Versions run v1.1 through v2.3 on one pack. One pack split two ways."
+    },
+    {
+      "cluster_key": "空空如也js||空空如也js::惊变100天v ftb500|空空如也js::惊变100天但是是",
+      "author": "空空如也js",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "空空如也js::惊变100天v ftb500",
+        "空空如也js::惊变100天但是是"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "空空如也js::惊变100天但是是",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1aN4y1W7Mx",
+              "title": "[MC整合包发布]惊变100天但是是1.18.2"
+            }
+          ]
+        },
+        {
+          "source_group_key": "空空如也js::惊变100天v ftb500",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1Jg4y1S7zy",
+              "title": "[MC整合包发布]1.18.2惊变100天v1.3更新FTB500+"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1Jg4y1S7zy",
+        "BV1aN4y1W7Mx"
+      ],
+      "evidence": "SAME PACK. Both are the same 1.18.2 惊变100天 FTB500 pack: identical titles modulo suffix (“惊变100天v1.3更新FTB500+” vs “惊变100天但是是1.18.2”) AND identical download links on both MCBBS and MineBBS. Same registered thread identity. One pack split two ways."
+    },
+    {
+      "cluster_key": "流霜雾影||流霜雾影::愚者 愚弄 伪装 欺诈 屠龙者终成恶龙 扮演所有的生物 使用它们的能力编织一场完美的欺诈盛宴|流霜雾影::愚者版本大",
+      "author": "流霜雾影",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 3,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "流霜雾影::愚者 愚弄 伪装 欺诈 屠龙者终成恶龙 扮演所有的生物 使用它们的能力编织一场完美的欺诈盛宴",
+        "流霜雾影::愚者版本大"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "流霜雾影::愚者 愚弄 伪装 欺诈 屠龙者终成恶龙 扮演所有的生物 使用它们的能力编织一场完美的欺诈盛宴",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1iRL7zYExj",
+              "title": "【MC整合包发布：愚者】愚弄、伪装、欺诈，屠龙者终成恶龙。扮演所有的生物，使用它们的能力编织一场完美的欺诈盛宴！"
+            }
+          ]
+        },
+        {
+          "source_group_key": "流霜雾影::愚者版本大",
+          "member_count": 2,
+          "members": [
+            {
+              "bvid": "BV1CLnmzgECo",
+              "title": "【MC整合包发布】愚者v0.1：初升的暮色、日落的天堂、迷失梦境的旅人、萌芽地狱的新生...愚者版本大更新！更丰富的玩法、更具挑战的内容来了！！！"
+            },
+            {
+              "bvid": "BV1s3ZNBYEQU",
+              "title": "【MC整合包发布】愚者v0.2：塔罗秘闻、罪梦流派、逆位诅咒！愚者版本大更新，全新挑战内容来袭！"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1CLnmzgECo",
+        "BV1iRL7zYExj",
+        "BV1s3ZNBYEQU"
+      ],
+      "evidence": "SAME PACK. Both groups carry the SAME registered id bbsmc:modpack/the-fool, and the versions run v0.1 -> v0.2 as explicit major updates of the one named pack. One pack split two ways."
+    },
+    {
+      "cluster_key": "芦苇草的梦想||芦苇草的梦想::芦苇 寒假来休闲一下 芦苇的 宣传片|芦苇草的梦想::芦苇的 宣传片4|芦苇草的梦想::芦苇的 版本 宣传片",
+      "author": "芦苇草的梦想",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 3,
+      "record_count": 3,
+      "expected_identity_count": 1,
+      "packs_to_unify": 2,
+      "original_group_keys": [
+        "芦苇草的梦想::芦苇 寒假来休闲一下 芦苇的 宣传片",
+        "芦苇草的梦想::芦苇的 宣传片4",
+        "芦苇草的梦想::芦苇的 版本 宣传片"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "芦苇草的梦想::芦苇 寒假来休闲一下 芦苇的 宣传片",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1hN6FBnEUp",
+              "title": "【芦苇】寒假来休闲一下-芦苇的1.21.11整合包宣传片4.2.12更新"
+            }
+          ]
+        },
+        {
+          "source_group_key": "芦苇草的梦想::芦苇的 版本 宣传片",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV14e2LBuEAK",
+              "title": "芦苇的整合包版本更新4.0.11-1.21.10宣传片"
+            }
+          ]
+        },
+        {
+          "source_group_key": "芦苇草的梦想::芦苇的 宣传片4",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1KdrKBeE9Z",
+              "title": "芦苇的1.21.10整合包宣传片4.1.7更新"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV14e2LBuEAK",
+        "BV1KdrKBeE9Z",
+        "BV1hN6FBnEUp"
+      ],
+      "evidence": "SAME PACK. All three carry the SAME registered Modrinth project (modrinth.com/modpack/my-biome-is-so-beautiful) and are version-continuous updates of the same 芦苇的 pack (4.0.11 -> 4.1.7 -> 4.2.12). One pack split three ways."
+    },
+    {
+      "cluster_key": "鹿清玖LQJ||__raw_BV1AoULBgEoH|__raw_BV1aRYC6cE4p",
+      "author": "鹿清玖LQJ",
+      "verdict": "STRONG_SAME_PACK",
+      "confidence": "medium",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "__raw_BV1AoULBgEoH",
+        "__raw_BV1aRYC6cE4p"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "__raw_BV1AoULBgEoH",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1AoULBgEoH",
+              "title": "我的世界1.20.1整合包，溯渊最新更新"
+            }
+          ]
+        },
+        {
+          "source_group_key": "__raw_BV1aRYC6cE4p",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1aRYC6cE4p",
+              "title": "我的世界1.20.1整合包，溯渊最新更新"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1AoULBgEoH",
+        "BV1aRYC6cE4p"
+      ],
+      "evidence": "SAME PACK. Two videos with IDENTICAL titles (“我的世界1.20.1整合包，溯渊最新更新”) by one uploader, both landing in un-named __raw_ buckets. Same pack name 溯渊, same MC version, near-identical publish dates. The only reason they are separate groups is that the key fell below the discriminative threshold, which is itself the defect. Treating as one pack."
+    },
+    {
+      "cluster_key": "落烟雨辰呀||落烟雨辰呀::诡厄 使徒|落烟雨辰呀::诡厄使徒",
+      "author": "落烟雨辰呀",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "medium",
+      "group_count": 2,
+      "record_count": 4,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "落烟雨辰呀::诡厄 使徒",
+        "落烟雨辰呀::诡厄使徒"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "落烟雨辰呀::诡厄 使徒",
+          "member_count": 2,
+          "members": [
+            {
+              "bvid": "BV1JTwZzDEQr",
+              "title": "【MC整合包更新】诡厄：使徒1.0.6，化身使徒，完成飞升"
+            },
+            {
+              "bvid": "BV1s2X4BnEkR",
+              "title": "【MC整合包更新】诡厄：使徒1.0.7：十二使徒头衔与使徒眷属"
+            }
+          ]
+        },
+        {
+          "source_group_key": "落烟雨辰呀::诡厄使徒",
+          "member_count": 2,
+          "members": [
+            {
+              "bvid": "BV1gkT66HEzV",
+              "title": "【mc最新整合包发布】诡厄使徒：诸神黄昏，救赎或是终焉？"
+            },
+            {
+              "bvid": "BV1qg5a6dEuh",
+              "title": "【MC整合包】诡厄使徒1.1.0版本发布，轻量/魔改/冒险/任务"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1JTwZzDEQr",
+        "BV1gkT66HEzV",
+        "BV1qg5a6dEuh",
+        "BV1s2X4BnEkR"
+      ],
+      "evidence": "SAME PACK. The two groups are the same pack name with a separator difference; the MCMod id mcmod:modpack/1241 belongs to the 1.0.x line and the two newer videos carry the BBSMC slugs. Versions 1.0.6 -> 1.1.0 are continuous. One pack split two ways."
+    },
+    {
+      "cluster_key": "墨言eclipse||墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频|墨言eclipse::沉浸 深度 a 咒镰双生|墨言eclipse::涅槃 无神明渡我 我亦是神明|墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅",
+      "author": "墨言eclipse",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 4,
+      "record_count": 5,
+      "expected_identity_count": 1,
+      "packs_to_unify": 3,
+      "original_group_keys": [
+        "墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频",
+        "墨言eclipse::沉浸 深度 a 咒镰双生",
+        "墨言eclipse::涅槃 无神明渡我 我亦是神明",
+        "墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "墨言eclipse::沉浸 深度 a 咒镰双生",
+          "member_count": 2,
+          "members": [
+            {
+              "bvid": "BV1sNjq6pEAd",
+              "title": "[MC整合包发布]涅槃v0.1.6 [沉浸战斗/深度魔改/ARPG/咒镰双生]"
+            },
+            {
+              "bvid": "BV1UJET67ErR",
+              "title": "[MC整合包发布] 涅槃v.0.1.5介绍视频 [沉浸战斗/深度魔改/ARPG/咒镰双生]"
+            }
+          ]
+        },
+        {
+          "source_group_key": "墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1LyN366E4u",
+              "title": "[MC大型整合包发布] 禁忌魔法 远古炼金  世界污染  3万行代码深度魔改---涅槃v.0.1.8 宣传视频"
+            }
+          ]
+        },
+        {
+          "source_group_key": "墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1ZTuJ6rEJp",
+              "title": "[整合包更新-涅槃v0.2]神吞降世，邪神投影，万魂幡！ 超越法则的魔法镰刀战斗之旅"
+            }
+          ]
+        },
+        {
+          "source_group_key": "墨言eclipse::涅槃 无神明渡我 我亦是神明",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1CQtC6eEaC",
+              "title": "[MC整合包发布:涅槃]  无神明渡我 我亦是神明"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1CQtC6eEaC",
+        "BV1LyN366E4u",
+        "BV1UJET67ErR",
+        "BV1ZTuJ6rEJp",
+        "BV1sNjq6pEAd"
+      ],
+      "evidence": "SAME PACK (nirvana). All four groups are the nirvana pack: every member carries xyebbs:resource/37418 and three of them also carry mcmod:modpack/1418. Versions 0.1.5 through 0.2 are explicit updates of the same named pack. One pack split four ways. NOTE: this is the nirvana half of the module-2 result - see the_nirvana_lesson for why the OTHER nirvana-labelled group is NOT part of it."
+    },
+    {
+      "cluster_key": "三只大猪TB_pig||三只大猪tb_pig::最适合初次游玩铁砧工艺的 铁砧工艺极速版|三只大猪tb_pig::铁砧工艺 极速版 完美体验铁砧工艺的所有内容",
+      "author": "三只大猪TB_pig",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "三只大猪tb_pig::最适合初次游玩铁砧工艺的 铁砧工艺极速版",
+        "三只大猪tb_pig::铁砧工艺 极速版 完美体验铁砧工艺的所有内容"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "三只大猪tb_pig::铁砧工艺 极速版 完美体验铁砧工艺的所有内容",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1kDBpBcE9x",
+              "title": "【MC整合包发布!】铁砧工艺：极速版——完美体验铁砧工艺的所有内容！"
+            }
+          ]
+        },
+        {
+          "source_group_key": "三只大猪tb_pig::最适合初次游玩铁砧工艺的 铁砧工艺极速版",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1Er7G6yEKK",
+              "title": "最适合初次游玩铁砧工艺的整合包！【铁砧工艺极速版0.10.0发布！】"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1Er7G6yEKK",
+        "BV1kDBpBcE9x"
+      ],
+      "evidence": "SAME PACK. Both carry the SAME registered project curveforge:anvilcraft-turbo (the release video additionally lists bbsmc:anvilcraft-turbo and xyebbs:res-id/anvilcraft-turbo, which are other mirrors of the same project). Title is identical: 铁砧工艺极速版. One pack split two ways."
+    },
+    {
+      "cluster_key": "韬可梦||韬可梦::宝可梦 向 实时 版 目标是成为宝可梦大师|韬可梦::宝可梦 向 领先 版本 主打紧跟时事",
+      "author": "韬可梦",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "韬可梦::宝可梦 向 实时 版 目标是成为宝可梦大师",
+        "韬可梦::宝可梦 向 领先 版本 主打紧跟时事"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "韬可梦::宝可梦 向 领先 版本 主打紧跟时事",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV13u4y1e7xC",
+              "title": "【我的世界宝可梦整合包】养老向 领先更新1.20.1版本 主打紧跟时事！"
+            }
+          ]
+        },
+        {
+          "source_group_key": "韬可梦::宝可梦 向 实时 版 目标是成为宝可梦大师",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1RT411h7gm",
+              "title": "【我的世界宝可梦整合包】养老向 实时更新最新版 目标是成为宝可梦大师！"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV13u4y1e7xC",
+        "BV1RT411h7gm"
+      ],
+      "evidence": "SAME PACK. One 养老向 宝可梦 pack, described twice as staying on the newest version (“实时更新最新版” / “领先更新1.20.1版本”), same uploader, same QQ 773422289, same “目标是成为宝可梦大师” tagline. No competing pack name. One pack split two ways."
+    },
+    {
+      "cluster_key": "我嘞个牢末ENd||我嘞个牢末end::增强 轻量 v 内容新鲜出炉|我嘞个牢末end::增强 轻量 周末的 预告以上菜",
+      "author": "我嘞个牢末ENd",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "我嘞个牢末end::增强 轻量 v 内容新鲜出炉",
+        "我嘞个牢末end::增强 轻量 周末的 预告以上菜"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "我嘞个牢末end::增强 轻量 周末的 预告以上菜",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1aojdzzE47",
+              "title": "《1.20.1原版增强》轻量整合包周末的更新预告以上菜～"
+            }
+          ]
+        },
+        {
+          "source_group_key": "我嘞个牢末end::增强 轻量 v 内容新鲜出炉",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1SY7wzJE9w",
+              "title": "《1.20.1原版增强》轻量整合包v1.13更新内容新鲜出炉"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1SY7wzJE9w",
+        "BV1aojdzzE47"
+      ],
+      "evidence": "SAME PACK. Both titles say 《1.20.1原版增强》轻量整合包 - the SAME named pack, one being a v1.13 update and the other a weekend preview, and they share the same download link (123684.com/s/qfKUVv-ulrPH). One pack split two ways."
+    },
+    {
+      "cluster_key": "吴也mc||吴也mc::全新的灾难降临 安全开局 平衡大增|吴也mc::灾难降临 你需要击杀怪物 升级 技能树 开拓安全区 重建家园",
+      "author": "吴也mc",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "吴也mc::全新的灾难降临 安全开局 平衡大增",
+        "吴也mc::灾难降临 你需要击杀怪物 升级 技能树 开拓安全区 重建家园"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "吴也mc::全新的灾难降临 安全开局 平衡大增",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1LY4y1S756",
+              "title": "全新的灾难降临，安全开局，平衡大增【MC整合包更新介绍】"
+            }
+          ]
+        },
+        {
+          "source_group_key": "吴也mc::灾难降临 你需要击杀怪物 升级 技能树 开拓安全区 重建家园",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1sY411d7bd",
+              "title": "【MC整合包发布】灾难降临！你需要击杀怪物，升级枪械技能树，开拓安全区，重建家园！"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1LY4y1S756",
+        "BV1sY411d7bd"
+      ],
+      "evidence": "SAME PACK. Both name 灾难降临 as the pack, one an update of the other by the same uploader (“全新的灾难降临…更新介绍” vs the original “灾难降临！…发布”). Explicit pack-name continuity plus update wording. One pack split two ways."
+    },
+    {
+      "cluster_key": "小兜兜呀_||小兜兜呀_::原神与机械 的时代|小兜兜呀_::小兜兜 恭喜我的原神与机械 的时代 在bbs 资源站 量破6666次和在红石中继站浏览量达到400人 次 以及 相关 计划",
+      "author": "小兜兜呀_",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 7,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "小兜兜呀_::原神与机械 的时代",
+        "小兜兜呀_::小兜兜 恭喜我的原神与机械 的时代 在bbs 资源站 量破6666次和在红石中继站浏览量达到400人 次 以及 相关 计划"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "小兜兜呀_::小兜兜 恭喜我的原神与机械 的时代 在bbs 资源站 量破6666次和在红石中继站浏览量达到400人 次 以及 相关 计划",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1orhK64Em6",
+              "title": "【小兜兜】恭喜我的原神与机械冒险的时代整合包在bbsmc资源站下载量破6666次和在红石中继站浏览量达到400人/次、以及整合包相关更新计划"
+            }
+          ]
+        },
+        {
+          "source_group_key": "小兜兜呀_::原神与机械 的时代",
+          "member_count": 6,
+          "members": [
+            {
+              "bvid": "BV1cjut6BEaG",
+              "title": "【MC整合包更新】原神与机械冒险的时代v3.5.7~v3.5.8版本更新--新增一些模组、新增血族传说等可选模组、修复原神·起源模组的元素爆发导致缩放问题等内容"
+            },
+            {
+              "bvid": "BV1JU4k69E61",
+              "title": "【MC整合包更新】原神与机械冒险的时代v3.5.12版本更新——新增部分模组实机演示、部分结构模组移至可选模组、移除一些冗余模组及整合包相关优化"
+            },
+            {
+              "bvid": "BV1nJbQ6pEHo",
+              "title": "【MC整合包更新】原神与机械冒险的时代v3.5.10版本更新--新增精妙背包·GUI扩展模组、移除一些冗余模组、修复启动游戏加载缓慢、新建世界时生成异常缓慢问题"
+            },
+            {
+              "bvid": "BV1qi8r69Eck",
+              "title": "【MC整合包更新】原神与机械冒险的时代v3.5.11.1小版本更新--优化物品视觉辨识度和文字描述、修复附魔书没有显示词条问题"
+            },
+            {
+              "bvid": "BV1tUTK6JE2o",
+              "title": "【MC整合包发布】原神与机械冒险的时代--在方块世界体验提瓦特式的冒险、机械与探索吧！"
+            },
+            {
+              "bvid": "BV1Y2K467EGN",
+              "title": "【MC整合包更新】原神与机械冒险的时代v3.5.4.1~v3.5.4.2版本更新——新增一键背包整理模组、更新原神·起源模组（新增一些物品、等级功能测试）等内容"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1JU4k69E61",
+        "BV1Y2K467EGN",
+        "BV1cjut6BEaG",
+        "BV1nJbQ6pEHo",
+        "BV1orhK64Em6",
+        "BV1qi8r69Eck",
+        "BV1tUTK6JE2o"
+      ],
+      "evidence": "SAME PACK. Both groups carry the SAME two registered ids (a BBSMC project plus its -lts edition). The second video is a milestone / download-count announcement for the very same pack. One pack split two ways."
+    },
+    {
+      "cluster_key": "小水滴的源头||小水滴的源头::在 里使用学生们的力量 x蔚蓝档案 新版 篇|小水滴的源头::当你在 中拥有了学生们的能力 蔚蓝档案主题|小水滴的源头::当你在 里拥有了学生们的能力 npcai系统 跨时代篇",
+      "author": "小水滴的源头",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 3,
+      "record_count": 3,
+      "expected_identity_count": 1,
+      "packs_to_unify": 2,
+      "original_group_keys": [
+        "小水滴的源头::在 里使用学生们的力量 x蔚蓝档案 新版 篇",
+        "小水滴的源头::当你在 中拥有了学生们的能力 蔚蓝档案主题",
+        "小水滴的源头::当你在 里拥有了学生们的能力 npcai系统 跨时代篇"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "小水滴的源头::当你在 里拥有了学生们的能力 npcai系统 跨时代篇",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV14z9FYRED5",
+              "title": "当你在MC里拥有了学生们的能力！？整合包更新NPCAI系统！（跨时代篇）"
+            }
+          ]
+        },
+        {
+          "source_group_key": "小水滴的源头::当你在 中拥有了学生们的能力 蔚蓝档案主题",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1UGveexEHn",
+              "title": "当你在我的世界中拥有了学生们的能力！我的世界蔚蓝档案主题整合包发布！"
+            }
+          ]
+        },
+        {
+          "source_group_key": "小水滴的源头::在 里使用学生们的力量 x蔚蓝档案 新版 篇",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV13rfqY2Ejf",
+              "title": "在MC里使用学生们的力量！？我的世界x蔚蓝档案 整合包新版发布介绍！（更新篇）"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV13rfqY2Ejf",
+        "BV14z9FYRED5",
+        "BV1UGveexEHn"
+      ],
+      "evidence": "SAME PACK. These are successive updates of one 蔚蓝档案 (Blue Archive) themed pack, told as a continuing story: the early release introduces the pack, then “整合包更新NPCAI系统！(跨时代篇)” and “整合包新版发布介绍！(更新篇)”. Same uploader, same theme, explicit CONTINUATION wording with no competing pack name. One pack split three ways."
+    },
+    {
+      "cluster_key": "星必尘Sguan||星必尘sguan::基岩版 rlcraft适配手机版 汉化 年度优化 超真实 addon|星必尘sguan::真正在基岩版 做个石粒人 rlcraft汉化 重大 超真实的 国际版be pe 均可用",
+      "author": "星必尘Sguan",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "星必尘sguan::基岩版 rlcraft适配手机版 汉化 年度优化 超真实 addon",
+        "星必尘sguan::真正在基岩版 做个石粒人 rlcraft汉化 重大 超真实的 国际版be pe 均可用"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "星必尘sguan::基岩版 rlcraft适配手机版 汉化 年度优化 超真实 addon",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1M3411d7xX",
+              "title": "基岩版1.19RLcraft适配手机版[v5]汉化更新！年度优化，超真实整合包mcaddon"
+            }
+          ]
+        },
+        {
+          "source_group_key": "星必尘sguan::真正在基岩版 做个石粒人 rlcraft汉化 重大 超真实的 国际版be pe 均可用",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1dR4y1T7jD",
+              "title": "真正在基岩版MC做个石粒人！RLCraft汉化整合包重大更新，超真实的生存！MineCraft国际版BE/PE1.18.1均可用"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1M3411d7xX",
+        "BV1dR4y1T7jD"
+      ],
+      "evidence": "SAME PACK. Both are the same 基岩版 RLCraft 汉化 pack: v5 update and the “重大更新”, same uploader, same platform scope (BE/PE), same 超真实 descriptor and the same Lanzou mirror host. Explicit version continuity (v5 follows the earlier release). One pack split two ways."
+    },
+    {
+      "cluster_key": "星遥工坊||星遥工坊::刀剑异闻录 我有一剑 可斩终末 amp 拔刀 定制 任务引导 深度优化|星遥工坊::刀剑异闻录周年 附属万行 全新拔刀全新挑战 流程 性能全面优化",
+      "author": "星遥工坊",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "星遥工坊::刀剑异闻录 我有一剑 可斩终末 amp 拔刀 定制 任务引导 深度优化",
+        "星遥工坊::刀剑异闻录周年 附属万行 全新拔刀全新挑战 流程 性能全面优化"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "星遥工坊::刀剑异闻录 我有一剑 可斩终末 amp 拔刀 定制 任务引导 深度优化",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1at1cYkEXV",
+              "title": "【整合包发布】《刀剑异闻录》我有一剑，可斩终末 &amp; 冒险 | 拔刀 | 定制魔改 | 任务引导 | 深度优化"
+            }
+          ]
+        },
+        {
+          "source_group_key": "星遥工坊::刀剑异闻录周年 附属万行 全新拔刀全新挑战 流程 性能全面优化",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV17FUkBPEEb",
+              "title": "【整合包发布】刀剑异闻录周年更新，自制附属万行魔改，全新拔刀全新挑战，流程/性能全面优化"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV17FUkBPEEb",
+        "BV1at1cYkEXV"
+      ],
+      "evidence": "SAME PACK. Both name 刀剑异闻录 as the pack; one is the anniversary update, the other an earlier release of the same named pack. Same uploader, explicit pack-name continuity in both titles. Note the two groups disagree on which key they produced, so normalisation is still unstable on this title - a defect for the remediation phase, not a reason to doubt the verdict."
+    },
+    {
+      "cluster_key": "在下Shmily||在下shmily::优化 最牛优化 cmpack即将来临|在下shmily::优化 老手机2000 fps 最牛优化|在下shmily::优化 老手机2800帧 最牛优化",
+      "author": "在下Shmily",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 3,
+      "record_count": 3,
+      "expected_identity_count": 1,
+      "packs_to_unify": 2,
+      "original_group_keys": [
+        "在下shmily::优化 最牛优化 cmpack即将来临",
+        "在下shmily::优化 老手机2000 fps 最牛优化",
+        "在下shmily::优化 老手机2800帧 最牛优化"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "在下shmily::优化 老手机2000 fps 最牛优化",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV12TxAzvE9r",
+              "title": "[MC优化]老手机2000＋FPS,最牛优化整合包发布！"
+            }
+          ]
+        },
+        {
+          "source_group_key": "在下shmily::优化 老手机2800帧 最牛优化",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1XTqSBHEyr",
+              "title": "[MC优化]老手机2800帧,最牛优化整合包V3.9发布!"
+            }
+          ]
+        },
+        {
+          "source_group_key": "在下shmily::优化 最牛优化 cmpack即将来临",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1zNvCBrEgL",
+              "title": "[MC优化]最牛优化整合包V4.0发布，魔改CMpack即将来临!"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV12TxAzvE9r",
+        "BV1XTqSBHEyr",
+        "BV1zNvCBrEgL"
+      ],
+      "evidence": "SAME PACK. All three are “最牛优化” (optimisation) releases, explicitly version-continuous: V3.9 -> V4.0 with the same naming and the same stated project (“最牛优化整合包”). Uploader’s own version wording on a named pack. The two “老手机” groups share QQ 377265276; the V4.0 video shares the CMpack roadmap. One pack split three ways."
+    },
+    {
+      "cluster_key": "Karashok_Leo||__raw_BV1iDdLYJESg|karashok_leo::咒次元",
+      "author": "Karashok_Leo",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 4,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "__raw_BV1iDdLYJESg",
+        "karashok_leo::咒次元"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "__raw_BV1iDdLYJESg",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1iDdLYJESg",
+              "title": "【MC整合包更新发布】咒次元 0.6.0"
+            }
+          ]
+        },
+        {
+          "source_group_key": "karashok_leo::咒次元",
+          "member_count": 3,
+          "members": [
+            {
+              "bvid": "BV172KczaEke",
+              "title": "【MC整合包更新发布】咒次元 0.7.0 - 雷电法王！！"
+            },
+            {
+              "bvid": "BV1MCFSzTE62",
+              "title": "【整合包发布】咒次元 0.8.0 - 灵魂学派更新"
+            },
+            {
+              "bvid": "BV1QN6HYnE5W",
+              "title": "【MC整合包发布】咒次元 - 享受纯粹的魔法与战斗！"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV172KczaEke",
+        "BV1MCFSzTE62",
+        "BV1QN6HYnE5W",
+        "BV1iDdLYJESg"
+      ],
+      "evidence": "SAME PACK. The raw bucket and the named spell-dimension group carry the IDENTICAL registered identity set: bbsmc:modpack/spell-dimension, curseforge:spell-dimension, github:Karashok-Leo/Spell-Dimension-Modpack, mcmod:modpack/1024. The 0.6.0 release simply produced a key the algorithm could not attach to the others. One pack split two ways."
+    },
+    {
+      "cluster_key": "KonataWorks||__raw_BV1Fg8gzHE7K|konataworks::生电 拥有最全的辅助模组最适合生电的",
+      "author": "KonataWorks",
+      "verdict": "STRONG_SAME_PACK",
+      "confidence": "medium",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "__raw_BV1Fg8gzHE7K",
+        "konataworks::生电 拥有最全的辅助模组最适合生电的"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "__raw_BV1Fg8gzHE7K",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1Fg8gzHE7K",
+              "title": "我的世界1.21.4生电整合包发布!"
+            }
+          ]
+        },
+        {
+          "source_group_key": "konataworks::生电 拥有最全的辅助模组最适合生电的",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1Fg8gzHEVB",
+              "title": "我的世界1.21.5生电整合包发布!拥有最全的辅助模组最适合生电的整合包!"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV1Fg8gzHE7K",
+        "BV1Fg8gzHEVB"
+      ],
+      "evidence": "SAME PACK. Two releases of the same unnamed 生电 (technical-Minecraft) pack, 1.21.4 and 1.21.5, same uploader, same QQ 536926371, consecutive versions. Neither title carries a distinct pack name, and the earlier one fell into a __raw_ bucket. Treating as one pack."
+    },
+    {
+      "cluster_key": "Pork猪排||pork猪排::化龍 金鳞岂是池中物 一遇风云便化龙|pork猪排::化龍 麒麟踏雪|pork猪排::化龙 版本 龙可是帝王之征|pork猪排::龙语 连招 化龍 版本",
+      "author": "Pork猪排",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 4,
+      "record_count": 5,
+      "expected_identity_count": 1,
+      "packs_to_unify": 3,
+      "original_group_keys": [
+        "pork猪排::化龍 金鳞岂是池中物 一遇风云便化龙",
+        "pork猪排::化龍 麒麟踏雪",
+        "pork猪排::化龙 版本 龙可是帝王之征",
+        "pork猪排::龙语 连招 化龍 版本"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "pork猪排::化龙 版本 龙可是帝王之征",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1BA9wBqEnE",
+              "title": "【MC整合包】化龙1.3.2版本更新：龙可是帝王之征"
+            }
+          ]
+        },
+        {
+          "source_group_key": "pork猪排::化龍 金鳞岂是池中物 一遇风云便化龙",
+          "member_count": 2,
+          "members": [
+            {
+              "bvid": "BV12VtQzkEcm",
+              "title": "【MC整合包发布】化龍1.0正式版！金鳞岂是池中物，一遇风云便化龙。"
+            },
+            {
+              "bvid": "BV1nbTqzCECX",
+              "title": "『化龍』MC整合包发布“金鳞岂是池中物，一遇风云便化龙”"
+            }
+          ]
+        },
+        {
+          "source_group_key": "pork猪排::化龍 麒麟踏雪",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1GrzxBZE7S",
+              "title": "【MC整合包发布】『化龍』1.2正式版：麒麟踏雪"
+            }
+          ]
+        },
+        {
+          "source_group_key": "pork猪排::龙语 连招 化龍 版本",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1PMAVzKExm",
+              "title": "龙语魔法、魔法连招!『化龍』MC整合包1.3.1版本发布!"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV12VtQzkEcm",
+        "BV1BA9wBqEnE",
+        "BV1GrzxBZE7S",
+        "BV1PMAVzKExm",
+        "BV1nbTqzCECX"
+      ],
+      "evidence": "SAME PACK. All four groups are the same hualong pack: the titles name it and the versions run 1.0 -> 1.2 -> 1.3.1 -> 1.3.2 with no competing pack name. Two groups resolve to xyebbs:res-id/beloong and the other two to xyebbs:resource/885, which are the slug and numeric forms of ONE XyeBBS project. One pack split four ways."
+    },
+    {
+      "cluster_key": "SmartAkita||smartakita::cobblemon方块宝可梦 预览 免费 同时提供两种稳定服务端 有光影 一键开服 可伙伴联机 可转载 不限速 体验|smartakita::方块宝可梦 版本 含服务端 免费 cobblemon 进化特效 全新宝可梦添加 双打模式",
+      "author": "SmartAkita",
+      "verdict": "CONFIRMED_SAME_PACK",
+      "confidence": "high",
+      "group_count": 2,
+      "record_count": 2,
+      "expected_identity_count": 1,
+      "packs_to_unify": 1,
+      "original_group_keys": [
+        "smartakita::cobblemon方块宝可梦 预览 免费 同时提供两种稳定服务端 有光影 一键开服 可伙伴联机 可转载 不限速 体验",
+        "smartakita::方块宝可梦 版本 含服务端 免费 cobblemon 进化特效 全新宝可梦添加 双打模式"
+      ],
+      "group_members": [
+        {
+          "source_group_key": "smartakita::方块宝可梦 版本 含服务端 免费 cobblemon 进化特效 全新宝可梦添加 双打模式",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV1GKS4YtExK",
+              "title": "我的世界1.21方块宝可梦1.6版本整合包[含服务端]免费分享，1.6-Cobblemon整合包发布！进化特效更新！全新宝可梦添加！双打模式！"
+            }
+          ]
+        },
+        {
+          "source_group_key": "smartakita::cobblemon方块宝可梦 预览 免费 同时提供两种稳定服务端 有光影 一键开服 可伙伴联机 可转载 不限速 体验",
+          "member_count": 1,
+          "members": [
+            {
+              "bvid": "BV13mD9YMEFq",
+              "title": "MC1.21.1Cobblemon方块宝可梦1.6更新预览,整合包免费分享,同时提供两种稳定服务端,有光影,一键开服,可伙伴联机,可转载,不限速下载体验!"
+            }
+          ]
+        }
+      ],
+      "bvids": [
+        "BV13mD9YMEFq",
+        "BV1GKS4YtExK"
+      ],
+      "evidence": "SAME PACK. Both are the uploader’s Cobblemon 方块宝可梦 1.6 release for MC 1.21/1.21.1 - one a preview, one the release, both offering the same two servers and free distribution. Explicit version identity (1.6) on the same pack. One pack split two ways."
+    }
+  ]
+}
