@@ -38,6 +38,12 @@ export function cleanPackKey(s: string | null | undefined): string {
   let str = String(s);
   str = str.replace(/[\uD835][\uDC00-\uDFFF]/g, '');
   str = str.replace(/(?:我的世界|minecraft|mine\s*craft|mc)/gi, ' ');
+  // Treat the Chinese/ASCII multiplication sign used between co-branded pack
+  // names as a separator.  It is punctuation in this title grammar, not part
+  // of an English project slug (those remain untouched unless surrounded by
+  // CJK characters below).
+  str = str.replace(/[×]+/g, ' ');
+  str = str.replace(/(?<=[\u4e00-\u9fa5])[xX](?=[\u4e00-\u9fa5])/g, ' ');
   str = str.replace(/[【】[\]（）(){}\u300C\u300D\u300E\u300F《》/|·~～!！?？:：\-—+*#]+/g, ' ');
   str = str.replace(/(?:mc|minecraft|我的世界)?\s*1\.\d{1,2}(?:\.\d+)?/gi, ' ');
   str = str.replace(/(?:v|ver|version)?\s*\d+(?:\.\d+)+(?:[a-z\d_\-.]*)?/gi, ' ');

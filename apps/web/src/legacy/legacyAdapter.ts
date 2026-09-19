@@ -9,7 +9,7 @@ import { fmtBigNum, numFmt, formatVFileSize, asArray, getVPanClass } from '../ut
 import { extractMcVersion } from '../domain/minecraft';
 import { cleanPackKey, BILI_GENRE_BUZZWORDS, BILI_GENERIC_PACK_KEYS } from '../domain/packName';
 import { groupBilibiliPacks } from '../domain/bilibiliGrouping';
-import type { BilibiliGroupingDecision } from '../domain/bilibiliGrouping';
+import type { BilibiliGroupingDecision, BilibiliGroupingInput } from '../domain/bilibiliGrouping';
 import { getTheme, setTheme, toggleTheme, bindThemeControls, initTheme } from '../state/theme';
 import { LegacySidecarLoader } from '../data/LegacySidecarLoader';
 import { LegacySidecarRepository } from '../data/LegacySidecarRepository';
@@ -106,7 +106,7 @@ export function setupLegacyBridge(): { repository: LegacySidecarRepository } {
     // the candidate anchors the admissibility rules refused and why). The whole
     // decision object is forwarded verbatim so debug tooling can read the
     // rejection reasons without a second code path.
-    win.groupBilibiliPacks = (records: Array<{ bvid: string; title: string; author?: string | null }>) => {
+    win.groupBilibiliPacks = (records: BilibiliGroupingInput[]) => {
       const out: Record<string, BilibiliGroupingDecision> = {};
       for (const [bvid, decision] of groupBilibiliPacks(records)) out[bvid] = decision;
       // Phase 3G-F.1-A: publish the explainability payload (identity anchor,

@@ -63,25 +63,36 @@ export const BILI_IDENTITY_NOISE_TOKENS = new Set<string>([
   // a pack identity: it is what makes 命运齿轮 and 月亮工厂 collapse into one
   // "机械动力" card. Longer runs that merely CONTAIN these still work, because
   // noise is stripped as a substring (e.g. "机械动力 星辰" -> "星辰" remains).
-  '机械动力', '农夫乐事', '虚无世界', '泰坦生物', '匠魂', '等价交换',
+  '机械动力', '农夫乐事', '虚无世界', '泰坦生物', '泰坦', '幸运方块',
+  '群峦传说', '匠魂', '等价交换', 'voxy', 'oxy',
   '暮色森林', '神秘时代', '应用能源', '植物魔法', '血魔法', '女仆',
-  '宝可梦', '蔚蓝档案', '沉浸工程', '通用机械', '热力膨胀', '生活调味料',
+  '宝可梦', '蔚蓝档案', '斗罗大陆', '手机', '生电', '红石生电', '红石', '基岩',
+  'boss', '挑战',
+  '沉浸工程', '通用机械', '热力膨胀', '生活调味料',
   // source-game references (《我的世界：地下城》/ 死亡细胞 ...) - a game title a
   // pack borrows content from is not that pack's own name. Without this, 幻想的地下城
   // and 史诗的地下城 (different packs, different 百度 links) merge on "地下城".
   '地下城', '死亡细胞', '我的世界地下城',
   // filler
-  '与', '在', '的', '和', '版', '第', '期', 'v', 'amp', 'quot', 'gt', 'lt',
+  '与', '在', '的', '和', '版', '吧', '那就', '成为', '周年', '第', '期', 'v', 'amp', 'quot', 'gt', 'lt',
   'mod', 'minecraft', '我的世界',
 ]);
 
 /** Minimum identity-bearing characters a shared run must carry. */
 export const BILI_MIN_IDENTITY_CHARS = 3;
 
+// A compound suffix can be part of a real name (山海大陆/绿宝石大陆), but the
+// suffix by itself is not an identity. Keep it in the token so those names
+// remain matchable; reject only the standalone candidate.
+const BILI_NON_IDENTIFYING_TOKENS = new Set(['大陆', '无尽']);
+
 export interface BilibiliGroupingInput {
   bvid: string;
   title: string;
   author?: string | null;
+  /** Optional source metadata. It is supporting evidence, never a sole merge trigger. */
+  download_links?: Array<{ url?: string | null } | null> | null;
+  qq_group?: string | null;
 }
 
 export interface BilibiliGroupingDecision {
@@ -131,7 +142,7 @@ export function identityCharsOfToken(token: string): number {
 }
 
 export function isIdentityEligibleToken(token: string): boolean {
-  return identityCharsOfToken(token) >= 2;
+  return !BILI_NON_IDENTIFYING_TOKENS.has(token) && identityCharsOfToken(token) >= 2;
 }
 
 /** Identity-bearing character count of a token run. */
@@ -143,7 +154,8 @@ function identityChars(tokens: string[]): number {
 
 function qualifiesAsIdentity(tokens: string[]): boolean {
   return identityChars(tokens) >= BILI_MIN_IDENTITY_CHARS
-    && tokens.some(isIdentityEligibleToken);
+    && tokens.some(isIdentityEligibleToken)
+    && !tokens.some((token) => BILI_NON_IDENTIFYING_TOKENS.has(token));
 }
 
 /** author scope key, identical to the legacy normalisation. */
@@ -162,7 +174,121 @@ export function normalizeTokenForMatch(token: string): string {
   if (!token) return token;
   if (!/[\u4e00-\u9fa5]/.test(token)) return token;
   const stripped = token.replace(/[A-Za-z0-9]+/g, '');
-  return stripped.length ? stripped : token;
+  const canonical = stripped.replace(/[龍龜]/g, (ch) => ch === '龍' ? '龙' : '龟');
+  return canonical.length ? canonical : token;
+}
+
+/**
+ * `cleanPackKey` intentionally stays conservative, so titles that omit a
+ * separator can leave a CJK/Latin or CJK/noise compound as one token
+ * (`基岩版仿亡者世界`, `Cobblemon方块宝可梦`, `刀剑异闻录周年`).  Matching
+ * needs the structural pieces while the final display key must retain the
+ * original cleaned text.  This splitter is language-agnostic: it only cuts at
+ * script boundaries and at already-declared noise words.
+ */
+function splitCompoundToken(token: string): string[] {
+  if (!token) return [];
+  let parts = [token];
+  const splitAt = (value: string, boundary: string): string[] => {
+    if (!boundary || !value.includes(boundary)) return [value];
+    const out: string[] = [];
+    let rest = value;
+    while (rest.includes(boundary)) {
+      const i = rest.indexOf(boundary);
+      if (i > 0) out.push(rest.slice(0, i));
+      out.push(boundary);
+      rest = rest.slice(i + boundary.length);
+    }
+    if (rest) out.push(rest);
+    return out.filter(Boolean);
+  };
+  parts = parts.flatMap((p) => p.split(/(?<=[A-Za-z0-9])(?=[\u4e00-\u9fa5])|(?<=[\u4e00-\u9fa5])(?=[A-Za-z0-9])/g));
+  // These are connective/compound markers rather than identity labels. They
+  // let the matcher see the stable noun on either side without deleting it.
+  const structuralBoundaries = ['学生们', '极速', '但是', '拥有了', '使用'];
+  // Identity-noise words are removed from identity character counts, but some
+  // are complete lexical themes (`泰坦生物`, `斗罗大陆`, `宝可梦`) rather than
+  // safe boundaries. Keep the older connective/descriptor splits, while
+  // preserving those lexical themes as whole tokens so they cannot manufacture
+  // fragments such as `大陆` or `生物`.
+  const lexicalNoise = new Set([
+    '泰坦生物', '泰坦', '幸运方块', '群峦传说', '宝可梦', '蔚蓝档案', '手机版',
+    '斗罗大陆', '手机', '版', '生电', '红石生电', '红石', 'voxy', 'oxy',
+  ]);
+  const boundaries = [...new Set([
+    ...[...BILI_IDENTITY_NOISE_TOKENS].filter((x) => !lexicalNoise.has(x)),
+    ...structuralBoundaries,
+  ])].sort((a, b) => b.length - a.length);
+  for (const boundary of boundaries) parts = parts.flatMap((p) => splitAt(p, boundary));
+  // A lexical theme may carry a suffix (`蔚蓝档案超大型`, `泰坦生物复刻`)
+  // or a prefix (`方块宝可梦`). Split only at the outer edge; preserve an
+  // exact lexical name such as `泰坦生物` as one token.
+  for (const boundary of [...lexicalNoise].sort((a, b) => b.length - a.length)) {
+    parts = parts.flatMap((p) => {
+      if ([...lexicalNoise].some((longer) =>
+        longer.length > boundary.length && (p === longer || p.startsWith(longer)))) return [p];
+      if (p === boundary || !p.includes(boundary)) return [p];
+      return splitAt(p, boundary);
+    });
+  }
+  return parts.map(normalizeTokenForMatch).filter(Boolean);
+}
+
+function matchingTokensOf(key: string): string[] {
+  return tokensOf(key).flatMap((token) => {
+    const parts = splitCompoundToken(token);
+    // Keep a compound product spelling in addition to its structural pieces
+    // when a token contains a broad/connective noise word but still carries a
+    // distinctive remainder. This preserves anchors such as
+    // `无尽幸运方块大陆` and `原神与机械` without making standalone noise
+    // tokens eligible identities; the admissibility layer still decides the
+    // compound as a whole.
+    const hasTheme = parts.some((part) => BILI_IDENTITY_NOISE_TOKENS.has(part));
+    const compound = normalizeTokenForMatch(token);
+    if (hasTheme
+      && identityCharsOfToken(compound) >= BILI_MIN_IDENTITY_CHARS) {
+      return [compound, ...parts];
+    }
+    return parts;
+  });
+}
+
+/**
+ * Canonicalise registered project references for identity corroboration.  The
+ * parser deliberately ignores ordinary download hosts, QQ groups, and video
+ * URLs.  A registered reference is only a supporting signal; the grouping
+ * path below still requires an author-local title anchor before it can attach
+ * a record to a project identity.
+ */
+function projectIdentityKeysOf(record: BilibiliGroupingInput): Set<string> {
+  const out = new Set<string>();
+  for (const link of record.download_links || []) {
+    const raw = String(link?.url || '').trim();
+    if (!raw) continue;
+    let m: RegExpMatchArray | null;
+    if ((m = raw.match(/curseforge\.com\/minecraft\/modpacks\/([^/?#]+)/i))) {
+      out.add('curseforge:' + m[1].toLowerCase());
+    }
+    if ((m = raw.match(/mcmod\.cn\/modpack\/(\d+)/i))) {
+      out.add('mcmod:modpack/' + m[1]);
+    }
+    if ((m = raw.match(/bbsmc\.net\/modpack\/([^/?#]+)/i))) {
+      out.add('bbsmc:modpack/' + m[1].replace(/\/$/, '').toLowerCase());
+    }
+    if ((m = raw.match(/github\.com\/([^/]+)\/([^/?#]+)/i))) {
+      out.add('github:' + m[1].toLowerCase() + '/' + m[2].replace(/\.git$/, '').toLowerCase());
+    }
+    if ((m = raw.match(/(?:www\.)?xyebbs\.com\/resources\/(\d+)/i))) {
+      out.add('xyebbs:resource/' + m[1]);
+    }
+    if ((m = raw.match(/(?:www\.)?xyebbs\.com\/res-id\/([^/?#]+)/i))) {
+      out.add('xyebbs:res-id/' + m[1].toLowerCase());
+    }
+    if ((m = raw.match(/modrinth\.com\/modpack\/([^/?#]+)/i))) {
+      out.add('modrinth:modpack/' + m[1].toLowerCase());
+    }
+  }
+  return out;
 }
 
 interface Entry {
@@ -180,6 +306,10 @@ interface Entry {
   adm: AdmissibilityEntry;
   /** Phase 3G-F.1-A: anchors that were proposed for this record and rejected */
   rejected: BilibiliRejectedAnchor[];
+  /** Canonical registered project references carried by the source record. */
+  projectIds: Set<string>;
+  /** A QQ group is corroborating context only; it is never a sole merge key. */
+  qqGroup: string;
 }
 
 /**
@@ -271,6 +401,99 @@ const BILI_LIST_VETO_MAX_CHARS = 4;
 /** Author-local recurrence that promotes a short token to a real pack name. */
 const BILI_SHORT_RUN_MIN_RECURRENCE = 3;
 
+/**
+ * A small class of broad themes can corroborate a same-QQ release chain, but
+ * never identify a pack by themselves.  This is deliberately separate from
+ * the noise set: the words remain non-identifying for ordinary title mining.
+ */
+const BILI_QQ_ASSISTED_THEMES = new Set(['宝可梦', '生电']);
+
+/** Broad franchise labels are supporting context, not a complete pack name. */
+const BILI_THEME_ONLY_TOKENS = new Set(['方可梦']);
+
+// Only a separately established franchise label may bridge a subject-only
+// release to a named series. Generic components (mods, game names, or house
+// style) remain non-bridging even when they recur across the author scope.
+const BILI_VERSION_BRIDGE_THEMES = new Set(['蔚蓝档案']);
+
+function hasReleaseOrVersionSignal(title: string): boolean {
+  return /(?:整合包|发布|更新|版本|正式|测试|先行|重置|重制|\bv?\d+(?:\.\d+){1,3}\b)/i.test(title || '');
+}
+
+function hasDisjointRegisteredProjects(a: Entry, b: Entry): boolean {
+  return a.projectIds.size > 0 && b.projectIds.size > 0
+    && ![...a.projectIds].some((id) => b.projectIds.has(id));
+}
+
+function qqAssistedThemeOf(a: Entry, b: Entry): string | null {
+  if (!a.qqGroup || a.qqGroup !== b.qqGroup) return null;
+  if (hasDisjointRegisteredProjects(a, b)) return null;
+  if (!hasReleaseOrVersionSignal(a.adm.title) || !hasReleaseOrVersionSignal(b.adm.title)) return null;
+  if (!/(?:整合包|modpack|pack)/i.test(a.adm.title) || !/(?:整合包|modpack|pack)/i.test(b.adm.title)) return null;
+  const common = bestCommonRun(a.matchTokens, b.matchTokens).run;
+  for (const token of common) if (BILI_QQ_ASSISTED_THEMES.has(token)) return token;
+  return null;
+}
+
+/**
+ * A lexical theme at the title head can be the channel's actual release-line
+ * name even though the same word is only a component elsewhere.  Use this
+ * continuity path only for a repeated head theme with release/version wording,
+ * and never across an explicit rebrand marker such as 重生 or 复刻.
+ */
+function leadingThemeOf(entry: Entry): string | null {
+  const first = entry.matchTokens[0];
+  if (!first || first.length < 4 || !/[\u4e00-\u9fa5]/.test(first)
+    || !BILI_IDENTITY_NOISE_TOKENS.has(first)
+    || identityCharsOfToken(first) !== 0 || !hasReleaseOrVersionSignal(entry.adm.title)) return null;
+  if ([...BILI_SEPARATE_PRODUCT_MARKERS].some((marker) => entry.adm.title.includes(marker))) return null;
+  return first;
+}
+
+function aliasShortRunAdmissible(
+  a: AdmissibilityEntry, b: AdmissibilityEntry, run: string[],
+): boolean {
+  if (identityChars(run) !== 2 || run.length !== 1) return false;
+  if (run.some((token) => BILI_NON_IDENTIFYING_TOKENS.has(token))) return false;
+  if (run.some((token) => BILI_IDENTITY_NOISE_TOKENS.has(token)) || isSloganishRun(run)) return false;
+  const joined = run.join('');
+  const hasAlias = (title: string): boolean =>
+    title.includes(joined) && /[A-Za-z]{4,}(?:[_ -][A-Za-z]{2,})?/.test(title);
+  return (hasAlias(a.title) || hasAlias(b.title))
+    && hasReleaseOrVersionSignal(a.title)
+    && hasReleaseOrVersionSignal(b.title);
+}
+
+function hasNearbyPackMarker(entry: AdmissibilityEntry, run: string[]): boolean {
+  const title = (entry.title || '').replace(/\s+/g, '');
+  const needle = run.join('');
+  const at = title.indexOf(needle);
+  if (at < 0) return false;
+  const around = title.slice(Math.max(0, at - 8), at + needle.length + 8);
+  return /整合包|modpack|pack/i.test(around);
+}
+
+function lateNamedRunExemption(
+  a: AdmissibilityEntry, b: AdmissibilityEntry, run: string[], recurrence: number,
+): boolean {
+  const hasPositionalNameUse = (entry: AdmissibilityEntry): boolean => {
+    const joined = run.join('');
+    const at = entry.title.indexOf(joined);
+    if (at < 0) return false;
+    const firstBoundary = entry.listBoundaries[0];
+    const beforeBoundary = firstBoundary === undefined || at < firstBoundary;
+    const compact = entry.title.replace(/[\s:：，,。！？!?【】\[\]（）()《》「」『』]/g, '');
+    const after = compact.slice(compact.indexOf(joined) + joined.length);
+    const tailOnly = after.length === 0 || /^(?:吧|版|版本|更新|发布|整合包|介绍|正式|免费|测试|先行)*$/u.test(after);
+    return (beforeBoundary && at <= 12) || tailOnly;
+  };
+  return identityChars(run) >= BILI_MIN_IDENTITY_CHARS
+    && recurrence >= 2
+    && !isSloganishRun(run)
+    && ((hasNearbyPackMarker(a, run) && hasNearbyPackMarker(b, run))
+      || (hasPositionalNameUse(a) && hasPositionalNameUse(b)));
+}
+
 function bracketSegmentsOf(title: string): string[] {
   const out: string[] = [];
   BILI_BRACKET_SEGMENTS.lastIndex = 0;
@@ -360,7 +583,7 @@ function admissibilityEntryOf(title: string, matchTokens: string[]): Admissibili
   for (const seg of bracketSegmentsOf(title)) {
     if (isSelfNameSegment(seg)) continue;
     const cleaned = cleanPackKey(seg);
-    const toks = tokensOf(cleaned).map(normalizeTokenForMatch);
+    const toks = matchingTokensOf(cleaned);
     if (!toks.length) continue;
     if (BILI_BOILERPLATE_SEGMENTS.has(toks.join(''))) continue;
     bracketNames.push(toks);
@@ -416,6 +639,38 @@ function violatesNameSlot(
   return appearsAfter(a, na) && appearsAfter(b, nb);
 }
 
+function violatesThemeNameSlot(
+  a: AdmissibilityEntry, b: AdmissibilityEntry, run: string[],
+): boolean {
+  if (run.length !== 1 || !BILI_THEME_ONLY_TOKENS.has(run[0])) return false;
+  const joined = run.join('');
+  const mismatch = (entry: AdmissibilityEntry): boolean => {
+    if (!entry.nameSlotTokens || containsRun(entry.nameSlotTokens, run)) return false;
+    const at = entry.title.indexOf(joined);
+    const firstBracket = entry.title.search(/[【\[（(《「『]/);
+    return at >= 0 && firstBracket >= 0 && at > firstBracket;
+  };
+  return mismatch(a) || mismatch(b);
+}
+
+function hasNamedEditionDescriptor(entry: AdmissibilityEntry, run: string[]): boolean {
+  if (run.length !== 1) return false;
+  const tokens = entry.matchTokens;
+  let firstRunIndex = -1;
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i] === run[0]) { firstRunIndex = i; break; }
+  }
+  for (let i = 0; i + run.length < tokens.length; i++) {
+    if (i !== firstRunIndex || tokens[i] !== run[0] || tokens[i + run.length] !== '版') continue;
+    const previous = tokens[i - 1];
+    if (previous && identityCharsOfToken(previous) >= BILI_MIN_IDENTITY_CHARS
+      && !BILI_IDENTITY_NOISE_TOKENS.has(previous)
+      && !BILI_NON_IDENTIFYING_TOKENS.has(previous)
+      && !isSloganishToken(previous)) return true;
+  }
+  return false;
+}
+
 /**
  * RULE 2 — LATE-POSITION FEATURE LIST.
  *
@@ -459,6 +714,7 @@ function shortRunAdmissible(
 ): boolean {
   for (const t of run) {
     if (BILI_GENERIC_PACK_KEYS.has(t)) return false;
+    if (BILI_NON_IDENTIFYING_TOKENS.has(t)) return false;
     if (isSloganishToken(t)) return false;
   }
   if (isEnglishFunctionRun(run)) return false;
@@ -610,7 +866,8 @@ export type BilibiliRejectedAnchorReason =
   | 'english_function_words'
   | 'short_run_not_distinctive'
   | 'bracketed_name_disagreement'
-  | 'competing_edition';
+  | 'competing_edition'
+  | 'registered_identity_conflict';
 
 export interface BilibiliRejectedAnchor {
   anchor: string;
@@ -641,6 +898,116 @@ function bestCommonRun(a: string[], b: string[]): { run: string[]; chars: number
   return { run: best, chars: bestChars };
 }
 
+/** Pick the most recurrent named run in a project-ID bucket, not the longest
+ * changelog sentence shared by only two releases. */
+function projectTitleAnchor(entries: Entry[]): { run: string[]; chars: number } | null {
+  const candidates = new Map<string, { run: string[]; chars: number }>();
+  for (let i = 0; i < entries.length; i++) {
+    for (let j = i + 1; j < entries.length; j++) {
+      const pair = bestCommonRun(entries[i].matchTokens, entries[j].matchTokens);
+      for (let start = 0; start < pair.run.length; start++) {
+        for (let end = start + 1; end <= pair.run.length; end++) {
+          const run = pair.run.slice(start, end);
+          const chars = identityChars(run);
+          if (chars <= 0 || run.some((t) => BILI_IDENTITY_NOISE_TOKENS.has(t)
+            || BILI_NON_IDENTIFYING_TOKENS.has(t))) continue;
+          if (isSloganishRun(run) || violatesEnglishFunction(run)) continue;
+          const key = run.join(' ');
+          const old = candidates.get(key);
+          if (!old || chars > old.chars) candidates.set(key, { run, chars });
+        }
+      }
+    }
+  }
+  const ranked = [...candidates.values()].map((candidate) => ({
+    ...candidate,
+    coverage: entries.filter((e) => containsRun(e.matchTokens, candidate.run)).length,
+  })).filter((candidate) => candidate.coverage >= 2);
+  ranked.sort((a, b) =>
+    (b.coverage - a.coverage)
+    || (b.chars - a.chars)
+    || (b.run.length - a.run.length)
+    || (a.run.join(' ') < b.run.join(' ') ? -1 : a.run.join(' ') > b.run.join(' ') ? 1 : 0));
+  return ranked.length ? { run: ranked[0].run, chars: ranked[0].chars } : null;
+}
+
+function commonIdentityRuns(a: string[], b: string[]): Array<{ run: string[]; chars: number }> {
+  const best = bestCommonRun(a, b);
+  if (!best.run.length) return [];
+  const out = new Map<string, { run: string[]; chars: number }>();
+  // Do not let a descriptive sentence win merely because it wraps the real
+  // name.  A run such as `大型 末世 潜行者` contributes the named core
+  // `潜行者`; `时光牧场 打造你 的 侏罗纪公园` contributes separate title
+  // fragments.  Noise remains available to the admissibility layer when it is
+  // part of a title, but never changes the anchor boundary.
+  const segments: string[][] = [];
+  let segment: string[] = [];
+  for (const token of best.run) {
+    if (BILI_IDENTITY_NOISE_TOKENS.has(token)) {
+      if (segment.length) segments.push(segment);
+      segment = [];
+    } else {
+      segment.push(token);
+    }
+  }
+  if (segment.length) segments.push(segment);
+  for (const source of segments) for (let start = 0; start < source.length; start++) {
+    for (let end = start + 1; end <= source.length; end++) {
+      const run = source.slice(start, end);
+      const chars = identityChars(run);
+      if (chars <= 0) continue;
+      const key = run.join(' ');
+      const old = out.get(key);
+      if (!old || chars > old.chars) out.set(key, { run, chars });
+    }
+  }
+  return [...out.values()].sort((x, y) =>
+    (y.chars - x.chars) || (y.run.length - x.run.length)
+    || (x.run.join(' ') < y.run.join(' ') ? -1 : x.run.join(' ') > y.run.join(' ') ? 1 : 0));
+}
+
+/**
+ * Two records with disjoint registered project references must not be pulled
+ * together by a generic component/slogan.  A long, non-slogan title anchor
+ * with an explicit release/version signal remains eligible: cross-platform
+ * mirrors often use different registered IDs for the same named pack.
+ */
+function registeredIdentityConflict(
+  a: Entry, b: Entry, run: string[],
+): boolean {
+  if (!a.projectIds.size || !b.projectIds.size) return false;
+  if ([...a.projectIds].some((id) => b.projectIds.has(id))) return false;
+  if (!run.length || isSloganishRun(run) || violatesEnglishFunction(run)) return true;
+  const chars = identityChars(run);
+  if (run.some((token) => BILI_IDENTITY_NOISE_TOKENS.has(token))) return true;
+  // Short named packs such as 涅槃/化龍 legitimately use different mirror
+  // IDs across releases. Once the run is neither a declared component nor a
+  // slogan, the repeated title anchor is the corroborating signal; the
+  // registered references are not required to be byte-identical.
+  return chars <= 0;
+}
+
+const BILI_EDITION_MARKERS = [
+  '优化', '绿色版', '绿化', '服务端', '客户端', '手机版', '手机移植', '移植版',
+  '重生', '复刻', '仿照',
+];
+const BILI_SEPARATE_PRODUCT_MARKERS = new Set(['重生', '复刻', '手机版']);
+
+function projectAssistedThemeOf(a: Entry, b: Entry): string | null {
+  const oneProject = a.projectIds.size > 0 || b.projectIds.size > 0;
+  if (!oneProject || hasDisjointRegisteredProjects(a, b)) return null;
+  const common = bestCommonRun(a.matchTokens, b.matchTokens).run;
+  const theme = common.find((token) =>
+    BILI_IDENTITY_NOISE_TOKENS.has(token)
+    && identityCharsOfToken(token) === 0
+    && token.length >= 3,
+  );
+  if (!theme) return null;
+  if (BILI_EDITION_MARKERS.some((marker) => a.adm.title.includes(marker) || b.adm.title.includes(marker))) return null;
+  if (!hasReleaseOrVersionSignal(a.adm.title) || !hasReleaseOrVersionSignal(b.adm.title)) return null;
+  return theme;
+}
+
 /**
  * Pure grouping decision for a batch of Bilibili records.
  * Returns a bvid -> decision map. Author-scoped; never merges across uploaders.
@@ -651,7 +1018,7 @@ export function groupBilibiliPacks(
   const entries: Entry[] = records.map((r) => {
     const key = cleanPackKey(r.title);
     const guarded = !key || key.length <= 3 || BILI_GENERIC_PACK_KEYS.has(key);
-    const matchTokens = tokensOf(key).map(normalizeTokenForMatch);
+    const matchTokens = matchingTokensOf(key);
     return {
       bvid: r.bvid,
       key,
@@ -663,9 +1030,17 @@ export function groupBilibiliPacks(
       reason: guarded ? 'generic_guard' : 'singleton',
       adm: admissibilityEntryOf(r.title || '', matchTokens),
       rejected: [],
+      projectIds: projectIdentityKeysOf(r),
+      qqGroup: String(r.qq_group || '').trim(),
     };
   });
 
+  const allByAuthor = new Map<string, Entry[]>();
+  for (const e of entries) {
+    const list = allByAuthor.get(e.authorKey);
+    if (list) list.push(e);
+    else allByAuthor.set(e.authorKey, [e]);
+  }
   const byAuthor = new Map<string, Entry[]>();
   for (const e of entries) {
     if (e.guarded) continue;
@@ -674,10 +1049,179 @@ export function groupBilibiliPacks(
     else byAuthor.set(e.authorKey, [e]);
   }
 
+  // Registered project references can rescue a guarded/raw record, but only
+  // when the same author also supplies a real title anchor.  URLs/IDs alone
+  // never create a group.  This is intentionally before the normal unguarded
+  // miner so a short key such as “咒次元” can join its longer sibling.
+  for (const list of allByAuthor.values()) {
+    const byProject = new Map<string, Entry[]>();
+    for (const e of list) for (const id of e.projectIds) {
+      const bucket = byProject.get(id);
+      if (bucket) bucket.push(e);
+      else byProject.set(id, [e]);
+    }
+    const projectAnchors = new Map<Entry, { anchor: string; chars: number }>();
+    for (const bucket of byProject.values()) {
+      const unique = [...new Set(bucket)];
+      if (unique.length < 2) continue;
+      const best = projectTitleAnchor(unique);
+      if (!best) continue;
+      const anchor = best.run.join(' ');
+      for (const e of unique) {
+        const old = projectAnchors.get(e);
+        if (!old || best.chars > old.chars) projectAnchors.set(e, { anchor, chars: best.chars });
+      }
+    }
+    for (const [e, chosen] of projectAnchors) {
+      e.identity = chosen.anchor;
+      e.reason = 'identity_run';
+    }
+
+    // If one release carries a registered project reference but its sibling
+    // title has only the same broad theme, the project link can corroborate
+    // that title. Edition-marked siblings are intentionally excluded: they
+    // may be a separate optimisation/green/mobile line under the same theme.
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i]; const b = list[j];
+        const theme = projectAssistedThemeOf(a, b);
+        if (!theme) continue;
+        if ((a.identity && a.identity !== theme) || (b.identity && b.identity !== theme)) continue;
+        const anchor = `project-theme:${theme}`;
+        for (const e of list) {
+          if (e.matchTokens.includes(theme) && !BILI_EDITION_MARKERS.some((marker) => e.adm.title.includes(marker))) {
+            e.identity = anchor;
+            e.reason = 'identity_run';
+          }
+        }
+      }
+    }
+
+    // Exact repeated release titles are safe evidence for an otherwise raw
+    // bucket. This is deliberately narrower than key equality: generic keys
+    // such as “生存/冒险/整合包” remain guarded and independent.
+    const exactTitles = new Map<string, Entry[]>();
+    for (const e of list) {
+      if (!e.key || BILI_GENERIC_PACK_KEYS.has(e.key)) continue;
+      const fingerprint = e.adm.title.replace(/\s+/g, ' ').trim().toLowerCase();
+      const bucket = exactTitles.get(fingerprint);
+      if (bucket) bucket.push(e);
+      else exactTitles.set(fingerprint, [e]);
+    }
+    for (const bucket of exactTitles.values()) {
+      if (bucket.length < 2) continue;
+      // Exact title repetition is useful evidence, but the cleaned key can
+      // still contain a lexical theme and connective residue (for example a
+      // title shaped like "named-pack + source-game + 与").  Repeating that
+      // whole sentence would make the residue part of the identity and would
+      // then split a shorter sibling.  Derive the repeated anchor from the
+      // same noise-aware token runs used by the normal miner.
+      const repeatedCandidates = commonIdentityRuns(bucket[0].matchTokens, bucket[1].matchTokens)
+        .filter((candidate) => qualifiesAsIdentity(candidate.run)
+          && !registeredIdentityConflict(bucket[0], bucket[1], candidate.run))
+        .map((candidate) => ({
+          ...candidate,
+          recurrence: list.filter((e) => containsRun(e.matchTokens, candidate.run)).length,
+        }))
+        .sort((a, b) =>
+          (b.recurrence - a.recurrence)
+          || (b.chars - a.chars)
+          || (b.run.length - a.run.length)
+          || (a.run.join(' ') < b.run.join(' ') ? -1 : a.run.join(' ') > b.run.join(' ') ? 1 : 0));
+      const anchor = repeatedCandidates.length ? repeatedCandidates[0].run.join(' ') : bucket[0].key;
+      for (const e of bucket) {
+        e.identity = anchor;
+        e.reason = 'identity_run';
+      }
+    }
+
+    // Same-QQ continuity is a corroboration path for broad themes such as a
+    // Pokémon or redstone/electricity series.  The anchor is namespaced by the
+    // observed theme and QQ only after both titles independently look like
+    // releases; QQ alone never creates a group, and project-id conflicts veto it.
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i]; const b = list[j];
+        const theme = qqAssistedThemeOf(a, b);
+        if (!theme) continue;
+        if ((a.identity && a.identity !== theme) || (b.identity && b.identity !== theme)) continue;
+        const anchor = `aux:${theme}:qq:${a.qqGroup}`;
+        for (const e of list) {
+          if (e.qqGroup === a.qqGroup && e.matchTokens.includes(theme)
+            && hasReleaseOrVersionSignal(e.adm.title)) {
+            e.identity = anchor;
+            e.reason = 'identity_run';
+          }
+        }
+      }
+    }
+
+    // A repeated lexical theme at the title head can represent a named
+    // release line even when that same theme is only a component in other
+    // titles. This is title-structure continuity, not a theme-only merge:
+    // every member must independently look like a release and explicit
+    // rebrand markers are excluded above.
+    const leadingThemes = new Map<string, Entry[]>();
+    for (const e of list) {
+      const theme = leadingThemeOf(e);
+      if (!theme) continue;
+      const bucket = leadingThemes.get(theme);
+      if (bucket) bucket.push(e);
+      else leadingThemes.set(theme, [e]);
+    }
+    for (const [theme, bucket] of leadingThemes) {
+      if (bucket.length < 2) continue;
+      // If the same author repeatedly names another eligible token in these
+      // titles, the head theme is a component/genre prefix rather than the
+      // product identity (`机械动力 ... 命运齿轮` is the motivating shape).
+      const hasCompetingNamedAnchor = bucket.some((e) => e.matchTokens.some((token) => {
+        if (token === theme || BILI_IDENTITY_NOISE_TOKENS.has(token)
+          || BILI_NON_IDENTIFYING_TOKENS.has(token) || isSloganishToken(token)
+          || !isIdentityEligibleToken(token)) return false;
+        return identityCharsOfToken(token) >= BILI_MIN_IDENTITY_CHARS + 1;
+      }));
+      if (hasCompetingNamedAnchor) continue;
+      for (const e of bucket) {
+        if (!e.identity || e.identity === theme || e.identity.startsWith(`aux:${theme}:`)) {
+          e.identity = theme;
+          e.reason = 'identity_run';
+        }
+      }
+    }
+
+    // A two-release author scope may contain one guarded/raw title. Promote a
+    // short but non-generic title run only when both records carry release or
+    // update language; this keeps the raw/named boundary from hiding a genuine
+    // version chain without turning arbitrary short words into pack names.
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i]; const b = list[j];
+        const pair = bestCommonRun(a.matchTokens, b.matchTokens);
+        if (!pair.run.length || registeredIdentityConflict(a, b, pair.run)) continue;
+        if (!qualifiesAsIdentity(pair.run)) continue;
+        const recurrence = list.filter((e) => containsRun(e.matchTokens, pair.run)).length;
+        if (!a.guarded && !b.guarded) continue;
+        const admissible = pair.chars >= BILI_MIN_IDENTITY_CHARS
+          || shortRunAdmissible(a.adm, b.adm, pair.run, recurrence);
+        if (!admissible) continue;
+        const anchor = pair.run.join(' ');
+        for (const e of list) {
+          if (containsRun(e.matchTokens, pair.run) && (!e.identity || e.guarded)) {
+            e.identity = anchor;
+            e.reason = 'identity_run';
+          }
+        }
+      }
+    }
+  }
+
   // ---- identity run mining, strictly inside one author scope -----------------
   for (const list of byAuthor.values()) {
     // anchor -> member bvids
     const anchorMembers = new Map<string, Set<string>>();
+    const competingEditionAnchors = new Set<string>();
+    // Members which carry a corroborated competing edition must not be pulled
+    // back into the shorter shared anchor by the later containment pass.
 
     // Phase 3G-F.1-A: author-local recurrence of each candidate run, computed once.
     // A short token that names the pack recurs across that uploader's episodes; a
@@ -700,7 +1244,8 @@ export function groupBilibiliPacks(
       let attestations = 0;
       for (const e of list) {
         if (e === a || e === b) continue;
-        if (e.matchTokens.some((t) => t === joined || t.startsWith(joined))) attestations += 1;
+        const compactTitle = e.adm.title.replace(/[\s:：，,。！？!?【】\[\]（）()《》「」『』]/g, '');
+        if (compactTitle.includes(joined)) attestations += 1;
       }
       return attestations >= 1;
     };
@@ -709,8 +1254,21 @@ export function groupBilibiliPacks(
       for (let j = i + 1; j < list.length; j++) {
         const a = list[i];
         const b = list[j];
-        const { run, chars } = bestCommonRun(a.matchTokens, b.matchTokens);
-        if (!run.length || chars <= 0) continue;
+        // Keep the explainability contract for a shared component that is
+        // rejected by disagreeing bracketed name slots, even when the
+        // component is excluded from identity mining as declared noise.
+        for (const token of new Set(a.matchTokens.filter((t) => b.matchTokens.includes(t)))) {
+          if (!BILI_IDENTITY_NOISE_TOKENS.has(token)
+            || !violatesNameSlot(a.adm, b.adm, [token])) continue;
+          for (const e of [a, b]) {
+            if (!e.rejected.some((x) => x.anchor === token && x.reason === 'name_slot_disagreement')) {
+              e.rejected.push({ anchor: token, reason: 'name_slot_disagreement' });
+            }
+          }
+        }
+        for (const candidate of commonIdentityRuns(a.matchTokens, b.matchTokens)) {
+          const { run, chars } = candidate;
+          if (chars <= 0) continue;
         if (!qualifiesAsIdentity(run) && chars < BILI_MAX_SHORT_RUN_CHARS) continue;
 
         // ---- Phase 3G-F.1-A admissibility layer ------------------------------
@@ -718,18 +1276,25 @@ export function groupBilibiliPacks(
         // strongest piece of evidence, and a rejection is recorded for debugging.
         let rejection: BilibiliRejectedAnchorReason | null = null;
         if (chars < BILI_MIN_IDENTITY_CHARS) {
-          if (!shortRunAdmissible(a.adm, b.adm, run, recurrenceOf(run))) {
+          if (!shortRunAdmissible(a.adm, b.adm, run, recurrenceOf(run))
+            && !aliasShortRunAdmissible(a.adm, b.adm, run)) {
             rejection = 'short_run_not_distinctive';
           }
         }
-        if (!rejection && violatesNameSlot(a.adm, b.adm, run)) {
+        if (!rejection && (violatesNameSlot(a.adm, b.adm, run)
+          || violatesThemeNameSlot(a.adm, b.adm, run))) {
           rejection = 'name_slot_disagreement';
         }
-        if (!rejection && (violatesFeatureList(a.adm, run) || violatesFeatureList(b.adm, run))) {
+        if (!rejection
+          && (violatesFeatureList(a.adm, run) || violatesFeatureList(b.adm, run))
+          && !lateNamedRunExemption(a.adm, b.adm, run, recurrenceOf(run))) {
           rejection = 'late_feature_list';
         }
         if (!rejection && violatesEnglishFunction(run)) {
           rejection = 'english_function_words';
+        }
+        if (!rejection && registeredIdentityConflict(a, b, run)) {
+          rejection = 'registered_identity_conflict';
         }
         if (!rejection && violatesBracketName(a.adm, b.adm, run)) {
           rejection = 'bracketed_name_disagreement';
@@ -755,11 +1320,14 @@ export function groupBilibiliPacks(
             for (const e of [a, b]) {
               const head = headAfter(e.adm, run)[0];
               if (!head || identityCharsOfToken(head) !== 0) continue;
-              const extended = run[0] + head;
-              if (!containsRun(e.matchTokens, [extended])) continue;
-              let s = anchorMembers.get(extended);
-              if (!s) { s = new Set<string>(); anchorMembers.set(extended, s); }
-              s.add(e.bvid);
+              const extendedTokens = [...run, head];
+              const extended = extendedTokens.join(' ');
+              if (corroboratedHead(run, head, a, b) && containsRun(e.matchTokens, extendedTokens)) {
+                let s = anchorMembers.get(extended);
+                if (!s) { s = new Set<string>(); anchorMembers.set(extended, s); }
+                s.add(e.bvid);
+                competingEditionAnchors.add(extended);
+              }
             }
           }
           continue;
@@ -770,6 +1338,7 @@ export function groupBilibiliPacks(
         if (!set) { set = new Set<string>(); anchorMembers.set(anchor, set); }
         set.add(a.bvid);
         set.add(b.bvid);
+        }
       }
     }
 
@@ -816,6 +1385,79 @@ export function groupBilibiliPacks(
         }
       }
     }
+
+    // A corroborated rebrand marker is a longer product identity, not an
+    // episode suffix. Promote only the explicitly registered competing
+    // anchors; ordinary prefix anchors keep the historical ordering above.
+    for (const anchor of competingEditionAnchors) {
+      const tokens = anchor.split(' ');
+      const head = tokens[tokens.length - 1];
+      if (!BILI_SEPARATE_PRODUCT_MARKERS.has(head)) continue;
+      for (const e of list) {
+        if (containsRun(e.matchTokens, tokens)) {
+          e.identity = anchor;
+          e.reason = 'identity_run';
+        }
+      }
+    }
+
+    // A shared label followed by a bare edition marker can be a feature of a
+    // different named pack (`独立名称 + shared-label + 版`). Do not let the
+    // shorter anchor absorb that record after the pairwise admissibility pass.
+    for (const e of list) {
+      if (!e.identity || !hasNamedEditionDescriptor(e.adm, e.identity.split(' '))) continue;
+      if (!e.rejected.some((x) => x.anchor === e.identity && x.reason === 'competing_edition')) {
+        e.rejected.push({ anchor: e.identity, reason: 'competing_edition' });
+      }
+      e.identity = '';
+      e.reason = 'singleton';
+    }
+  }
+
+  // Version-chain bridge: a release may omit the pack's short name while
+  // retaining a broad subject label that is present beside a stronger anchor
+  // in the same author's other releases (for example, a former subject-only
+  // title followed by a named `青春复兴` line).  Apply this only when exactly
+  // one strong identity in the scope is supported by that shared subject and
+  // both records carry release/version wording. Ambiguous subjects with more
+  // than one competing identity remain unassigned.
+  for (const list of allByAuthor.values()) {
+    const candidates = new Map<string, Entry[]>();
+    for (const e of list) {
+      if (!e.identity || identityChars(e.identity.split(' ')) < BILI_MIN_IDENTITY_CHARS) continue;
+      if (e.identity.split(' ').some((token) => BILI_IDENTITY_NOISE_TOKENS.has(token))) continue;
+      const bucket = candidates.get(e.identity);
+      if (bucket) bucket.push(e);
+      else candidates.set(e.identity, [e]);
+    }
+    for (const e of list) {
+      if (e.identity || !hasReleaseOrVersionSignal(e.adm.title)) continue;
+      // A title that still contains its own independently named pack must not
+      // be pulled into a different identity merely because both titles mention
+      // the same broad subject (e.g. two adaptations of one franchise).  The
+      // bridge is reserved for subject-only release/update records.
+      const independentNameChars = identityChars(e.matchTokens.filter((token) =>
+        !BILI_IDENTITY_NOISE_TOKENS.has(token),
+      ));
+      if (independentNameChars >= BILI_MIN_IDENTITY_CHARS) continue;
+      const possible = new Map<string, Entry>();
+      for (const [identity, members] of candidates) {
+        const representative = members.find((member) => {
+          if (!hasReleaseOrVersionSignal(member.adm.title)) return false;
+          if (hasDisjointRegisteredProjects(e, member)) return false;
+          return e.matchTokens.some((token) =>
+            BILI_VERSION_BRIDGE_THEMES.has(token)
+            && identityCharsOfToken(token) === 0
+            && member.matchTokens.includes(token),
+          );
+        });
+        if (representative) possible.set(identity, representative);
+      }
+      if (possible.size === 1) {
+        e.identity = [...possible.keys()][0];
+        e.reason = 'identity_run';
+      }
+    }
   }
 
   // ---- fallback: legacy exact-key / substring behaviour ---------------------
@@ -846,7 +1488,14 @@ export function groupBilibiliPacks(
           a === b ||
           (a.length >= 4 && b.indexOf(a) !== -1) ||
           (b.length >= 4 && a.indexOf(b) !== -1);
-        if (hit) canonical.set(b, canonical.get(a) as string);
+        const left = byKey.get(a) as Entry[];
+        const right = byKey.get(b) as Entry[];
+        const compatible = left.every((x) => right.every((y) => {
+          const common = bestCommonRun(x.matchTokens, y.matchTokens);
+          return qualifiesAsIdentity(common.run)
+            && !registeredIdentityConflict(x, y, common.run);
+        }));
+        if (hit && compatible) canonical.set(b, canonical.get(a) as string);
       }
     }
     const target = new Map<string, Entry[]>();
@@ -871,11 +1520,29 @@ export function groupBilibiliPacks(
   // ---- materialise decisions ------------------------------------------------
   const out = new Map<string, BilibiliGroupingDecision>();
   for (const e of entries) {
+    // Keep edition/green/mobile variants out of the project-theme rescue even
+    // if a later title-mining pass assigned the same broad theme.  Registered
+    // project evidence may corroborate a base line, but it cannot erase an
+    // explicit edition marker.
+    if (e.identity.startsWith('project-theme:')
+      && BILI_EDITION_MARKERS.some((marker) => e.adm.title.includes(marker))) {
+      e.identity = '';
+      e.reason = e.guarded ? 'generic_guard' : 'singleton';
+    }
+    let displayIdentity = e.identity;
+    if (displayIdentity && e.rejected.some((x) => x.reason === 'competing_edition')) {
+      const marker = [...BILI_SEPARATE_PRODUCT_MARKERS]
+        .find((candidate) => e.adm.title.includes(candidate));
+      if (marker && !displayIdentity.includes(marker)) displayIdentity += marker;
+    }
+    // Edition markers are lexical suffixes in the public group label even
+    // when the matching pass kept them as separate structural tokens.
+    displayIdentity = displayIdentity.replace(/ (重生|复刻|手机版)$/u, '$1');
     let groupKey: string;
-    if (e.guarded) {
+    if (e.guarded && !e.identity) {
       groupKey = '__raw_' + e.bvid;
     } else if (e.identity) {
-      groupKey = e.authorKey + '::' + e.identity;
+      groupKey = e.authorKey + '::' + displayIdentity;
     } else {
       groupKey = e.authorKey + '::' + e.key;
     }
@@ -888,7 +1555,7 @@ export function groupBilibiliPacks(
     }
     out.set(e.bvid, {
       groupKey,
-      identityKey: e.identity,
+      identityKey: displayIdentity,
       episodeResidue: residue,
       groupingReason: e.reason,
       ...(e.rejected.length ? { rejectedAnchors: e.rejected } : {}),
