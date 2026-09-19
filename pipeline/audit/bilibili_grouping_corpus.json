@@ -1,0 +1,2245 @@
+{
+  "generated_from": "converted_output/data/bili_data.js",
+  "raw_video_total": 936,
+  "note": "Ground truth derives from independent evidence (shared download resources, disjoint version-stripped core pack names, phase-named human-confirmed cases). cleanPackKey is recorded for documentation only and is NEVER the expected answer.",
+  "spec_case_absent": {
+    "uploader": "黑金",
+    "reason": "the 黑金 false-merge pair named in the phase brief is NOT present in the current 936-record production payload (0 records match 黑金 in title/author/desc/pinned_comment/download_links). The equivalent failure mode - same uploader, reused naming template, generic-heavy titles, different packs - is covered by the NEG corpus."
+  },
+  "positive_cases": [
+    {
+      "case_id": "POS-SPEC-MIXIN-A",
+      "expected": "merge",
+      "confidence": "confirmed",
+      "kind": "spec_named",
+      "uploader": "懂嗎懂嗎",
+      "videos": [
+        {
+          "bvid": "BV1Ziuw6ZE7C",
+          "title": "MC大型末日整合包发布[齿轮与腐肉]枪械/机械动力/卓越前线/真菌感染/硬核模拟0.50更新日志",
+          "published_at": "2026-08-04 14:09",
+          "description_excerpt": "请停止任何二次网盘分发行为！我没有授权任何人转发我的整合包！\n整合包0.50测试版即将发布，可在我的群内或腾讯频道进行下载\n社区1群:「701568007」\n点击链接加入腾讯频道【齿轮与腐肉】：https://pd.qq.com/s/1asinz2os",
+          "download_identity": "https://pd.qq.com/s/1asinz2os",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "大型末日 齿轮与腐肉 机械动力 卓越前线 真菌感染 模拟 日志"
+        },
+        {
+          "bvid": "BV1fqNe6rEt5",
+          "title": "MC大型末日整合包发布[齿轮与腐肉]枪械/机械动力/卓越前线/真菌感染/硬核模拟0.49更新日志",
+          "published_at": "2026-07-15 15:29",
+          "description_excerpt": "请停止任何二次网盘分发行为！我没有授权任何人转发我的整合包！\n整合包0.49测试版已发布，可在我的群内或腾讯频道进行下载\n社区6群:「865911830」\n点击链接加入腾讯频道【齿轮与腐肉】：https://pd.qq.com/s/1asinz2os",
+          "download_identity": "https://pd.qq.com/s/1asinz2os",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "大型末日 齿轮与腐肉 机械动力 卓越前线 真菌感染 模拟 日志"
+        },
+        {
+          "bvid": "BV1tVeVzDELy",
+          "title": "MC大型末日整合包发布[齿轮与腐肉]枪械/机械动力/卓越前线/真菌感染/硬核模拟",
+          "published_at": "2025-08-20 21:39",
+          "description_excerpt": "此整合包由我一人整合，如您有兴趣，可以加入我们。\n整合包0.07内部测试版即将发布，可在我的群内或腾讯频道进行下载\n欢迎加入我的社区。\n社区群:701568007\n点击链接加入腾讯频道【齿轮与腐肉】：https://pd.qq.com/s/5a06a2hv1\n\n感谢整合包内所有材质，数据包，模组的制作者。\n感谢MuRix提供的公益服务器\n感谢白象制作的实体优化数据包，登录数据包 感谢chaospa",
+          "download_identity": "https://pd.qq.com/s/5a06a2hv1",
+          "qq_group": "701568007",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "大型末日 齿轮与腐肉 机械动力 卓越前线 真菌感染 模拟"
+        }
+      ],
+      "ground_truth_evidence": [
+        "Phase 3G-E brief names this as a human-confirmed same-pack series (卓越前线 edition)",
+        "all three titles share 齿轮与腐肉 + 卓越前线 and differ only by version number"
+      ]
+    },
+    {
+      "case_id": "POS-SPEC-MIXIN-B",
+      "expected": "merge",
+      "confidence": "confirmed",
+      "kind": "spec_named",
+      "uploader": "懂嗎懂嗎",
+      "videos": [
+        {
+          "bvid": "BV1vuVH6XErM",
+          "title": "MC大型末日整合包发布[齿轮与腐肉]枪械/机械动力/永无止境/真菌感染/硬核模拟0.47更新前瞻",
+          "published_at": "2026-05-28 20:27",
+          "description_excerpt": "整合包0.47测试版已发布，可在我的群内或腾讯频道进行下载\n社区6群:「865911830」\n点击链接加入腾讯频道【齿轮与腐肉】：https://pd.qq.com/s/1asinz2os",
+          "download_identity": "https://pd.qq.com/s/1asinz2os",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "大型末日 齿轮与腐肉 机械动力 永无止境 真菌感染 模拟 前瞻"
+        },
+        {
+          "bvid": "BV1k3Lg6zEjY",
+          "title": "MC大型末日整合包发布[齿轮与腐肉]枪械/机械动力/永无止境/真菌感染/硬核模拟0.45更新前瞻",
+          "published_at": "2026-05-16 17:42",
+          "description_excerpt": "整合包0.47测试版已发布，可在我的群内或腾讯频道进行下载\n社区6群:「865911830」\n点击链接加入腾讯频道【齿轮与腐肉】：https://pd.qq.com/s/1asinz2os",
+          "download_identity": "https://pd.qq.com/s/1asinz2os",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "大型末日 齿轮与腐肉 机械动力 永无止境 真菌感染 模拟 前瞻"
+        },
+        {
+          "bvid": "BV1ACA8zjELd",
+          "title": "MC大型末日整合包发布[齿轮与腐肉]枪械/机械动力/永无止境/真菌感染/硬核模拟0.43更新前瞻",
+          "published_at": "2026-02-28 16:12",
+          "description_excerpt": "整合包0.43测试版即将，可在我的群内或腾讯频道进行下载\n欢迎加入我的社区。\n社区群:1072517621\n点击链接加入腾讯频道【齿轮与腐肉】：https://pd.qq.com/s/5a06a2hv1",
+          "download_identity": "https://pd.qq.com/s/5a06a2hv1",
+          "qq_group": "1072517621",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "大型末日 齿轮与腐肉 机械动力 永无止境 真菌感染 模拟 前瞻"
+        }
+      ],
+      "ground_truth_evidence": [
+        "Phase 3G-E brief names this as a human-confirmed same-pack series (永无止境 edition)",
+        "all three titles share 齿轮与腐肉 + 永无止境 and differ only by version number"
+      ]
+    },
+    {
+      "case_id": "POS-SPEC-HORIZON",
+      "expected": "merge",
+      "confidence": "confirmed",
+      "kind": "spec_named",
+      "uploader": "ConfectionaryQwQ",
+      "videos": [
+        {
+          "bvid": "BV1yx421C7FN",
+          "title": "超远视距!Horizon地平线整合包发布!",
+          "published_at": "2024-03-17 08:00",
+          "description_excerpt": "配置:\nintel(R) 12th Gen Core(TM) i5-12400F\nNVIDIA GeForce RTX 3060Ti\nDDR4 3200Mhz 8G*2\n整合包版本:\nMinecraft 1.20.1 Fabric/Forge\n我公开下载链接的原因：\nBV1Wx4y1i7CH\n\n不要下一整个\"DH资源\"，用手点进文件夹，去下里面那个整合包\nDH资源->Horizon地平线整合包->",
+          "download_identity": "https://www.123684.com/s/lWOrVv-8Dwa3",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "超远视距 horizon地平线"
+        },
+        {
+          "bvid": "BV1Tx421X7nC",
+          "title": "Horizon地平线整合包v1.2.0更新日志，支持BSL光影，机械动力和瓦尔基里了！",
+          "published_at": "2024-03-30 22:35",
+          "description_excerpt": "This video do not have any \"tutorials\" with explicit steps to install mods.\n配置:\nintel(R) 12th Gen Core(TM) i5-12400F\nNVIDIA GeForce RTX 3060Ti\nDDR4 3200Mhz 8G*2\n整合包版本:\nMinecraft 1.20.1 Fabric/Forge\n\n不",
+          "download_identity": "https://www.123684.com/s/lWOrVv-8Dwa3",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.2.0",
+          "current_clean_key": "horizon地平线 v 日志 支持bsl光影 机械动力和瓦尔基里了"
+        },
+        {
+          "bvid": "BV1yC411G7Fj",
+          "title": "Horizon地平线整合包v1.3.0更新日志，支持Forge，添加汉化，支持Photon光影",
+          "published_at": "2024-04-12 20:55",
+          "description_excerpt": "配置:\nintel(R) 12th Gen Core(TM) i5-12400F\nNVIDIA GeForce RTX 3060Ti\nDDR4 3200Mhz 8G*2\n整合包版本:\nMinecraft 1.20.1 Fabric/Forge\n\n不要下一整个\"DH资源\"，用手点进文件夹，去下里面那个整合包\nDH资源->Horizon地平线整合包->Forge/Fabric版->XXX.zip\n注意",
+          "download_identity": "https://www.123684.com/s/lWOrVv-8Dwa3",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "horizon地平线 v 日志 支持 添加汉化 支持photon光影"
+        },
+        {
+          "bvid": "BV1Wx4y1i7CH",
+          "title": "Horizon地平线整合包v1.5.0更新日志，地平线模组全面更新，史诗优化，Forge同步",
+          "published_at": "2024-05-11 20:26",
+          "description_excerpt": "配置:\nintel(R) 12th Gen Core(TM) i5-12400F\nNVIDIA GeForce RTX 3060Ti\nDDR4 3200Mhz 8G*2\n整合包版本:\nMinecraft 1.20.1 Fabric/Forge\n\n不要下一整个\"DH资源\"，用手点进文件夹，去下里面那个整合包\nDH资源->Horizon地平线整合包->Forge/Fabric版->XXX.zip\n注意",
+          "download_identity": "https://www.123684.com/s/lWOrVv-8Dwa3",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.5.0",
+          "current_clean_key": "horizon地平线 v 日志 地平线模组全面 史诗优化 同步"
+        },
+        {
+          "bvid": "BV1px4y1J71D",
+          "title": "Horizon地平线整合包v1.7.0更新日志，DH模组全面更新，ComplementaryShaders适配支持",
+          "published_at": "2024-06-11 19:00",
+          "description_excerpt": "intel(R) 12th Gen Core(TM) i5-12400F\nNVIDIA GeForce RTX 3060Ti\nDDR4 3200Mhz 8G*2\n整合包版本:\nMinecraft 1.20.1 Fabric/Forge\n\n不要下一整个\"DH资源\"，用手点进文件夹，去下里面那个整合包\nDH资源->Horizon地平线整合包->Forge/Fabric版->XXX.zip\n注意下.zi",
+          "download_identity": "https://www.123684.com/s/lWOrVv-8Dwa3",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.7.0",
+          "current_clean_key": "horizon地平线 v 日志 dh模组全面 complementaryshaders适配支持"
+        },
+        {
+          "bvid": "BV17vQtY5E74",
+          "title": "Horizon地平线整合包v2.1.0更新日志，1.21.4再度启程！",
+          "published_at": "2025-03-16 19:00",
+          "description_excerpt": "配置:\nintel(R) 14th Gen Core(TM) i5-14600K\nNVIDIA GeForce RTX 3060Ti\nDDR4 4000Mhz 8G*2 C16-21-21-42\n整合包版本:\nMinecraft 1.21.4 Fabric/NeoForge\n\n不要下一整个\"DH资源\"，访问路径\nDH资源->Horizon地平线整合包->Forge/Fabric版->XXX.zip",
+          "download_identity": "https://www.123684.com/s/lWOrVv-8Dwa3",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.21.4",
+          "current_clean_key": "horizon地平线 日志 再度启程"
+        }
+      ],
+      "ground_truth_evidence": [
+        "Phase 3G-E brief names Horizon 光影整合包 as a known false-split corpus (v1.2 -> v2.1)",
+        "same uploader, same series name Horizon/地平线 across v1.2.0 .. v2.1.0",
+        "shared download resource(s): ['https://www.123684.com/s/lWOrVv-8Dwa3']",
+        "titles differ only by version + changelog wording"
+      ]
+    },
+    {
+      "case_id": "POS-URL-04",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "AC6_",
+      "videos": [
+        {
+          "bvid": "BV1aAAbzRE74",
+          "title": "【整合包更新】云游四海V1.1：看见那座山了吗？你可以住在那上面！",
+          "published_at": "2026-02-28 11:41",
+          "description_excerpt": "V1.1更新，添加新元素，对遗留的问题进行了一些修复，并补全了部分汉化\n下载链接：\n夸克：https://pan.quark.cn/s/b928d1a5a8b4\n度盘：https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs6xw?pwd=cams 提取码: cams\n方块工坊：https://crapark.com/3174.html\nXYEBBS：https:/",
+          "download_identity": "https://crapark.com/3174.html; https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs6xw; https://pan.quark.cn/s/b928d1a5a8b4; https://www.xyebbs.com/resources/1479",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "云游四海v 看见那座山了吗 你可以住在那上面"
+        },
+        {
+          "bvid": "BV1vfQUBZECL",
+          "title": "【整合包更新】云游四海V1.3：旅行至时间的尽头",
+          "published_at": "2026-03-25 20:41",
+          "description_excerpt": "下载链接：\n夸克（球球你不要再吞文件了）：https://pan.quark.cn/s/a8769c6a99eb?pwd=kBQn 提取码：kBQn\n度盘：https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs6xw?pwd=cams 提取码: cams\n（下面这两个是不限速的）\n方块工坊：https://crapark.com/3174.html\nXYEBBS：",
+          "download_identity": "https://crapark.com/3174.html; https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs6xw; https://pan.quark.cn/s/a8769c6a99eb; https://www.xyebbs.com/resources/1479",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "云游四海v 旅行至时间的尽头"
+        },
+        {
+          "bvid": "BV1bcdoB5EHP",
+          "title": "【整合包更新】云游四海V1.4：因为山就在那里",
+          "published_at": "2026-04-19 12:40",
+          "description_excerpt": "调整&修复&新内容\n本次改动内容较多，可能不会太支持老存档，推荐开新档游玩\n下载链接：\n夸克（球球你不要再吞文件了）：https://pan.quark.cn/s/a8769c6a99eb?pwd=kBQn 提取码：kBQn\n度盘：https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs6xw?pwd=cams 提取码: cams\n（下面这两个是不限速的）\nBBSM",
+          "download_identity": "https://bbsmc.net/modpack/wayfaring/versions; https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs6xw; https://pan.quark.cn/s/a8769c6a99eb; https://www.xyebbs.com/resources/1479",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.4",
+          "current_clean_key": "云游四海v 因为山就在那里"
+        },
+        {
+          "bvid": "BV1kj576xEe7",
+          "title": "【整合包更新】云游四海V1.4.1：VOXY自动生成&amp;传送门&amp;其他",
+          "published_at": "2026-05-10 19:59",
+          "description_excerpt": "我是很少会给小版本更新出更新视频的，但是这个我觉得真得给大家看看\n\n更新内容：\n性能提升（因个人运行环境而异）\n现在VOXY会自动生成以玩家为中心，半径为1024格方块的LOD，不需要chunky了（当然如果嫌速度太慢手动chunky一下也是可以的）\n现在结构之间的距离是之前的1.5倍\n修复了新鲜动画动物解体的问题，并默认启用新鲜动画\n地图上新加了传送门，可以让你随机传送到主世界的另一个传送门\n一",
+          "download_identity": "https://bbsmc.net/modpack/wayfaring/versions; https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs6xw; https://pan.quark.cn/s/a8769c6a99eb; https://www.xyebbs.com/resources/1479",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.4.1",
+          "current_clean_key": "云游四海v voxy自动生成 amp 传送门 amp 其他"
+        },
+        {
+          "bvid": "BV1eCEq6VEY9",
+          "title": "【整合包更新】云游四海V1.5：一场没有负担的旅行",
+          "published_at": "2026-06-11 17:58",
+          "description_excerpt": "调整&修复&新内容\n针对性能进行了优化（实际效果因个人运行环境而异）\n下载链接：\n夸克（球球你不要再吞文件了）：https://pan.quark.cn/s/a8769c6a99eb?pwd=kBQn 提取码：kBQn\n度盘：https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs6xw?pwd=cams 提取码: cams\nBBSMC：https://bbsmc.",
+          "download_identity": "https://bbsmc.net/modpack/wayfaring/versions; https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs6xw; https://pan.quark.cn/s/a8769c6a99eb",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.5",
+          "current_clean_key": "云游四海v 一场没有负担的旅行"
+        },
+        {
+          "bvid": "BV1CPKU6xE6e",
+          "title": "【整合包更新】云游四海V1.6：看到那颗黄金树了吗？那是一切旅途的归处。",
+          "published_at": "2026-07-20 16:39",
+          "description_excerpt": "调整&修复&新东西\n\n本次更新改动内容过多，先前的存档很可能无法迁移，可以考虑创哥理赔\n\n此次因为引入了黄金树，导致包本体会很大，故只有网盘链接，请大家谅解\n\n内存推荐分配8G\n\n下载链接：\n夸克：https://pan.quark.cn/s/a8769c6a99eb?pwd=kBQn 提取码：kBQn\n度盘：https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs",
+          "download_identity": "https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs6xw; https://pan.quark.cn/s/a8769c6a99eb",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.6",
+          "current_clean_key": "云游四海v 看到那颗黄金树了吗 那是一切旅途的归处"
+        },
+        {
+          "bvid": "BV1bxuJ68EiC",
+          "title": "【整合包更新】云游四海V1.6.1：优化，新内容，和服务端",
+          "published_at": "2026-08-06 21:30",
+          "description_excerpt": "标题捏他一下爱死机\n\n更新内容：\n-加快了新世界的创建过程，并对总体性能进行了优化，应该会减少大多数卡顿现象\n-优化了道路表现\n-在任务书中加入了一个小商店和一个回收处，可以将多余的东西放转转回收了\n-添加了河流，一个可以同时承担造景和交通功能的系统\n-现在你可以直接看见黄金树了\n-添加了飞行手感极佳的翅膀，作为到达黄金树的奖励\n-使用了新的传送动画\n-乱七八糟其他想不起来的东西\n-服务端！（需要",
+          "download_identity": "https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs6xw; https://pan.quark.cn/s/a8769c6a99eb",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.6.1",
+          "current_clean_key": "云游四海v 优化 新内容 和服务端"
+        },
+        {
+          "bvid": "BV1A7Yv6sEqs",
+          "title": "【整合包更新】云游四海V1.6.2：山海可望，亦可往",
+          "published_at": "2026-09-13 16:29",
+          "description_excerpt": "更新内容：\n-CAIMEO大佬针对各方面进行了多项优化，应该可以解决困扰大家许久的性能问题\n-优化了道路表现\n-加入了粒子形式的各种小动物，为世界增添了更多生机\n-更换了蒜味大佬制作的新主界面和新BGM包\n-初始季节现在是晚春，河里海里不会结冰了\n-你可以把各种垃圾塞给村民了\n-加入了小游戏，可供等待时游玩\n-优化了苦力怕，现在它不会再把你的家炸的稀巴烂了\n-优化了铜傀儡，现在它可以正常工作了\n-",
+          "download_identity": "https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs6xw; https://pan.quark.cn/s/a8769c6a99eb",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.6.2",
+          "current_clean_key": "云游四海v 山海可望 亦可往"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (AC6_)",
+        "identical download resource shared by all 8 videos: https://pan.baidu.com/s/14AnTmJiWMSLxl9ViQqs6xw",
+        "pack-name core-token containment 0.50 (>= 0.50 required)",
+        "shared distinctive tokens: ['云游四海v']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-05",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "Verre",
+      "videos": [
+        {
+          "bvid": "BV1YQnGzZEak",
+          "title": "【MC整合包发布】神秘回归前的预热「神秘启旅」六大魔法体系交织出神秘的光辉",
+          "published_at": "2025-09-30 13:00",
+          "description_excerpt": "游戏版本：1.20.1\n模组数量：264\n整合包版本：beta 0.9\n作者：MGK\n\n下载链接：\n夸克网盘：https://pan.quark.cn/s/7fef45163676\n百度网盘： https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg?pwd=5uqc\n\n整合包交流群：\n一群·1020494436\n\n游玩途中遇到任何问题可以到评论区或群里反馈\n",
+          "download_identity": "https://bbsmc.net/modpack/thaumjourney; https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg; https://pan.quark.cn/s/7fef45163676; https://www.mcmod.cn/modpack/1232.html; https://xyebbs.com/res-id/thaumjourney",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "神秘回归前的预热 神秘启旅 六大 体系交织出神秘的光辉"
+        },
+        {
+          "bvid": "BV1TikwBREms",
+          "title": "【整合包发布】「神秘启旅」正式版 魔法大更新",
+          "published_at": "2026-01-16 12:00",
+          "description_excerpt": "游戏版本：1.20.1\n模组数量：268\n整合包版本：正式版 1.0.0\n作者：MGK\n\n下载链接：\n夸克网盘：https://pan.quark.cn/s/7fef45163676\n百度网盘： https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg?pwd=5uqc\n\n整合包交流群：\n一群·1020494436\n\n游玩途中遇到任何问题可以到评论区或群里反馈",
+          "download_identity": "https://bbsmc.net/modpack/thaumjourney; https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg; https://pan.quark.cn/s/7fef45163676; https://www.mcmod.cn/modpack/1232.html; https://xyebbs.com/res-id/thaumjourney",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "神秘启旅 大"
+        },
+        {
+          "bvid": "BV1yh9FB6EjS",
+          "title": "【整合包发布】一次更新把主线内容翻倍「神秘启旅」1.4版本更新介绍",
+          "published_at": "2026-04-03 12:00",
+          "description_excerpt": "当我打开录制的时候，我发现我的语言中枢坏了，我失去了说话的能力😢\n\n游戏版本：1.20.1\n模组数量：273\n整合包版本：正式版 1.4.0\n作者：MGK\n\n下载链接：\n夸克网盘：https://pan.quark.cn/s/7fef45163676\n百度网盘： https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg?pwd=5uqc\n\n整合包交流群：\n一群",
+          "download_identity": "https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg; https://pan.quark.cn/s/7fef45163676",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.4",
+          "current_clean_key": "一次 把主线内容翻倍 神秘启旅 版本"
+        },
+        {
+          "bvid": "BV1VK526dEDx",
+          "title": "【整合包发布】「神秘使不受罪孽束缚」 「神秘启旅」1.5版本更新介绍",
+          "published_at": "2026-05-15 12:00",
+          "description_excerpt": "Rim de Lacent\n\n游戏版本：1.20.1\n模组数量：273\n整合包版本：正式版 1.5.0\n作者：MGK\n\n下载链接：\n夸克网盘：https://pan.quark.cn/s/7fef45163676\n百度网盘：https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg?pwd=5uqc\n\n整合包交流群：\n一群·1020494436\n\n游玩途中遇到任",
+          "download_identity": "https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg; https://pan.quark.cn/s/7fef45163676",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.5",
+          "current_clean_key": "神秘使不受罪孽束缚 神秘启旅 版本"
+        },
+        {
+          "bvid": "BV1vwjP6LEoZ",
+          "title": "【整合包发布】 高度自制内容，新人入坑特化「神秘启旅」1.6版本更新介绍",
+          "published_at": "2026-06-19 12:00",
+          "description_excerpt": "写稿了还读不明白 没救了这人\n\n游戏版本：1.20.1\n模组数量：283\n整合包版本：正式版 1.6.0\n作者：MGK\n\n视频中展示的物品栏GUI材质需要额外下载请注意\n下载链接：\n夸克网盘：https://pan.quark.cn/s/7fef45163676\n百度网盘：https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg?pwd=5uqc\n\n整合包交流",
+          "download_identity": "https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg; https://pan.quark.cn/s/7fef45163676",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.6",
+          "current_clean_key": "高度 内容 新人 特化 神秘启旅 版本"
+        },
+        {
+          "bvid": "BV1eugy63EAx",
+          "title": "【整合包发布】都市章节、多魔法附属、全魔法加强 「神秘启旅」1.7版本更新介绍",
+          "published_at": "2026-07-24 12:00",
+          "description_excerpt": "很稳定的更新节奏，但是我从发1.6以来活没停过\n\n游戏版本：1.20.1\n模组数量：296\n整合包版本：正式版 1.7.0\n作者：MGK\n\n下载链接：\n夸克网盘：https://pan.quark.cn/s/7fef45163676\n百度网盘：https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg?pwd=5uqc\n\n整合包交流群：\n一群·102049443",
+          "download_identity": "https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg; https://pan.quark.cn/s/7fef45163676",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.7",
+          "current_clean_key": "都市章节 多 附属 全 加强 神秘启旅 版本"
+        },
+        {
+          "bvid": "BV1WXuz6kESD",
+          "title": "【整合包发布】「用尽全力还原都市强者的武器」「神秘启旅」1.8版本更新介绍",
+          "published_at": "2026-08-13 12:00",
+          "description_excerpt": "至每一位看见简介的玩家，享受本次更新\n\n游戏版本：1.20.1\n模组数量：304\n整合包版本：正式版 1.8.0\n作者：MGK\n\n下载链接：\n夸克网盘：https://pan.quark.cn/s/7fef45163676\n百度网盘：https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg?pwd=5uqc\n\n整合包交流群：\n一群·1020494436\n\n游玩",
+          "download_identity": "https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg; https://pan.quark.cn/s/7fef45163676",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.8",
+          "current_clean_key": "用尽全力还原都市强者的武器 神秘启旅 版本"
+        },
+        {
+          "bvid": "BV1AdYg6HEwh",
+          "title": "【整合包发布】「赤瞳·忏悔武器还原、漆黑噤默面具」「神秘启旅」1.9版本更新介绍",
+          "published_at": "2026-09-11 12:00",
+          "description_excerpt": "这次也是正常更出来了，力竭了\n\n游戏版本：1.20.1\n模组数量：304\n整合包版本：正式版 1.8.0\n作者：MGK\n\n下载链接：\n夸克网盘：https://pan.quark.cn/s/7fef45163676\n百度网盘：https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg?pwd=5uqc\n\n整合包交流群：\n一群·1020494436\n\n游玩途中遇到",
+          "download_identity": "https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg; https://pan.quark.cn/s/7fef45163676",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.9",
+          "current_clean_key": "赤瞳 忏悔武器还原 漆黑噤默面具 神秘启旅 版本"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (Verre)",
+        "identical download resource shared by all 8 videos: https://pan.baidu.com/s/1wWkZOGtP2TKIffmkeRIGcg",
+        "pack-name core-token containment 1.00 (>= 0.50 required)",
+        "shared distinctive tokens: ['神秘启旅']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-06",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "绘名青棺",
+      "videos": [
+        {
+          "bvid": "BV1n8BYBxEXQ",
+          "title": "【MC整合包发布】「虚饰作品」v0.5版本发布，下界与袭击更新，大量原创饰品",
+          "published_at": "2025-12-27 10:00",
+          "description_excerpt": "欢迎来到整合包【虚饰作品v0.5】，本期的主题是，“下界与袭击”。\n\n游戏版本：1.20.1 Forge\n模组数量：237个\n交流群号：693928637\n\n下载链接：https://pan.quark.cn/s/312191242c55\nMC百科链接：https://www.mcmod.cn/modpack/1261.html\nXyebbs论坛链接：https://www.xyebbs.com/",
+          "download_identity": "https://pan.quark.cn/s/312191242c55; https://www.mcmod.cn/modpack/1261.html; https://www.xyebbs.com/res-id/Fictional",
+          "qq_group": "693928637",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "虚饰作品 版本 下界与袭击 大量原创饰品"
+        },
+        {
+          "bvid": "BV1cKfDBtEmq",
+          "title": "【MC整合包发布】『虚饰作品』v0.6版本更新——加入天境附属全家桶！加入近百件自制饰品！",
+          "published_at": "2026-02-04 09:30",
+          "description_excerpt": "【虚饰作品】v0.6\n游戏版本：1.20.1 Forge\n模组数量：251个\n交流群号：693928637\n\n下载链接：https://pan.quark.cn/s/312191242c55\n\nMC百科链接：https://www.mcmod.cn/modpack/1261.html\nXyeBBS论坛：https://www.xyebbs.com/res-id/Fictional\nBBSMC论坛：",
+          "download_identity": "https://bbsmc.net/modpack/fictional; https://pan.quark.cn/s/312191242c55; https://www.mcmod.cn/modpack/1261.html; https://www.xyebbs.com/res-id/Fictional",
+          "qq_group": "693928637",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "虚饰作品 版本 加入天境附属全家桶 加入近百件 饰品"
+        },
+        {
+          "bvid": "BV1aHc6zWE2M",
+          "title": "【MC整合包发布】虚饰作品v1.0-beta版本介绍视频，『维度冒险/弹幕战斗/超多饰品/深度魔改』",
+          "published_at": "2026-03-13 09:00",
+          "description_excerpt": "【虚饰作品 v1.0-beta】\n游戏版本：1.20.1 Forge\n模组数量：265个\n交流群号：693928637\n\n下载链接：https://pan.quark.cn/s/312191242c55\n\n在MC百科、XyeBBS、BBSMC等论坛上搜索“虚饰作品”也可找到本整合包。之后我差不多得去跟生活对线啦，可能不会再有现在这种时间和精力来更新整合包，因此无法保障后续版本的告诉更新。关于为什么",
+          "download_identity": "https://pan.quark.cn/s/312191242c55",
+          "qq_group": "693928637",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "虚饰作品v beta版本 视频 维度 弹幕 超多饰品 深度"
+        },
+        {
+          "bvid": "BV1GWdnBXEid",
+          "title": "【MC整合包发布】虚饰作品v1.1版本介绍，加入诡厄巫法，『维度冒险/弹幕战斗/超多饰品/深度魔改』",
+          "published_at": "2026-04-18 14:53",
+          "description_excerpt": "【虚饰作品 v1.1】\n游戏版本：1.20.1 Forge\n模组数量：281个\n交流群号：693928637\n\n下载链接：https://pan.quark.cn/s/312191242c55",
+          "download_identity": "https://pan.quark.cn/s/312191242c55",
+          "qq_group": "693928637",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "虚饰作品v 版本 加入诡厄巫法 维度 弹幕 超多饰品 深度"
+        },
+        {
+          "bvid": "BV19URKBLESq",
+          "title": "【MC整合包发布】虚饰作品整合包介绍视频（v1.2版本）",
+          "published_at": "2026-05-01 11:19",
+          "description_excerpt": "【虚饰作品 v1.2】\n游戏版本：1.20.1 Forge\n交流群号：693928637\n\n下载链接：https://pan.quark.cn/s/312191242c55\n\n反馈问题可以加群提交崩溃报告等信息。在MC百科、XyeBBS、BBSMC等论坛上搜索“虚饰作品”也可找到本整合包。",
+          "download_identity": "https://pan.quark.cn/s/312191242c55",
+          "qq_group": "693928637",
+          "pack_version": "发布版",
+          "mc_version": "1.2",
+          "current_clean_key": "虚饰作品 视频 v 版本"
+        },
+        {
+          "bvid": "BV1XNMT6hEWC",
+          "title": "【MC整合包发布】虚饰作品v1.3版本更新，重置“剑气”弹幕，加入“传奇怪物”。",
+          "published_at": "2026-07-05 10:09",
+          "description_excerpt": "【虚饰作品 v1.3】\n\n下载链接：关注up可在自动回复/首页置顶获取！\n\n直接发链接貌似会有限流的情况？反馈问题可以加群（群号693928637）提交崩溃报告等信息。在MC百科、XyeBBS、BBSMC等论坛上搜索“虚饰作品”也可找到本整合包。",
+          "download_identity": "https://pan.quark.cn/s/312191242c55",
+          "qq_group": "693928637",
+          "pack_version": "发布版",
+          "mc_version": "1.4",
+          "current_clean_key": "虚饰作品v 版本 重置 剑气 弹幕 加入 传奇怪物"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (绘名青棺)",
+        "identical download resource shared by all 6 videos: https://pan.quark.cn/s/312191242c55",
+        "pack-name core-token containment 0.50 (>= 0.50 required)",
+        "shared distinctive tokens: ['mc']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-07",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "缓慢的开始",
+      "videos": [
+        {
+          "bvid": "BV1ecYgefEsE",
+          "title": "最新版虚无世界3.7整合包?—SoA3整合包 测试版发布！更新日志#3 整合包mod列表/测试版发布",
+          "published_at": "2024-08-09 19:58",
+          "description_excerpt": "整合包链接如下：\nCurseforge\nhttps://www.curseforge.com/minecraft/modpacks/soa3\nMC百科\nhttps://www.mcmod.cn/modpack/911.html \n夸克\n https://pan.quark.cn/s/bd76257db3ff \n爱发电 \nhttps://afdian.com/a/xiaohuanyo\n严禁将整合包上",
+          "download_identity": "https://afdian.com/a/xiaohuanyo; https://pan.quark.cn/s/bd76257db3ff; https://www.curseforge.com/minecraft/modpacks/soa3; https://www.mcmod.cn/modpack/911.html",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "版虚无世界 soa3 日志 3 mod列表"
+        },
+        {
+          "bvid": "BV1vbsEeAERj",
+          "title": "最新版虚无世界3.7整合包?—SoA3整合包 测试版发布！更新日志#4 整合包页面更新/任务一览",
+          "published_at": "2024-08-27 10:00",
+          "description_excerpt": "整合包链接如下：\nCurseforge\nhttps://www.curseforge.com/minecraft/modpacks/soa3\nMC百科\nhttps://www.mcmod.cn/modpack/911.html \n夸克\n https://pan.quark.cn/s/bd76257db3ff \n爱发电 \nhttps://afdian.com/a/xiaohuan2735\n违反者拉黑",
+          "download_identity": "https://afdian.com/a/xiaohuan2735; https://pan.quark.cn/s/bd76257db3ff; https://www.curseforge.com/minecraft/modpacks/soa3; https://www.mcmod.cn/modpack/911.html",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "版虚无世界 soa3 日志 4 页面 任务一览"
+        },
+        {
+          "bvid": "BV1VWtyeVEYv",
+          "title": "最新版虚无世界3.7整合包?—SoA3整合包 更新日志#5 整合包任务一览/虚无3.7爵士相关更新",
+          "published_at": "2024-09-21 21:39",
+          "description_excerpt": "整合包链接如下：\nCurseforge\nhttps://www.curseforge.com/minecraft/modpacks/soa3\nMC百科\nhttps://www.mcmod.cn/modpack/911.html \n夸克\n https://pan.quark.cn/s/bd76257db3ff \n爱发电 \nhttps://afdian.com/a/xiaohuan2735\n违反者拉黑",
+          "download_identity": "https://afdian.com/a/xiaohuan2735; https://pan.quark.cn/s/bd76257db3ff; https://www.curseforge.com/minecraft/modpacks/soa3; https://www.mcmod.cn/modpack/911.html",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "版虚无世界 soa3 日志 5 任务一览 虚无 爵士相关"
+        },
+        {
+          "bvid": "BV1nCCEYBEU4",
+          "title": "最新版虚无世界3.7整合包?—SoA3整合包 更新日志#6 整合包任务一览/虚无3.7爵士、匠造更新",
+          "published_at": "2024-12-27 12:09",
+          "description_excerpt": "敬请期待！\n整合包链接如下：\nCurseforge\nhttps://www.curseforge.com/minecraft/modpacks/soa3\nMC百科\nhttps://www.mcmod.cn/modpack/911.html \n夸克\n https://pan.quark.cn/s/bd76257db3ff \n爱发电 \nhttps://afdian.com/a/xiaohuan2735",
+          "download_identity": "https://afdian.com/a/xiaohuan2735; https://pan.quark.cn/s/bd76257db3ff; https://www.curseforge.com/minecraft/modpacks/soa3; https://www.mcmod.cn/modpack/911.html",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "版虚无世界 soa3 日志 6 任务一览 虚无 爵士 匠造"
+        },
+        {
+          "bvid": "BV1fegcz5E35",
+          "title": "最新版虚无世界3.7整合包?—SoA3整合包 更新日志#7",
+          "published_at": "2025-07-17 10:31",
+          "description_excerpt": "敬请期待！\n整合包链接如下：\nCurseforge\nhttps://www.curseforge.com/minecraft/modpacks/soa3\nMC百科\nhttps://www.mcmod.cn/modpack/911.html \n夸克\n https://pan.quark.cn/s/bd76257db3ff \n爱发电 \nhttps://afdian.com/a/xiaohuan2735",
+          "download_identity": "https://afdian.com/a/xiaohuan2735; https://pan.quark.cn/s/bd76257db3ff; https://www.curseforge.com/minecraft/modpacks/soa3; https://www.mcmod.cn/modpack/911.html",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "版虚无世界 soa3 日志 7"
+        },
+        {
+          "bvid": "BV13c9qBdECz",
+          "title": "最新版虚无世界3.7整合包?—SoA3整合包 更新日志#8",
+          "published_at": "2026-05-01 09:10",
+          "description_excerpt": "敬请期待！\n整合包链接如下：\nCurseforge\nhttps://www.curseforge.com/minecraft/modpacks/soa3\nMC百科\nhttps://www.mcmod.cn/modpack/911.html \n夸克\n https://pan.quark.cn/s/bd76257db3ff \n爱发电 \nhttps://afdian.com/a/xiaohuan2735",
+          "download_identity": "https://afdian.com/a/xiaohuan2735; https://pan.quark.cn/s/bd76257db3ff; https://www.curseforge.com/minecraft/modpacks/soa3; https://www.mcmod.cn/modpack/911.html",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "版虚无世界 soa3 日志 8"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (缓慢的开始)",
+        "identical download resource shared by all 6 videos: https://www.curseforge.com/minecraft/modpacks/soa3",
+        "pack-name core-token containment 0.67 (>= 0.50 required)",
+        "shared distinctive tokens: ['soa', '虚无世界']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-08",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "cyq2号机",
+      "videos": [
+        {
+          "bvid": "BV1NkEKz9Ece",
+          "title": "【Foodie】Minecraft 1.20.1 休闲美食整合包发布",
+          "published_at": "2025-05-11 13:22",
+          "description_excerpt": "【Foodie】吃货物语 1.3.0版本下载地址：\n夸克网盘：https://pan.quark.cn/s/dd36083e5c7f\n百度网盘：https://pan.baidu.com/s/1nqII6naZMa0Qp7semGy4ug?pwd=ja6n 提取码: ja6n \nXyebbs：https://bbs.xyeidc.com/resources/962?tab=info\n群1：9824",
+          "download_identity": "https://bbs.xyeidc.com/resources/962; https://pan.baidu.com/s/1nqII6naZMa0Qp7semGy4ug; https://pan.quark.cn/s/dd36083e5c7f",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "foodie 休闲美食"
+        },
+        {
+          "bvid": "BV1ryKUzuEaq",
+          "title": "【Foodie】Minecraft整合包 1.2.0版本发布！女仆餐厅，启动！",
+          "published_at": "2025-06-28 20:15",
+          "description_excerpt": "【Foodie】吃货物语 1.3.0版本下载地址：\n夸克网盘：https://pan.quark.cn/s/dd36083e5c7f\n百度网盘：https://pan.baidu.com/s/1nqII6naZMa0Qp7semGy4ug?pwd=ja6n 提取码: ja6n \nXyebbs：https://bbs.xyeidc.com/resources/962?tab=info\n群1：9824",
+          "download_identity": "https://bbs.xyeidc.com/resources/962; https://pan.baidu.com/s/1nqII6naZMa0Qp7semGy4ug; https://pan.quark.cn/s/dd36083e5c7f",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.2.0",
+          "current_clean_key": "foodie 版本 女仆餐厅 启动"
+        },
+        {
+          "bvid": "BV1c8ZaBKE7K",
+          "title": "【整合包更新】Foodie 吃货物语 2.0.0 餐厅更新",
+          "published_at": "2026-02-19 15:41",
+          "description_excerpt": "整合包下载地址：\n夸克网盘：https://pan.quark.cn/s/79e5aa0b681a\n百度网盘：https://pan.baidu.com/s/1046ipx-_PclzPPPLTQLotw?pwd=4tgw 提取码: 4tgw\nXyebbs：https://bbs.xyeidc.com/resources/962?tab=info\n群1：982406072 \n群2:   79949",
+          "download_identity": "https://bbs.xyeidc.com/resources/962; https://pan.baidu.com/s/1046ipx-_PclzPPPLTQLotw; https://pan.quark.cn/s/79e5aa0b681a",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "foodie 吃货物语 餐厅"
+        },
+        {
+          "bvid": "BV1yvwYzsEmD",
+          "title": "【整合包更新】Foodie 吃货物语 2.0.1",
+          "published_at": "2026-03-18 11:45",
+          "description_excerpt": "开服可选: 【木桶面板 — Minecraft 高性能联机服务器】 现支持大量大型整合包 一键开服 网页管理｜7×12 小时客服在线 CPU/配置｜价格/月： 13900K ｜ 8C ｜ 10G ｜ ¥108/月 9950X ｜ 8C ｜ 10G ｜ ¥118/月 u9 285K｜ 8C ｜ 10G ｜ ¥128/月 \n官网地址： https://pm.mutong1.com/minecraft ",
+          "download_identity": "https://bbs.xyeidc.com/resources/962; https://pan.baidu.com/s/1Unig6w9eTIKVafyCbsHdjw; https://pan.quark.cn/s/aab86e1f2ca4",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "foodie 吃货物语"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (cyq2号机)",
+        "identical download resource shared by all 4 videos: https://bbs.xyeidc.com/resources/962",
+        "pack-name core-token containment 0.67 (>= 0.50 required)",
+        "shared distinctive tokens: ['foodie']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-09",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "Karashok_Leo",
+      "videos": [
+        {
+          "bvid": "BV1QN6HYnE5W",
+          "title": "【MC整合包发布】咒次元 - 享受纯粹的魔法与战斗！",
+          "published_at": "2025-01-01 12:00",
+          "description_excerpt": "模组整合包：Spell Dimension / 咒次元\n版本：1.20.1 Fabric\nCurseForge：https://www.curseforge.com/minecraft/modpacks/spell-dimension\nBBSMC国内站点：https://bbsmc.net/modpack/spell-dimension\nmc百科：https://www.mcmod.cn/modp",
+          "download_identity": "https://bbsmc.net/modpack/spell-dimension; https://github.com/Karashok-Leo/Spell-Dimension-Modpack; https://www.curseforge.com/minecraft/modpacks/spell-dimension; https://www.mcmod.cn/modpack/1024.html",
+          "qq_group": "797027098",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "咒次元 享受纯粹的 与"
+        },
+        {
+          "bvid": "BV1iDdLYJESg",
+          "title": "【MC整合包更新发布】咒次元 0.6.0",
+          "published_at": "2025-04-10 22:01",
+          "description_excerpt": "模组整合包：Spell Dimension / 咒次元\n版本：1.20.1 Fabric\nCurseForge：https://www.curseforge.com/minecraft/modpacks/spell-dimension\nBBSMC国内站点：https://bbsmc.net/modpack/spell-dimension\nmc百科：https://www.mcmod.cn/modp",
+          "download_identity": "https://bbsmc.net/modpack/spell-dimension; https://github.com/Karashok-Leo/Spell-Dimension-Modpack; https://www.curseforge.com/minecraft/modpacks/spell-dimension; https://www.mcmod.cn/modpack/1024.html",
+          "qq_group": "797027098",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "咒次元"
+        },
+        {
+          "bvid": "BV172KczaEke",
+          "title": "【MC整合包更新发布】咒次元 0.7.0 - 雷电法王！！",
+          "published_at": "2025-06-20 11:58",
+          "description_excerpt": "模组整合包：Spell Dimension / 咒次元\n版本：1.20.1 Fabric\nCurseForge：https://www.curseforge.com/minecraft/modpacks/spell-dimension\nBBSMC国内站点：https://bbsmc.net/modpack/spell-dimension\nmc百科：https://www.mcmod.cn/modp",
+          "download_identity": "https://bbsmc.net/modpack/spell-dimension; https://github.com/Karashok-Leo/Spell-Dimension-Modpack; https://www.curseforge.com/minecraft/modpacks/spell-dimension; https://www.mcmod.cn/modpack/1024.html",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "咒次元 雷电法王"
+        },
+        {
+          "bvid": "BV1MCFSzTE62",
+          "title": "【整合包发布】咒次元 0.8.0 - 灵魂学派更新",
+          "published_at": "2026-02-10 19:00",
+          "description_excerpt": "模组整合包：Spell Dimension / 咒次元\n版本：1.20.1 Fabric\nCurseForge：https://www.curseforge.com/minecraft/modpacks/spell-dimension\nBBSMC国内站点：https://bbsmc.net/modpack/spell-dimension\nMC百科：https://www.mcmod.cn/modp",
+          "download_identity": "https://bbsmc.net/modpack/spell-dimension; https://github.com/Karashok-Leo/Spell-Dimension-Modpack; https://www.curseforge.com/minecraft/modpacks/spell-dimension; https://www.mcmod.cn/modpack/1024.html",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "咒次元 灵魂学派"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (Karashok_Leo)",
+        "identical download resource shared by all 4 videos: https://bbsmc.net/modpack/spell-dimension",
+        "pack-name core-token containment 1.00 (>= 0.50 required)",
+        "shared distinctive tokens: ['咒次元']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-10",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "墨言eclipse",
+      "videos": [
+        {
+          "bvid": "BV1UJET67ErR",
+          "title": "[MC整合包发布] 涅槃v.0.1.5介绍视频 [沉浸战斗/深度魔改/ARPG/咒镰双生]",
+          "published_at": "2026-06-08 09:00",
+          "description_excerpt": "《涅槃》是一款高版本冒险向深度魔改整合包\n整合包版本：1.20.1\n模组数量：162\n整合包主题：战斗与魔法\n核心玩法：机制类饰品法术build,飞镰与沉浸式boss战斗\n《未尽之路-涅槃》不基于《未尽之路》开发,也与《未尽之路》毫无关联,两个包唯一相同点就是开发者都是我,请不要混为一谈\n目标人群：中度冒险与深度冒险玩家,喜欢纯线性流程与策略战斗的玩家\n整合包定位:以灵灾铁魔法为核心的冒险主题AR",
+          "download_identity": "https://afdian.com/a/wjzl66; https://pan.quark.cn/s/92663959e32c; https://www.mcmod.cn/modpack/1418.html; https://www.xyebbs.com/resources/37418; https://www.xyebbs.com/resources/37418/prom",
+          "qq_group": "530417628",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "涅槃v 0 视频 沉浸 深度 a 咒镰双生"
+        },
+        {
+          "bvid": "BV1sNjq6pEAd",
+          "title": "[MC整合包发布]涅槃v0.1.6 [沉浸战斗/深度魔改/ARPG/咒镰双生]",
+          "published_at": "2026-06-19 13:39",
+          "description_excerpt": "下载链接[有更新日志]:https://www.xyebbs.com/resources/37418\nmc百科链接:https://www.mcmod.cn/modpack/1418.html\n整合包交流群:530417628\n\n该整合包并不适合整合包游玩经验不足的玩家游玩\n请先仔细阅读FTB任务再去提问(拜托了\n截至目前版本整合包开发进度1/8\n截至目前版本整合包预计通关时间20h-30h\n\n关",
+          "download_identity": "https://pan.quark.cn/s/92663959e32c; https://www.mcmod.cn/modpack/1418.html; https://www.xyebbs.com/resources/37418",
+          "qq_group": "530417628",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "涅槃 沉浸 深度 a 咒镰双生"
+        },
+        {
+          "bvid": "BV1LyN366E4u",
+          "title": "[MC大型整合包发布] 禁忌魔法 远古炼金  世界污染  3万行代码深度魔改---涅槃v.0.1.8 宣传视频",
+          "published_at": "2026-07-12 22:02",
+          "description_excerpt": "游戏版本：1.20.1 整合包版本：0.18\n【注意！】使用java17 内存分8-12G\n下载链接:https://www.xyebbs.com/resources/37418\n整合包交流小群:530417628\nmc百科:https://www.mcmod.cn/modpack/1418.html\n\n新版本改动极大,有bug请即时反馈\n\n整合包0.1.8a和后续版本暂时采用ai绘图作为主菜单封",
+          "download_identity": "https://www.mcmod.cn/modpack/1418.html; https://www.xyebbs.com/resources/37418",
+          "qq_group": "530417628",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频"
+        },
+        {
+          "bvid": "BV1ZTuJ6rEJp",
+          "title": "[整合包更新-涅槃v0.2]神吞降世，邪神投影，万魂幡！ 超越法则的魔法镰刀战斗之旅",
+          "published_at": "2026-08-06 12:06",
+          "description_excerpt": "注:新版本与旧版本存档不兼容\n\n游戏版本:1.20.1 \n宣传片版本：0.2.1\n下载链接:https://www.xyebbs.com/resources/37418\n百科链接:https://www.mcmod.cn/modpack/1418.html\n推荐配置：必须使用JAVA17来启动游戏,内存分8-12G\n整合包类型:类RPG半剧情向冒险爽包\n整合包玩法:魔法战斗,德莱文镰刀,饰品构筑\n",
+          "download_identity": "https://www.mcmod.cn/modpack/1418.html; https://www.xyebbs.com/resources/37418",
+          "qq_group": "1018021087",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (墨言eclipse)",
+        "identical download resource shared by all 4 videos: https://www.mcmod.cn/modpack/1418.html",
+        "pack-name core-token containment 1.00 (>= 0.50 required)",
+        "shared distinctive tokens: ['涅槃v']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-11",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "林点午安事睡觉",
+      "videos": [
+        {
+          "bvid": "BV1Y1LE6EEpb",
+          "title": "【明日方舟&amp;Minecraft整合包】大群方舟3.0版本更新宣传（好想玩谢拉格......",
+          "published_at": "2026-05-17 15:35",
+          "description_excerpt": "整合包MC百科介绍地址：https://www.mcmod.cn/modpack/1263.html\n整合包夸克网盘下载【客户端+服务端】：https://pan.quark.cn/s/9f21b0cb8311\n整合包蓝奏云下载【客户端】【密码AGT】：https://wwlf.lanzouw.com/b00uzktnji\n整合包curseforge网站下载【客户端】：https://www.cu",
+          "download_identity": "https://pan.quark.cn/s/9f21b0cb8311; https://wwlf.lanzouw.com/b00uzktnji; https://www.curseforge.com/minecraft/modpacks/arknights-the-great-tide; https://www.mcmod.cn/modpack/1263.html",
+          "qq_group": "765174534",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "明日方舟 amp 大群方舟 版本 宣传 好想玩谢拉格"
+        },
+        {
+          "bvid": "BV1ysgY6hEf9",
+          "title": "【明日方舟 × Minecraft】大群方舟整合包-3.3更新宣传",
+          "published_at": "2026-07-24 15:43",
+          "description_excerpt": "整合包MC百科介绍地址：https://www.mcmod.cn/modpack/1263.html\n整合包夸克网盘下载【客户端+服务端】：https://pan.quark.cn/s/9f21b0cb8311\n作者整合包群：765174534\n\n自己配完音色做出来的这点图穷匕见的视频你绷得住吗😂😂😂",
+          "download_identity": "https://pan.quark.cn/s/9f21b0cb8311; https://www.mcmod.cn/modpack/1263.html",
+          "qq_group": "765174534",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "明日方舟 大群方舟 宣传"
+        },
+        {
+          "bvid": "BV1Kx8V6ZEwF",
+          "title": "【明日方舟 × Minecraft】大群方舟整合包-3.4更新新添明日方舟模组YqIl的明日方舟演示",
+          "published_at": "2026-08-19 01:09",
+          "description_excerpt": "整合包MC百科介绍地址：https://www.mcmod.cn/modpack/1263.html\n整合包夸克网盘下载【客户端+服务端】：https://pan.quark.cn/s/9f21b0cb8311\n整合包蓝奏云下载【客户端】【密码AGT】：https://wwlf.lanzouw.com/b00uzktnji\n整合包curseforge网站下载【客户端】：https://www.cu",
+          "download_identity": "https://pan.quark.cn/s/9f21b0cb8311; https://wwlf.lanzouw.com/b00uzktnji; https://www.curseforge.com/minecraft/modpacks/arknights-the-great-tide; https://www.mcmod.cn/modpack/1263.html",
+          "qq_group": "765174534",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "明日方舟 大群方舟 新添明日方舟模组yqil的明日方舟"
+        },
+        {
+          "bvid": "BV1n6466HEzS",
+          "title": "【明日方舟 × Minecraft】大群方舟整合包-4.0更新无终奇语演示",
+          "published_at": "2026-08-29 09:52",
+          "description_excerpt": "整合包MC百科介绍地址：https://www.mcmod.cn/modpack/1263.html\n整合包夸克网盘下载【客户端+服务端】：https://pan.quark.cn/s/9f21b0cb8311\n整合包蓝奏云下载【客户端】【密码AGT】：https://wwlf.lanzouw.com/b00uzktnji\n整合包curseforge网站下载【客户端】：https://www.cu",
+          "download_identity": "https://pan.quark.cn/s/9f21b0cb8311; https://wwlf.lanzouw.com/b00uzktnji; https://www.curseforge.com/minecraft/modpacks/arknights-the-great-tide; https://www.mcmod.cn/modpack/1263.html",
+          "qq_group": "765174534",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "明日方舟 大群方舟 无终奇语"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (林点午安事睡觉)",
+        "identical download resource shared by all 4 videos: https://www.mcmod.cn/modpack/1263.html",
+        "pack-name core-token containment 1.00 (>= 0.50 required)",
+        "shared distinctive tokens: ['minecraft', '大群方舟', '明日方舟']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-12",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "非茉涟柠",
+      "videos": [
+        {
+          "bvid": "BV1gNgK68ENZ",
+          "title": "【整合包发布】我做出了纯PVE版的“猎杀对决”？！《猎杀：历史 1949》-Hunt：History 1949",
+          "published_at": "2026-08-14 22:43",
+          "description_excerpt": "游戏版本是1.20.1 Forge，tacz版本是1.1.8版本。\n\n整合包发布页：\nhttps://bbsmc.net/modpack/mc-1949\nhttps://www.xyebbs.com/res-id/hunt-history-1949\n\n网盘下载链接：\nhttps://pan.quark.cn/s/d88804ade66f\nhttps://pan.xunlei.com/s/VP0J0",
+          "download_identity": "https://bbsmc.net/modpack/mc-1949; https://pan.quark.cn/s/d88804ade66f; https://pan.xunlei.com/s/VP0J0p0PrP0qM0OusKZrmgOvA1; https://www.xyebbs.com/res-id/hunt-history-1949",
+          "qq_group": "1103681710",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "我做出了纯pve版的 猎杀对决 猎杀 历史 1949 hunt history 1949"
+        },
+        {
+          "bvid": "BV1ic836TEEA",
+          "title": "【整合包更新】？！这就正式版v1.1.3出锅啦！？《猎杀：历史 1949》-Hunt：History 1949",
+          "published_at": "2026-08-18 22:45",
+          "description_excerpt": "游戏版本是1.20.1 Forge，tacz版本是1.1.8版本。\n\n整合包发布页：\nhttps://bbsmc.net/modpack/mc-1949\nhttps://www.xyebbs.com/res-id/hunt-history-1949\n\n网盘下载链接：\nhttps://pan.quark.cn/s/d88804ade66f\nhttps://pan.xunlei.com/s/VP0J0",
+          "download_identity": "https://bbsmc.net/modpack/mc-1949; https://pan.quark.cn/s/d88804ade66f; https://pan.xunlei.com/s/VP0J0p0PrP0qM0OusKZrmgOvA1; https://www.xyebbs.com/res-id/hunt-history-1949",
+          "qq_group": "1103681710",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "这就 v 出锅啦 猎杀 历史 1949 hunt history 1949"
+        },
+        {
+          "bvid": "BV1WE886qEij",
+          "title": "【整合包更新】指引推翻重写？1.1.4版本重磅更新！《猎杀：历史 1949》-Hunt：History 1949",
+          "published_at": "2026-08-24 00:47",
+          "description_excerpt": "游戏版本是1.20.1 Forge，tacz版本是1.1.8版本。\n\n整合包发布页：\nhttps://bbsmc.net/modpack/mc-1949\nhttps://www.xyebbs.com/res-id/hunt-history-1949\n\n整合包 v1.1.4 正式版与优化指南的下载链接：\nhttps://pan.quark.cn/s/d88804ade66f\nhttps://pan.",
+          "download_identity": "https://bbsmc.net/modpack/mc-1949; https://pan.quark.cn/s/d88804ade66f; https://pan.xunlei.com/s/VP0J0p0PrP0qM0OusKZrmgOvA1; https://www.xyebbs.com/res-id/hunt-history-1949",
+          "qq_group": "1103681710",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "指引推翻重写 版本重磅 猎杀 历史 1949 hunt history 1949"
+        },
+        {
+          "bvid": "BV1aCtb6CEX6",
+          "title": "【整合包发布】我还原了“爱笑的草丛”？1.2.0版本革命级发布！《猎杀：历史 1949 v1.2.0》-Hunt：History 1949 v1.2.0",
+          "published_at": "2026-08-31 20:43",
+          "description_excerpt": "游戏版本是1.20.1 Forge，tacz版本是1.1.8版本。\n\n整合包发布页：\nhttps://bbsmc.net/modpack/mc-1949\nhttps://www.xyebbs.com/res-id/hunt-history-1949\n\n网盘下载链接：\nhttps://pan.quark.cn/s/d88804ade66f\nhttps://pan.xunlei.com/s/VP0J0",
+          "download_identity": "https://bbsmc.net/modpack/mc-1949; https://pan.quark.cn/s/d88804ade66f; https://pan.xunlei.com/s/VP0J0p0PrP0qM0OusKZrmgOvA1; https://www.xyebbs.com/res-id/hunt-history-1949",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.2.0",
+          "current_clean_key": "我还原了 爱笑的草丛 版本革命级 猎杀 历史 1949 v hunt history 1949 v"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (非茉涟柠)",
+        "identical download resource shared by all 4 videos: https://bbsmc.net/modpack/mc-1949",
+        "pack-name core-token containment 0.67 (>= 0.50 required)",
+        "shared distinctive tokens: ['history', 'hunt', '历史', '猎杀']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-13",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "ALTNOIR",
+      "videos": [
+        {
+          "bvid": "BV1vi4ceHE8j",
+          "title": "【整合包发布】一款包罗万象的综合性深度魔改整合包—亚特兰深渊1.0正式版！「AtlanAbyss」",
+          "published_at": "2024-10-04 20:00",
+          "description_excerpt": "整合包：亚特兰深渊 1.0\n-------------------------------------------------------------------\n宣传片里的第二层到第六层维度全是这个版本新增加的五个自定义维度，以及十五个自定义群系，用了一个多星期肝出来的，之前的版本是没有这些内容的。\n亚特兰深渊是一款综合性深度魔改整合包，也是我从零开始做的第一款深度魔改整合包，早期时期缝合比较多",
+          "download_identity": "https://github.com/Altnoir/AtlanAbyss; https://pan.quark.cn/s/a1996763cbf9; https://www.curseforge.com/minecraft/modpacks/atlanabyss; https://www.mcmod.cn/modpack/735.html",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "一款包罗万象的综合性深度 亚特兰深渊 atlanabyss"
+        },
+        {
+          "bvid": "BV1M21EYWERX",
+          "title": "【整合包更新】亚特兰深渊1.1更新与服务端发布！「AtlanAbyss」",
+          "published_at": "2024-10-29 08:00",
+          "description_excerpt": "整合包：亚特兰深渊 1.1\n-------------------------------------------------------------------\n首先感谢各位一直以来的支持，前几日关注数破万了，这几天把其他事情都丢在一边，全力更新整合包，现在且算是把服务端的问题修好了，实体过多的问题也勉强算解决了，配方问题，平衡问题等，能修的则修，修不了的等下次更新。其实只要挤一挤时间也不用到半",
+          "download_identity": "https://github.com/Altnoir/AtlanAbyss; https://music.163.com/playlist; https://pan.quark.cn/s/a1996763cbf9; https://www.curseforge.com/minecraft/modpacks/atlanabyss; https://www.mcmod.cn/modpack/735.html",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "亚特兰深渊 与服务端 atlanabyss"
+        },
+        {
+          "bvid": "BV1UxzWYDEVo",
+          "title": "【整合包更新】亚特兰深渊1.2更新与新维度！「AtlanAbyss」",
+          "published_at": "2024-12-01 08:00",
+          "description_excerpt": "整合包：亚特兰深渊 1.2\n-------------------------------------------------------------------\n还是感谢各位这个十一月里大家的支持，为了回馈大家的期待，就算我每个月只有3、4天的时间也会把全部时间用于游戏的更新。在离开的最后一天，也就是12月1号的凌晨，总算是把这个月的更新内容都给写完了（四天写了一个月内容）。问题部分能修的都修了",
+          "download_identity": "https://github.com/Altnoir/AtlanAbyss; https://music.163.com/playlist; https://pan.quark.cn/s/a1996763cbf9; https://www.curseforge.com/minecraft/modpacks/atlanabyss; https://www.mcmod.cn/modpack/735.html",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.2",
+          "current_clean_key": "亚特兰深渊 与新维度 atlanabyss"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (ALTNOIR)",
+        "identical download resource shared by all 3 videos: https://pan.quark.cn/s/a1996763cbf9",
+        "pack-name core-token containment 0.67 (>= 0.50 required)",
+        "shared distinctive tokens: ['atlanabyss', '亚特兰深渊']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-14",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "Pork猪排",
+      "videos": [
+        {
+          "bvid": "BV1nbTqzCECX",
+          "title": "『化龍』MC整合包发布“金鳞岂是池中物，一遇风云便化龙”",
+          "published_at": "2025-06-10 12:00",
+          "description_excerpt": "金鳞岂是池中物，一遇风云便化龙。\n整合包名称：化龍（BeLoong）\n整合包版本：1.21.1 NeoForge\n下载地址：https://xyebbs.com/res-id/beloong?tab=info\n\n整合包特色：\n1.你可以变成龙进行生存，开局就能飞行。\n2.线性流程：主世界-下界-末地-暮色森林-永恒星光\n3.高度优化，帧数极高，手机畅玩。\n4.大量中式元素，中国龙和中国法术。\n5.",
+          "download_identity": "https://xyebbs.com/res-id/beloong",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.21.1",
+          "current_clean_key": "化龍 金鳞岂是池中物 一遇风云便化龙"
+        },
+        {
+          "bvid": "BV12VtQzkEcm",
+          "title": "【MC整合包发布】化龍1.0正式版！金鳞岂是池中物，一遇风云便化龙。",
+          "published_at": "2025-08-12 12:00",
+          "description_excerpt": "整合包介绍：BV1nbTqzCECX\n整合包名称：化龍（BeLoong）\n整合包版本：1.21.1 NeoForge\n下载地址：https://xyebbs.com/res-id/beloong?tab=info\n\n『化龍』 是一款以“龙”为主题的国风冒险整合包。\n在这里，你可以化身 5 种龙进行生存，以龙的视角重新认识这个世界。\n龙生而会飞，每种龙都有自己独特的技能与特性，同时也存在弱点。\n你将",
+          "download_identity": "https://xyebbs.com/res-id/beloong",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.21.1",
+          "current_clean_key": "化龍 金鳞岂是池中物 一遇风云便化龙"
+        },
+        {
+          "bvid": "BV1GrzxBZE7S",
+          "title": "【MC整合包发布】『化龍』1.2正式版：麒麟踏雪",
+          "published_at": "2026-01-26 08:00",
+          "description_excerpt": "整合包名称：化龍（BeLoong）\n整合包版本：1.21.1 NeoForge\n下载地址：https://xyebbs.com/res-id/beloong?tab=info\n\n其实1.2版本在元旦就发布了，但是因为要考试没时间做视频，现在放寒假了终于能把视频补上了。\n全新物种翼麒麟，全新的龙晶咒龙，全新的龙娘莉贝尔，全新的BOSS严厉。\n本次更新主要是重做了龙族的成长系统，添加了太古龙和始祖龙阶",
+          "download_identity": "https://xyebbs.com/res-id/beloong",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.2",
+          "current_clean_key": "化龍 麒麟踏雪"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (Pork猪排)",
+        "identical download resource shared by all 3 videos: https://xyebbs.com/res-id/beloong",
+        "pack-name core-token containment 1.00 (>= 0.50 required)",
+        "shared distinctive tokens: ['mc', '化龍']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-15",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "加一点芝士",
+      "videos": [
+        {
+          "bvid": "BV1uwE96jEbd",
+          "title": "【MC整合包发布】「剑痕纪元」在被诅咒吞噬的纪元，刻下你的剑痕！",
+          "published_at": "2026-06-10 18:40",
+          "description_excerpt": "模组数量:400+\n视频内版本为0.9.0(非正式版)\n下载地址1：https://www.xyebbs.com/res-id/jhjy/downloads\n下载地址2：https://bbsmc.net/modpack/jhjy",
+          "download_identity": "https://bbsmc.net/modpack/jhjy; https://www.xyebbs.com/res-id/jhjy/downloads",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "剑痕纪元 在被诅咒吞噬的纪元 刻下你的剑痕"
+        },
+        {
+          "bvid": "BV1uAKn6WE3g",
+          "title": "【MC整合包发布】「剑痕纪元」诅咒降临，唯有你的剑锋能斩破长夜！",
+          "published_at": "2026-07-17 18:11",
+          "description_excerpt": "模组数量:400+\n视频内版本为0.9.5(非正式版)\n下载地址1：https://www.xyebbs.com/res-id/jhjy/downloads\n下载地址2：https://bbsmc.net/modpack/jhjy",
+          "download_identity": "https://bbsmc.net/modpack/jhjy; https://www.xyebbs.com/res-id/jhjy/downloads",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "剑痕纪元 诅咒降临 唯有你的剑锋能斩破长夜"
+        },
+        {
+          "bvid": "BV1Bs8q61ErB",
+          "title": "【MC整合包发布】「剑痕纪元」「法师时代开启！」0.9.71版本更新介绍",
+          "published_at": "2026-08-21 16:57",
+          "description_excerpt": "模组数量:400+\n视频内整合包版本为0.9.71",
+          "download_identity": "https://bbsmc.net/modpack/jhjy; https://www.xyebbs.com/res-id/jhjy/downloads",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "剑痕纪元 法师时代开启 版本"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (加一点芝士)",
+        "identical download resource shared by all 3 videos: https://www.xyebbs.com/res-id/jhjy/downloads",
+        "pack-name core-token containment 0.50 (>= 0.50 required)",
+        "shared distinctive tokens: ['mc', '剑痕纪元']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-16",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "啊liu22",
+      "videos": [
+        {
+          "bvid": "BV1NaFrzkEBN",
+          "title": "【整合包发布】群峦野望1.1-原始科技革新",
+          "published_at": "2026-02-06 15:05",
+          "description_excerpt": "导航\n0：25-3:30 原始科技革新\n3：30-4：09 任务，血量与营养\n4：09-4：47 新机制\n4：47-5：27 新的小玩意\n5：27-5：50 技术性\n\n客户端\nhttps://www.curseforge.com/minecraft/modpacks/\nterra-firma-far-horizons\n服务端\nhttps://pan.quark.cn/s/2bcd3f9addc8\n",
+          "download_identity": "https://pan.quark.cn/s/2bcd3f9addc8; https://www.curseforge.com/minecraft/modpacks/; https://www.mcmod.cn/modpack/1269.html; https://www.xyebbs.com/resources/1383",
+          "qq_group": "672326817",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "群峦野望 原始 革新"
+        },
+        {
+          "bvid": "BV1XMDFByE5x",
+          "title": "【整合包发布】群峦野望1.2-沉浸科技革新",
+          "published_at": "2026-04-06 17:45",
+          "description_excerpt": "导航\n0:18 - 2:41 新的发电工厂\n2:41 - 3:50 各种机器功能\n3:50 - 4:41 任务重写\n4:41 其他新内容\n\n客户端\nhttps://www.curseforge.com/minecraft/modpacks/terra-firma-far-horizons\n或者启动器内搜索terra firma far horizons（下载源curseforge）\n客户端备用链接",
+          "download_identity": "https://pan.quark.cn/s/2bcd3f9addc8; https://pan.quark.cn/s/3ada94f8eade; https://www.curseforge.com/minecraft/modpacks/terra-firma-far-horizons; https://www.mcmod.cn/modpack/1269.html; https://www.xyebbs.com/resources/1383",
+          "qq_group": "672326817",
+          "pack_version": "发布版",
+          "mc_version": "1.2",
+          "current_clean_key": "群峦野望 沉浸 革新"
+        },
+        {
+          "bvid": "BV1eT7H6fETQ",
+          "title": "【整合包发布】群峦野望1.3-挖矿来！抢油气来！",
+          "published_at": "2026-06-27 11:20",
+          "description_excerpt": "简单群峦3.3视频 https://www.bilibili.com/video/BV1W1Vt6pELB\n\n客户端\nhttps://www.curseforge.com/minecraft/modpacks/terra-firma-far-horizons\n或者启动器内搜索terra firma far horizons（下载源curseforge）\n客户端备用链接\nhttps://pan.qu",
+          "download_identity": "https://pan.quark.cn/s/2bcd3f9addc8; https://pan.quark.cn/s/3ada94f8eade; https://www.curseforge.com/minecraft/modpacks/terra-firma-far-horizons; https://www.mcmod.cn/modpack/1269.html; https://www.xyebbs.com/resources/1383",
+          "qq_group": "672326817",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "群峦野望 挖矿来 抢油气来"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (啊liu22)",
+        "identical download resource shared by all 3 videos: https://pan.quark.cn/s/2bcd3f9addc8",
+        "pack-name core-token containment 0.67 (>= 0.50 required)",
+        "shared distinctive tokens: ['群峦野望']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-17",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "时唅",
+      "videos": [
+        {
+          "bvid": "BV1Uz421R7B6",
+          "title": "我的世界《辐射新世纪》3.0末世整合包正式版免费发布",
+          "published_at": "2024-02-13 13:00",
+          "description_excerpt": "分享文件：辐射.zip\n链接：https://pan.xunlei.com/s/VOSScrsyzSHimPdrg4Ofww8NA1?pwd=sxbd#\n复制这段内容后打开迅雷，查看更方便",
+          "download_identity": "https://pan.xunlei.com/s/VOSScrsyzSHimPdrg4Ofww8NA1",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "辐射新世纪 末世 免费"
+        },
+        {
+          "bvid": "BV19C411H7m9",
+          "title": "我的世界《辐射新世纪》6.0末世整合包正式版免费发布",
+          "published_at": "2024-03-05 13:00",
+          "description_excerpt": "分享文件：辐射.zip\n链接：https://pan.xunlei.com/s/VOSScrsyzSHimPdrg4Ofww8NA1?pwd=sxbd#\n复制这段内容后打开迅雷，查看更方便",
+          "download_identity": "https://pan.quark.cn/s/c7a7e7f63efc; https://pan.xunlei.com/s/VOSScrsyzSHimPdrg4Ofww8NA1",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "辐射新世纪 末世 免费"
+        },
+        {
+          "bvid": "BV1Rw4m1X7fm",
+          "title": "我的世界《辐射新世纪》6.7末世整合包正式版免费发布",
+          "published_at": "2024-05-04 13:00",
+          "description_excerpt": "分享文件：辐射.zip\n链接：https://pan.xunlei.com/s/VOSScrsyzSHimPdrg4Ofww8NA1?pwd=sxbd#\n复制这段内容后打开迅雷，查看更方便",
+          "download_identity": "https://pan.xunlei.com/s/VOSScrsyzSHimPdrg4Ofww8NA1",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "辐射新世纪 末世 免费"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (时唅)",
+        "identical download resource shared by all 3 videos: https://pan.xunlei.com/s/VOSScrsyzSHimPdrg4Ofww8NA1",
+        "pack-name core-token containment 1.00 (>= 0.50 required)",
+        "shared distinctive tokens: ['末世', '辐射新世纪']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-18",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "白银_1223",
+      "videos": [
+        {
+          "bvid": "BV1tskEBTEZ7",
+          "title": "【血族机械师】我的世界整合包发布。机械动力/吸血鬼/冒险/魔法/枪械/任务书",
+          "published_at": "2026-01-20 23:48",
+          "description_excerpt": "已更新至1.2.3版本，更新日志请跳转链接，可看该合集下新视频\n1.20.1forge服务端、客户端\n下载链接夸克网盘https://pan.quark.cn/s/5fb208fc1abe\nxyebbs：https://www.xyebbs.com/resources/1444\nBBSMC：https://bbsmc.net/modpack/vampire-mechanic\nmc百科：https:",
+          "download_identity": "https://bbsmc.net/modpack/vampire-mechanic; https://pan.quark.cn/s/5fb208fc1abe; https://www.mcmod.cn/modpack/1335.html; https://www.xyebbs.com/resources/1444",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.2.3",
+          "current_clean_key": "血族机械师 机械动力 吸血鬼 任务书"
+        },
+        {
+          "bvid": "BV1bAcWzaEG2",
+          "title": "【血族机械师】1.1.0版本 我的世界整合包更新。机械动力/吸血鬼/轻量冒险/魔法/枪械/任务书",
+          "published_at": "2026-02-14 11:37",
+          "description_excerpt": "已更新至1.2.3版本，更新日志请跳转链接，可看该合集下新视频\n1.20.1forge服务端、客户端\n下载链接夸克网盘https://pan.quark.cn/s/5fb208fc1abe\nxyebbs：https://www.xyebbs.com/resources/1444\nBBSMC：https://bbsmc.net/modpack/vampire-mechanic\nmc百科：https:",
+          "download_identity": "https://bbsmc.net/modpack/vampire-mechanic; https://pan.quark.cn/s/5fb208fc1abe; https://www.mcmod.cn/modpack/1335.html; https://www.xyebbs.com/resources/1444",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.2.3",
+          "current_clean_key": "血族机械师 版本 机械动力 吸血鬼 轻量 任务书"
+        },
+        {
+          "bvid": "BV1N7AQzCEMb",
+          "title": "【血族机械师】1.1.2版本 我的世界整合包更新。机械动力/吸血鬼/轻量冒险/魔法/枪械/任务书",
+          "published_at": "2026-02-27 20:11",
+          "description_excerpt": "已更新至1.2.3版本，更新日志请跳转链接，可看该合集下新视频\n1.20.1forge服务端、客户端\n下载链接夸克网盘https://pan.quark.cn/s/5fb208fc1abe\nxyebbs：https://www.xyebbs.com/resources/1444\nBBSMC：https://bbsmc.net/modpack/vampire-mechanic \nmc百科:https",
+          "download_identity": "https://bbsmc.net/modpack/vampire-mechanic; https://pan.quark.cn/s/5fb208fc1abe; https://www.mcmod.cn/modpack/1335.html; https://www.xyebbs.com/resources/1444",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.2.3",
+          "current_clean_key": "血族机械师 版本 机械动力 吸血鬼 轻量 任务书"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (白银_1223)",
+        "identical download resource shared by all 3 videos: https://www.mcmod.cn/modpack/1335.html",
+        "pack-name core-token containment 1.00 (>= 0.50 required)",
+        "shared distinctive tokens: ['任务书', '吸血鬼', '机械动力', '枪械', '血族机械师']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-19",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "芦苇草的梦想",
+      "videos": [
+        {
+          "bvid": "BV14e2LBuEAK",
+          "title": "芦苇的整合包版本更新4.0.11-1.21.10宣传片",
+          "published_at": "2025-12-05 17:44",
+          "description_excerpt": "下载：https://modrinth.com/modpack/my-biome-is-so-beautiful\n或者去启动器里搜索整合包My Biome Is So Beautiful\n目前版本号为4.0.11，以后还会不断更新，请经常查看链接是否需要更新\n百度：https://pan.baidu.com/s/1RBW5Xlz96yuVVHk0a4NAdw?pwd=g398 提取码:g398\n夸",
+          "download_identity": "https://modrinth.com/modpack/my-biome-is-so-beautiful; https://pan.baidu.com/s/1RBW5Xlz96yuVVHk0a4NAdw; https://pan.quark.cn/s/9cb97694a566",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.21.10",
+          "current_clean_key": "芦苇的 版本 宣传片"
+        },
+        {
+          "bvid": "BV1KdrKBeE9Z",
+          "title": "芦苇的1.21.10整合包宣传片4.1.7更新",
+          "published_at": "2026-01-09 17:39",
+          "description_excerpt": "下载：https://modrinth.com/modpack/my-biome-is-so-beautiful\n或者去启动器里搜索整合包My Biome Is So Beautiful\n同时这里会发现1.21.11的内测整合包，也可以下载体验\n=================\n目前1.21.10整合包的版本号为4.1.7，以后还会不断更新，请经常查看链接是否需要更新\n百度：https://pa",
+          "download_identity": "https://modrinth.com/modpack/my-biome-is-so-beautiful; https://pan.baidu.com/s/1RBW5Xlz96yuVVHk0a4NAdw; https://pan.quark.cn/s/9cb97694a566",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.21.10",
+          "current_clean_key": "芦苇的 宣传片4"
+        },
+        {
+          "bvid": "BV1hN6FBnEUp",
+          "title": "【芦苇】寒假来休闲一下-芦苇的1.21.11整合包宣传片4.2.12更新",
+          "published_at": "2026-01-29 17:17",
+          "description_excerpt": "下载：https://modrinth.com/modpack/my-biome-is-so-beautiful\n或者去启动器里搜索整合包My Biome Is So Beautiful\n=================\n我的粉丝群：1034972423\n=================\n目前1.21.11整合包的版本号为4.2.12，以后还会不断更新，请经常查看链接是否需要更新\n百度：htt",
+          "download_identity": "https://modrinth.com/modpack/my-biome-is-so-beautiful; https://pan.baidu.com/s/1RBW5Xlz96yuVVHk0a4NAdw; https://pan.quark.cn/s/9cb97694a566",
+          "qq_group": "1034972423",
+          "pack_version": "发布版",
+          "mc_version": "1.21.11",
+          "current_clean_key": "芦苇 寒假来休闲一下 芦苇的 宣传片"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (芦苇草的梦想)",
+        "identical download resource shared by all 3 videos: https://pan.baidu.com/s/1RBW5Xlz96yuVVHk0a4NAdw",
+        "pack-name core-token containment 1.00 (>= 0.50 required)",
+        "shared distinctive tokens: ['芦苇的']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-20",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "辣某人",
+      "videos": [
+        {
+          "bvid": "BV1HfMxz7Eir",
+          "title": "【mc冒险整合包】沉浸战斗v3.6版本更新",
+          "published_at": "2025-06-15 14:08",
+          "description_excerpt": "游戏版本1.20.1  整合包版本：3.6\n下载链接：https://bbsmc.net/modpack/immersive-fight/versions",
+          "download_identity": "https://bbsmc.net/modpack/immersive-fight/versions",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "沉浸 版本"
+        },
+        {
+          "bvid": "BV14yBwByEWV",
+          "title": "【mc整合包发布】沉浸战斗4.0—史诗战斗冒险整合包",
+          "published_at": "2025-12-20 09:30",
+          "description_excerpt": "游戏版本：1.20.1  整合包版本：4.0\n下载链接：https://bbsmc.net/modpack/immersive-fight/versions\n新版本模组更新较大，若发现bug欢迎积极反馈",
+          "download_identity": "https://bbsmc.net/modpack/immersive-fight/versions",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "沉浸"
+        },
+        {
+          "bvid": "BV1MgNT67EzB",
+          "title": "【mc整合包发布】沉浸战斗4.2—史诗战斗冒险整合包",
+          "published_at": "2026-07-12 10:00",
+          "description_excerpt": "游戏版本：1.20.1    整合包版本：4.2.0  \n【注意！】使用java21  最少内存：6G  (内存不够可禁用voxy模组)\n下载地址：https://bbsmc.net/modpack/immersive-fight/versions\n本次改动较多，如遇问题请积极反馈，万分感谢。\n可评论、私信或是BBSMC的反馈栏中反馈，提供崩溃日志等有用信息",
+          "download_identity": "https://bbsmc.net/modpack/immersive-fight/versions",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "沉浸"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (辣某人)",
+        "identical download resource shared by all 3 videos: https://bbsmc.net/modpack/immersive-fight/versions",
+        "pack-name core-token containment 0.50 (>= 0.50 required)",
+        "shared distinctive tokens: ['mc']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-21",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "辣某人",
+      "videos": [
+        {
+          "bvid": "BV1CE421w7gJ",
+          "title": "【mc整合包发布】1.20.1史诗战斗冒险整合包--沉浸战斗",
+          "published_at": "2024-07-25 11:16",
+          "description_excerpt": "【版本已经更新】\n游戏版本1.20.1 整合包版本：3.1.2\n下载链接：https://bbsmc.net/modpack/immersive-fight",
+          "download_identity": "https://bbsmc.net/modpack/immersive-fight",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "沉浸"
+        },
+        {
+          "bvid": "BV1ovsVeXEe8",
+          "title": "【整合包发布】沉浸战斗2.1—最新版史诗战斗，大量的内容改进！",
+          "published_at": "2024-08-29 10:50",
+          "description_excerpt": "【版本已经更新】\n游戏版本1.20.1 整合包版本：3.1.2\n下载链接：https://bbsmc.net/modpack/immersive-fight",
+          "download_identity": "https://bbsmc.net/modpack/immersive-fight",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "沉浸 版 大量的内容改进"
+        },
+        {
+          "bvid": "BV1BwBLY3Es4",
+          "title": "【mc整合包发布】1.20.1史诗战斗冒险整合包--沉浸战斗V3.0发布",
+          "published_at": "2024-12-14 12:14",
+          "description_excerpt": "游戏版本1.20.1—整合包版本V3.1.2\n下载地址：https://bbsmc.net/modpack/immersive-fight",
+          "download_identity": "https://bbsmc.net/modpack/immersive-fight",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "沉浸"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (辣某人)",
+        "identical download resource shared by all 3 videos: https://bbsmc.net/modpack/immersive-fight",
+        "pack-name core-token containment 0.67 (>= 0.50 required)",
+        "shared distinctive tokens: ['史诗战斗']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-22",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "666sxss666",
+      "videos": [
+        {
+          "bvid": "BV1xuCPYvEjr",
+          "title": "{整合包发布]1.20.1海洋主题整合包发布!冒险+休闲.体验海上生存.(测试版)",
+          "published_at": "2024-12-25 19:35",
+          "description_excerpt": "展示视频可能有些简单,不过整合包的内容很丰富.这是我第一次尝试制作整合包,当前已经基本制作完毕,但应该还存在一些不足,我会在之后不断完善.\n整合包主要以海上探险休闲为主题,整合了200多个模组.游戏版本为1.20.1 \n\n本人电脑配置如下,供参考:显卡1660 ti  cpu i7-9750\n第一次加载游戏可能会有些慢请稍微等待.\n\n欢迎大家向我提出建议\n\n通过百度网盘分享的文件：海上余生0.1.",
+          "download_identity": "https://pan.baidu.com/s/1zs9LNSa7PjRilVaM3g14PA",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "海洋主题 休闲 体验海上"
+        },
+        {
+          "bvid": "BV1HmCnYCEG3",
+          "title": "【整合包发布】我的世界1.20.1海洋主题整合包,内容介绍,探险+休闲.(测试版)",
+          "published_at": "2024-12-27 15:28",
+          "description_excerpt": "由于上一个展示视频过于粗糙,也并没有展示整合包的内容和玩法,于是决定重发一个具体的内容介绍视频,\n\n这是我第一次尝试制作整合包,因此还有许多不足,并且整合包现在还在测试阶段,我会在之后不断完善.\n\n整合包以海洋生存休闲为主题,整合了200多个模组.并对一些模组和原版内容进行了轻微的魔改和配置.\n\n之后如果有空我也会把我制作过程中的经验分享出来.\n\n欢迎大家向我反馈问题和提出建议.\n\n关于电脑配置:",
+          "download_identity": "https://pan.baidu.com/s/1zs9LNSa7PjRilVaM3g14PA",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "海洋主题 内容 探险 休闲"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (666sxss666)",
+        "identical download resource shared by all 2 videos: https://pan.baidu.com/s/1zs9LNSa7PjRilVaM3g14PA",
+        "pack-name core-token containment 0.67 (>= 0.50 required)",
+        "shared distinctive tokens: ['休闲', '海洋主题']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-23",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "Locknar",
+      "videos": [
+        {
+          "bvid": "BV1gN9xBWEWR",
+          "title": "【MC整合包】MON0.5发布！励志打造MC最战术的PVE整合包！",
+          "published_at": "2026-04-29 23:51",
+          "description_excerpt": "【Minecraft or not】现已更新，整合包基于《严阵以待》和《swat4》游戏开发的MC近距离作战（cqb）玩法整合包，主打多人合作PVE，强调真实，严肃的游戏风格。\n\n感谢所有mod作者\n感谢tacz枪包作者\n经典重铸@CimaSilchin-神梦星辰  \n冲锋陷阵@LESHUAN_20乐拴  \n\n\n整合包下载：https://pan.quark.cn/s/4cf867f42a14?p",
+          "download_identity": "https://pan.quark.cn/s/4cf867f42a14; https://www.xyebbs.com/resources/15059",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "mon 励志打造 最战术的pve"
+        },
+        {
+          "bvid": "BV1WigA6rEWV",
+          "title": "【MON0.6】整合包更新发布 战术系统全面升级！",
+          "published_at": "2026-08-14 11:40",
+          "description_excerpt": "《Minecraft or Not》是基于 Minecraft 制作的枪械PVE整合包。作品在游戏玩法、任务评分、非致命执法和小队协作等方面，受到 VOID Interactive 开发的《Ready or Not》启发，并以此向原作及其开发团队致敬。\n\nMinecraft or Not 0.6.0更新内容\n\n新增地图：4U加油站、蜘蛛、霓虹坟墓\n\n核心玩法\n新增完整的任务评分系统\n\n * 根据嫌",
+          "download_identity": "https://bbsmc.net/modpack/minecraft-or-not; https://pan.quark.cn/s/313f0f095c93; https://www.curseforge.com/minecraft/modpacks/minecraft-or-not; https://www.xyebbs.com/resources/15059; https://www.xyebbs.com/resources/15059/downloads",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "mon 战术系统全面升级"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (Locknar)",
+        "identical download resource shared by all 2 videos: https://www.xyebbs.com/resources/15059",
+        "pack-name core-token containment 0.50 (>= 0.50 required)",
+        "shared distinctive tokens: ['mon']"
+      ]
+    },
+    {
+      "case_id": "POS-URL-24",
+      "expected": "merge",
+      "confidence": "strong",
+      "kind": "shared_download_resource",
+      "uploader": "P1nero",
+      "videos": [
+        {
+          "bvid": "BV14fHjzYEeA",
+          "title": "【MC整合包发布】𝑹𝑷𝑮冒险/高度魔改/史诗战斗 远梦之棺",
+          "published_at": "2025-10-01 00:30",
+          "description_excerpt": "https://xyebbs.com/resources/1261（含服务端）\n\n在本整合包中，你将扮演救世主，需要跟随守望者的指示，前往世界各地找回失落的火种，并回到主城点亮祭坛，最终启动仪式拯救世界！\n\n*注：视频展示时装均已购买使用权或为公开免费时装",
+          "download_identity": "https://xyebbs.com/resources/1261",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "高度 远梦之棺"
+        },
+        {
+          "bvid": "BV19sWrzSExy",
+          "title": "【MC整合包发布】远梦之棺1.5.0 全新Boss、武器、技能！𝑹𝑷𝑮冒险/高度魔改/史诗战斗",
+          "published_at": "2025-10-17 09:00",
+          "description_excerpt": "在本整合包中，你将扮演救世主，需要跟随守望者的指示，前往世界各地找回失落的火种，并回到主城点亮祭坛，最终启动仪式拯救世界！\n\n*注：视频所用皮肤模组为时装工坊，视频展示时装均已购买使用权或为公开免费时装\n\nhttps://xyebbs.com/resources/1261",
+          "download_identity": "https://xyebbs.com/resources/1261",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.5.0",
+          "current_clean_key": "远梦之棺 全新boss 武器 技能 高度"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (P1nero)",
+        "identical download resource shared by all 2 videos: https://xyebbs.com/resources/1261",
+        "pack-name core-token containment 1.00 (>= 0.50 required)",
+        "shared distinctive tokens: ['mc', '史诗战斗', '远梦之棺', '高度魔改']"
+      ]
+    }
+  ],
+  "negative_cases": [
+    {
+      "case_id": "NEG-01",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "豆腐ki",
+      "videos": [
+        {
+          "bvid": "BV1bs421M7GU",
+          "title": "（冒险科技整合包推荐）我的世界卓越二2.8.7更新手机移植版发布! 【FCL启动器制作】500多个任务9个全新维度平衡了战斗、探索魔法和科技，并提供自定义内容！",
+          "published_at": "2024-06-29 17:56",
+          "description_excerpt": "原版地址:https://www.curseforge.com/minecraft/modpacks/prominence-2-fabric\n模组403（增加了很多优化）内存调制5000~6000\n下载链接:https://pan.quark.cn/s/97c1bdda36fd\n运存不够就下载这个https://pan.quark.cn/s/c5c78492b6ab\n使用外置启动器玩教程:http",
+          "download_identity": "https://pan.quark.cn/s/97c1bdda36fd; https://pan.quark.cn/s/c5c78492b6ab; https://www.curseforge.com/minecraft/modpacks/prominence-2-fabric",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "卓越二 手机移植版 fcl启动器制作 500多个任务9个全新维度平衡了 和 并提供自定义内容"
+        },
+        {
+          "bvid": "BV1QC4y1L74S",
+          "title": "【FCL】移植大型冒险魔法科技整合包plastek,正式发布",
+          "published_at": "2023-10-04 23:20",
+          "description_excerpt": "整合包原版地址https://www.curseforge.com/minecraft/modpacks/plastek\n模组数222\n视频用的手机oppo 处理器是天坤810\n玩起来还是蛮流畅的\n获取方式进群718229409",
+          "download_identity": "https://www.curseforge.com/minecraft/modpacks/plastek",
+          "qq_group": "718229409",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "fcl 移植大型 plastek 正式"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (豆腐ki) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['制作', '卓越二', '多个任务', '并提供自定义内容'] B=['plastek']"
+      ]
+    },
+    {
+      "case_id": "NEG-02",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "豆腐ki",
+      "videos": [
+        {
+          "bvid": "BV1BSvheYEa7",
+          "title": "【1.18.2超级低配的空岛科技整合包推荐】手机移植版我的世界无中生无尽整合包发布!【FCL启动器移植】一键自动导入",
+          "published_at": "2024-08-01 14:39",
+          "description_excerpt": "原版作者主页https://b23.tv/rCMT6Wu\n模组54（大部分手机都玩的了）运存调至2500~3000\n下载链接:https://pan.quark.cn/s/4e6568489f3d\n运存不够就下载这个https://pan.quark.cn/s/c5c78492b6ab\n使用外置启动器玩教程:BV13W42197z7",
+          "download_identity": "https://pan.quark.cn/s/4e6568489f3d; https://pan.quark.cn/s/c5c78492b6ab",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.18.2",
+          "current_clean_key": "超级低配的 手机移植版 无中生无尽 fcl启动器移植 一键自动导入"
+        },
+        {
+          "bvid": "BV1QC4y1L74S",
+          "title": "【FCL】移植大型冒险魔法科技整合包plastek,正式发布",
+          "published_at": "2023-10-04 23:20",
+          "description_excerpt": "整合包原版地址https://www.curseforge.com/minecraft/modpacks/plastek\n模组数222\n视频用的手机oppo 处理器是天坤810\n玩起来还是蛮流畅的\n获取方式进群718229409",
+          "download_identity": "https://www.curseforge.com/minecraft/modpacks/plastek",
+          "qq_group": "718229409",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "fcl 移植大型 plastek 正式"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (豆腐ki) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['无中生无尽', '超级'] B=['plastek']"
+      ]
+    },
+    {
+      "case_id": "NEG-03",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "一个小寂哦",
+      "videos": [
+        {
+          "bvid": "BV1y5NU6REPY",
+          "title": "我的世界 《弑神之路2.2:神器锻世》整合包发布！1.20.1神器泰坦整合包 全新神器！全新的冒险！",
+          "published_at": "2026-07-14 11:00",
+          "description_excerpt": "三连+关注后自动发送更多整合包！！！\n整合包：https://docs.qq.com/sheet/DVXNEcFp5dFhyTEpv?tab=BB08J2\n感谢大家的支持\n非常多神器由@我之战  \n秘法涡流@_二千  \n基岩工艺@Jeffrey2013  \n整合包构思 制作@一个小寂哦  \n整合包赞助@一个小寂哦  \n整合包宣传@一个小寂哦  \n整合包下次更新由@一个小寂哦  负责",
+          "download_identity": "https://pan.quark.cn/s/a0832eba042d",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "弑神之路 神器锻世 神器泰坦 全新神器 全新的"
+        },
+        {
+          "bvid": "BV1bQeszWExg",
+          "title": "我的世界 小行星空岛生存整合包发布！免费！体验up们同款小行星空岛！某豪 某周 某鱼 某立同款！小行星空岛生存！",
+          "published_at": "2025-08-25 13:28",
+          "description_excerpt": "下载链接在动态！！！",
+          "download_identity": "",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "小行星 免费 体验up们同款小行星 某豪 某周 某鱼 某立同款 小行星"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (一个小寂哦) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['弑神之路', '神器', '神器泰坦', '神器锻世'] B=['up们', '小行星', '某周', '某立']"
+      ]
+    },
+    {
+      "case_id": "NEG-04",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "一个小寂哦",
+      "videos": [
+        {
+          "bvid": "BV1ENFTzAEnr",
+          "title": "我的世界 弑神之路2：泰坦再临整合包发布 神器泰坦冒险整合包 极致优化 超多魔改配方 全新的神器整合包体验！",
+          "published_at": "2026-02-03 11:00",
+          "description_excerpt": "三连+关注后自动发送整合包！！！\n更多整合包：\nhttps://docs.q删掉q.com/sheet/DVXNEcFp删掉5dFhyTEpv?tab=BB08J2\n感谢各位大佬\n秘法涡流@垭千  \n最终之剑龙神 无尽星空 异次元 管理者 wzz神器武器 千恋万花等各种神器@我之战  \n终极骷髅@平衡之神凋灵斯拉  \n月之套装@小正午 \n泰坦模组@未知5473  @IAD-xtfh4527",
+          "download_identity": "",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "弑神之路2 泰坦再临 神器泰坦 极致优化 超多 配方 全新的神器 体验"
+        },
+        {
+          "bvid": "BV1bQeszWExg",
+          "title": "我的世界 小行星空岛生存整合包发布！免费！体验up们同款小行星空岛！某豪 某周 某鱼 某立同款！小行星空岛生存！",
+          "published_at": "2025-08-25 13:28",
+          "description_excerpt": "下载链接在动态！！！",
+          "download_identity": "",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "小行星 免费 体验up们同款小行星 某豪 某周 某鱼 某立同款 小行星"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (一个小寂哦) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['弑神之路', '极致', '泰坦再临', '的神器'] B=['up们', '小行星', '某周', '某立']"
+      ]
+    },
+    {
+      "case_id": "NEG-05",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "吴也mc",
+      "videos": [
+        {
+          "bvid": "BV1my411i7jH",
+          "title": "寒冬末日，丧尸灾难真实生存【MC整合包更新介绍】冬境边域",
+          "published_at": "2024-08-09 12:21",
+          "description_excerpt": "早前介绍：BV1Ze411j7a5\n0.1.7e版本更新介绍：BV18c411L7MG\n\n作者@我真是无梦  \n整合包名称：The Winter Frontier\nhttps://www.curseforge.com/minecraft/modpacks/the-winter-frontier\n【冬境边域整合包交流频道】：https://pd.qq.com/s/e6yg8th7d",
+          "download_identity": "https://pd.qq.com/s/e6yg8th7d; https://www.curseforge.com/minecraft/modpacks/the-winter-frontier",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "寒冬末日 丧尸灾难真实 冬境边域"
+        },
+        {
+          "bvid": "BV1WY411K7fu",
+          "title": "大型整合包！《冒险与地牢》最新1.5版更新介绍",
+          "published_at": "2022-07-01 10:59",
+          "description_excerpt": "前期介绍：BV1rZ4y1Q7cx\n资源链接：https://www.curseforge.com/minecraft/modpacks/roguelike-adventures-and-dungeons/files\n\n看起来还会有更新的样子\n不过不知道又要等多久\n还是先给大家更新一下吧\n1.4.8汉化用不上要重新弄\n1.5并不完善\n期待更为完善版本发出",
+          "download_identity": "https://www.curseforge.com/minecraft/modpacks/roguelike-adventures-and-dungeons; https://www.curseforge.com/minecraft/modpacks/roguelike-adventures-and-dungeons/files",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.5",
+          "current_clean_key": "大型 与 版"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (吴也mc) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['mc', '丧尸灾难真实', '冬境边域', '寒冬末日'] B=['与地牢']"
+      ]
+    },
+    {
+      "case_id": "NEG-06",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "吴也mc",
+      "videos": [
+        {
+          "bvid": "BV1LY4y1S756",
+          "title": "全新的灾难降临，安全开局，平衡大增【MC整合包更新介绍】",
+          "published_at": "2023-03-26 19:25",
+          "description_excerpt": "了解刚发布时内容：BV1sY411d7bd\n了解1.3内容：BV1kM411b7VL\n关注后回复【灾难降临】可获取下载链接",
+          "download_identity": "",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "全新的灾难降临 安全开局 平衡大增"
+        },
+        {
+          "bvid": "BV1WY411K7fu",
+          "title": "大型整合包！《冒险与地牢》最新1.5版更新介绍",
+          "published_at": "2022-07-01 10:59",
+          "description_excerpt": "前期介绍：BV1rZ4y1Q7cx\n资源链接：https://www.curseforge.com/minecraft/modpacks/roguelike-adventures-and-dungeons/files\n\n看起来还会有更新的样子\n不过不知道又要等多久\n还是先给大家更新一下吧\n1.4.8汉化用不上要重新弄\n1.5并不完善\n期待更为完善版本发出",
+          "download_identity": "https://www.curseforge.com/minecraft/modpacks/roguelike-adventures-and-dungeons; https://www.curseforge.com/minecraft/modpacks/roguelike-adventures-and-dungeons/files",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.5",
+          "current_clean_key": "大型 与 版"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (吴也mc) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['mc', '安全开局', '平衡大增', '的灾难降临'] B=['与地牢']"
+      ]
+    },
+    {
+      "case_id": "NEG-07",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "时唅",
+      "videos": [
+        {
+          "bvid": "BV1FT8kzCE6R",
+          "title": "我的世界大型剧情末世整合包《潜行者3.1》正式版发布",
+          "published_at": "2025-08-01 12:00",
+          "description_excerpt": "游戏版本1.20.1「潜行者(3).zip」，复制整段内容，打开最新版「夸克APP」即可获取。\n畅享原画，免费5倍速播放，支持AI字幕和投屏，更有网盘TV版。\n/~252537bRk6~:/\n链接：https://pan.quark.cn/s/eda733f8d1b2\n分享文件：潜行者(2).zip\n链接：https://pan.xunlei.com/s/VOWckEy1v-N2fhaP8g4oB",
+          "download_identity": "https://pan.quark.cn/s/eda733f8d1b2; https://pan.xunlei.com/s/VOWckEy1v-N2fhaP8g4oB4sCA1",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "大型 末世 潜行者"
+        },
+        {
+          "bvid": "BV1p2421Z7ev",
+          "title": "我的世界《辐射次时代》3.0真实末世整合包正式版免费发布",
+          "published_at": "2024-07-30 18:00",
+          "description_excerpt": "我用夸克网盘分享了「辐射次时代(1).zip」，点击链接即可保存。打开「夸克APP」，无需下载在线播放视频，畅享原画5倍速，支持电视投屏。\n整合包自带地图链接：https://pan.quark.cn/s/7d7cbac45fa4客户端服务端要三连加关注进QQ群私信UP",
+          "download_identity": "https://pan.quark.cn/s/7d7cbac45fa4",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "辐射次时代 真实末世 免费"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (时唅) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['剧情末世', '潜行者'] B=['真实末世', '辐射次时代']"
+      ]
+    },
+    {
+      "case_id": "NEG-08",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "时唅",
+      "videos": [
+        {
+          "bvid": "BV1FT8kzCE6R",
+          "title": "我的世界大型剧情末世整合包《潜行者3.1》正式版发布",
+          "published_at": "2025-08-01 12:00",
+          "description_excerpt": "游戏版本1.20.1「潜行者(3).zip」，复制整段内容，打开最新版「夸克APP」即可获取。\n畅享原画，免费5倍速播放，支持AI字幕和投屏，更有网盘TV版。\n/~252537bRk6~:/\n链接：https://pan.quark.cn/s/eda733f8d1b2\n分享文件：潜行者(2).zip\n链接：https://pan.xunlei.com/s/VOWckEy1v-N2fhaP8g4oB",
+          "download_identity": "https://pan.quark.cn/s/eda733f8d1b2; https://pan.xunlei.com/s/VOWckEy1v-N2fhaP8g4oB4sCA1",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "大型 末世 潜行者"
+        },
+        {
+          "bvid": "BV1a1421r7VB",
+          "title": "我的世界《辐射次时代》2.0真实末世整合包正式版免费发布",
+          "published_at": "2024-06-25 13:00",
+          "description_excerpt": "整合包附带地图和定制剧情点赞支持下UP谢谢才想玩整合包服务器的关注up并私信                                                                                                             \n链接：https://pan.quark.cn/s/8269c5446212 推荐配置gtx1060到r",
+          "download_identity": "https://pan.quark.cn/s/6de937b086f2; https://pan.quark.cn/s/8269c5446212; https://pan.quark.cn/s/b58bfb5f64d2",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "辐射次时代 真实末世 免费"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (时唅) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['剧情末世', '潜行者'] B=['真实末世', '辐射次时代']"
+      ]
+    },
+    {
+      "case_id": "NEG-09",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "星辉の天晓",
+      "videos": [
+        {
+          "bvid": "BV1mBb6zSEiw",
+          "title": "【天晓の整合包发布】匠魂之旅【1.12.2】【科技 魔法 冒险】",
+          "published_at": "2025-08-14 19:00",
+          "description_excerpt": "本UP主所有整合包下载：https://pan.baidu.com/s/1hGQdCsa0-S_xbQFXuwRXbA?pwd=6666",
+          "download_identity": "https://pan.baidu.com/s/1hGQdCsa0-S_xbQFXuwRXbA",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.12.2",
+          "current_clean_key": "天晓 匠魂之旅"
+        },
+        {
+          "bvid": "BV1Hy4y1o7BC",
+          "title": "【君の童年回归】“我复刻了你们的童年？！”我的世界整合包 童归计划发布 原生内容完美复刻你的童年 模拟大都市 生活大冒险 侏罗纪 怪物大乱斗 暮色 以太",
+          "published_at": "2023-02-23 20:41",
+          "description_excerpt": "感谢五人组@小本解说  @晓仙仙er丶  @天骐只卖998  @悠然小天  @暮云苍茫  （纯指路无引流）为我们带来的童年美好回忆和对于本整合包的创作灵感\n整合包下载链接：链接: https://pan.baidu.com/s/1jt7s70voVNTq-70YUIvoEA?pwd=HOMO 提取码: HOMO 复制这段内容后打开百度网盘手机App，操作更方便哦\n内含本人制作多个整合包，欢迎体验",
+          "download_identity": "https://pan.baidu.com/s/1jt7s70voVNTq-70YUIvoEA",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "君 童年回归 我复刻了你们的童年 童归计划 原生内容完美复刻你的童年 模拟大都市 生活大 侏罗纪 怪物大乱斗 暮色 以太"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (星辉の天晓) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['匠魂之旅', '天晓'] B=['以太', '侏罗纪', '原生内容完美复刻你的童年', '怪物大乱斗']"
+      ]
+    },
+    {
+      "case_id": "NEG-10",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "Terminus_54-32",
+      "videos": [
+        {
+          "bvid": "BV1srPKzWEdP",
+          "title": "【我的世界整合包】1.21.4新泰坦神器整合包发布（不能玩生存）神器101把",
+          "published_at": "2026-03-04 15:09",
+          "description_excerpt": "整合包制作不易，不要白拿点个赞呗\n我用夸克网盘给你分享了「1.21.4-NeoForge神器泰坦整合包.zip」，点击链接或复制整段内容，打开「夸克APP」即可获取。\n/~c7d63LtLyS~:/\n链接：https://pan.quark.cn/s/17636ab2baa2",
+          "download_identity": "https://pan.quark.cn/s/17636ab2baa2",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.21.4",
+          "current_clean_key": "新泰坦神器 不能玩 神器101把"
+        },
+        {
+          "bvid": "BV1t3mRBnEwv",
+          "title": "【我的世界整合包】神话困难冒险之路1.0.2发布/【进群下载】",
+          "published_at": "2025-12-13 14:50",
+          "description_excerpt": "群：1008243546\n夸克",
+          "download_identity": "",
+          "qq_group": "1008243546",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "神话困难 之路 进群"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (Terminus_54-32) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['不能玩', '新泰坦神器', '神器'] B=['之路', '神话困难', '进群下载']"
+      ]
+    },
+    {
+      "case_id": "NEG-11",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "VM汉化组",
+      "videos": [
+        {
+          "bvid": "BV1Ziuw6ZE9y",
+          "title": "科技城作者的又一整合包！破碎城整合包介绍&amp;官方汉化发布",
+          "published_at": "2026-08-04 17:00",
+          "description_excerpt": "整合包版本：1.21.1 NeoForge\n整合包链接：https://www.curseforge.com/minecraft/modpacks/fractured-opolis\n汉化下载：https://vmct-cn.top/modpacks/fractured-opolis\nI18n模组下载：https://www.curseforge.com/minecraft/mc-mods/i18n",
+          "download_identity": "https://vmct-cn.top/modpacks/fractured-opolis; https://www.curseforge.com/minecraft/modpacks/fractured-opolis",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.21.1",
+          "current_clean_key": "城作者的又一 破碎城 amp 官方汉化"
+        },
+        {
+          "bvid": "BV1mAyrBqEYj",
+          "title": "【石头世界4汉化发布】在开局只有石头的世界里生存！？百万下载MC整合包全新升级归来！",
+          "published_at": "2025-10-29 10:00",
+          "description_excerpt": "[宣传] VM汉化组招新了！急缺视频剪辑和译者！汉化组群：662316426\n同时也欢迎玩家们在官网的汉化意见征集页面中积极提交内容！点赞数多的内容我们汉化组会优先考虑汉化。\n汉化征页面：https://v4.vmct-cn.top/translation-feedback\n\n整合包版本：1.21.1 NeoForge\n整合包下载地址：https://www.curseforge.com/mine",
+          "download_identity": "https://qm.qq.com/q/9M02NMQQUw; https://qm.qq.com/q/M3F58SbSi4; https://v4.vmct-cn.top/translation-feedback; https://vmct-cn.top/modpacks/sb4; https://www.curseforge.com/minecraft/modpacks/ftb-stoneblock-4; https://www.mcmod.cn/class/1188.html",
+          "qq_group": "662316426",
+          "pack_version": "发布版",
+          "mc_version": "1.21.1",
+          "current_clean_key": "石头世界4汉化 在开局只有石头的世界里 百万 全新升级归来"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (VM汉化组) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['amp', '城作者的又一', '官方', '破碎城'] B=['升级归来', '在开局只有石头的世界里', '百万下载mc', '石头世界']"
+      ]
+    },
+    {
+      "case_id": "NEG-12",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "墨竹ギ",
+      "videos": [
+        {
+          "bvid": "BV1fc411U7Q3",
+          "title": "【mc整合包】&quot;在这深渊之中,谱写新的诗篇!&quot;冒险/战斗/硬核/生活/类魂=深渊之诗-剑与魔法Poetry of the Abyss2.2更新",
+          "published_at": "2023-12-12 17:06",
+          "description_excerpt": "mc整合包】\"在这深渊之中,谱写新的诗篇!\"冒险/战斗/硬核/生活/类魂=深渊之诗-剑与魔法Poetry of the Abyss2.2更新\n===============\n游戏详细：1.18.2 Forge Mod348+ 任务310+\n下载方式？提示：评论区",
+          "download_identity": "",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.18.2",
+          "current_clean_key": "quot 在这深渊之中 谱写新的诗篇 quot 生活 类魂 深渊之诗 剑与 poetry of the abyss"
+        },
+        {
+          "bvid": "BV1fM4y187fh",
+          "title": "【史诗的地下城】一个原版风/低配/极致优化，将《我的世界地下城》内容注入的高版本整合包！发布啦！",
+          "published_at": "2023-04-28 14:03",
+          "description_excerpt": "自制整合包【史诗的地下城Epic dungeons4.0】原版风/低配/极致优化/养老发布！！！！\n如果想体验其它版本的整合包请前往以前的视频\n下载链接: \n链接: https://pan.baidu.com/s/1ADiGWC44mCoRD32_QQpt2w?pwd=q193 提取码: q193\n——制作不易，喜欢的话支持一下吧awa——\nQQ交流群：471458332[原先是我开服用的群]\n一",
+          "download_identity": "https://kook.top/vqowqN; https://pan.baidu.com/s/1ADiGWC44mCoRD32_QQpt2w",
+          "qq_group": "471458332",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "史诗的地下城 一个 风 低配 极致优化 将 地下城 内容注入的高版本 啦"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (墨竹ギ) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['abyss', 'mc', 'of', 'poetry'] B=['一个原', '内容注入的高', '史诗的地下城', '地下城']"
+      ]
+    },
+    {
+      "case_id": "NEG-13",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "墨竹ギ",
+      "videos": [
+        {
+          "bvid": "BV1M64y177cu",
+          "title": "【MC整合包发布】&quot;在失落的异界中,一个人生活下去！&quot;冒险/魔法/生活-[TheLostWorld]失落的异界4.0",
+          "published_at": "2023-11-28 02:48",
+          "description_excerpt": "【MC整合包发布】\"在失落的异界中,一个人生活下去！\"冒险/魔法/生活-[TheLostWorld]失落的异界4.0-1.20.1forge Mod:259+ 内涵任务",
+          "download_identity": "",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "quot 在失落的异界中 一个人生活下去 quot 生活 thelostworld 失落的异界"
+        },
+        {
+          "bvid": "BV1fM4y187fh",
+          "title": "【史诗的地下城】一个原版风/低配/极致优化，将《我的世界地下城》内容注入的高版本整合包！发布啦！",
+          "published_at": "2023-04-28 14:03",
+          "description_excerpt": "自制整合包【史诗的地下城Epic dungeons4.0】原版风/低配/极致优化/养老发布！！！！\n如果想体验其它版本的整合包请前往以前的视频\n下载链接: \n链接: https://pan.baidu.com/s/1ADiGWC44mCoRD32_QQpt2w?pwd=q193 提取码: q193\n——制作不易，喜欢的话支持一下吧awa——\nQQ交流群：471458332[原先是我开服用的群]\n一",
+          "download_identity": "https://kook.top/vqowqN; https://pan.baidu.com/s/1ADiGWC44mCoRD32_QQpt2w",
+          "qq_group": "471458332",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "史诗的地下城 一个 风 低配 极致优化 将 地下城 内容注入的高版本 啦"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (墨竹ギ) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['mc', 'quot', 'thelostworld', '一个人生活下去'] B=['一个原', '内容注入的高', '史诗的地下城', '地下城']"
+      ]
+    },
+    {
+      "case_id": "NEG-14",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "墨言eclipse",
+      "videos": [
+        {
+          "bvid": "BV1hA3Y6zEEQ",
+          "title": "[MC大型整合包发布] 模块化拔刀剑 颠覆性的战斗革新 究极战斗爽的杀敌体验!  科技辅助的锻刀之旅!---千界万锻整合包宣传片",
+          "published_at": "2026-07-31 05:37",
+          "description_excerpt": "千界万锻 | SDBF | Myriad Dimensional Forge\n作者:  @Tonywww2  \n剪辑:  @墨言eclipse  \n摄影：@星陨漩涡  \n交流群：528051564\n\n本视频为整合包《千界※万锻》的宣传片。\n\n本作的核心体验围绕拔刀剑与Tetra展开，深度融合了多维度的多世界冒险与硬核的基地建设系统，带你体验极致的锻造与探索乐趣。\n\n整合包当前处于公开测试阶段，主线",
+          "download_identity": "https://www.curseforge.com/minecraft/modpacks/sendims-banforges; https://www.mcmod.cn/modpack/1426.html",
+          "qq_group": "528051564",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "大型 模块化 颠覆性的 革新 究极 爽的杀敌体验 辅助的锻刀之旅 千界万锻 宣传片"
+        },
+        {
+          "bvid": "BV1RpswzkE65",
+          "title": "拒绝同质！抵制水槽！对战斗技巧和法术构筑的极致考验！高版本大型魔改冒险整合包『未尽之路』0.13版本正式发布!",
+          "published_at": "2025-10-19 18:14",
+          "description_excerpt": "下载链接：https://bbsmc.net/modpack/unfinished-path\n                  https://xyebbs.com/res-id/UP?tab=info\n\n0.14.2超大份更新来了\n\n【木桶面板 — Minecraft 高性能联机服务器】\n现支持《未尽之路》，《愚者》，《龙之冒险》等大型整合包\n一键开服 网页管理｜7×12 小时客服在线\n\nCP",
+          "download_identity": "https://bbsmc.net/modpack/unfinished-path; https://xyebbs.com/res-id/UP",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "拒绝同质 抵制水槽 对 技巧和法术构筑的极致考验 高版本大型 未尽之路 版本正式"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (墨言eclipse) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['mc', '千界万锻', '模块化拔刀剑', '究极战斗爽的杀敌'] B=['对战斗技巧和法术构筑的极致考验', '抵制水槽', '拒绝同质', '未尽之路']"
+      ]
+    },
+    {
+      "case_id": "NEG-15",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "墨言eclipse",
+      "videos": [
+        {
+          "bvid": "BV1hA3Y6zEEQ",
+          "title": "[MC大型整合包发布] 模块化拔刀剑 颠覆性的战斗革新 究极战斗爽的杀敌体验!  科技辅助的锻刀之旅!---千界万锻整合包宣传片",
+          "published_at": "2026-07-31 05:37",
+          "description_excerpt": "千界万锻 | SDBF | Myriad Dimensional Forge\n作者:  @Tonywww2  \n剪辑:  @墨言eclipse  \n摄影：@星陨漩涡  \n交流群：528051564\n\n本视频为整合包《千界※万锻》的宣传片。\n\n本作的核心体验围绕拔刀剑与Tetra展开，深度融合了多维度的多世界冒险与硬核的基地建设系统，带你体验极致的锻造与探索乐趣。\n\n整合包当前处于公开测试阶段，主线",
+          "download_identity": "https://www.curseforge.com/minecraft/modpacks/sendims-banforges; https://www.mcmod.cn/modpack/1426.html",
+          "qq_group": "528051564",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "大型 模块化 颠覆性的 革新 究极 爽的杀敌体验 辅助的锻刀之旅 千界万锻 宣传片"
+        },
+        {
+          "bvid": "BV1NWHNzZEjk",
+          "title": "拒绝同质！抵制水槽！【143个模组/近万行魔改代码/1200+任务/10万字任务简介】构建而成的大型高难度魔法主题魔改整合包【未尽之路】主线打磨完成，正式发布！",
+          "published_at": "2025-10-02 19:15",
+          "description_excerpt": "最新0.14.2.3客户端加服务端双更新来了\n\n下载链接1：https://bbsmc.net/modpack/unfinished-path\n\n下载链接2：https://xyebbs.com/res-id/UP?tab=info                 \n\n注：1. 整合包模组数量 143 个，完成进度约 85%，【还剩完整几万字剧情及成就墙】（主线已经可以正常通关）\n2. 整合包内存",
+          "download_identity": "https://bbsmc.net/modpack/unfinished-path; https://xyebbs.com/res-id/UP",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "拒绝同质 抵制水槽 143个模组 近万行 代码 1200 任务 10万字任务简介 构建而成的大型 度 主题 未尽之路 主线打磨完成 正式"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (墨言eclipse) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['mc', '千界万锻', '模块化拔刀剑', '究极战斗爽的杀敌'] B=['万字任务简介', '个模组', '主线打磨完成', '主题魔改']"
+      ]
+    },
+    {
+      "case_id": "NEG-16",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "明月庄主",
+      "videos": [
+        {
+          "bvid": "BV1GkR2YAEJr",
+          "title": "庄主：专为自动化爱好者打造，我的世界机械动力6.0整合包《命运齿轮FOM》1.0.5更新介绍！",
+          "published_at": "2025-04-07 15:53",
+          "description_excerpt": "庄主的分享汇总在X.MOONMC.CN",
+          "download_identity": "",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "庄主 专为自动化爱好者打造 机械动力 命运齿轮fom"
+        },
+        {
+          "bvid": "BV19N411W7QD",
+          "title": "可以玩一辈子的科技整合包：月亮工厂MCF1.19.2-3.0更新介绍",
+          "published_at": "2023-10-27 20:24",
+          "description_excerpt": "可以玩一辈子的科技整合包：月亮工厂MCF1.19.2-3.0更新介绍\n\nhttps://modrinth.com/modpack/mcf/version/1..19.2-3.0\n\n更新内容真的有点多，没说废话也用了十分钟！可能我的介绍就只用了一句话，但你要去深度体验它的话去嘛可以一年，甚至一辈子！",
+          "download_identity": "https://modrinth.com/modpack/mcf; https://modrinth.com/modpack/mcf/version/1..19.2-3.0",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.19.2",
+          "current_clean_key": "可以玩一辈子的 月亮工厂 f"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (明月庄主) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['专为自动化爱好者打造', '命运齿轮fom', '庄主', '机械动力'] B=['可以玩一辈子的', '月亮工厂mcf']"
+      ]
+    },
+    {
+      "case_id": "NEG-17",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "明月庄主",
+      "videos": [
+        {
+          "bvid": "BV1GkR2YAEJr",
+          "title": "庄主：专为自动化爱好者打造，我的世界机械动力6.0整合包《命运齿轮FOM》1.0.5更新介绍！",
+          "published_at": "2025-04-07 15:53",
+          "description_excerpt": "庄主的分享汇总在X.MOONMC.CN",
+          "download_identity": "",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "庄主 专为自动化爱好者打造 机械动力 命运齿轮fom"
+        },
+        {
+          "bvid": "BV1Ac411p7nq",
+          "title": "我的世界1.19.4绿色版红石生电优化，整合包更新介绍",
+          "published_at": "2023-04-11 17:14",
+          "description_excerpt": "https://modrinth.com/modpack/moon-luseban/versions",
+          "download_identity": "https://modrinth.com/modpack/moon-luseban; https://modrinth.com/modpack/moon-luseban/versions",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.19.4",
+          "current_clean_key": "绿色版红石生电优化"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (明月庄主) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['专为自动化爱好者打造', '命运齿轮fom', '庄主', '机械动力'] B=['红石生电', '绿色']"
+      ]
+    },
+    {
+      "case_id": "NEG-18",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "爱吃土豆的界王",
+      "videos": [
+        {
+          "bvid": "BV1o2gG6RExS",
+          "title": "[MC整合包发布]-金木水火土雷血更新-蛊真人整合包发布与介绍-1.21.1",
+          "published_at": "2026-08-12 14:51",
+          "description_excerpt": "整合包主要把模组更新到了偷道版本\n蛊真人模组作者@The小灰   @奈落就是我  \n下载地址把简介展开\n————————————\n整合包 群：298929369\n————————————\nX需要用到解压软件的解压版X\n「大爱仙尊-2.5版本.zip」\n链接：https://pan.quark.cn/s/2c32efd86b13\n————————————\nX游戏启动器直接导入版X\n「大爱仙尊-2.5",
+          "download_identity": "https://pan.quark.cn/s/1ba3832bb54a; https://pan.quark.cn/s/279725eac620; https://pan.quark.cn/s/2c32efd86b13",
+          "qq_group": "298929369",
+          "pack_version": "发布版",
+          "mc_version": "1.21.1",
+          "current_clean_key": "金木水火土雷血 蛊真人 与"
+        },
+        {
+          "bvid": "BV1bPQCBcEws",
+          "title": "【整合包发布】山海大陆整合包下载与介绍-我的世界斗罗大陆与山海经为背景",
+          "published_at": "2026-03-25 01:55",
+          "description_excerpt": "下载地址把简介展开\n————————————\n整合包⒉群：240052014\n整合包3 群：298929369\n整合包⒋群：369550067\n————————————\nX需要用到解压软件的解压版X\n「山海大陆-1.0版.zip」\n链接：https://pan.quark.cn/s/1978953d69bd\n————————————\nX游戏启动器直接导入版X\n「山海大陆-1.0导入版.zip」\n链",
+          "download_identity": "https://pan.baidu.com/s/1USLBt1CxbiKQvWqwZDV4hQ; https://pan.quark.cn/s/1978953d69bd; https://pan.quark.cn/s/395d51a44642",
+          "qq_group": "240052014",
+          "pack_version": "发布版",
+          "mc_version": "未知",
+          "current_clean_key": "山海大陆 与 斗罗大陆与山海经为背景"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (爱吃土豆的界王) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['mc', '蛊真人', '金木水火土雷血'] B=['下载与', '山海大陆', '斗罗大陆与山海经为背景']"
+      ]
+    },
+    {
+      "case_id": "NEG-19",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "爱吃土豆的界王",
+      "videos": [
+        {
+          "bvid": "BV1o2gG6RExS",
+          "title": "[MC整合包发布]-金木水火土雷血更新-蛊真人整合包发布与介绍-1.21.1",
+          "published_at": "2026-08-12 14:51",
+          "description_excerpt": "整合包主要把模组更新到了偷道版本\n蛊真人模组作者@The小灰   @奈落就是我  \n下载地址把简介展开\n————————————\n整合包 群：298929369\n————————————\nX需要用到解压软件的解压版X\n「大爱仙尊-2.5版本.zip」\n链接：https://pan.quark.cn/s/2c32efd86b13\n————————————\nX游戏启动器直接导入版X\n「大爱仙尊-2.5",
+          "download_identity": "https://pan.quark.cn/s/1ba3832bb54a; https://pan.quark.cn/s/279725eac620; https://pan.quark.cn/s/2c32efd86b13",
+          "qq_group": "298929369",
+          "pack_version": "发布版",
+          "mc_version": "1.21.1",
+          "current_clean_key": "金木水火土雷血 蛊真人 与"
+        },
+        {
+          "bvid": "BV1RiPWzDE4Q",
+          "title": "【我的世界】考古与化石X侏罗纪整合包发布与介绍",
+          "published_at": "2026-03-06 18:44",
+          "description_excerpt": "下载地址把简介展开\n————————————\n整合包⒉群：240052014\n整合包3 群：298929369\n整合包⒋群：369550067\n————————————\nX需要用到解压软件的解压版X\n「界王的1.20.1侏罗纪-1.2版本.zip」\n链接：https://pan.quark.cn/s/852999a86cf3\n————————————\nX游戏启动器直接导入版X\n界王的1.20.1侏",
+          "download_identity": "https://pan.baidu.com/s/1m-gF6qHi-07kDDBcVuh4fQ; https://pan.quark.cn/s/852999a86cf3",
+          "qq_group": "240052014",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "考古与化石x侏罗纪 与"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (爱吃土豆的界王) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['mc', '蛊真人', '金木水火土雷血'] B=['考古与化石x侏罗纪']"
+      ]
+    },
+    {
+      "case_id": "NEG-20",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "老本願",
+      "videos": [
+        {
+          "bvid": "BV1JhxXzAE1X",
+          "title": "末域征途, 旧日与今昔的异闻录， 超大型魔改整合包魔之逆鳞0.6正式版发布！",
+          "published_at": "2025-10-08 09:30",
+          "description_excerpt": "重要的信息说在前面（下方详细简介也是必看哦）\n《魔之逆鳞》：\n●整合包下载：https://bbs.xyeidc.com/resources/801\n●整合包百科：https://www.mcmod.cn/modpack/1109.html\n●整合包整体介绍和首发视频：BV1EeLpzpEQa\n●整合包万字更新视频：BV1N637zuE6Z\n\n以下是详细简介\n-------------------",
+          "download_identity": "https://bbs.xyeidc.com/resources/801; https://github.com/XKBY/ProjectDemon/issues; https://pan.quark.cn/s/a85cbef7d1a8; https://www.mcmod.cn/modpack/1109.html",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "末域征途 旧日与今昔的异闻录 超大型 魔之逆鳞"
+        },
+        {
+          "bvid": "BV1tr421M7Rz",
+          "title": "梦境已然重塑，理智终将泯灭！13年前的梦整合包大型更新发布，感受直击灵魂的恐惧！",
+          "published_at": "2024-08-16 09:30",
+          "description_excerpt": "整合包：13年前的梦：重塑梦境（截止2024年8月15日）\n下载链接：https://pan.quark.cn/s/a45ac89e82a9\nMC百科链接：正在建设，请直接使用上方链接下载\n游戏版本：1.20.1 Forge\n作者：老本願\n整合包版本：1.0\n更新状态：三连=更新\n最后更新：2024 年 8 月 16 日\n服务端：暂时无\n--------------------------\n必看：",
+          "download_identity": "https://pan.quark.cn/s/a45ac89e82a9; https://shop.xyeidc.cn/index.php",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "梦境已然重塑 理智终将泯灭 13年前的梦 大型 感受直击灵魂的恐惧"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (老本願) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['旧日与今昔的异闻录', '末域征途', '魔之逆鳞', '魔改'] B=['年前的梦', '感受直击灵魂的恐惧', '梦境已然重塑', '理智终将泯灭']"
+      ]
+    },
+    {
+      "case_id": "NEG-21",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "Drunk耀爵",
+      "videos": [
+        {
+          "bvid": "BV1ZY4C6XEGc",
+          "title": "我的世界DeepSeek鲸鱼娘整合包测试发布",
+          "published_at": "2026-08-29 18:31",
+          "description_excerpt": "我的世界DeepSeek鲸鱼娘整合包测试版下载链接（永久有效）\n百度网盘：https://pan.baidu.com/s/1vTeCzfQyOMucbnHhvWLR5w?pwd=HCNB\n迅雷网盘：https://pan.xunlei.com/s/VP0BiYP42rXfVxp_EnZ3EhhXA1?pwd=92j9#\n\n整合包信息\n作者：Drunk耀爵\n游戏：我的世界\n版本：Java版1.20.",
+          "download_identity": "https://pan.baidu.com/s/1vTeCzfQyOMucbnHhvWLR5w; https://pan.xunlei.com/s/VP0BiYP42rXfVxp_EnZ3EhhXA1",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "deepseek鲸鱼娘 测试"
+        },
+        {
+          "bvid": "BV1b2h36bEvA",
+          "title": "我的世界晴小姐整合包正式版发布",
+          "published_at": "2026-08-25 19:02",
+          "description_excerpt": "我的世界晴小姐整合包正式版下载链接（永久有效）\n百度网盘：https://pan.baidu.com/s/1KSTS7q0A2hy63TJA1d7ssg?pwd=QING\n迅雷网盘：https://pan.xunlei.com/s/VP-s6oGgCaJfubSDJ_Acnrq3A1?pwd=mdn5#\n\n整合包信息\n作者：Drunk耀爵\n游戏：我的世界\n版本：Java版1.20.1\n\n大体信息\n",
+          "download_identity": "https://pan.baidu.com/s/1KSTS7q0A2hy63TJA1d7ssg; https://pan.xunlei.com/s/VP-s6oGgCaJfubSDJ_Acnrq3A1",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.20.1",
+          "current_clean_key": "晴小姐"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (Drunk耀爵) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['deepseek鲸鱼娘'] B=['晴小姐']"
+      ]
+    },
+    {
+      "case_id": "NEG-22",
+      "expected": "separate",
+      "confidence": "strong",
+      "kind": "same_author_generic_titles",
+      "uploader": "Terminus_54-32",
+      "videos": [
+        {
+          "bvid": "BV1srPKzWEdP",
+          "title": "【我的世界整合包】1.21.4新泰坦神器整合包发布（不能玩生存）神器101把",
+          "published_at": "2026-03-04 15:09",
+          "description_excerpt": "整合包制作不易，不要白拿点个赞呗\n我用夸克网盘给你分享了「1.21.4-NeoForge神器泰坦整合包.zip」，点击链接或复制整段内容，打开「夸克APP」即可获取。\n/~c7d63LtLyS~:/\n链接：https://pan.quark.cn/s/17636ab2baa2",
+          "download_identity": "https://pan.quark.cn/s/17636ab2baa2",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.21.4",
+          "current_clean_key": "新泰坦神器 不能玩 神器101把"
+        },
+        {
+          "bvid": "BV1cRFSzfEPb",
+          "title": "我的世界1.21.4新泰坦生物整合包发布！（Minecraft 1.21.4 New Titan Creatures Mod Pack Released!）",
+          "published_at": "2026-02-10 15:14",
+          "description_excerpt": "夸克网盘\n///////////////////\n链接：https://pan.quark.cn/s/e99edcc6a10e?pwd=zvNT\n------------------------------------------------------------------------\n1.21.4neoforge",
+          "download_identity": "https://pan.quark.cn/s/e99edcc6a10e",
+          "qq_group": "",
+          "pack_version": "发布版",
+          "mc_version": "1.21.4",
+          "current_clean_key": "新泰坦生物 new titan creatures mod pack released"
+        }
+      ],
+      "ground_truth_evidence": [
+        "same uploader (Terminus_54-32) but different packs",
+        "both titles generic-heavy (generic tokens: 3 / 3)",
+        "NO shared download resource -> different 网盘 targets",
+        "version-stripped core pack names are disjoint: A=['不能玩', '新泰坦神器', '神器'] B=['creatures', 'minecraft', 'mod', 'new']"
+      ]
+    }
+  ],
+  "reconstructed_cases": [
+    {
+      "case_id": "NEG-SPEC-HEIJIN",
+      "expected": "separate",
+      "confidence": "reconstructed",
+      "kind": "spec_named_absent_from_payload",
+      "uploader": "黑金",
+      "note": "The phase brief names 黑金 as a known false merge driven by the generic token 生存. Neither video exists in the current 936-record payload, so the two titles from the brief are reconstructed as synthetic records and pushed through the REAL grouping implementation separately. Excluded from precision/recall because its confidence is neither CONFIRMED nor STRONG.",
+      "videos": [
+        {
+          "bvid": "SYNTH-HEIJIN-1",
+          "title": "[MC整合包]生存整合包-1.21.1",
+          "published_at": "",
+          "description_excerpt": "",
+          "download_identity": "",
+          "qq_group": "",
+          "pack_version": "",
+          "mc_version": "1.21.1",
+          "current_clean_key": ""
+        },
+        {
+          "bvid": "SYNTH-HEIJIN-2",
+          "title": "我的世界【生存整合包】生存",
+          "published_at": "",
+          "description_excerpt": "",
+          "download_identity": "",
+          "qq_group": "",
+          "pack_version": "",
+          "mc_version": "1.21.1",
+          "current_clean_key": ""
+        }
+      ],
+      "ground_truth_evidence": [
+        "phase brief: these are two DIFFERENT packs by the same uploader",
+        "titles share only generic tokens (生存 / 整合包 / 我的世界) - no distinctive pack name",
+        "historically merged because the generic token 生存 was used as the group key"
+      ]
+    }
+  ]
+}

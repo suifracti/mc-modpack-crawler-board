@@ -268,7 +268,7 @@ class BiliModpackCrawler:
             print(f"  [!] 获取详情异常 [{bvid}]: {e}")
         return None
 
-    def get_pinned_comment(self, aid: int) -> str:
+    def get_pinned_comment(self, aid: int) -> Dict[str, Any]:
         url = f'https://api.bilibili.com/x/v2/reply/main?type=1&oid={aid}&mode=3'
         req = urllib.request.Request(url, headers=self.headers)
         try:
@@ -278,10 +278,17 @@ class BiliModpackCrawler:
                     top = res.get('data', {}).get('top', {})
                     upper_top = top.get('upper')
                     if upper_top:
-                        return upper_top.get('content', {}).get('message', '')
+                        content = upper_top.get('content', {}).get('message', '') or ''
+                        ctime = upper_top.get('ctime', 0)
+                        t_str = time.strftime('%Y-%m-%d %H:%M', time.localtime(ctime)) if ctime else ""
+                        return {
+                            'message': content,
+                            'time': t_str,
+                            'ctime': ctime
+                        }
         except Exception:
             pass
-        return ""
+        return {'message': '', 'time': '', 'ctime': 0}
 
     def get_video_subtitle(self, aid: int, cid: int, bvid: str = "") -> Dict[str, Any]:
         """抓取官方 CC 字幕或平台 AI 语音识别转写字幕"""
@@ -665,6 +672,36 @@ class BiliModpackCrawler:
         else:
             is_genuine = True
 
+        # 8.1 服务端支持识别
+        has_server = bool(re.search(r'(?:服务端|服务器端|开服包|开服|双端|服务器整合包|服务器端下载)', full_text))
+        for dl in download_links:
+            if re.search(r'(?:server|服务端|开服)', dl.get('type', '') + ' ' + dl.get('url', ''), re.I):
+                has_server = True
+
+        # 8.2 整合包自身版本号识别
+        pack_version = ""
+        pv_m = re.search(r'(?:处于|版本|version|ver|v)?\s*([0-9]+\.[0-9]+(?:\.[0-9]+)?(?:[a-zA-Z0-9_\-\.]+)?)\s*(?:初步测试|测试版|正式版|版本|阶段)', full_text, re.I)
+        if pv_m:
+            pack_version = pv_m.group(1).strip()
+        else:
+            pv_m2 = re.search(r'(?i)\bv?([0-9]+\.[0-9]+(?:\.[0-9]+)?)\b', title)
+            if pv_m2 and pv_m2.group(1) not in ['1.20', '1.12', '1.16', '1.18', '1.19', '1.21', '1.7', '1.8']:
+                pack_version = pv_m2.group(1).strip()
+
+        # 8.3 群内流转版本/进群体验感知
+        has_group_version = False
+        group_version_note = ""
+        gv_pattern = r'(?:进群体验|群文件|群里还有|群内首发|群内测试|群里更新|Q群下载|加群体验|群里下载|群内流转|群里版本|群里最新|群里另一个版本|全面换新)'
+        if re.search(gv_pattern, pinned_comment):
+            has_group_version = True
+            group_version_note = pinned_comment.strip()
+        elif re.search(gv_pattern, desc):
+            has_group_version = True
+            for line in desc.splitlines():
+                if re.search(gv_pattern, line):
+                    group_version_note = line.strip()
+                    break
+
         return {
             "is_genuine": is_genuine,
             "is_let_play": is_let_play,
@@ -678,6 +715,10 @@ class BiliModpackCrawler:
             "qq_group": qq_group,
             "mod_count": mod_count,
             "categories": categories,
+            "has_server": has_server,
+            "pack_version": pack_version,
+            "has_group_version": has_group_version,
+            "group_version_note": group_version_note,
         }
 
 
@@ -690,6 +731,14 @@ def get_historical_search_tasks() -> List[Tuple[str, str, int]]:
     
     # 1. 核心通用词 (现代与深度排序)
     core_kws = [
+        ("MC整合包", ["pubdate", "stow", "click", "totalrank"], 50),
+        ("我的世界整合包", ["pubdate", "stow", "click", "totalrank"], 50),
+        ("MC 整合包", ["pubdate", "stow", "click"], 50),
+        ("我的世界 整合包", ["pubdate", "stow", "click"], 50),
+        ("MC自制整合包", ["pubdate", "stow"], 50),
+        ("我的世界自制整合包", ["pubdate", "stow"], 50),
+        ("MC模组包", ["pubdate", "stow"], 50),
+        ("我的世界模组包", ["pubdate", "stow"], 50),
         ("我的世界 整合包发布", ["pubdate", "stow", "click", "totalrank"], 50),
         ("我的世界 整合包更新", ["pubdate", "stow", "click"], 50),
         ("我的世界 自制整合包", ["pubdate", "stow", "click"], 50),
@@ -919,7 +968,9 @@ def crawl_bilibili_modpacks(until_date: Optional[str] = None, max_pages_per_kw: 
         dur_str = f"{duration // 60}:{duration % 60:02d}" if duration else ""
 
         # 抓取置顶评论
-        pinned_comment = crawler.get_pinned_comment(aid)
+        pinned_res = crawler.get_pinned_comment(aid)
+        pinned_comment = pinned_res.get('message', '') if isinstance(pinned_res, dict) else str(pinned_res or '')
+        pinned_time = pinned_res.get('time', '') if isinstance(pinned_res, dict) else ''
         
         # 抓取官方/AI字幕
         sub_info = crawler.get_video_subtitle(aid, cid, bvid)
@@ -971,6 +1022,11 @@ def crawl_bilibili_modpacks(until_date: Optional[str] = None, max_pages_per_kw: 
                 "mod_count": ext["mod_count"],
                 "desc": desc,
                 "pinned_comment": pinned_comment,
+                "has_server": ext.get("has_server", False),
+                "pack_version": ext.get("pack_version", ""),
+                "has_group_version": ext.get("has_group_version", False),
+                "group_version_note": ext.get("group_version_note", ""),
+                "desc_updated_at": pinned_time if (ext.get("has_group_version") and pinned_time) else "",
             }
             processed_map[bvid] = pack
             new_added[0] += 1
@@ -1011,8 +1067,152 @@ def crawl_bilibili_modpacks(until_date: Optional[str] = None, max_pages_per_kw: 
     return processed
 
 
+def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
+    """
+    增量巡检与同步模式：
+    并发请求 B站 官方 API，巡检已录入整合包视频的最新【简介】与【置顶评论】。
+    专门解决 UP 主不发新视频、仅在简介更新网盘/版本号，或者置顶提示群内有新版本的问题。
+    """
+    repo_root = os.path.dirname(os.path.abspath(__file__))
+    json_path = os.path.join(repo_root, "crawler_output", "bilibili_modpacks.json")
+    js_path = os.path.join(repo_root, "converted_output", "data", "bili_data.js")
+
+    packs = []
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                packs = json.load(f)
+        except Exception:
+            pass
+
+    pack_map = {p["bvid"]: p for p in packs if p.get("bvid")}
+
+    # 若指定了单个 BV 号（如 BV1BFjS65ENy）且尚未录入，直接加入
+    if target_bv and target_bv not in pack_map:
+        pack_map[target_bv] = {
+            "platform": "bilibili",
+            "bvid": target_bv,
+            "title": "待同步",
+            "author": "",
+            "views": 0,
+            "pub_timestamp": int(time.time()),
+            "download_links": []
+        }
+
+    crawler = BiliModpackCrawler()
+    total = len(pack_map)
+    print("=" * 65)
+    print(f"  🔄 B站 整合包简介与置顶评论增量巡检引擎启动")
+    print(f"  -> 待巡检总数: {total} 款视频")
+    print("=" * 65)
+
+    updated_count = 0
+    checked_count = 0
+    lock = Lock()
+
+    def check_worker(bvid: str):
+        nonlocal updated_count, checked_count
+        orig_pack = pack_map[bvid]
+        try:
+            detail = crawler.get_video_detail(bvid)
+            if not detail:
+                return
+            aid = detail.get("aid", 0)
+            cid = detail.get("cid", 0)
+            new_title = detail.get("title", orig_pack.get("title", ""))
+            new_desc = detail.get("desc", "")
+            owner = detail.get("owner", {})
+            author = owner.get("name", orig_pack.get("author", ""))
+            stat = detail.get("stat", {})
+            views = stat.get("view", orig_pack.get("views", 0))
+            likes = stat.get("like", orig_pack.get("likes", 0))
+            pic = detail.get("pic", orig_pack.get("pic", ""))
+            pubdate = detail.get("pubdate", orig_pack.get("pub_timestamp", 0))
+            pub_time_str = time.strftime('%Y-%m-%d %H:%M', time.localtime(pubdate)) if pubdate else orig_pack.get("pub_time", "")
+
+            pinned_res = crawler.get_pinned_comment(aid)
+            pinned_comment = pinned_res.get("message", "")
+            pinned_time = pinned_res.get("time", "")
+
+            # 实体解析
+            ext = crawler.extract_modpack_info(
+                new_title, new_desc, pinned_comment,
+                orig_pack.get("subtitle_text", ""),
+                author=author
+            )
+
+            # 比对是否有简介/置顶更新，或者关键元数据变动
+            desc_changed = (new_desc.strip() != orig_pack.get("desc", "").strip())
+            pinned_changed = (pinned_comment.strip() != orig_pack.get("pinned_comment", "").strip())
+            is_new_entry = (orig_pack.get("title") == "待同步")
+
+            updated_flag = False
+            if desc_changed or pinned_changed or is_new_entry or not orig_pack.get("download_links"):
+                updated_flag = True
+
+            with lock:
+                checked_count += 1
+                orig_pack["title"] = new_title
+                orig_pack["author"] = author
+                orig_pack["pic"] = pic
+                orig_pack["pub_time"] = pub_time_str
+                orig_pack["pub_timestamp"] = pubdate
+                orig_pack["views"] = views
+                orig_pack["likes"] = likes
+                orig_pack["desc"] = new_desc
+                orig_pack["pinned_comment"] = pinned_comment
+                orig_pack["mc_version"] = ext["mc_version"]
+                orig_pack["all_versions"] = ext["all_versions"]
+                orig_pack["loaders"] = ext["loaders"]
+                orig_pack["categories"] = ext["categories"]
+                orig_pack["download_links"] = ext["download_links"]
+                orig_pack["extract_code"] = ext["extract_code"]
+                orig_pack["qq_group"] = ext["qq_group"]
+                orig_pack["mod_count"] = ext["mod_count"]
+                orig_pack["has_server"] = ext["has_server"]
+                orig_pack["pack_version"] = ext["pack_version"]
+                orig_pack["has_group_version"] = ext["has_group_version"]
+                orig_pack["group_version_note"] = ext["group_version_note"]
+
+                if updated_flag:
+                    updated_count += 1
+                    orig_pack["desc_updated_at"] = pinned_time or time.strftime('%Y-%m-%d %H:%M')
+                    status_tag = "[新增]" if is_new_entry else "[更新]"
+                    print(f"  {status_tag} [{ext['mc_version']:^7}] {new_title[:24]} | UP: {author[:8]} | 网盘: {len(ext['download_links'])} | 群版: {ext['has_group_version']}")
+                elif checked_count % 50 == 0:
+                    print(f"  ... 已巡检 {checked_count}/{total} 款视频 ...")
+        except Exception:
+            pass
+
+    to_check = [target_bv] if target_bv else list(pack_map.keys())
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(check_worker, bv) for bv in to_check]
+        for f in as_completed(futures):
+            try:
+                f.result()
+            except Exception:
+                pass
+
+    final_list = list(pack_map.values())
+    final_list.sort(key=lambda x: x.get("pub_timestamp", 0), reverse=True)
+    os.makedirs(os.path.dirname(json_path), exist_ok=True)
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(final_list, f, ensure_ascii=False, indent=2)
+
+    os.makedirs(os.path.dirname(js_path), exist_ok=True)
+    with open(js_path, "w", encoding="utf-8") as f:
+        f.write("window.biliModpacksData = " + json.dumps(final_list, ensure_ascii=False) + ";\n")
+
+    print(f"\n[√] 巡检完成！共检查 {checked_count} 条，捕获简介/置顶更新或新信息: {updated_count} 款。")
+    print(f"    - JSON: {json_path}")
+    print(f"    - JS: {js_path}")
+    return final_list
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="B站 Minecraft 整合包专版采集引擎")
+    parser.add_argument("--mode", default="crawl", choices=["crawl", "sync-desc"], help="运行模式: crawl(全网检索抓取), sync-desc(简介/置顶增量巡检)")
+    parser.add_argument("--bv", default="", help="针对特定 BV 号执行抓取或更新 (如 BV1BFjS65ENy)")
     parser.add_argument("-u", "--until", default=None, help="采集截止日期（回车或留空默认全量抓取，如 2026-08-01）")
     parser.add_argument("-p", "--pages", type=int, default=50, help="每个关键词最大搜索页数（默认: 50）")
     parser.add_argument("-m", "--max", type=int, default=10000, help="最多处理候选条数（默认: 2000）")
@@ -1023,4 +1223,7 @@ if __name__ == "__main__":
         BiliAuth.login_qr_interactive()
         sys.exit(0)
 
-    crawl_bilibili_modpacks(until_date=args.until, max_pages_per_kw=args.pages, max_total=args.max)
+    if args.mode == "sync-desc" or args.bv:
+        sync_descriptions(target_bv=args.bv)
+    else:
+        crawl_bilibili_modpacks(until_date=args.until, max_pages_per_kw=args.pages, max_total=args.max)

@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="{default_theme}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
+    <title>{title}</title>
+    <!-- ★ 防闪烁 (Anti-FOUC)：在渲染 DOM 前立即加载保存的主题 -->
+    <script>
+        (function() {
+            var theme = localStorage.getItem('mcmod-theme-v2') || 'light';
+            if (theme) document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+    <link href="data/vendor/bootstrap.min.css" rel="stylesheet">
+    <link href="data/vendor/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link href="data/vendor/select2.min.css" rel="stylesheet" />
+    <link href="data/vendor/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    
+    <link href="assets/css/dashboard.css" rel="stylesheet">
+</head>
+<body>
+<!-- 精密底色与工坊网格纹理 -->
+<div class="bg-layer" aria-hidden="true"></div>
+
+<div class="app-layout">
+    <!-- 仅保活 DataTables Select2 多选解析引擎所需的底层隐藏标签，无任何冲突ID -->
+    <div id="hiddenEngineSlots" style="display:none !important;" aria-hidden="true">
+        <select id="categoryFilter" class="form-select" multiple="multiple" style="display:none;">
+{cat_opts}
+        </select>
+        <select id="packTagFilter" class="form-select" multiple="multiple" style="display:none;">
+{pack_opts}
+        </select>
+        <select id="modCategoryFilter" class="form-select" multiple="multiple" style="display:none;">
+{mod_cat_opts}
+        </select>
+        <select id="modFilter" class="form-select" multiple="multiple" style="display:none;">
+{mod_opts}
+        </select>
+    </div>
+
+    <!-- 全宽工坊置顶指令栏 Sticky Navbar -->
+    <header class="topbar">
+        <div class="topbar-inner">
+            <div class="topbar-left">
+                <a href="#all" class="topbar-brand" onclick="switchPlatformTab('all'); return false;" title="返回全平台总览">
+                    <span class="brand-cube">⛏️</span>
+                    <span class="brand-title">我的世界整合包聚合</span>
+                    <span class="brand-badge">73,521 款全收录</span>
+                </a>
+            </div>
+
+            <div class="topbar-center">
+                <nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">
+                    <button type="button" class="top-plat-btn active" data-tab="all" id="topNavAll">
+                        <span>🌐</span> 全平台总览 <span class="pnav-badge" id="topNavAllBadge">73,521</span>
+                    </button>
+                    <button type="button" class="top-plat-btn" data-tab="mcmod" id="topNavMcmod">
+                        <span>📦</span> MC百科 <span class="pnav-badge" id="topNavMcmodBadge">1,484</span>
+                    </button>
+                    <button type="button" class="top-plat-btn" data-tab="bilibili" id="topNavBili">
+                        <span>📺</span> B站自制 <span class="pnav-badge" id="topNavBiliBadge">935</span>
+                    </button>
+                    <button type="button" class="top-plat-btn" data-tab="bbsmc" id="topNavBbsmc">
+                        <span>💎</span> BBSMC <span class="pnav-badge" id="topNavBbsmcBadge">1,802</span>
+                    </button>
+                    <button type="button" class="top-plat-btn" data-tab="xyebbs" id="topNavXyebbs">
+                        <span>🍃</span> XYEBBS <span class="pnav-badge" id="topNavXyebbsBadge">5,175</span>
+                    </button>
+                    <button type="button" class="top-plat-btn" data-tab="modrinth" id="topNavModrinth">
+                        <span>🌐</span> Modrinth <span class="pnav-badge" id="topNavModrinthBadge">18,328</span>
+                    </button>
+                    <button type="button" class="top-plat-btn" data-tab="curseforge" id="topNavCurseforge">
+                        <span>🔥</span> CurseForge <span class="pnav-badge" id="topNavCurseforgeBadge">45,797</span>
+                    </button>
+                </nav>
+            </div>
+
+            <div class="topbar-actions">
+                <!-- 抓取变动审计入口 -->
+                <button type="button" class="top-action-btn" id="openAuditModalBtn" title="查看抓取变动与前后对比统计">📊 变动审计 <span class="badge" id="auditBadgeCount" style="display:none; background:#ef4444; color:#fff; border-radius:10px; font-size:10px; padding:0 5px; margin-left:2px;">0</span></button>
+                <!-- 标签数量显隐独立开关 -->
+                <button type="button" class="top-action-btn" id="toggleTagCountsBtn" title="切换所有标签后的数量显示与隐藏">🏷️ <span id="toggleTagCountsLabel">标签数量</span></button>
+                <!-- 顶栏快捷主题微调 -->
+                <div class="top-theme-pills" role="radiogroup" aria-label="快速切换色彩主题">
+                    <button type="button" class="top-tdot active" data-theme="dark" title="🌙 极夜暗黑">🌙</button>
+                    <button type="button" class="top-tdot" data-theme="light" title="☀️ 石英明亮">☀️</button>
+                    <button type="button" class="top-tdot" data-theme="eye" title="🌿 护眼青竹">🌿</button>
+                    <button type="button" class="top-tdot" data-theme="warm" title="☕ 原木质感">☕</button>
+                    <button type="button" class="top-tdot" data-theme="pink" title="🌸 樱花霓光">🌸</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主区域 Main Content (1560px 黄金居中，单轴流视线) -->
+    <main class="main-content">
+
+        <!-- ═══════════════ 全平台综合总览视图 ═══════════════ -->
+        <div id="view-all" class="tab-view active">
+        <!-- 跨平台全局穿透联合搜索 (居顶命令中心) -->
+        <div class="cross-search-section">
+            <div class="csearch-top-row">
+                <div class="csearch-title-group">
+                    <h2 class="csearch-heading">全域整合包联合搜索</h2>
+                    <p class="csearch-sub">一键穿透 6 大生态 73,500+ 款模组包，支持游戏版本、模组列表、玩法流派与作者跨平台精准检索</p>
+                </div>
+                <div class="csearch-platforms-hint">
+                    <span class="cplat-pill" style="--cp-c:#f59e0b;">📦 MC百科</span>
+                    <span class="cplat-pill" style="--cp-c:#fb7299;">📺 B站自制</span>
+                    <span class="cplat-pill" style="--cp-c:#0284c7;">💎 BBSMC</span>
+                    <span class="cplat-pill" style="--cp-c:#059669;">🍃 XYEBBS</span>
+                    <span class="cplat-pill" style="--cp-c:#10b981;">🌐 Modrinth</span>
+                    <span class="cplat-pill" style="--cp-c:#ea580c;">🔥 CurseForge</span>
+                </div>
+            </div>
+
+            <!-- 搜索主输入框 -->
+            <div class="cross-search-input-wrap">
+                <span class="cross-search-icon">🔍</span>
+                <input type="text" id="crossSearchInput" class="cross-search-input" placeholder="输入模组包名称、游戏版本 (如 1.20.1)、模组名 (如 机械动力)、作者进行全网联合检索..." autocomplete="off">
+                <button type="button" id="crossSearchClear" class="cross-search-clear" title="清空搜索 (Esc)" style="display:none;">✕</button>
+                <div class="cross-search-kbd" title="快捷键聚焦搜索"><kbd>Ctrl</kbd> <kbd>K</kbd></div>
+            </div>
+
+            <!-- 快速筛选芯片双轨栏 -->
+            <div class="cross-chips-deck">
+                <div class="chip-deck-row">
+                    <span class="deck-row-lbl">🎮 核心版本：</span>
+                    <div class="deck-chips-group">
+                        <button type="button" class="hot-chip chip-ver" data-query="1.20.1">1.20.1</button>
+                        <button type="button" class="hot-chip chip-ver" data-query="1.16.5">1.16.5</button>
+                        <button type="button" class="hot-chip chip-ver" data-query="1.12.2">1.12.2</button>
+                        <button type="button" class="hot-chip chip-ver" data-query="1.7.10">1.7.10</button>
+                        <button type="button" class="hot-chip chip-ver" data-query="1.21">1.21</button>
+                        <button type="button" class="hot-chip chip-ver" data-query="1.19.2">1.19.2</button>
+                    </div>
+                </div>
+                <div class="chip-deck-row">
+                    <span class="deck-row-lbl">🔥 热门流派：</span>
+                    <div class="deck-chips-group">
+                        <button type="button" class="hot-chip chip-theme" data-query="机械动力">机械动力 (Create)</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="拔刀剑">拔刀剑 (SlashBlade)</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="宝可梦">宝可梦 (Cobblemon)</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="科技">科技工业</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="魔法">魔法冒险</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="Fabulously Optimized">极速提帧</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="空岛">空岛生存</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="脆骨症">脆骨症</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="RLCraft">RLCraft</button>
+                        <button type="button" class="hot-chip chip-theme" data-query="All the Mods">ATM 终极大作</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6 平台实时结果展开抽屉 (输入时展开，清空时收起) -->
+            <div class="cross-results-grid" id="crossResultsGrid">
+                <div class="cross-col" style="--col-theme: #f59e0b;">
+                    <div class="cross-col-header">
+                        <span>📦 MC百科 权威词条</span>
+                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('mcmod')" class="col-more">查看全部</a>
+                    </div>
+                    <div id="crossMcmodResults"></div>
+                </div>
+                <div class="cross-col" style="--col-theme: #fb7299;">
+                    <div class="cross-col-header">
+                        <span>📺 B站自制 视频与直链</span>
+                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('bilibili')" class="col-more">查看全部</a>
+                    </div>
+                    <div id="crossBiliResults"></div>
+                </div>
+                <div class="cross-col" style="--col-theme: #0284c7;">
+                    <div class="cross-col-header">
+                        <span>💎 BBSMC 优质开源库</span>
+                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('bbsmc')" class="col-more">查看全部</a>
+                    </div>
+                    <div id="crossBbsmcResults"></div>
+                </div>
+                <div class="cross-col" style="--col-theme: #059669;">
+                    <div class="cross-col-header">
+                        <span>🍃 XYEBBS 像素世界</span>
+                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('xyebbs')" class="col-more">查看全部</a>
+                    </div>
+                    <div id="crossXyebbsResults"></div>
+                </div>
+                <div class="cross-col" style="--col-theme: #10b981;">
+                    <div class="cross-col-header">
+                        <span>🌐 Modrinth 极速开源包</span>
+                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('modrinth')" class="col-more">查看全部</a>
+                    </div>
+                    <div id="crossModrinthResults"></div>
+                </div>
+                <div class="cross-col" style="--col-theme: #ea580c;">
+                    <div class="cross-col-header">
+                        <span>🔥 CurseForge 热门大作</span>
+                        <a href="javascript:void(0)" onclick="jumpToPlatformWithCurrentSearch('curseforge')" class="col-more">查看全部</a>
+                    </div>
+                    <div id="crossCurseforgeResults"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 多平台实质内容门户矩阵 (注入热门代表作与快捷直达标签) -->
+        <div class="all-platforms-grid">
+            <!-- 1. MC百科看板卡片 -->
+            <div class="platform-showcase-card" style="--card-accent: #f59e0b; --card-glow: rgba(245, 158, 11, 0.28);">
+                <div class="showcase-header">
+                    <div class="showcase-icon" style="background: rgba(245, 158, 11, 0.15); color: #d97706;">📦</div>
+                    <div>
+                        <h3 class="showcase-title">MC百科整合包看板</h3>
+                        <span class="showcase-badge" style="background: rgba(245, 158, 11, 0.15); color: #d97706;">MCMOD.CN · 权威技术数据库</span>
+                    </div>
+                </div>
+                <div class="showcase-metrics">
+                    <div>
+                        <div class="smetric-val">1,417 款</div>
+                        <div class="smetric-lbl">整合包全收录</div>
+                    </div>
+                    <div>
+                        <div class="smetric-val">1.25 亿</div>
+                        <div class="smetric-lbl">总累计浏览</div>
+                    </div>
+                    <div>
+                        <div class="smetric-val">双视图</div>
+                        <div class="smetric-lbl">画廊 / 专业表格</div>
+                    </div>
+                </div>
+                <!-- 热门代表作 TOP 3 -->
+                <div class="showcase-featured-box">
+                    <div class="showcase-box-header"><span>🔥 热门深度代表作</span><span>点击直达</span></div>
+                    <div class="featured-item" onclick="jumpToMcmodSearch('脆骨症')" title="直达脆骨症详情与数据看板">
+                        <span class="featured-rank">1</span>
+                        <span class="featured-name">[NFWC] 脆骨症 (No Flesh Within Chest)</span>
+                        <span class="featured-meta">272.4万浏览 · 96%好评</span>
+                    </div>
+                    <div class="featured-item" onclick="jumpToMcmodSearch('勇者之章')" title="直达勇者之章详情与数据看板">
+                        <span class="featured-rank">2</span>
+                        <span class="featured-name">[CY3] 勇者之章 Ⅲ (Chapter of Yuusha)</span>
+                        <span class="featured-meta">207.5万浏览 · 魔法冒险</span>
+                    </div>
+                    <div class="featured-item" onclick="jumpToMcmodSearch('超现实')" title="直达超现实详情与数据看板">
+                        <span class="featured-rank">3</span>
+                        <span class="featured-name">[RLC] 超现实 x 虚拟生存 (RLCraft)</span>
+                        <span class="featured-meta">177.5万浏览 · 极致硬核神作</span>
+                    </div>
+                </div>
+                <!-- 快捷特色标签 -->
+                <div class="showcase-tags-box">
+                    <span class="showcase-tag-chip" onclick="jumpToMcmodSearch('硬核')">🏷️ 硬核魔改</span>
+                    <span class="showcase-tag-chip" onclick="jumpToMcmodSearch('空岛')">☁️ 空岛生存</span>
+                    <span class="showcase-tag-chip" onclick="jumpToMcmodSearch('科技')">⚙️ 科技制造</span>
+                    <span class="showcase-tag-chip" onclick="jumpToMcmodSearch('魔法')">✨ 魔法神秘</span>
+                </div>
+                <button type="button" class="showcase-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706);" onclick="switchPlatformTab('mcmod')">
+                    浏览全部 1,417 款深度词条与指数走势
+                </button>
+            </div>
+
+            <!-- 2. 哔哩哔哩看板卡片 -->
+            <div class="platform-showcase-card" style="--card-accent: #fb7299; --card-glow: rgba(251, 114, 153, 0.28);">
+                <div class="showcase-header">
+                    <div class="showcase-icon" style="background: rgba(251, 114, 153, 0.15); color: #fb7299;">📺</div>
+                    <div>
+                        <h3 class="showcase-title">哔哩哔哩自制发布流</h3>
+                        <span class="showcase-badge" style="background: rgba(251, 114, 153, 0.15); color: #fb7299;">BILIBILI · UP主自制/首发/更新</span>
+                    </div>
+                </div>
+                <div class="showcase-metrics">
+                    <div>
+                        <div class="smetric-val">935 款</div>
+                        <div class="smetric-lbl">自制发布 (5,397流)</div>
+                    </div>
+                    <div>
+                        <div class="smetric-val">1,780+ 条</div>
+                        <div class="smetric-lbl">已析出网盘直链</div>
+                    </div>
+                    <div>
+                        <div class="smetric-val">双模式</div>
+                        <div class="smetric-lbl">同包聚合 / 视频流</div>
+                    </div>
+                </div>
+                <!-- 热门代表作 TOP 3 -->
+                <div class="showcase-featured-box">
+                    <div class="showcase-box-header"><span>🔥 UP 主高热自制发布</span><span>点击直达</span></div>
+                    <div class="featured-item" onclick="jumpToBiliSearch('异界生活')" title="直达异界生活幻想自制发布流">
+                        <span class="featured-rank">1</span>
+                        <span class="featured-name">【1.16.5】大型生活向：异界生活幻想 v1.3</span>
+                        <span class="featured-meta">457.2万播放 · 史诗级大型生活向</span>
+                    </div>
+                    <div class="featured-item" onclick="jumpToBiliSearch('方可梦')" title="直达方可梦大师自制发布流">
+                        <span class="featured-rank">2</span>
+                        <span class="featured-name">去吧，方可梦大师 4.0 双版本</span>
+                        <span class="featured-meta">262.9万播放 · 全Mega全图鉴</span>
+                    </div>
+                    <div class="featured-item" onclick="jumpToBiliSearch('愚者')" title="直达愚者自制发布流">
+                        <span class="featured-rank">3</span>
+                        <span class="featured-name">【1.20.1】愚者 (The Fool) 欺诈盛宴</span>
+                        <span class="featured-meta">228.5万播放 · 深度扮演RPG</span>
+                    </div>
+                </div>
+                <!-- 快捷特色标签 -->
+                <div class="showcase-tags-box">
+                    <span class="showcase-tag-chip" onclick="jumpToBiliSearch('宝可梦')">🐾 宝可梦</span>
+                    <span class="showcase-tag-chip" onclick="jumpToBiliSearch('光影')">🌄 低配光影</span>
+                    <span class="showcase-tag-chip" onclick="jumpToBiliSearch('生存')">💀 生存大作</span>
+                    <span class="showcase-tag-chip" onclick="jumpToBiliSearch('网盘')">⚡ 直链网盘</span>
+                </div>
+                <button type="button" class="showcase-btn" style="background: linear-gradient(135deg, #fb7299, #e11d48);" onclick="switchPlatformTab('bilibili')">
+                    查看 935 款自制整合包与网盘直链
+                </button>
+            </div>
+
+            <!-- 3. BBSMC 开放资源卡片 -->
+            <div class="platform-showcase-card" style="--card-accent: #0284c7; --card-glow: rgba(2, 132, 199, 0.28);">
+                <div class="showcase-header">
+                    <div class="showcase-icon" style="background: rgba(2, 132, 199, 0.15); color: #0284c7;">💎</div>
+                    <div>
+                        <h3 class="showcase-title">BBSMC 开放资源专区</h3>
+                        <span class="showcase-badge" style="background: rgba(2, 132, 199, 0.15); color: #0284c7;">BBSMC.NET · 优质开源模组包库</span>
+                    </div>
+                </div>
+                <div class="showcase-metrics">
+                    <div>
+                        <div class="smetric-val">1,802 款</div>
+                        <div class="smetric-lbl">整合包全收录</div>
+                    </div>
+                    <div>
+                        <div class="smetric-val">1,710 万+</div>
+                        <div class="smetric-lbl">总累计下载</div>
+                    </div>
+                    <div>
+                        <div class="smetric-val">9,600+</div>
+                        <div class="smetric-lbl">直链与网盘</div>
+                    </div>
+                </div>
+                <!-- 热门代表作 TOP 3 -->
+                <div class="showcase-featured-box">
+                    <div class="showcase-box-header"><span>🔥 社区精选开放资源</span><span>点击直达</span></div>
+                    <div class="featured-item" onclick="jumpToBbsmcSearch('乌托邦')" title="直达BBSMC乌托邦探险之旅">
+                        <span class="featured-rank">1</span>
+                        <span class="featured-name">[1.20.1] 乌托邦探险之旅 (Utopia)</span>
+                        <span class="featured-meta">229.7万下载 · 社区霸榜榜首</span>
+                    </div>
+                    <div class="featured-item" onclick="jumpToBbsmcSearch('愚者')" title="直达BBSMC愚者整合包">
+                        <span class="featured-rank">2</span>
+                        <span class="featured-name">[1.20.1] 愚者 - The Fool (欺诈盛宴)</span>
+                        <span class="featured-meta">162.8万下载 · 深度剧情扮演</span>
+                    </div>
+                    <div class="featured-item" onclick="jumpToBbsmcSearch('香草纪元')" title="直达BBSMC香草纪元整合包">
+                        <span class="featured-rank">3</span>
+                        <span class="featured-name">[1.20.1] 香草纪元:食旅纪行</span>
+                        <span class="featured-meta">114.8万下载 · 唯美美食纪行</span>
+                    </div>
+                </div>
+                <!-- 快捷特色标签 -->
+                <div class="showcase-tags-box">
+                    <span class="showcase-tag-chip" onclick="jumpToBbsmcSearch('机械动力')">⚙️ 机械动力</span>
+                    <span class="showcase-tag-chip" onclick="jumpToBbsmcSearch('RPG')">⚔️ RPG冒险</span>
+                    <span class="showcase-tag-chip" onclick="jumpToBbsmcSearch('1.20.1')">📦 1.20.1</span>
+                    <span class="showcase-tag-chip" onclick="jumpToBbsmcSearch('冒险')">🗺️ 探险冒险</span>
+                </div>
+                <button type="button" class="showcase-btn" style="background: linear-gradient(135deg, #0284c7, #0369a1);" onclick="switchPlatformTab('bbsmc')">
+                    检索全部 1,802 款开源社区资源
+                </button>
+            </div>
+
+            <!-- 4. XYEBBS 像素世界看板卡片 -->
+            <div class="platform-showcase-card" style="--card-accent: #059669; --card-glow: rgba(5, 150, 105, 0.28);">
+                <div class="showcase-header">
+                    <div class="showcase-icon" style="background: rgba(5, 150, 105, 0.15); color: #059669;">🍃</div>
+                    <div>
+                        <h3 class="showcase-title">XYEBBS 像素世界专区</h3>
+                        <span class="showcase-badge" style="background: rgba(5, 150, 105, 0.15); color: #059669;">XYEBBS.COM · 综合社区资源库</span>
+                    </div>
+                </div>
+                <div class="showcase-metrics">
+                    <div>
+                        <div class="smetric-val">5,175 款</div>
+                        <div class="smetric-lbl">整合包全收录</div>
+                    </div>
+                    <div>
+                        <div class="smetric-val">580 万+</div>
+                        <div class="smetric-lbl">总累计下载</div>
+                    </div>
+                    <div>
+                        <div class="smetric-val">3 亿+</div>
+                        <div class="smetric-lbl">社区累计浏览</div>
+                    </div>
+                </div>
+                <!-- 热门代表作 TOP 3 -->
+                <div class="showcase-featured-box">
+                    <div class="showcase-box-header"><span>🔥 论坛热帖与精选整合</span><span>点击直达</span></div>
+                    <div class="featured-item" onclick="jumpToXyebbsSearch('魔之逆鳞')" title="直达XYEBBS魔之逆鳞整合包">
+                        <span class="featured-rank">1</span>
+                        <span class="featured-name">[1.20.1] 魔之逆鳞-(Nemesis of Demons)</span>
+                        <span class="featured-meta">34.6万下载 · 97.6万浏览</span>
+                    </div>
+                    <div class="featured-item" onclick="jumpToXyebbsSearch('香草纪元')" title="直达XYEBBS香草纪元整合包">
+                        <span class="featured-rank">2</span>
+                        <span class="featured-name">[1.20.1] 香草纪元:食旅纪行</span>
+                        <span class="featured-meta">28.7万下载 · 76.2万浏览</span>
+                    </div>
+                    <div class="featured-item" onclick="jumpToXyebbsSearch('乌托邦')" title="直达XYEBBS乌托邦探险之旅">
+                        <span class="featured-rank">3</span>
+                        <span class="featured-name">[1.20.1] 乌托邦探险之旅</span>
+                        <span class="featured-meta">27.5万下载 · 23.7万浏览</span>
+                    </div>
+                </div>
+                <!-- 快捷特色标签 -->
+                <div class="showcase-tags-box">
+                    <span class="showcase-tag-chip" onclick="jumpToXyebbsSearch('拔刀')">🗡️ 拔刀剑</span>
+                    <span class="showcase-tag-chip" onclick="jumpToXyebbsSearch('工业')">🏭 工业时代</span>
+                    <span class="showcase-tag-chip" onclick="jumpToXyebbsSearch('汉化')">🀄 深度汉化</span>
+                    <span class="showcase-tag-chip" onclick="jumpToXyebbsSearch('冒险')">🧭 冒险探索</span>
+                </div>
+                <button type="button" class="showcase-btn" style="background: linear-gradient(135deg, #059669, #047857);" onclick="switchPlatformTab('xyebbs')">
+                    探索全部 5,175 款像素世界资源
+                </button>
+            </div>
+
+            <!-- 5. Modrinth 国际服开源看板卡片 -->
+            <div class="platform-showcase-card" style="--card-accent: #10b981; --card-glow: rgba(16, 185, 129, 0.28);">
+                <div class="showcase-header">
+                    <div class="showcase-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">🌐</div>
+                    <div>
+                        <h3 class="showcase-title">Modrinth 开源专区</h3>
+                        <span class="showcase-badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">MODRINTH.COM · 极速开源生态</span>
+                    </div>
+                </div>
+                <div class="showcase-metrics">
+                    <div>
+                        <div class="smetric-val">18,328 款</div>
+                        <div class="smetric-lbl">开源包全收录</div>
+                    </div>
+                    <div>
+                        <div class="smetric-val">1.76 亿+</div>
+                        <div class="smetric-lbl">总累计下载</div>
+                    </div>
+                    <div>
+                        <div class="smetric-val">全量直链</div>
+                        <div class="smetric-lbl">CDN 官方极速分发</div>
+                    </div>
+                </div>
+                <!-- 热门代表作 TOP 3 -->
+                <div class="showcase-featured-box">
+                    <div class="showcase-box-header"><span>🔥 全球顶级开源标杆</span><span>点击直达</span></div>
+                    <div class="featured-item" onclick="jumpToModrinthSearch('Fabulously Optimized')" title="直达Fabulously Optimized详情">
+                        <span class="featured-rank">1</span>
+                        <span class="featured-name">Fabulously Optimized (极致轻量提帧)</span>
+                        <span class="featured-meta">1,712万+ 下 · 原版增强</span>
+                    </div>
+                    <div class="featured-item" onclick="jumpToModrinthSearch('Zombie Invade')" title="直达Zombie Invade详情">
+                        <span class="featured-rank">2</span>
+                        <span class="featured-name">Zombie Invade 100 Days (丧尸围城百天)</span>
+                        <span class="featured-meta">1,429万+ 下 · 生存挑战</span>
+                    </div>
+                    <div class="featured-item" onclick="jumpToModrinthSearch('Cobblemon')" title="直达Cobblemon详情">
+                        <span class="featured-rank">3</span>
+                        <span class="featured-name">Cobblemon Official Modpack (宝可梦)</span>
+                        <span class="featured-meta">1,054万+ 下 · 开源大作</span>
+                    </div>
+                </div>
+                <!-- 快捷特色标签 -->
+                <div class="showcase-tags-box">
+                    <span class="showcase-tag-chip" onclick="jumpToModrinthSearch('Optimized')">🚀 FPS极致优化</span>
+                    <span class="showcase-tag-chip" onclick="jumpToModrinthSearch('Fabric')">🧵 Fabric</span>
+                    <span class="showcase-tag-chip" onclick="jumpToModrinthSearch('NeoForge')">⚡ NeoForge</span>
+                    <span class="showcase-tag-chip" onclick="jumpToModrinthSearch('Multiplayer')">🌐 联机友好</span>
+                </div>
+                <button type="button" class="showcase-btn" style="background: linear-gradient(135deg, #10b981, #059669);" onclick="switchPlatformTab('modrinth')">
+                    极速直链下载 18,328 款开源大作
+                </button>
+            </div>
+
+            <!-- 6. CurseForge 国际服大作看板卡片 -->
+            <div class="platform-showcase-card" style="--card-accent: #ea580c; --card-glow: rgba(234, 88, 12, 0.28);">
+                <div class="showcase-header">
+                    <div class="showcase-icon" style="background: rgba(234, 88, 12, 0.15); color: #ea580c;">🔥</div>
+                    <div>
+                        <h3 class="showcase-title">CurseForge 热门大作专区</h3>
+                        <span class="showcase-badge" style="background: rgba(234, 88, 12, 0.15); color: #ea580c;">CURSEFORGE.COM · 全球最大模组生态</span>
+                    </div>
+                </div>
+                <div class="showcase-metrics">
+                    <div>
+                        <div class="smetric-val">45,797 款</div>
+                        <div class="smetric-lbl">热门大作全收录</div>
+                    </div>
+                    <div>
+                        <div class="smetric-val">8.45 亿+</div>
+                        <div class="smetric-lbl">总累计下载</div>
+                    </div>
+                    <div>
+                        <div class="smetric-val">全版本覆盖</div>
+                        <div class="smetric-lbl">1.7.10 ~ 1.21.x</div>
+                    </div>
+                </div>
+                <!-- 热门代表作 TOP 3 -->
+                <div class="showcase-featured-box">
+                    <div class="showcase-box-header"><span>🔥 全球殿堂级大作 TOP</span><span>点击直达</span></div>
+                    <div class="featured-item" onclick="jumpToCurseforgeSearch('RLCraft')" title="直达RLCraft详情">
+                        <span class="featured-rank">1</span>
+                        <span class="featured-name">RLCraft (全球第一硬核神作)</span>
+                        <span class="featured-meta">3,010万+ 下 · 极限硬核</span>
+                    </div>
+                    <div class="featured-item" onclick="jumpToCurseforgeSearch('All the Mods')" title="直达ATM全家桶详情">
+                        <span class="featured-rank">2</span>
+                        <span class="featured-name">All the Mods 10 (ATM 终极全家桶)</span>
+                        <span class="featured-meta">2,164万+ 下 · 全模组</span>
+                    </div>
+                    <div class="featured-item" onclick="jumpToCurseforgeSearch('Pixelmon')" title="直达Pixelmon详情">
+                        <span class="featured-rank">3</span>
+                        <span class="featured-name">The Pixelmon Modpack (宝可梦殿堂整合)</span>
+                        <span class="featured-meta">2,009万+ 下 · 探索冒险</span>
+                    </div>
+                </div>
+                <!-- 快捷特色标签 -->
+                <div class="showcase-tags-box">
+                    <span class="showcase-tag-chip" onclick="jumpToCurseforgeSearch('All the Mods')">🍱 大型全家桶</span>
+                    <span class="showcase-tag-chip" onclick="jumpToCurseforgeSearch('Quest')">📜 任务驱动</span>
+                    <span class="showcase-tag-chip" onclick="jumpToCurseforgeSearch('RPG')">🛡️ 探索与RPG</span>
+                    <span class="showcase-tag-chip" onclick="jumpToCurseforgeSearch('Skyblock')">☁️ 空岛科技</span>
+                </div>
+                <button type="button" class="showcase-btn" style="background: linear-gradient(135deg, #ea580c, #c2410c);" onclick="switchPlatformTab('curseforge')">
+                    检索全部 45,797 款全球热门包
+                </button>
+            </div>
+        </div>
+    </div>
+
+<div id="view-mcmod" class="tab-view" style="display:none;">
+
+    <!-- 📦 MC百科专属频道 Header (一体化微缩指标，告别千篇一律大 Hero) -->
+    <div class="channel-hero mcmod-channel-hero">
+        <div class="channel-hero-left">
+            <span class="channel-badge-tag">MCMOD.CN · 权威技术资料库</span>
+            <h2 class="channel-title">📦 MC百科整合包技术看板</h2>
+            <p class="channel-desc">专注 MC百科 1,417 款模组包深度行情追踪、60日指数波动走势、模组依赖展开抽屉与官方历史改动对比</p>
+        </div>
+        <div class="channel-quick-stats">
+            <div class="cstat-item"><span class="cs-num" id="statTotal">{total}</span><span class="cs-lbl">收录整合包</span></div>
+            <div class="cstat-item"><span class="cs-num" id="statViews">{total_views}</span><span class="cs-lbl">总累计浏览</span></div>
+            <div class="cstat-item"><span class="cs-num" id="statComments">{total_comments}</span><span class="cs-lbl">总社区评论</span></div>
+            <div class="cstat-item"><span class="cs-num">100%</span><span class="cs-lbl">改动对比直达</span></div>
+        </div>
+    </div>
+<details class="notice-wrap notice-compact">
+    <summary>ℹ️ 说明与免责声明</summary>
+    <div class="disclaimer-inner" style="margin-bottom:0.55rem;">
+        <strong>📋 免责声明</strong><br>
+        本页面仅为个人整理与学习交流用途，不涉及任何商业用途。排序、热度等数据均基于公开信息整理或统计，<strong>仅供参考，不代表任何作品或作者的实际质量评价，也不构成排名高低优劣的结论。</strong>如涉及版权、数据使用或其他权益问题，请联系我处理，我会第一时间修改或删除相关内容。本项目与<a href="https://www.mcmod.cn/" target="_blank">MC百科</a>（mcmod.cn）及相关作者无官方关联。
+    </div>
+    <div class="sort-hint-inner">
+        <span style="font-size:1rem;">💡</span>单文件离线版 · 双击即可打开
+        <span><b>排序：</b>点击表头排序，再次点击切换 ↑升序 / ↓降序，蓝色条内的小项可直接切换同组排序。<b>详情：</b>整合包名称悬停查看介绍；趋势列小波形可直接读日期/指数，默认点击趋势格打开或关闭大图，可开启悬浮模式；评论列默认点击打开或关闭详情，也可开启悬浮模式。<b>筛选：</b>分类、标签、模组分类和模组可多选，也可开启「排除所选」反向筛选；分页可切换每页 25 / 50 / 100 / 200 条。</span>
+    </div>
+</details>
+<div class="main-wrap">
+    <!-- 视线中央：MC百科多维一体化控制台 -->
+    <div class="central-hub" id="mcmodCentralHub">
+        <!-- 1. 搜索与核心动作 -->
+        <div class="hub-tier-search">
+            <div class="hub-stat-badge">
+                <span>📦</span>
+                <span>匹配 <strong id="mcmodMatchedCount">1,417</strong> 款整合包</span>
+            </div>
+            <div class="hub-search-box">
+                <span class="hub-search-icon">🔍</span>
+                <input type="text" id="mcmodUnifiedSearch" class="hub-search-input" placeholder="输入名称、模组名、作者或玩法标签实时穿透速搜..." autocomplete="off">
+                <button type="button" id="mcmodSearchClear" class="hub-clear-btn" style="display:none;" title="清空搜索">✕</button>
+            </div>
+            <div class="hub-actions-cluster">
+                <select id="typeFilter" class="hub-select select2-hub" title="按整合包类型筛选">
+{type_opts}
+                </select>
+                <select id="trendFilter" class="hub-select select2-hub" title="按走势周期筛选">
+{trend_opts}
+                </select>
+                <select id="hubPageSize" class="hub-select select2-hub" title="每页显示条数">
+                    <option value="25" selected>每页 25 条 ▾</option>
+                    <option value="50">每页 50 条 ▾</option>
+                    <option value="100">每页 100 条 ▾</option>
+                    <option value="99999">全部展示 ▾</option>
+                </select>
+                <div class="view-mode-toggle" id="mcmodViewToggle" style="margin:0;">
+                    <button type="button" class="vmode-btn" data-vmode="cards" title="画廊卡片视图">🎨 画廊</button>
+                    <button type="button" class="vmode-btn active" data-vmode="table" title="专业表格视图">📊 表格</button>
+                </div>
+                <button type="button" id="sidebarResetFilters" class="hub-reset-btn" title="一键重置所有MC百科筛选">
+                    <span>↺</span> 重置
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. 分类与标签维度 (官方专区 + 核心标签 + 模组分类 + 包含模组) -->
+        <div class="hub-tier-filters">
+            <!-- 官方权威主分类 -->
+            <div class="hub-filter-row">
+                <span class="hub-filter-label">🏷️ 官方专区：</span>
+                <div class="hub-chips-wrap" id="mcmodCategoryChips"></div>
+            </div>
+
+            <!-- 核心玩法标签 (带展开全部和全部标签/多选) -->
+            <div class="hub-filter-row discovery-row">
+                <span class="hub-filter-label">🔥 核心标签：</span>
+                <div class="hub-chips-wrap" id="mcmodTagChips"></div>
+                <div class="discovery-actions">
+                    <button type="button" id="expandTags" class="discovery-btn" aria-expanded="false" title="在当前行展开或收起全部标签">展开全部 ↓</button>
+                    <button type="button" id="allTags" class="discovery-btn discovery-btn-primary" title="打开全部标签弹窗支持搜索与多选">全部标签 / 多选 ↗</button>
+                </div>
+            </div>
+
+            <!-- 模组分类 (科技、冒险、农业、装饰、实用、辅助、魔改、LIB、魔法...) -->
+            <div class="hub-filter-row">
+                <span class="hub-filter-label">📦 模组分类：</span>
+                <div class="hub-chips-wrap" id="mcmodModCatChips"></div>
+            </div>
+
+            <!-- 包含模组 (带热门模组胶囊、展开热门、全部模组多选搜索) -->
+            <div class="hub-filter-row discovery-row">
+                <span class="hub-filter-label">🧩 包含模组：</span>
+                <div class="hub-chips-wrap" id="mcmodHotModChips"></div>
+                <div class="discovery-actions">
+                    <button type="button" id="expandMods" class="discovery-btn" aria-expanded="false" title="展开/收起常用高频模组快捷筛选，如需搜索全部1.1万款模组请点击右侧按钮">常用模组(前60) ▾</button>
+                    <button type="button" id="allMods" class="discovery-btn discovery-btn-primary" title="打开全量 1.1 万款模组检索弹窗支持搜索与多选">全部模组 / 搜索多选 ↗</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 已激活筛选指示栏 (参考黄游 active-filters) -->
+        <div id="activeFilters" class="active-filters-bar" style="display:none;"></div>
+
+        <!-- 3. 高阶参数与悬浮设置 -->
+        <div class="hub-tier-advanced">
+            <div class="hub-adv-group">
+                <span style="font-weight:750; color:var(--text-secondary);">⚙️ 高阶过滤：</span>
+                <label class="hub-exclude-toggle" title="开启后，选中的分类将作为排除项进行反向过滤">
+                    <input type="checkbox" id="categoryExclude">
+                    <span>反向排除模式</span>
+                </label>
+                <label class="hub-server-toggle" title="仅看包含服务端/支持开服的整合包">
+                    <input type="checkbox" id="mcmodServerOnly" class="js-server-only-toggle" data-plat="mcmod">
+                    <span>🖳 仅看含服务端</span>
+                </label>
+            </div>
+            <div class="hub-adv-group">
+                <span style="font-weight:750; color:var(--text-secondary);">👁️ 悬浮窗模式：</span>
+                <div class="hub-hover-switches">
+                    <label class="mode-toggle" title="开启后悬停整合包名称显示介绍；关闭后点击打开"><span>介绍</span><input type="checkbox" class="js-desc-hover-toggle"></label>
+                    <label class="mode-toggle" title="开启后悬停趋势格显示趋势图；关闭后点击打开"><span>趋势</span><input type="checkbox" class="js-trend-hover-toggle"></label>
+                    <label class="mode-toggle" title="开启后悬停评论格显示评论详情；关闭后点击打开"><span>评论</span><input type="checkbox" class="js-comment-hover-toggle"></label>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="table-card">
+        <div class="table-responsive">
+            <table id="modpackTable" class="table table-hover align-middle" style="width:100%">
+                <thead>
+                    <tr>
+                        <th class="header-consolidated" style="min-width:220px">
+                            <div class="header-sort-switcher title-sort-switcher" data-col="0">
+                                <span class="sort-option active" data-subkey="name">名称</span>
+                                <span class="sort-option" data-subkey="views">浏览</span>
+                            </div>
+                        </th>
+                        <th class="header-consolidated" style="min-width:170px">
+                            <div class="header-sort-switcher" data-col="1">
+                                <span class="sort-option active" data-subkey="score">流行</span>
+                                <span class="sort-option" data-subkey="lat">最新</span>
+                                <span class="sort-option" data-subkey="max">最高</span>
+                                <span class="sort-option" data-subkey="avg">平均</span>
+                                <span class="sort-option" data-subkey="days">天数</span>
+                            </div>
+                        </th>
+                        <th class="header-consolidated" style="min-width:140px">
+                            <div class="header-sort-switcher" data-col="2">
+                                <span class="sort-option active" data-subkey="t7">7日</span>
+                                <span class="sort-option" data-subkey="t30">30日</span>
+                                <span class="sort-option" data-subkey="t60">60日</span>
+                                <span class="sort-option" data-subkey="tall">总幅</span>
+                            </div>
+                        </th>
+                        <th class="header-consolidated" style="min-width:140px">
+                            <div class="header-sort-switcher" data-col="3">
+                                <span class="sort-option active" data-subkey="rv">红票</span>
+                                <span class="sort-option" data-subkey="rp">红占比</span>
+                                <span class="sort-option" data-subkey="bv">黑票</span>
+                                <span class="sort-option" data-subkey="bp">黑占比</span>
+                            </div>
+                        </th>
+                        <th class="header-consolidated" style="min-width:132px">
+                            <div class="header-sort-switcher" data-col="4">
+                                <span class="sort-option active" data-subkey="com">评论</span>
+                                <span class="sort-option" data-subkey="rec">推荐</span>
+                                <span class="sort-option" data-subkey="fav">收藏</span>
+                            </div>
+                        </th>
+                        <th class="header-consolidated" style="min-width:280px">
+                            <div class="header-sort-switcher" data-col="5">
+                                <span class="sort-option active" data-subkey="tag_count">标签</span>
+                            </div>
+                        </th>
+                        <th class="header-consolidated" style="min-width:420px;width:38vw">
+                            <div class="header-sort-switcher" data-col="6">
+                                <span class="sort-option active" data-subkey="mod_count">包含模组</span>
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+    </div>
+</div>
+        <!-- MC百科画廊卡片容器 (Cards Gallery) -->
+        <div id="mcmodCardsContainer" style="display:none; margin-top: 18px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin:14px 0 10px;">
+                <div style="font-size:0.85rem; color:var(--text-secondary);">
+                    画廊卡片视图 · 当前匹配 <strong id="mcmodCardCountBadge">1,484 款</strong>
+                </div>
+                <div style="font-size:0.75rem; color:var(--text-muted);">
+                    点击卡片标题直接跳转原站 · 点击“📜 改动对比”查看历史正文变动
+                </div>
+            </div>
+            <div id="mcmodCardsGrid" class="mcmod-cards-grid"></div>
+        </div>
+
+<div id="compareTray" class="compare-tray" aria-live="polite">
+    <div class="compare-tray-glow"></div>
+    <div class="compare-tray-main">
+        <span class="compare-tray-kicker">收藏对比</span>
+        <strong id="compareTrayCount">0 个整合包</strong>
+        <div id="compareTrayNames" class="compare-tray-names"></div>
+    </div>
+    <div class="compare-tray-actions">
+        <button type="button" id="compareClear" class="compare-ghost-btn">清空</button>
+        <button type="button" id="compareOpen" class="compare-primary-btn">全面对比</button>
+    </div>
+</div>
+<div id="compareOverlay" class="compare-overlay" aria-hidden="true">
+    <div class="compare-shell" role="dialog" aria-modal="true" aria-labelledby="compareTitle">
+        <div class="compare-head">
+            <div>
+                <span class="compare-kicker">Modpack Intelligence</span>
+                <h2 id="compareTitle">收藏整合包全面对比</h2>
+            </div>
+            <div class="compare-head-actions">
+                <button type="button" id="compareCopy" class="compare-ghost-btn">复制摘要</button>
+                <button type="button" id="compareClose" class="compare-close-btn" aria-label="关闭">✕</button>
+            </div>
+        </div>
+        <div id="compareBody" class="compare-body"></div>
+    </div>
+</div>
+</div>
+<!-- ─── 整合包介绍预览窗 ─── -->
+<div id="pvPopup" class="pv-popup" role="dialog" aria-hidden="true">
+    <div class="pv-head">
+        <div class="pv-head-icon">📦</div>
+        <span class="pv-head-title" id="pvTitle"></span>
+        <div class="pv-actions">
+            <a id="pvOpen" href="#" target="_blank" title="在新标签页打开 ↗">↗</a>
+            <button type="button" class="hover-close" id="pvClose" title="关闭，短时间内不再弹出这个整合包">✕</button>
+        </div>
+    </div>
+    <div class="pv-body" id="pvBody"></div>
+    <div class="pv-tip" style="line-height:1.6;">
+        📋 本页面仅作信息整理预览，含已抓取图片预览但不保证完整排版 · 鼠标移出会正常关闭且不进入冷却 · 点 ✕ 后 5 秒内悬停同一整合包不会再弹出 · 详细内容请访问 <a href="https://www.mcmod.cn/" target="_blank" style="color:var(--primary-dark);font-weight:600;">MC百科 mcmod.cn</a> 原页面查看
+    </div>
+    <div class="mcmod-consent">
+        <div class="mcmod-consent-panel">
+            <div class="mcmod-consent-brand">MC百科</div>
+            <div class="mcmod-consent-title">内容来自 mcmod.cn 公开页面</div>
+            <div class="mcmod-consent-text">这里显示的是本地整理预览，图片为已抓取链接预览，完整排版与最新修订请以 MC百科 原页面为准。确认后继续查看介绍内容。</div>
+            <button type="button" class="mcmod-consent-ok">知道了</button>
+        </div>
+    </div>
+</div>
+<!-- ─── 评论悬浮窗 ─── -->
+<div id="commentPopup" class="comment-popup">
+    <div class="comment-head">
+        <div class="comment-head-icon">💬</div>
+        <span class="comment-head-title">评论详情</span>
+        <input id="commentSearchInput" class="comment-search-input" type="search" placeholder="搜索当前整合包的评论内容" autocomplete="off">
+        <span id="commentCount"></span>
+        <div class="pv-actions">
+            <a id="commentOpen" href="#" target="_blank" title="打开 MC百科原页面 ↗">↗</a>
+            <button type="button" class="hover-close" id="commentClose" title="关闭评论详情">✕</button>
+        </div>
+    </div>
+    <div class="comment-body" id="commentBody"></div>
+    <div class="scroll-hint-arrow"><span>滚动查看更多</span> ↓</div>
+    <div class="comment-search-nav" id="commentSearchNav" style="display:none;">
+        <span class="search-nav-info" id="searchNavInfo"></span>
+        <span class="search-nav-btn" id="searchNavPrev" title="上一个匹配">上一个匹配</span>
+        <span class="search-nav-btn" id="searchNavNext" title="下一个匹配">下一个匹配</span>
+    </div>
+    <div class="comment-page-bar" id="commentPageBar" style="display:none;">
+        <span class="comment-page-btn" id="cmtFirst" title="第一页">«</span>
+        <span class="comment-page-btn" id="cmtPrev" title="上一页">‹</span>
+        <span class="comment-page-info" id="cmtPageInfo"></span>
+        <span class="comment-page-btn" id="cmtNext" title="下一页">›</span>
+        <span class="comment-page-btn" id="cmtLast" title="最后一页">»</span>
+    </div>
+    <div class="comment-tip">
+        ⚠️ 当前仍在补抓评论，评论不完整属于正常情况 · 按 Esc、点窗外或点评论格可关闭 · 完整内容请访问 <a href="https://www.mcmod.cn/" target="_blank" id="commentModpackLink">MC百科 mcmod.cn</a>
+    </div>
+    <div class="mcmod-consent">
+        <div class="mcmod-consent-panel">
+            <div class="mcmod-consent-brand">MC百科</div>
+            <div class="mcmod-consent-title">评论来自 mcmod.cn 公开页面</div>
+            <div class="mcmod-consent-text">评论仅作整理与检索辅助，完整上下文请以 MC百科原页面为准。确认后继续查看评论。</div>
+            <button type="button" class="mcmod-consent-ok">知道了</button>
+        </div>
+    </div>
+</div>
+</div> <!-- /#view-mcmod -->
+
+<!-- ═══════════════ B站自制整合包发布独立视图 ═══════════════ -->
+<div id="view-bilibili" class="tab-view" style="display:none;">
+
+    <!-- 📺 哔哩哔哩专属频道 Header (告别千篇一律大 Hero) -->
+    <div class="channel-hero bili-channel-hero">
+        <div class="channel-hero-left">
+            <span class="channel-badge-tag" style="background: rgba(251, 114, 153, 0.15); color: #fb7299; border-color: rgba(251, 114, 153, 0.3);">BILIBILI · 自制整合包发布流</span>
+            <h2 class="channel-title">📺 哔哩哔哩自制整合包发布流</h2>
+            <p class="channel-desc">汇聚 B站 UP 主首发与更新作品 · 智能同包多版本聚合 · 网盘直达链接与提取码 · 8维互动排序 · 视频字幕速读</p>
+        </div>
+        <div class="channel-quick-stats">
+            <div class="cstat-item"><span class="cs-num" id="biliStatTotal">935 款</span><span class="cs-lbl">独立整合包</span></div>
+            <div class="cstat-item"><span class="cs-num" id="biliStatViews">584.8万+</span><span class="cs-lbl">视频总播放</span></div>
+            <div class="cstat-item"><span class="cs-num" id="biliStatLinks">1,782+ 个</span><span class="cs-lbl">解析网盘直链</span></div>
+            <div class="cstat-item"><span class="cs-num" id="biliStatGroups">70 个</span><span class="cs-lbl">玩家交流群</span></div>
+        </div>
+    </div>
+
+    <div class="bili-view-wrap">
+        <!-- 视线中央：B站自制多维一体化控制台 -->
+        <div class="central-hub" id="biliCentralHub">
+            <!-- 1. 搜索与核心动作 -->
+            <div class="hub-tier-search">
+                <div class="hub-stat-badge">
+                    <span style="color:#fb7299;">📺</span>
+                    <span id="biliMatchInfo">正在展示 B站精选整合包...</span>
+                </div>
+                <div class="hub-search-box">
+                    <span class="hub-search-icon">🔍</span>
+                    <input type="text" id="biliSearchInput" class="hub-search-input" placeholder="输入名称、UP主、版本、模组或网盘实时速搜..." autocomplete="off">
+                    <button type="button" id="biliSearchClear" class="hub-clear-btn" style="display:none;" title="清空搜索">✕</button>
+                </div>
+                <div class="hub-actions-cluster">
+                    <select id="biliSortSelect" class="hub-select select2-hub" title="排序规则">
+                        <option value="pubdate_desc">最新发布 ↓</option>
+                        <option value="views_desc">播放最多 ↓</option>
+                        <option value="likes_desc">点赞最多 ↓</option>
+                        <option value="favs_desc">收藏最多 ↓</option>
+                        <option value="coins_desc">投币最多 ↓</option>
+                        <option value="share_desc">分享最多 ↓</option>
+                        <option value="reply_desc">评论最多 ↓</option>
+                        <option value="danmaku_desc">弹幕最多 ↓</option>
+                    </select>
+                    <select id="biliVerSelect" class="hub-select select2-hub" title="按MC版本筛选">
+                        <option value="">全部 MC 版本</option>
+                    </select>
+                    <select id="biliLoaderSelect" class="hub-select select2-hub" title="按模组加载器筛选">
+                        <option value="">全部加载器</option>
+                        <option value="Fabric">Fabric</option>
+                        <option value="Forge">Forge</option>
+                        <option value="NeoForge">NeoForge</option>
+                        <option value="Quilt">Quilt</option>
+                    </select>
+                    <div class="bili-mode-toggle" id="biliViewToggle" style="margin:0; display:flex; gap:6px;">
+                        <button type="button" class="bili-mode-btn active" data-mode="grouped" data-bmode="grouped" title="同名整合包自动归并，折叠历史版本">
+                            ✨ 同包聚合
+                        </button>
+                        <button type="button" class="bili-mode-btn" data-mode="flat" data-bmode="flat" title="平铺展示每一条独立视频">
+                            📋 视频平铺
+                        </button>
+                    </div>
+                    <button type="button" id="sidebarBiliReset" class="hub-reset-btn" title="一键重置所有B站筛选">
+                        <span>↺</span> 重置
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. 玩法与网盘与发布时间 -->
+            <div class="hub-tier-filters">
+                <div class="hub-filter-row">
+                    <span class="hub-filter-label">🏷️ 玩法专区：</span>
+                    <div class="hub-chips-wrap" id="biliCategoryChips"></div>
+                </div>
+
+                <div class="hub-filter-row">
+                    <span class="hub-filter-label">💾 网盘渠道：</span>
+                    <div class="hub-chips-wrap" id="biliPanChips">
+                        <span class="s-chip active" data-pan="">全部网盘</span>
+                        <span class="s-chip" data-pan="百度">百度网盘</span>
+                        <span class="s-chip" data-pan="夸克">夸克网盘</span>
+                        <span class="s-chip" data-pan="蓝奏">蓝奏云</span>
+                        <span class="s-chip" data-pan="123">123云盘</span>
+                    </div>
+                </div>
+
+                <div class="hub-filter-row">
+                    <span class="hub-filter-label">📅 发布时间：</span>
+                    <div class="hub-chips-wrap" id="biliDateChips"></div>
+                </div>
+            </div>
+
+            <!-- 高阶过滤与悬浮设置（向 MCMod 看齐） -->
+            <div class="hub-tier-advanced">
+                <div class="hub-adv-group">
+                    <span style="font-weight:750; color:var(--text-secondary);">⚙️ 高阶过滤：</span>
+                    <label class="hub-exclude-toggle" title="开启后，选中的分类将作为排除项进行反向过滤">
+                        <input type="checkbox" class="js-cat-exclude" data-plat="bilibili">
+                        <span>反向排除模式</span>
+                    </label>
+                    <label class="hub-server-toggle" title="仅看包含服务端/支持开服的整合包">
+                        <input type="checkbox" id="biliServerOnly" class="js-server-only-toggle" data-plat="bilibili">
+                        <span>🖳 仅看含服务端</span>
+                    </label>
+                </div>
+                <div class="hub-adv-group">
+                    <span style="font-weight:750; color:var(--text-secondary);">👁️ 悬浮窗模式：</span>
+                    <div class="hub-hover-switches">
+                        <label class="mode-toggle" title="开启后悬停整合包名称显示介绍；关闭后点击打开"><span>介绍</span><input type="checkbox" class="js-desc-hover-toggle"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 活动过滤项标签条 (Active Filters Bar - 仅在用户筛选时显示) -->
+        <div class="active-filters-bar" id="biliActiveFilters" style="display:none; margin-bottom: 12px;">
+            <span class="active-filters-label">当前筛选:</span>
+            <div class="active-filters-list" id="biliActiveFiltersList"></div>
+            <button type="button" class="clear-filters-btn" id="biliClearFiltersBtn">清空全部筛选</button>
+        </div>
+
+        <!-- 卡片网格 -->
+        <div class="bili-cards-grid" id="biliCardsGrid">
+            <!-- 动态生成 -->
+        </div>
+
+        <!-- 底部轻量高效分页栏 -->
+        <div id="biliPaginationWrap" style="text-align:center; padding: 24px 0 12px; display:flex; justify-content:center; gap:12px; align-items:center;">
+            <button type="button" class="showcase-btn js-bili-load-more" style="max-width:240px; background:var(--surface); color:var(--text); border:1px solid var(--border);">
+                加载更多 (剩余 <span id="biliRemainingCount">0</span> 款) ↓
+            </button>
+            <button type="button" class="showcase-btn js-bili-load-all" style="max-width:200px; background:#fb7299; color:#fff;">
+                全部展开 (<span id="biliTotalFilteredCount">0</span> 款) 🚀
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════ BBSMC 开放资源独立视图 ═══════════════ -->
+<div id="view-bbsmc" class="tab-view" style="display:none;">
+
+    <!-- 💎 BBSMC专属频道 Header -->
+    <div class="channel-hero bbsmc-channel-hero">
+        <div class="channel-hero-left">
+            <span class="channel-badge-tag" style="background: rgba(0, 175, 92, 0.15); color: #00af5c; border-color: rgba(0, 175, 92, 0.3);">BBSMC.NET · 优质开源模组包库</span>
+            <h2 class="channel-title">💎 BBSMC 开放资源专区</h2>
+            <p class="channel-desc">汇聚 BBSMC 1,802 款整合包全量资源 · 官方 Modrinth 格式直链与国内主流网盘 · 多维加载器与版本穿透 · 高清实机画廊</p>
+        </div>
+        <div class="channel-quick-stats">
+            <div class="cstat-item"><span class="cs-num" id="bbsmcStatTotal">1,802 款</span><span class="cs-lbl">收录整合包</span></div>
+            <div class="cstat-item"><span class="cs-num" id="bbsmcStatDownloads">1,711.8万</span><span class="cs-lbl">累计下载量</span></div>
+            <div class="cstat-item"><span class="cs-num" id="bbsmcStatFollowers">3.29万</span><span class="cs-lbl">社区关注数</span></div>
+            <div class="cstat-item"><span class="cs-num" id="bbsmcStatLinks">9,639 个</span><span class="cs-lbl">解析直链/网盘</span></div>
+        </div>
+    </div>
+
+    <div class="bili-view-wrap">
+        <!-- BBSMC 多维一体化控制台 -->
+        <div class="central-hub" id="bbsmcCentralHub">
+            <!-- 1. 搜索与核心动作 -->
+            <div class="hub-tier-search">
+                <div class="hub-stat-badge">
+                    <span style="color:#00af5c;">💎</span>
+                    <span id="bbsmcMatchInfo">正在展示 BBSMC 开放整合包...</span>
+                </div>
+                <div class="hub-search-box">
+                    <span class="hub-search-icon">🔍</span>
+                    <input type="text" id="bbsmcSearchInput" class="hub-search-input" placeholder="输入名称、作者、版本、模组或玩法实时速搜..." autocomplete="off">
+                    <button type="button" id="bbsmcSearchClear" class="hub-clear-btn" style="display:none;" title="清空搜索">✕</button>
+                </div>
+                <div class="hub-actions-cluster">
+                    <select id="bbsmcSortSelect" class="hub-select select2-hub" title="排序规则">
+                        <option value="downloads_desc">下载最多 ↓</option>
+                        <option value="followers_desc">关注最多 ↓</option>
+                        <option value="modified_desc">最新更新 ↓</option>
+                        <option value="created_desc">最新发布 ↓</option>
+                        <option value="title_asc">名称字母 A-Z</option>
+                    </select>
+                    <select id="bbsmcVerSelect" class="hub-select select2-hub" title="按MC版本筛选">
+                        <option value="">全部 MC 版本</option>
+                    </select>
+                    <select id="bbsmcLoaderSelect" class="hub-select select2-hub" title="按模组加载器筛选">
+                        <option value="">全部加载器</option>
+                        <option value="Forge">Forge</option>
+                        <option value="Fabric">Fabric</option>
+                        <option value="NeoForge">NeoForge</option>
+                        <option value="Quilt">Quilt</option>
+                    </select>
+                    <button type="button" id="bbsmcResetBtn" class="hub-reset-btn" title="一键重置所有BBSMC筛选">
+                        <span>↺</span> 重置
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. 玩法与下载渠道 -->
+            <div class="hub-tier-filters">
+                <div class="hub-filter-row">
+                    <span class="hub-filter-label">🏷️ 玩法专区：</span>
+                    <div class="hub-chips-wrap" id="bbsmcCategoryChips"></div>
+                    <button type="button" id="bbsmcExpandCats" class="discovery-btn" style="display:none; margin-left:6px; font-size:11px; padding:2px 8px;" title="展开/收起全部玩法分类">展开全部 ▾</button>
+                </div>
+
+                <div class="hub-filter-row">
+                    <span class="hub-filter-label">💾 资源渠道：</span>
+                    <div class="hub-chips-wrap" id="bbsmcPanChips">
+                        <span class="s-chip active" data-pan="">全部渠道</span>
+                        <span class="s-chip" data-pan="modrinth">⚡ 官方直链 (.mrpack)</span>
+                        <span class="s-chip" data-pan="curseforge">🔥 CurseForge</span>
+                        <span class="s-chip" data-pan="夸克">夸克网盘</span>
+                        <span class="s-chip" data-pan="百度">百度网盘</span>
+                        <span class="s-chip" data-pan="123">123云盘</span>
+                        <span class="s-chip" data-pan="迅雷">迅雷云盘</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 高阶过滤与悬浮设置（向 MCMod 看齐） -->
+            <div class="hub-tier-advanced">
+                <div class="hub-adv-group">
+                    <span style="font-weight:750; color:var(--text-secondary);">⚙️ 高阶过滤：</span>
+                    <label class="hub-exclude-toggle" title="开启后，选中的分类将作为排除项进行反向过滤">
+                        <input type="checkbox" class="js-cat-exclude" data-plat="bbsmc">
+                        <span>反向排除模式</span>
+                    </label>
+                    <label class="hub-server-toggle" title="仅看包含服务端/支持开服的整合包">
+                        <input type="checkbox" id="bbsmcServerOnly" class="js-server-only-toggle" data-plat="bbsmc">
+                        <span>🖳 仅看含服务端</span>
+                    </label>
+                </div>
+                <div class="hub-adv-group">
+                    <span style="font-weight:750; color:var(--text-secondary);">👁️ 悬浮窗模式：</span>
+                    <div class="hub-hover-switches">
+                        <label class="mode-toggle" title="开启后悬停整合包名称显示介绍；关闭后点击打开"><span>介绍</span><input type="checkbox" class="js-desc-hover-toggle"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 活动过滤项标签条 -->
+        <div class="active-filters-bar" id="bbsmcActiveFilters" style="display:none; margin-bottom: 12px;">
+            <span class="active-filters-label">当前筛选:</span>
+            <div class="active-filters-list" id="bbsmcActiveFiltersList"></div>
+            <button type="button" class="clear-filters-btn" id="bbsmcClearFiltersBtn">清空全部筛选</button>
+        </div>
+
+        <!-- 卡片网格 -->
+        <div class="bbsmc-cards-grid" id="bbsmcCardsGrid">
+            <!-- 动态生成 -->
+        </div>
+
+        <!-- 底部轻量高效分页栏 -->
+        <div id="bbsmcPaginationWrap" style="text-align:center; padding: 24px 0 12px; display:flex; justify-content:center; gap:12px; align-items:center;">
+            <button type="button" class="showcase-btn js-bbsmc-load-more" style="max-width:240px; background:var(--surface); color:var(--text); border:1px solid var(--border);">
+                加载更多 (剩余 <span id="bbsmcRemainingCount">0</span> 款) ↓
+            </button>
+            <button type="button" class="showcase-btn js-bbsmc-load-all" style="max-width:180px; background: #00af5c;">
+                展开全部 (共 <span id="bbsmcTotalFilteredCount">0</span> 款) 🚀
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════ XYEBBS 像素世界独立视图 ═══════════════ -->
+<div id="view-xyebbs" class="tab-view" style="display:none;">
+
+    <!-- 🍃 XYEBBS专属频道 Header -->
+    <div class="channel-hero xyebbs-channel-hero">
+        <div class="channel-hero-left">
+            <span class="channel-badge-tag" style="background: rgba(34, 197, 94, 0.15); color: #16a34a; border-color: rgba(34, 197, 94, 0.3);">XYEBBS.COM · 像素世界综合整合包专区</span>
+            <h2 class="channel-title">🍃 XYEBBS 像素世界专区</h2>
+            <p class="channel-desc">收录 XYEBBS 5,175 款玩家自制与社区精选整合包 · 覆盖夸克/百度/迅雷等主流网盘直转 · 模组加载器与版本穿透 · 社区活跃评分</p>
+        </div>
+        <div class="channel-quick-stats">
+            <div class="cstat-item"><span class="cs-num" id="xyebbsStatTotal">5,175 款</span><span class="cs-lbl">收录整合包</span></div>
+            <div class="cstat-item"><span class="cs-num" id="xyebbsStatDownloads">584.9万</span><span class="cs-lbl">累计下载量</span></div>
+            <div class="cstat-item"><span class="cs-num" id="xyebbsStatViews">3.01亿</span><span class="cs-lbl">社区总浏览</span></div>
+            <div class="cstat-item"><span class="cs-num" id="xyebbsStatLinks">10,793 个</span><span class="cs-lbl">网盘转存直达</span></div>
+        </div>
+    </div>
+
+    <div class="bili-view-wrap">
+        <!-- XYEBBS 多维一体化控制台 -->
+        <div class="central-hub" id="xyebbsCentralHub">
+            <!-- 1. 搜索与核心动作 -->
+            <div class="hub-tier-search">
+                <div class="hub-stat-badge">
+                    <span style="color:#16a34a;">🍃</span>
+                    <span id="xyebbsMatchInfo">正在展示 XYEBBS 像素世界整合包...</span>
+                </div>
+                <div class="hub-search-box">
+                    <span class="hub-search-icon">🔍</span>
+                    <input type="text" id="xyebbsSearchInput" class="hub-search-input" placeholder="输入名称、作者、版本、模组或玩法实时速搜..." autocomplete="off">
+                    <button type="button" id="xyebbsSearchClear" class="hub-clear-btn" style="display:none;" title="清空搜索">✕</button>
+                </div>
+                <div class="hub-actions-cluster">
+                    <select id="xyebbsSortSelect" class="hub-select select2-hub" title="排序规则">
+                        <option value="hot_desc">综合热度 ↓</option>
+                        <option value="downloads_desc">下载最多 ↓</option>
+                        <option value="views_desc">浏览最多 ↓</option>
+                        <option value="modified_desc">最新更新 ↓</option>
+                        <option value="created_desc">最新发布 ↓</option>
+                        <option value="comments_desc">评论最多 ↓</option>
+                        <option value="title_asc">名称字母 A-Z</option>
+                    </select>
+                    <select id="xyebbsVerSelect" class="hub-select select2-hub" title="按MC版本筛选">
+                        <option value="">全部 MC 版本</option>
+                    </select>
+                    <select id="xyebbsLoaderSelect" class="hub-select select2-hub" title="按模组加载器筛选">
+                        <option value="">全部加载器</option>
+                        <option value="Forge">Forge</option>
+                        <option value="Fabric">Fabric</option>
+                        <option value="NeoForge">NeoForge</option>
+                        <option value="Quilt">Quilt</option>
+                    </select>
+                    <button type="button" id="xyebbsResetBtn" class="hub-reset-btn" title="一键重置所有XYEBBS筛选">
+                        <span>↺</span> 重置
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. 玩法与下载渠道 -->
+            <div class="hub-tier-filters">
+                <div class="hub-filter-row">
+                    <span class="hub-filter-label">🏷️ 玩法专区：</span>
+                    <div class="hub-chips-wrap" id="xyebbsCategoryChips"></div>
+                    <button type="button" id="xyebbsExpandCats" class="discovery-btn" style="display:none; margin-left:6px; font-size:11px; padding:2px 8px;" title="展开/收起全部玩法分类">展开全部 ▾</button>
+                </div>
+
+                <div class="hub-filter-row">
+                    <span class="hub-filter-label">💾 下载渠道：</span>
+                    <div class="hub-chips-wrap" id="xyebbsPanChips">
+                        <span class="s-chip active" data-pan="">全部渠道</span>
+                        <span class="s-chip" data-pan="夸克">夸克网盘</span>
+                        <span class="s-chip" data-pan="百度">百度网盘</span>
+                        <span class="s-chip" data-pan="123">123云盘</span>
+                        <span class="s-chip" data-pan="迅雷">迅雷网盘</span>
+                        <span class="s-chip" data-pan="蓝奏">蓝奏云</span>
+                        <span class="s-chip" data-pan="official">官方发布页</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 高阶过滤与悬浮设置（向 MCMod 看齐） -->
+            <div class="hub-tier-advanced">
+                <div class="hub-adv-group">
+                    <span style="font-weight:750; color:var(--text-secondary);">⚙️ 高阶过滤：</span>
+                    <label class="hub-exclude-toggle" title="开启后，选中的分类将作为排除项进行反向过滤">
+                        <input type="checkbox" class="js-cat-exclude" data-plat="xyebbs">
+                        <span>反向排除模式</span>
+                    </label>
+                    <label class="hub-server-toggle" title="仅看包含服务端/支持开服的整合包">
+                        <input type="checkbox" id="xyebbsServerOnly" class="js-server-only-toggle" data-plat="xyebbs">
+                        <span>🖳 仅看含服务端</span>
+                    </label>
+                </div>
+                <div class="hub-adv-group">
+                    <span style="font-weight:750; color:var(--text-secondary);">👁️ 悬浮窗模式：</span>
+                    <div class="hub-hover-switches">
+                        <label class="mode-toggle" title="开启后悬停整合包名称显示介绍；关闭后点击打开"><span>介绍</span><input type="checkbox" class="js-desc-hover-toggle"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 活动过滤项标签条 -->
+        <div class="active-filters-bar" id="xyebbsActiveFilters" style="display:none; margin-bottom: 12px;">
+            <span class="active-filters-label">当前筛选:</span>
+            <div class="active-filters-list" id="xyebbsActiveFiltersList"></div>
+            <button type="button" class="clear-filters-btn" id="xyebbsClearFiltersBtn">清空全部筛选</button>
+        </div>
+
+        <!-- 卡片网格 -->
+        <div class="xyebbs-cards-grid" id="xyebbsCardsGrid">
+            <!-- 动态生成 -->
+        </div>
+
+        <!-- 底部轻量高效分页栏 -->
+        <div id="xyebbsPaginationWrap" style="text-align:center; padding: 24px 0 12px; display:flex; justify-content:center; gap:12px; align-items:center;">
+            <button type="button" class="showcase-btn js-xyebbs-load-more" style="max-width:240px; background:var(--surface); color:var(--text); border:1px solid var(--border);">
+                加载更多 (剩余 <span id="xyebbsRemainingCount">0</span> 款) ↓
+            </button>
+            <button type="button" class="showcase-btn js-xyebbs-load-all" style="max-width:180px; background: #16a34a;">
+                展开全部 (共 <span id="xyebbsTotalFilteredCount">0</span> 款) 🚀
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="view-modrinth" class="tab-view" style="display:none;">
+    <!-- 🌐 Modrinth 专属频道 Header -->
+    <div class="channel-hero modrinth-channel-hero">
+        <div class="channel-hero-left">
+            <span class="channel-badge-tag" style="background: rgba(27, 217, 106, 0.15); color: #1bd96a; border-color: rgba(27, 217, 106, 0.3);">MODRINTH.COM · 新一代开源极速整合包社区</span>
+            <h2 class="channel-title">🌐 Modrinth 国际服专区</h2>
+            <p class="channel-desc">收录 Modrinth 全量 18,328 款开源轻量与硬核整合包 · 覆盖优化/冒险/多人/科技等现代模组包 · 官方一键导入支持</p>
+        </div>
+        <div class="channel-quick-stats">
+            <div class="cstat-item"><span class="cs-num" id="modrinthStatTotal">18,328 款</span><span class="cs-lbl">精选热门包</span></div>
+            <div class="cstat-item"><span class="cs-num" id="modrinthStatDownloads">1.76亿</span><span class="cs-lbl">累计下载量</span></div>
+            <div class="cstat-item"><span class="cs-num" id="modrinthStatFollows">9.19万</span><span class="cs-lbl">社区关注度</span></div>
+            <div class="cstat-item" id="modrinthStatTopLoaderItem" title="主流加载器"><span class="cs-num" id="modrinthStatTopLoader">Fabric</span><span class="cs-lbl">主流加载器</span></div>
+        </div>
+    </div>
+
+    <div class="bili-view-wrap">
+        <div class="central-hub" id="modrinthCentralHub">
+            <div class="hub-tier-search">
+                <div class="hub-stat-badge">
+                    <span style="color:#1bd96a;">🌐</span>
+                    <span id="modrinthMatchInfo">正在展示 Modrinth 热门整合包...</span>
+                </div>
+                <div class="hub-search-box">
+                    <span class="hub-search-icon">🔍</span>
+                    <input type="text" id="modrinthSearchInput" class="hub-search-input" placeholder="输入名称、作者、版本、模组或玩法实时速搜..." autocomplete="off">
+                    <button type="button" id="modrinthSearchClear" class="hub-clear-btn" style="display:none;" title="清空搜索">✕</button>
+                </div>
+                <div class="hub-actions-cluster">
+                    <select id="modrinthSortSelect" class="hub-select select2-hub" title="排序规则">
+                        <option value="downloads_desc">下载最多 ↓</option>
+                        <option value="follows_desc">关注最多 ↓</option>
+                        <option value="modified_desc">最新更新 ↓</option>
+                        <option value="title_asc">名称字母 A-Z</option>
+                    </select>
+                    <select id="modrinthVerSelect" class="hub-select select2-hub" title="按MC版本筛选">
+                        <option value="">全部 MC 版本</option>
+                    </select>
+                    <select id="modrinthLoaderSelect" class="hub-select select2-hub" title="按模组加载器筛选">
+                        <option value="">全部加载器</option>
+                        <option value="Fabric">Fabric</option>
+                        <option value="Forge">Forge</option>
+                        <option value="NeoForge">NeoForge</option>
+                        <option value="Quilt">Quilt</option>
+                    </select>
+                    <button type="button" id="modrinthResetBtn" class="hub-reset-btn" title="重置筛选">
+                        <span>↺</span> 重置
+                    </button>
+                </div>
+            </div>
+
+            <div class="hub-tier-filters">
+                <div class="hub-filter-row">
+                    <span class="hub-filter-label">🏷️ 玩法分类：</span>
+                    <div class="hub-chips-wrap" id="modrinthCategoryChips"></div>
+                    <button type="button" id="modrinthExpandCats" class="discovery-btn" style="display:none; margin-left:6px; font-size:11px; padding:2px 8px;" title="展开/收起全部玩法分类">展开全部 ▾</button>
+                </div>
+            </div>
+
+            <!-- 高阶过滤与悬浮设置（向 MCMod 看齐） -->
+            <div class="hub-tier-advanced">
+                <div class="hub-adv-group">
+                    <span style="font-weight:750; color:var(--text-secondary);">⚙️ 高阶过滤：</span>
+                    <label class="hub-exclude-toggle" title="开启后，选中的分类将作为排除项进行反向过滤">
+                        <input type="checkbox" class="js-cat-exclude" data-plat="modrinth">
+                        <span>反向排除模式</span>
+                    </label>
+                    <label class="hub-server-toggle" title="仅看包含服务端/支持开服的整合包">
+                        <input type="checkbox" id="modrinthServerOnly" class="js-server-only-toggle" data-plat="modrinth">
+                        <span>🖳 仅看含服务端</span>
+                    </label>
+                </div>
+                <div class="hub-adv-group">
+                    <span style="font-weight:750; color:var(--text-secondary);">👁️ 悬浮窗模式：</span>
+                    <div class="hub-hover-switches">
+                        <label class="mode-toggle" title="开启后悬停整合包名称显示介绍；关闭后点击打开"><span>介绍</span><input type="checkbox" class="js-desc-hover-toggle"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="active-filters-bar" id="modrinthActiveFilters" style="display:none; margin-bottom: 12px;">
+            <span class="active-filters-label">当前筛选:</span>
+            <div class="active-filters-list" id="modrinthActiveFiltersList"></div>
+            <button type="button" class="clear-filters-btn" id="modrinthClearFiltersBtn">清空全部筛选</button>
+        </div>
+
+        <div class="modrinth-cards-grid" id="modrinthCardsGrid"></div>
+
+        <div id="modrinthPaginationWrap" style="text-align:center; padding: 24px 0 12px; display:flex; justify-content:center; gap:12px; align-items:center;">
+            <button type="button" class="showcase-btn js-modrinth-load-more" style="max-width:240px; background:var(--surface); color:var(--text); border:1px solid var(--border);">
+                加载更多 (剩余 <span id="modrinthRemainingCount">0</span> 款) ↓
+            </button>
+            <button type="button" class="showcase-btn js-modrinth-load-all" style="max-width:180px; background: #1bd96a;">
+                展开全部 (共 <span id="modrinthTotalFilteredCount">0</span> 款) 🚀
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="view-curseforge" class="tab-view" style="display:none;">
+    <!-- 🔥 CurseForge 专属频道 Header -->
+    <div class="channel-hero curseforge-channel-hero">
+        <div class="channel-hero-left">
+            <span class="channel-badge-tag" style="background: rgba(241, 100, 54, 0.15); color: #f16436; border-color: rgba(241, 100, 54, 0.3);">CURSEFORGE.COM · 全球最大老牌整合包发源地</span>
+            <h2 class="channel-title">🔥 CurseForge 国际服专区</h2>
+            <p class="channel-desc">突破官方限制，穷尽收录 CurseForge 全量 45,797 款世界殿堂级整合包 · ATM全家桶、RLCraft、Better MC 等重磅大作 · 官方客户端一键拉起</p>
+        </div>
+        <div class="channel-quick-stats">
+            <div class="cstat-item"><span class="cs-num" id="curseforgeStatTotal">45,797 款</span><span class="cs-lbl">热门大作包</span></div>
+            <div class="cstat-item"><span class="cs-num" id="curseforgeStatDownloads">8.45亿</span><span class="cs-lbl">累计下载量</span></div>
+            <div class="cstat-item"><span class="cs-num" id="curseforgeStatLikes">2.5万+</span><span class="cs-lbl">社区点赞</span></div>
+            <div class="cstat-item" id="curseforgeStatTopLoaderItem" title="主流加载器"><span class="cs-num" id="curseforgeStatTopLoader">Forge</span><span class="cs-lbl">主流加载器</span></div>
+        </div>
+    </div>
+
+    <div class="bili-view-wrap">
+        <div class="central-hub" id="curseforgeCentralHub">
+            <div class="hub-tier-search">
+                <div class="hub-stat-badge">
+                    <span style="color:#f16436;">🔥</span>
+                    <span id="curseforgeMatchInfo">正在展示 CurseForge 热门整合包...</span>
+                </div>
+                <div class="hub-search-box">
+                    <span class="hub-search-icon">🔍</span>
+                    <input type="text" id="curseforgeSearchInput" class="hub-search-input" placeholder="输入名称、作者、版本、模组或玩法实时速搜..." autocomplete="off">
+                    <button type="button" id="curseforgeSearchClear" class="hub-clear-btn" style="display:none;" title="清空搜索">✕</button>
+                </div>
+                <div class="hub-actions-cluster">
+                    <select id="curseforgeSortSelect" class="hub-select select2-hub" title="排序规则">
+                        <option value="downloads_desc">下载最多 ↓</option>
+                        <option value="followers_desc">点赞最多 ↓</option>
+                        <option value="modified_desc">最新更新 ↓</option>
+                        <option value="title_asc">名称字母 A-Z</option>
+                    </select>
+                    <select id="curseforgeVerSelect" class="hub-select select2-hub" title="按MC版本筛选">
+                        <option value="">全部 MC 版本</option>
+                    </select>
+                    <select id="curseforgeLoaderSelect" class="hub-select select2-hub" title="按模组加载器筛选">
+                        <option value="">全部加载器</option>
+                        <option value="Forge">Forge</option>
+                        <option value="Fabric">Fabric</option>
+                        <option value="NeoForge">NeoForge</option>
+                        <option value="Quilt">Quilt</option>
+                    </select>
+                    <button type="button" id="curseforgeResetBtn" class="hub-reset-btn" title="重置筛选">
+                        <span>↺</span> 重置
+                    </button>
+                </div>
+            </div>
+
+            <div class="hub-tier-filters">
+                <div class="hub-filter-row">
+                    <span class="hub-filter-label">🏷️ 玩法分类：</span>
+                    <div class="hub-chips-wrap" id="curseforgeCategoryChips"></div>
+                    <button type="button" id="curseforgeExpandCats" class="discovery-btn" style="display:none; margin-left:6px; font-size:11px; padding:2px 8px;" title="展开/收起全部玩法分类">展开全部 ▾</button>
+                </div>
+            </div>
+
+            <!-- 高阶过滤与悬浮设置（向 MCMod 看齐） -->
+            <div class="hub-tier-advanced">
+                <div class="hub-adv-group">
+                    <span style="font-weight:750; color:var(--text-secondary);">⚙️ 高阶过滤：</span>
+                    <label class="hub-exclude-toggle" title="开启后，选中的分类将作为排除项进行反向过滤">
+                        <input type="checkbox" class="js-cat-exclude" data-plat="curseforge">
+                        <span>反向排除模式</span>
+                    </label>
+                    <label class="hub-server-toggle" title="仅看包含服务端/支持开服的整合包">
+                        <input type="checkbox" id="curseforgeServerOnly" class="js-server-only-toggle" data-plat="curseforge">
+                        <span>🖳 仅看含服务端</span>
+                    </label>
+                </div>
+                <div class="hub-adv-group">
+                    <span style="font-weight:750; color:var(--text-secondary);">👁️ 悬浮窗模式：</span>
+                    <div class="hub-hover-switches">
+                        <label class="mode-toggle" title="开启后悬停整合包名称显示介绍；关闭后点击打开"><span>介绍</span><input type="checkbox" class="js-desc-hover-toggle"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="active-filters-bar" id="curseforgeActiveFilters" style="display:none; margin-bottom: 12px;">
+            <span class="active-filters-label">当前筛选:</span>
+            <div class="active-filters-list" id="curseforgeActiveFiltersList"></div>
+            <button type="button" class="clear-filters-btn" id="curseforgeClearFiltersBtn">清空全部筛选</button>
+        </div>
+
+        <div class="curseforge-cards-grid" id="curseforgeCardsGrid"></div>
+
+        <div id="curseforgePaginationWrap" style="text-align:center; padding: 24px 0 12px; display:flex; justify-content:center; gap:12px; align-items:center;">
+            <button type="button" class="showcase-btn js-curseforge-load-more" style="max-width:240px; background:var(--surface); color:var(--text); border:1px solid var(--border);">
+                加载更多 (剩余 <span id="curseforgeRemainingCount">0</span> 款) ↓
+            </button>
+            <button type="button" class="showcase-btn js-curseforge-load-all" style="max-width:180px; background: #f16436;">
+                展开全部 (共 <span id="curseforgeTotalFilteredCount">0</span> 款) 🚀
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 复制气泡 -->
+<div id="copyToast" class="copy-toast">✅ 复制成功！</div>
+
+    </main>
+</div>
+
+<div id="imageLightbox" class="image-lightbox" aria-hidden="true">
+    <div class="image-lightbox-panel">
+        <button type="button" class="image-lightbox-close" id="imageLightboxClose" aria-label="关闭">×</button>
+        <img class="image-lightbox-img" id="imageLightboxImg" src="" alt="">
+        <div class="image-lightbox-caption">
+            <span id="imageLightboxTitle"></span>
+            <a id="imageLightboxOpen" href="#" target="_blank" rel="noreferrer">打开原图 ↗</a>
+        </div>
+    </div>
+</div>
+
+<script src="data/vendor/jquery.min.js"></script>
+<script src="data/vendor/bootstrap.bundle.min.js"></script>
+<script src="data/vendor/select2.min.js"></script>
+<script src="data/vendor/jquery.dataTables.min.js"></script>
+<script src="data/vendor/dataTables.bootstrap5.min.js"></script>
+<script src="data/app_data.js"></script>
+<script src="data/desc_data.js"></script>
+    <script src="data/audit_diff.js"></script>
+
+    <!-- 6大平台数据源元信息声明 (MC百科首屏直接载入，其余由 PlatformLoader 异步流式按需加载) -->
+    <!-- Phase 3G-D.1R.1: the legacy MCMod row model is a FRONTEND compatibility artifact.
+         It lives under assets/ (frontend code layer) so a Modern -> Legacy frontend
+         rollback never touches the canonical Production data layer (data/). -->
+    <script src="assets/legacy-compat/table_rows.js"></script>
+    <!-- <script src="data/bili_data.js"></script> -->
+    <!-- <script src="data/bbsmc_data.js"></script> -->
+    <!-- <script src="data/xyebbs_data.js"></script> -->
+    <!-- <script src="data/modrinth_data.js"></script> -->
+    <!-- <script src="data/curseforge_data.js"></script> -->
+    <script src="assets/js/dashboard.js"></script>
+<!-- 📊 数据抓取变动审计与生态监控模态窗 -->
+<!-- ─── 全平台通用的「版本发布与更新日志」模态窗 ───
+     注意：必须留在 body 级。原先它嵌在 #view-mcmod 内部，
+     切到 B站/BBSMC/XYEBBS/Modrinth/CurseForge 页签时 #view-mcmod 会 display:none，
+     导致弹窗虽然被 JS 打开却完全不可见（实测 rect 0x0）。
+     同理 #mcmodPickerModal 也一并提升到 body 级。 -->
+<div id="versionModalOverlay" class="version-modal-overlay" style="display:none;">
+    <div class="version-modal-card">
+        <div class="version-modal-header">
+            <div class="version-modal-header-left">
+                <span class="version-modal-badge" id="versionModalPlatBadge">📜 版本发布与更新日志</span>
+                <h3 class="version-modal-title" id="versionModalTitle">整合包更新日志</h3>
+                <div class="version-modal-meta" id="versionModalMeta">
+                    <span id="versionModalVer" class="version-meta-tag">最新版本: --</span>
+                    <span id="versionModalDate" class="version-meta-tag">更新时间: --</span>
+                    <span id="versionModalCount" class="version-meta-tag">累计发布: -- 个版本</span>
+                </div>
+            </div>
+            <div class="version-modal-header-right">
+                <a id="versionModalExtLink" href="#" target="_blank" rel="noreferrer" class="version-modal-ext-btn" title="在新标签页打开官方原网页">官方原站 ↗</a>
+                <button type="button" class="hover-close version-modal-close-btn" id="versionModalClose" title="关闭 (Esc)">✕</button>
+            </div>
+        </div>
+        <!-- 模态窗分栏导航 (对齐主流资源站规范) -->
+        <div class="version-modal-nav-bar" role="tablist">
+            <button type="button" class="vmodal-tab-btn active" data-vtab="changelog" id="vTabChangelog">
+                <span>📜</span> 版本更新日志 <span class="vmodal-tab-badge" id="vBadgeChangelog">0</span>
+            </button>
+            <button type="button" class="vmodal-tab-btn" data-vtab="downloads" id="vTabDownloads">
+                <span>📥</span> 历史下载矩阵 <span class="vmodal-tab-badge" id="vBadgeDownloads">0</span>
+            </button>
+            <button type="button" class="vmodal-tab-btn" data-vtab="discussions" id="vTabDiscussions">
+                <span>💬</span> 讨论与评论 <span class="vmodal-tab-badge" id="vBadgeDiscussions">0</span>
+            </button>
+            <button type="button" class="vmodal-tab-btn" data-vtab="overview" id="vTabOverview">
+                <span>ⓘ</span> 综合概览
+            </button>
+        </div>
+        <div class="version-modal-body" style="padding: 20px 24px; overflow-y: auto; flex: 1;">
+            <div id="versionModalLoading" class="version-modal-loading" style="display:none;">
+                <div class="version-modal-spinner"></div>
+                <span id="versionModalLoadingText">正在加载官方版本与更新日志...</span>
+            </div>
+            <!-- 各 Tab 视图容器 -->
+            <div id="vPaneChangelog" class="vmodal-pane active"></div>
+            <div id="vPaneDownloads" class="vmodal-pane" style="display:none;"></div>
+            <div id="vPaneDiscussions" class="vmodal-pane" style="display:none;"></div>
+            <div id="vPaneOverview" class="vmodal-pane" style="display:none;"></div>
+            <div id="versionModalBodyInner" style="display:none;"></div>
+        </div>
+    </div>
+</div>
+<dialog id="mcmodPickerModal" class="picker-modal" aria-labelledby="pickerModalTitle">
+    <div class="picker-modal-top">
+        <span class="picker-modal-eyebrow" id="pickerModalEyebrow">MCMOD DISCOVERY</span>
+        <button type="button" class="picker-close-btn" id="closePickerModal" aria-label="关闭弹窗">✕</button>
+    </div>
+    <div id="pickerModalBody"></div>
+</dialog>
+<div id="auditModalOverlay" class="audit-modal-overlay" style="display:none;">
+    <div class="version-modal-card" style="max-width:980px; width:95%; max-height:88vh; display:flex; flex-direction:column; background:var(--glass-bg-solid, #1e293b); border:1px solid var(--glass-border, #334155); border-radius:18px; padding:22px; box-shadow:0 24px 70px rgba(0,0,0,0.5);">
+        <div class="version-modal-header" style="display:flex; align-items:center; justify-content:space-between; padding-bottom:14px; border-bottom:1px solid var(--border-color, rgba(255,255,255,0.1));">
+            <div style="display:flex; align-items:center; gap:12px;">
+                <div style="font-size:1.6rem; background:rgba(59,130,246,0.15); width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center;">📊</div>
+                <div>
+                    <h3 style="margin:0 0 4px; font-size:1.2rem; font-weight:700;">数据抓取变动审计与生态监控</h3>
+                    <div style="font-size:0.8rem; color:var(--text-muted, #94a3b8); display:flex; gap:14px;">
+                        <span id="auditGenTime">📅 对比时间: 刚刚</span>
+                        <span id="auditTotalScope">📦 全网监测规模: 73,521 款</span>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="hover-close version-modal-close-btn" id="auditModalClose" title="关闭 (Esc)" style="border:0; background:transparent; font-size:1.4rem; cursor:pointer; color:var(--text-muted);">✕</button>
+        </div>
+        
+        <!-- 统计 KPI 胶囊栏 -->
+        <div class="audit-kpi-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin:16px 0;">
+            <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:10px; padding:12px 14px;">
+                <div style="font-size:0.75rem; color:#10b981; font-weight:600; margin-bottom:4px;">🟢 新增整合包</div>
+                <div style="font-size:1.4rem; font-weight:800; color:#10b981;" id="kpiAuditAdded">0</div>
+            </div>
+            <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:10px; padding:12px 14px;">
+                <div style="font-size:0.75rem; color:#3b82f6; font-weight:600; margin-bottom:4px;">🔵 版本/时间更新</div>
+                <div style="font-size:1.4rem; font-weight:800; color:#3b82f6;" id="kpiAuditUpdated">0</div>
+            </div>
+            <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:10px; padding:12px 14px;">
+                <div style="font-size:0.75rem; color:#f59e0b; font-weight:600; margin-bottom:4px;">🆕 补全版本信息</div>
+                <div style="font-size:1.4rem; font-weight:800; color:#f59e0b;" id="kpiAuditGained">0</div>
+            </div>
+            <div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:10px; padding:12px 14px;">
+                <div style="font-size:0.75rem; color:#ef4444; font-weight:600; margin-bottom:4px;">🔴 移除/下架</div>
+                <div style="font-size:1.4rem; font-weight:800; color:#ef4444;" id="kpiAuditRemoved">0</div>
+            </div>
+            <div style="background:rgba(139,92,246,0.08); border:1px solid rgba(139,92,246,0.25); border-radius:10px; padding:12px 14px;">
+                <div style="font-size:0.75rem; color:#8b5cf6; font-weight:600; margin-bottom:4px;">⚡ 监测总条目</div>
+                <div style="font-size:1.4rem; font-weight:800; color:#8b5cf6;" id="kpiAuditTotal">73,521</div>
+            </div>
+        </div>
+
+        <!-- 审计筛选工具栏 -->
+        <div class="audit-filter-bar" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border-color, rgba(255,255,255,0.1));">
+            <div class="audit-type-tabs" style="display:inline-flex; gap:6px;">
+                <button type="button" class="audit-filter-chip active" data-type="all">全部变动 (<span id="cntAllDiff">0</span>)</button>
+                <button type="button" class="audit-filter-chip" data-type="added">🟢 仅看新增 (<span id="cntAddedDiff">0</span>)</button>
+                <button type="button" class="audit-filter-chip" data-type="updated">🔵 仅看更新 (<span id="cntUpdatedDiff">0</span>)</button>
+                <button type="button" class="audit-filter-chip" data-type="version_gained">🆕 仅看补全 (<span id="cntGainedDiff">0</span>)</button>
+                <button type="button" class="audit-filter-chip" data-type="removed">🔴 仅看下架 (<span id="cntRemovedDiff">0</span>)</button>
+            </div>
+            <select id="auditPlatformSelect" class="hub-select" style="padding:5px 10px; font-size:0.8rem; border-radius:8px; border:1px solid var(--border-color, rgba(255,255,255,0.15)); background:var(--bg-card, #1e293b); color:var(--text, #fff);">
+                <option value="all">🌐 全部平台</option>
+                <option value="mcmod">📦 MC百科</option>
+                <option value="bilibili">📺 哔哩哔哩</option>
+                <option value="bbsmc">💎 BBSMC</option>
+                <option value="xyebbs">🍃 XYEBBS</option>
+                <option value="modrinth">🌐 Modrinth</option>
+                <option value="curseforge">🔥 CurseForge</option>
+            </select>
+            <input type="text" id="auditSearchInput" placeholder="搜索变动整合包名称或作者..." style="flex:1; min-width:180px; padding:6px 12px; font-size:0.82rem; border-radius:8px; border:1px solid var(--border-color, rgba(255,255,255,0.15)); background:var(--bg-input, rgba(0,0,0,0.2)); color:var(--text,#fff);">
+        </div>
+
+        <!-- 变动条目列表容器 -->
+        <div id="auditItemsContainer" style="flex:1; overflow-y:auto; max-height:480px; display:flex; flex-direction:column; gap:8px; padding-right:6px;">
+        </div>
+    </div>
+</div>
+
+<button id="feedbackOpen" class="feedback-fab" type="button" title="意见反馈（维护升级中）">💬</button>
+<div id="feedbackModal" class="feedback-modal" role="dialog" aria-modal="true" aria-label="意见反馈">
+  <div class="feedback-panel">
+    <h3>意见反馈</h3>
+    <label for="feedbackType">反馈类型</label><select id="feedbackType"><option>功能建议</option><option>问题反馈</option><option>数据纠错</option><option>其他</option></select>
+    <label for="feedbackContent">反馈内容</label><textarea id="feedbackContent" placeholder="请尽量说明使用场景或复现步骤"></textarea>
+    <label for="feedbackContact">联系方式（可选）</label><input id="feedbackContact" placeholder="邮箱、QQ 或其他联系方式">
+    <div id="feedbackStatus"></div><div class="feedback-actions"><button id="feedbackCancel" type="button">取消</button><button id="feedbackSubmit" type="button">提交</button></div>
+  </div>
+</div>
+</body>
+</html>

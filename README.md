@@ -1,142 +1,40 @@
-# Minecraft Modpack Data Board
+# Minecraft Modpack Board
 
-English | [中文](README_CN.md)
+[中文](README_CN.md) · [Current status](docs/PROJECT_STATUS.md) · [Development](docs/DEVELOPMENT.md) · [Desktop task](docs/DESKTOP_TASK.md)
 
-A local data tool for organizing, searching, and analyzing Minecraft modpacks.
+A local Minecraft modpack discovery tool with collectors for **MCMod, Bilibili, BBSMC, XYEBBS, Modrinth and CurseForge**. Search and filter local records, inspect versions/mods/source information and follow links to the original platforms.
 
-This project collects and organizes modpack information from [MCMod (mcmod.cn)](https://www.mcmod.cn/), then generates an offline HTML dashboard for searching, filtering, comparing, and tracking trends.
+The application currently consists of a **Python data pipeline and TypeScript/Vite web frontend**. A Windows desktop application with in-app collection and updates is the next task; no desktop executable has been released yet.
 
-> Currently focused on MCMod data.  
-> "Multi-platform" represents a future expansion direction, not a completed multi-source integration.
+## Open an existing dashboard
 
----
-
-## ✨ Features
-
-### 🔍 Search
-
-Search modpacks by:
-
-- Name
-- Description
-- Comments
-- Tags
-- Included mods
-
-### 🏷️ Filtering
-
-Filter by:
-
-- Category
-- Modpack tags
-- Mod types
-- Specific mods
-- Trend period
-
-### 📊 Data Analysis
-
-View and compare:
-
-- Ranking indexes
-- Views
-- Community activity
-- Trend changes
-
-### 📈 Trend Tracking
-
-Store local historical data and analyze popularity changes over time.
-
-### 🧩 Mod Reverse Search
-
-Find modpacks that contain specific mods.
-
-### 💻 Offline Dashboard
-
-All data is stored locally.  
-The generated HTML dashboard works without an online service.
-
----
-
-## 📷 What You Can Do
-
-Open the generated HTML file to:
-
-- Search modpacks
-- Read descriptions
-- Browse comment data
-- Compare modpacks
-- Inspect trend changes
-
-### Dashboard Screenshots
-
-<table>
-<tr>
-<td><img src="docs/screenshots/user-01-overview.png" alt="Dashboard overview" width="520"></td>
-<td><img src="docs/screenshots/user-02-description.png" alt="Modpack description" width="320"></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/user-03-comments.png" alt="Comment details" width="420"></td>
-<td><img src="docs/screenshots/user-04-mod-list.png" alt="Included mod list" width="420"></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/user-05-trend.png" alt="Trend chart" width="260"></td>
-<td>See the complete screenshot index in <a href="docs/screenshots/README.md">docs/screenshots/README.md</a>.</td>
-</tr>
-</table>
-
----
-
-## 🚀 Usage
-
-Requirements:
-
-- Python 3
-- Browser automation environment for data collection
-
-Run:
+When a complete `converted_output/index.html`, `assets/` and `data/` already exist, run from the repository root:
 
 ```powershell
-# Collect data (first run may take a long time)
-python "多平台聚合爬虫_v1.0.py"
-
-# Refresh items not updated within N days
-python "多平台聚合爬虫_v1.0.py" --refresh-days 1
-
-# Force refresh all data
-python "多平台聚合爬虫_v1.0.py" --refresh-all
-
-# Generate the HTML dashboard
-python "多平台聚合转换器_v1.0.py"
+python -m http.server 8765 --bind 127.0.0.1 --directory converted_output
 ```
 
-Then open:
+Open <http://127.0.0.1:8765/>. Keep the output directory together. The modern frontend uses JavaScript modules and should be served over local HTTP.
 
-```text
-converted_output/点击打开.html
-```
+A fresh clone contains source code, not collected datasets or a prebuilt dashboard. See [development instructions](docs/DEVELOPMENT.md) for collection and staging.
 
-Double-click to open. When sharing, pack the entire `converted_output/` folder (including the adjacent `data/` directory), not just the HTML file.
+## Repository map
 
-Workflow:
-
-**Collect data → Generate dashboard → Open in browser**
-
----
-
-## 📂 Project Structure
-
-| Path | Description |
+| Path | Purpose |
 | --- | --- |
-| `多平台聚合爬虫_v1.0.py` | Data collection script |
-| `多平台聚合转换器_v1.0.py` | HTML dashboard generator |
-| `多平台爬虫数据_v1.0.jsonl` | Current data snapshot (local, usually not committed) |
-| `trend_history.jsonl` | Local long-term trend history (local, usually not committed) |
-| `converted_output/` | Generated dashboard and on-demand data (local, usually not committed) |
-| `feedback/` | Feedback deployment templates |
-| `ignored_local_files/` | Local temp files and browser login state |
-| `README_CN.md` | Chinese documentation |
+| `多平台聚合爬虫_v1.0.py` and platform crawlers | Collection entry point and six collectors |
+| `pipeline/` | Canonical SQLite model, adapters, exporters and staging/release tools |
+| `apps/web/` | Modern frontend and unit tests |
+| `web/`, `多平台聚合转换器_v1.0.py` | Shared styles and still-used legacy conversion compatibility |
+| `tests/`, `pipeline/tests/` | Python checks; some require local datasets |
+| `docs/` | Current status, contracts, development and historical evidence |
+| `feedback/` | Optional feedback service templates |
 
----
+Datasets, generated dashboards, build outputs, browser sessions and credentials stay local.
+
+## Known boundaries
+
+Platform coverage does not mean every field or inferred identity is verified. Unknown source facts remain unknown. Bilibili grouping is heuristic. The latest A candidate is unintegrated and its independent safety evidence is incomplete. See [current status](docs/PROJECT_STATUS.md); historical matrices are not current release certificates.
 
 ## ⚠️ Notes and Limitations
 

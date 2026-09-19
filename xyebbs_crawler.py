@@ -140,6 +140,40 @@ class XyebbsCrawler:
                     if releases:
                         download_links = self._extract_download_links(releases, r['id'])
                         r['download_links'] = download_links
+                        cleaned_releases = []
+                        for rel in releases[:15]:
+                            rel_links = []
+                            for lk in rel.get('links', []):
+                                u = (lk.get('url') or '').strip()
+                                if u:
+                                    pname = "网盘下载"
+                                    ltype = str(lk.get('linkType') or '').upper()
+                                    if 'quark.cn' in u or ltype == 'QUARK':
+                                        pname = "夸克网盘"
+                                    elif 'baidu.com' in u or ltype == 'BAIDU':
+                                        pname = "百度网盘"
+                                    elif '123pan.com' in u or '123684.com' in u or ltype == 'PAN123':
+                                        pname = "123云盘"
+                                    elif 'xunlei.com' in u or ltype == 'XUN_LEI':
+                                        pname = "迅雷网盘"
+                                    elif 'lanzou' in u or ltype == 'LANZOU':
+                                        pname = "蓝奏云"
+                                    is_server = bool(re.search(r'(?:server|服务端|开服包|服端)', (lk.get("name") or "") + " " + (rel.get("label") or ""), re.I))
+                                    rel_links.append({
+                                        "name": pname,
+                                        "url": u,
+                                        "type": ltype,
+                                        "is_server": is_server
+                                    })
+                            cleaned_releases.append({
+                                "label": rel.get("label", ""),
+                                "create_date": format_iso_time(rel.get("createDate", "")),
+                                "downloads": rel.get("downloadCount", 0),
+                                "notes": (rel.get("notes") or "").strip(),
+                                "links": rel_links
+                            })
+                        r['releases_data'] = cleaned_releases
+                        r['has_server'] = any(lk.get('is_server') for rel in cleaned_releases for lk in rel.get('links', [])) or bool(re.search(r'(?:服务端|server|开服|服端)', (r.get('title') or "") + " " + (r.get('description') or "") + " " + (r.get('sub_title') or ""), re.I))
                         if download_links:
                             enriched_count += 1
                 except Exception:
@@ -340,6 +374,8 @@ def standardize_pack(item: Dict[str, Any]) -> Dict[str, Any]:
         "created_timestamp": create_ts,
         "modified_timestamp": update_ts,
         "download_links": download_links,
+        "has_server": item.get('has_server', False),
+        "releases_data": item.get('releases_data', []),
         "source_meta": item.get('meta') or {}
     }
 

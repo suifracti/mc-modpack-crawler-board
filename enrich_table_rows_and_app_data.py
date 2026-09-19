@@ -239,6 +239,12 @@ def enrich_all():
             title_cn = parts[0].strip()
             title_en = parts[1][:-1].strip()
 
+        # E. 服务端支持识别
+        desc_text = (cache.get(mid) or {}).get("desc", "")
+        full_meta = f"{desc_text} {title} {r.get('tags_search', '')}"
+        has_server = bool(re.search(r'(?:服务端|服务器端|开服包|支持开服|提供服务端)', full_meta))
+        r['has_server'] = has_server
+
         # D. 构建 compareData
         compare_data[mid] = {
             "mid": mid,
@@ -247,6 +253,7 @@ def enrich_all():
             "title_en": title_en,
             "url": f"https://www.mcmod.cn/modpack/{mid}.html",
             "type": r.get("type_name", "原生整合"),
+            "has_server": has_server,
             "views": r.get("views_n", 0),
             "score": r.get("score_n", 1),
             "trend_latest": r.get("lat_n", 0),
@@ -316,7 +323,8 @@ def enrich_all():
             "tags": app_info.get("tags", []),
             "mods": app_info.get("mods", []),
             "mod_count": app_info.get("mod_count", 0),
-            "mc_versions": app_info.get("mc_versions", [])
+            "mc_versions": app_info.get("mc_versions", []),
+            "has_server": app_info.get("has_server", False)
         }
         raw_list.append(entry)
 
