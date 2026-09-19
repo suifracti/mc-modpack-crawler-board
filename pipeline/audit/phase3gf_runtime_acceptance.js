@@ -56,6 +56,27 @@ function git(args, encoding = 'utf8') { return execFileSync('git', args, { cwd: 
 function gitShow(commit, rel) { return git(['show', `${commit}:${rel}`], 'buffer'); }
 function gitShowText(commit, rel) { return gitShow(commit, rel).toString('utf8'); }
 function gitShowSha(commit, rel) { return sha256Bytes(gitShow(commit, rel)); }
+function normalizeTextBytes(bytes) {
+  return Buffer.from(bytes.toString('utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n'), 'utf8');
+}
+function verifyTrackedJsonBytes(relativePath, expectedGitSha256) {
+  const worktreeBytes = fs.readFileSync(path.join(ROOT, relativePath));
+  const gitBytes = gitShow('HEAD', relativePath);
+  const gitSha256 = sha256Bytes(gitBytes);
+  if (gitSha256 !== expectedGitSha256) fail(`frozen Git blob drifted for ${relativePath}`);
+  const worktreeNormalized = normalizeTextBytes(worktreeBytes);
+  const gitNormalized = normalizeTextBytes(gitBytes);
+  if (!worktreeNormalized.equals(gitNormalized)) {
+    fail(`working-tree semantic bytes drifted for ${relativePath}`);
+  }
+  return {
+    git_raw_sha256: gitSha256,
+    worktree_raw_sha256: sha256Bytes(worktreeBytes),
+    worktree_normalized_sha256: sha256Bytes(worktreeNormalized),
+    git_normalized_sha256: sha256Bytes(gitNormalized),
+    worktree_semantically_matches_git: true,
+  };
+}
 function loadPayload() {
   const raw = fs.readFileSync(PAYLOAD_PATH, 'utf8');
   const start = raw.indexOf('['); const end = raw.lastIndexOf(']');
@@ -304,7 +325,11 @@ function main() {
   const payload = loadPayload();
   // These four checks intentionally read only immutable input paths. The
   // evidence JSON is checked for drift but never used to select members.
-  if (sha256File(GATE_PATH) !== FROZEN.gate) fail('frozen gate bytes drifted');
+  // The gate is tracked JSON and may be checked out with CRLF under autocrlf.
+  // Compare its raw Git blob to the frozen hash, then compare normalized text
+  // semantics separately; do not mistake a container line-ending conversion
+  // for a ground-truth change.
+  const gateIntegrity = verifyTrackedJsonBytes('pipeline/audit/confirmed_undermerge_runtime_gate.json', FROZEN.gate);
   if (sha256File(EVIDENCE_PATH) !== FROZEN.evidence) fail('original evidence bytes drifted');
   if (sha256File(CANDIDATE_AUDIT_PATH) !== FROZEN.candidate) fail('candidate audit bytes drifted');
   if (sha256File(PAYLOAD_PATH) !== FROZEN.payload || payload.length !== 936) fail('936-record population bytes/count drifted');
@@ -415,7 +440,7 @@ function main() {
       pre_fix_runtime_1bee6de: { source_commit: '1bee6dea6a30ff0b6368091c614c528263a2f0a2', source_git_blob_sha1: '2c037399cf8106920f3d7e73fb846ecb16996d04', bundle_sha256: preFixHash, expected_bundle_sha256: FROZEN.preFixRuntime, semantic_role: 'repair-before runtime' },
       candidate_runtime: { source_commit: sourceCommit, source_git_blob_sha1: sourceGitBlob, source_worktree_raw_sha256: sha256Bytes(sourceRaw), source_git_raw_sha256: sha256Bytes(sourceGitBytes), source_worktree_normalized_sha256: sha256Bytes(sourceNormalized), source_git_normalized_sha256: sha256Bytes(sourceGitNormalized), source_semantically_matches_git: sourceNormalized.equals(sourceGitNormalized), source_git_diff_exit: diffExit, bundle_sha256: currentHash, path: path.relative(ROOT, args.current) },
     },
-    source_inputs: { fixture_sha256: sha256File(args.fixture), gate_sha256: sha256File(GATE_PATH), evidence_sha256: sha256File(EVIDENCE_PATH), candidate_audit_sha256: sha256File(CANDIDATE_AUDIT_PATH), population_sha256: sha256File(PAYLOAD_PATH), population_records: payload.length, selection: 'All members are loaded from the immutable fixture; mutable evidence is hash-checked only.' },
+    source_inputs: { fixture_sha256: sha256File(args.fixture), gate_sha256: gateIntegrity.git_raw_sha256, gate_git_raw_sha256: gateIntegrity.git_raw_sha256, gate_worktree_raw_sha256: gateIntegrity.worktree_raw_sha256, gate_worktree_normalized_sha256: gateIntegrity.worktree_normalized_sha256, gate_semantically_matches_git: gateIntegrity.worktree_semantically_matches_git, evidence_sha256: sha256File(EVIDENCE_PATH), candidate_audit_sha256: sha256File(CANDIDATE_AUDIT_PATH), population_sha256: sha256File(PAYLOAD_PATH), population_records: payload.length, selection: 'All members are loaded from the immutable fixture; mutable evidence is hash-checked only.' },
     coverage: { gate_cases_expected: 26, gate_cases_checked: gateResults.length, gate_cases_passed: gateResults.filter((x) => x.result === 'PASS').length, gate_cases_failed: gateFailed.length, different_packs_expected: 27, different_packs_checked: diffResults.length, different_packs_protected: diffResults.filter((x) => x.result === 'PROTECTED').length, ambiguous_expected: 5, ambiguous_checked: ambResults.length, ambiguous_protected: ambResults.filter((x) => x.result === 'PROTECTED').length, unique_gate_bvids: new Set(gateResults.flatMap((x) => x.bvids)).size },
     gate_cases: gateResults, protected_cases: protectedResults,
   };
