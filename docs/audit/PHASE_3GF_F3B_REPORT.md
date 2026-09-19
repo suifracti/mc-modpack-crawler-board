@@ -164,4 +164,5 @@ ref 或 packed-refs，也没有做 hidden-ref 测试。
 - `runtime`: untouched
 - `Truth Matrix`: not finalized
 - `production cutover`: not performed
-- `final HEAD`: `59ef306d4b8b660b191c831cc5f4fed6984335d6`
+- `final HEAD` (tested integration artifact HEAD, before report-only commits): `dbaa5679fea4ce0a3a85c3342456338899e1ba86`
+- report-only commits after the test run: `59ef306d4b8b660b191c831cc5f4fed6984335d6`, then `ae6af97d2c988ff5533e653442b2154497df60bf`
