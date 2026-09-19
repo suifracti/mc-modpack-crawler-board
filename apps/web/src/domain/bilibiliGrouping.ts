@@ -377,7 +377,7 @@ const BILI_SLOGAN_WORDS: readonly string[] = [
   '颠覆性', '主播同款', '同款', '全网', '最全', '极致', '旗舰', '典藏', '震撼',
   '炸裂', '超神', '无敌', '必玩', '神作', '天花板', '顶级', '顶尖', '超多',
   '更强', '全新', '重置', '重制', '终极', '究极', '完美', '史诗', '豪华',
-  '更多', '大量', '各种', '更高', '更好', '专用',
+  '更多', '大量', '各种', '更高', '更好', '专用', '福音', '来辣',
 ];
 
 /**
@@ -425,9 +425,35 @@ function hasDisjointRegisteredProjects(a: Entry, b: Entry): boolean {
     && ![...a.projectIds].some((id) => b.projectIds.has(id));
 }
 
+/**
+ * Auxiliary theme/QQ bridges are allowed to corroborate an already coherent
+ * identity, but they must never build a transitive identity out of a
+ * known/unknown/conflicting chain.  In particular, A(known alpha),
+ * B(unknown), C(known beta) must not become one group because A-B happened to
+ * pass a pairwise QQ/theme check.  If any member is known, every member in the
+ * proposed bridge must be known and every known pair must share a registered
+ * project id.  An all-unknown bridge remains a weak, auxiliary continuity hint;
+ * it is not evidence that a later known member is compatible.
+ */
+function bridgeIdentityConsistent(entries: Entry[]): boolean {
+  const known = entries.filter((entry) => entry.projectIds.size > 0);
+  if (!known.length) return entries.every((entry) => entry.projectIds.size === 0);
+  if (entries.some((entry) => entry.projectIds.size === 0)) return false;
+  for (let i = 0; i < known.length; i++) {
+    for (let j = i + 1; j < known.length; j++) {
+      if (hasDisjointRegisteredProjects(known[i], known[j])) return false;
+    }
+  }
+  return true;
+}
+
+function bridgeIdentityAlreadyAssigned(entry: Entry, theme: string, prefix: string): boolean {
+  return !entry.identity || entry.identity === theme || entry.identity.startsWith(`${prefix}${theme}`);
+}
+
 function qqAssistedThemeOf(a: Entry, b: Entry): string | null {
   if (!a.qqGroup || a.qqGroup !== b.qqGroup) return null;
-  if (hasDisjointRegisteredProjects(a, b)) return null;
+  if (!bridgeIdentityConsistent([a, b])) return null;
   if (!hasReleaseOrVersionSignal(a.adm.title) || !hasReleaseOrVersionSignal(b.adm.title)) return null;
   if (!/(?:整合包|modpack|pack)/i.test(a.adm.title) || !/(?:整合包|modpack|pack)/i.test(b.adm.title)) return null;
   const common = bestCommonRun(a.matchTokens, b.matchTokens).run;
@@ -828,6 +854,124 @@ function violatesCompetingEdition(
 }
 
 /**
+ * A named anchor followed by an explicit edition/product marker in only one
+ * title is not the same identity as the bare anchor.  This is deliberately
+ * narrower than comparing every differing suffix: update/version words are
+ * allowed to vary, while markers such as 优化/绿色版/手机版 identify a
+ * separately maintained release line.  The rule prevents the base
+ * 红石生电 line from absorbing 红石生电优化 without naming either product.
+ */
+function violatesExclusiveEdition(
+  a: AdmissibilityEntry, b: AdmissibilityEntry, run: string[],
+): boolean {
+  // Mixed-script branded names such as RapidOptimization优化 use the Chinese
+  // suffix as part of one product spelling, not as a separate edition label.
+  if (run.some((token) => /[A-Za-z]/.test(token))) return false;
+  const headsA = headAfter(a, run);
+  const headsB = headAfter(b, run);
+  if (!headsA.length && !headsB.length) return false;
+  const hasMarker = (heads: string[]): boolean => heads.some((head) => BILI_EXCLUSIVE_EDITION_MARKERS.includes(head));
+  if (headsA.length && headsB.length && headsA.some((head) => headsB.includes(head))) return false;
+  return hasMarker(headsA) !== hasMarker(headsB) || (hasMarker(headsA) && hasMarker(headsB));
+}
+
+function hasExplicitEditionHead(entry: AdmissibilityEntry, run: string[]): boolean {
+  if (run.some((token) => /[A-Za-z]/.test(token))) return false;
+  return headAfter(entry, run).some((head) => BILI_EXCLUSIVE_EDITION_MARKERS.includes(head));
+}
+
+function literalAnchorPresent(title: string, run: string[]): boolean {
+  const literal = run.join('');
+  return literal.length > 0 && title.includes(literal);
+}
+
+/**
+ * Split one lexical identity when it contains disconnected registered project
+ * identities that all spell that lexical anchor literally.  A shared title
+ * alone cannot override two distinct project registrations.  Cross-platform
+ * aliases remain mergeable when the title spelling itself provides a
+ * continuity signal (for example 化龙/化龍 or punctuation-separated names),
+ * while exact same-spelling disconnected registrations stay separate.
+ */
+function splitDisconnectedRegisteredIdentities(list: Entry[]): void {
+  const byIdentity = new Map<string, Entry[]>();
+  for (const entry of list) {
+    if (!entry.identity || !entry.projectIds.size) continue;
+    const bucket = byIdentity.get(entry.identity);
+    if (bucket) bucket.push(entry);
+    else byIdentity.set(entry.identity, [entry]);
+  }
+  for (const [identity, members] of byIdentity) {
+    if (members.length < 2) continue;
+    const tokens = identity.split(' ').filter(Boolean);
+    if (!tokens.length || tokens.some((token) => token.includes(':'))) continue;
+    const parent = new Map<Entry, Entry>(members.map((entry) => [entry, entry]));
+    const find = (entry: Entry): Entry => {
+      let root = parent.get(entry) as Entry;
+      while (root !== parent.get(root)) {
+        parent.set(root, parent.get(parent.get(root) as Entry) as Entry);
+        root = parent.get(root) as Entry;
+      }
+      return root;
+    };
+    const join = (a: Entry, b: Entry): void => {
+      const ra = find(a); const rb = find(b);
+      if (ra !== rb) parent.set(rb, ra);
+    };
+    for (let i = 0; i < members.length; i++) {
+      for (let j = i + 1; j < members.length; j++) {
+        const a = members[i]; const b = members[j];
+        const shared = [...a.projectIds].some((id) => b.projectIds.has(id));
+        const disjointExact = !shared
+          && literalAnchorPresent(a.adm.title, tokens)
+          && literalAnchorPresent(b.adm.title, tokens);
+        if (!disjointExact) join(a, b);
+      }
+    }
+    const components = new Map<Entry, Entry[]>();
+    for (const entry of members) {
+      const root = find(entry);
+      const bucket = components.get(root);
+      if (bucket) bucket.push(entry);
+      else components.set(root, [entry]);
+    }
+    if (components.size < 2) continue;
+    for (const component of components.values()) {
+      const ids = [...new Set(component.flatMap((entry) => [...entry.projectIds]))].sort();
+      if (!ids.length) continue;
+      for (const entry of component) {
+        entry.identity = `${identity}::registered:${ids.join('+')}`;
+      }
+    }
+  }
+}
+
+function splitExclusiveEditionMembers(list: Entry[]): void {
+  const byIdentity = new Map<string, Entry[]>();
+  for (const entry of list) {
+    if (!entry.identity) continue;
+    const bucket = byIdentity.get(entry.identity);
+    if (bucket) bucket.push(entry);
+    else byIdentity.set(entry.identity, [entry]);
+  }
+  for (const [identity, members] of byIdentity) {
+    if (members.length < 2) continue;
+    const tokens = identity.split(' ').filter(Boolean);
+    const marked = members.filter((entry) => hasExplicitEditionHead(entry.adm, tokens));
+    // If every episode uses the same explicit suffix as part of the author's
+    // product spelling (RapidOptimization优化, 最牛优化), it is not an
+    // exclusive edition boundary.  Split only the marked subset that was
+    // newly attached to an otherwise bare anchor.
+    if (!marked.length || marked.length === members.length) continue;
+    for (const entry of marked) {
+      entry.rejected.push({ anchor: identity, reason: 'competing_edition' });
+      entry.identity = '';
+      entry.reason = entry.guarded ? 'generic_guard' : 'singleton';
+    }
+  }
+}
+
+/**
  * The token immediately following `run` inside this entry's key, as a set-wrapped
  * single-element list (empty when `run` ends the key).
  *
@@ -863,6 +1007,7 @@ function headAfter(e: AdmissibilityEntry, run: string[]): string[] {
 export type BilibiliRejectedAnchorReason =
   | 'name_slot_disagreement'
   | 'late_feature_list'
+  | 'slogan'
   | 'english_function_words'
   | 'short_run_not_distinctive'
   | 'bracketed_name_disagreement'
@@ -991,11 +1136,12 @@ const BILI_EDITION_MARKERS = [
   '优化', '绿色版', '绿化', '服务端', '客户端', '手机版', '手机移植', '移植版',
   '重生', '复刻', '仿照',
 ];
+const BILI_EXCLUSIVE_EDITION_MARKERS = BILI_EDITION_MARKERS.filter((marker) => marker !== '仿照');
 const BILI_SEPARATE_PRODUCT_MARKERS = new Set(['重生', '复刻', '手机版']);
 
 function projectAssistedThemeOf(a: Entry, b: Entry): string | null {
   const oneProject = a.projectIds.size > 0 || b.projectIds.size > 0;
-  if (!oneProject || hasDisjointRegisteredProjects(a, b)) return null;
+  if (!oneProject || !bridgeIdentityConsistent([a, b])) return null;
   const common = bestCommonRun(a.matchTokens, b.matchTokens).run;
   const theme = common.find((token) =>
     BILI_IDENTITY_NOISE_TOKENS.has(token)
@@ -1087,12 +1233,14 @@ export function groupBilibiliPacks(
         const theme = projectAssistedThemeOf(a, b);
         if (!theme) continue;
         if ((a.identity && a.identity !== theme) || (b.identity && b.identity !== theme)) continue;
+        const bridgeMembers = list.filter((e) => e.matchTokens.includes(theme)
+          && !BILI_EDITION_MARKERS.some((marker) => e.adm.title.includes(marker)));
+        if (!bridgeIdentityConsistent(bridgeMembers)
+          || bridgeMembers.some((e) => !bridgeIdentityAlreadyAssigned(e, theme, 'project-theme:'))) continue;
         const anchor = `project-theme:${theme}`;
-        for (const e of list) {
-          if (e.matchTokens.includes(theme) && !BILI_EDITION_MARKERS.some((marker) => e.adm.title.includes(marker))) {
-            e.identity = anchor;
-            e.reason = 'identity_run';
-          }
+        for (const e of bridgeMembers) {
+          e.identity = anchor;
+          e.reason = 'identity_run';
         }
       }
     }
@@ -1145,13 +1293,14 @@ export function groupBilibiliPacks(
         const theme = qqAssistedThemeOf(a, b);
         if (!theme) continue;
         if ((a.identity && a.identity !== theme) || (b.identity && b.identity !== theme)) continue;
+        const bridgeMembers = list.filter((e) => e.qqGroup === a.qqGroup
+          && e.matchTokens.includes(theme) && hasReleaseOrVersionSignal(e.adm.title));
+        if (!bridgeIdentityConsistent(bridgeMembers)
+          || bridgeMembers.some((e) => !bridgeIdentityAlreadyAssigned(e, theme, 'aux:'))) continue;
         const anchor = `aux:${theme}:qq:${a.qqGroup}`;
-        for (const e of list) {
-          if (e.qqGroup === a.qqGroup && e.matchTokens.includes(theme)
-            && hasReleaseOrVersionSignal(e.adm.title)) {
-            e.identity = anchor;
-            e.reason = 'identity_run';
-          }
+        for (const e of bridgeMembers) {
+          e.identity = anchor;
+          e.reason = 'identity_run';
         }
       }
     }
@@ -1293,6 +1442,10 @@ export function groupBilibiliPacks(
         if (!rejection && violatesEnglishFunction(run)) {
           rejection = 'english_function_words';
         }
+        if (!rejection && run.some((token) => /[一-龥A-Za-z]/.test(token)
+          && isSloganishToken(token))) {
+          rejection = 'slogan';
+        }
         if (!rejection && registeredIdentityConflict(a, b, run)) {
           rejection = 'registered_identity_conflict';
         }
@@ -1303,6 +1456,9 @@ export function groupBilibiliPacks(
           a.adm, b.adm, run,
           (anchor, head) => corroboratedHead(anchor, head, a, b),
         )) {
+          rejection = 'competing_edition';
+        }
+        if (!rejection && violatesExclusiveEdition(a.adm, b.adm, run)) {
           rejection = 'competing_edition';
         }
         if (rejection) {
@@ -1379,6 +1535,9 @@ export function groupBilibiliPacks(
       const anchorTokens = a.anchor.split(' ');
       for (const e of list) {
         if (e.identity) continue;
+        if (e.rejected.some((candidate) => candidate.anchor === a.anchor
+          && candidate.reason === 'competing_edition')
+          && hasExplicitEditionHead(e.adm, anchorTokens)) continue;
         if (containsRun(e.matchTokens, anchorTokens)) {
           e.identity = a.anchor;
           e.reason = 'identity_run';
@@ -1515,6 +1674,15 @@ export function groupBilibiliPacks(
         }
       }
     }
+  }
+
+  // A lexical anchor is not allowed to collapse disconnected registered
+  // projects merely because their public titles happen to be identical.
+  // Apply this after all ordinary assignment passes so the partitioning is
+  // based on the complete identity evidence available in the author scope.
+  for (const list of allByAuthor.values()) {
+    splitDisconnectedRegisteredIdentities(list);
+    splitExclusiveEditionMembers(list);
   }
 
   // ---- materialise decisions ------------------------------------------------

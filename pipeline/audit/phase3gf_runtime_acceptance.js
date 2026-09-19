@@ -18,6 +18,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 const DEFAULT_FIXTURE = path.join(ROOT, 'pipeline', 'audit', 'fixtures', 'phase3gf_runtime_acceptance.json');
 const GATE_PATH = path.join(ROOT, 'pipeline', 'audit', 'confirmed_undermerge_runtime_gate.json');
+const LEDGER_PATH = path.join(ROOT, 'pipeline', 'audit', 'bilibili_undermerge_adjudication_v2.json');
 const EVIDENCE_PATH = path.join(ROOT, 'build', 'audit', 'undermerge_evidence_v2.json');
 const CANDIDATE_AUDIT_PATH = path.join(ROOT, 'build', 'audit', 'bilibili_cross_group_undermerge_v2.json');
 const PAYLOAD_PATH = path.join(ROOT, 'converted_output', 'data', 'bili_data.js');
@@ -32,6 +33,7 @@ const FROZEN = {
   payload: '049fe4c567fabafb4e4c58018b606c1aa23d01d2d1511933856454915e79bebe',
   evidenceRuntime: '3d10e2e63cc50d1660d1d95c81658444b67ef21250f4af171366b97e1582c15e',
   preFixRuntime: '12fb5f96f2cd3cf587130bae45f0eda19347e8ca54d019b8f2d553a8e7c7692e',
+  fixtureSemantic: '28553febf09b641524ea120bb09e10216b6f449b9f66ab62a5b7ab721e64b456',
 };
 
 function sha256Bytes(bytes) { return crypto.createHash('sha256').update(bytes).digest('hex'); }
@@ -41,11 +43,49 @@ function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
 function sorted(xs) { return [...xs].sort(); }
 function sameSet(a, b) { const aa = sorted(a); const bb = sorted(b); return aa.length === bb.length && aa.every((x, i) => x === bb[i]); }
 function pairKey(a, b) { return a < b ? `${a}\0${b}` : `${b}\0${a}`; }
+function pairwise(items) {
+  const out = [];
+  for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) out.push([items[i], items[j]]);
+  return out;
+}
+function semanticCase(c) {
+  return {
+    case_type: c.case_type,
+    cluster_key: c.cluster_key,
+    author: c.author,
+    verdict: c.verdict,
+    confidence: c.confidence,
+    group_count: c.group_count,
+    record_count: c.record_count,
+    expected_identity_count: c.expected_identity_count,
+    packs_to_unify: c.packs_to_unify,
+    original_group_keys: sorted(c.original_group_keys),
+    bvids: sorted(c.bvids),
+    mapping: c.mapping,
+    groups: c.groups.map((g) => ({
+      source_group_key: g.source_group_key,
+      member_count: g.member_count,
+      members: g.members.map((m) => ({
+        bvid: m.bvid,
+        title: m.title,
+        registered_identity_ids: sorted(m.registered_identity_ids || []),
+        evidence_download_link_count: m.evidence_download_link_count,
+        evidence_download_links_sha256: m.evidence_download_links_sha256,
+        source_member_sha256: m.source_member_sha256,
+      })),
+      evidence_download_url_count: g.evidence_download_url_count,
+      evidence_download_urls_sha256: g.evidence_download_urls_sha256,
+      evidence_qq_ids: sorted(g.evidence_qq_ids || []),
+    })),
+    relations: c.relations,
+  };
+}
+function fixtureSemanticSha(f) { return sha256Text(stableValue(f.cases.map(semanticCase))); }
 function parseArgs() {
   const args = process.argv.slice(2);
   const get = (name, fallback) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : fallback; };
   return {
-    current: get('--current-module', null),
+    testModule: get('--test-module', get('--current-module', null)),
     fixture: get('--fixture', DEFAULT_FIXTURE),
     out: get('--out', path.join(ROOT, 'pipeline', 'audit', 'phase3gf_runtime_acceptance.json')),
     validateOnly: args.includes('--validate-only'),
@@ -121,10 +161,17 @@ function loadAndValidateFixture(file, payload) {
   if (!fs.existsSync(file)) fail(`fixture missing: ${file}`);
   const f = readJson(file);
   if (f.schema_version !== 1 || f.artifact !== 'phase3gf_runtime_acceptance_fixture') fail('fixture schema/artifact mismatch');
+  if (!f.selection_contract || typeof f.selection_contract.semantic_sha256 !== 'string') fail('fixture semantic contract missing');
   const required = f.source_artifacts || {};
   if (required.runtime_gate.git_source_sha256 !== FROZEN.gate || required.original_evidence.sha256 !== FROZEN.evidence || required.candidate_audit.sha256 !== FROZEN.candidate || required.population.sha256 !== FROZEN.payload) fail('fixture provenance hash mismatch');
   if (f.coverage.gate_cases !== 26 || f.coverage.protected_cases !== 32 || f.coverage.different_packs !== 27 || f.coverage.ambiguous !== 5 || f.coverage.gate_unique_bvids !== 80) fail('fixture coverage mismatch');
   if (!Array.isArray(f.cases) || f.cases.length !== 58) fail('fixture case count mismatch');
+  const gate = readJson(GATE_PATH);
+  const ledger = readJson(LEDGER_PATH);
+  const gateByKey = new Map(gate.cases.map((c) => [evidenceKey(c.author, c.group_keys), c]));
+  const excludedByCluster = new Map(gate.excluded_cases.map((c) => [c.cluster_key, c]));
+  const ledgerByCluster = new Map((ledger.findings || []).map((c) => [c.cluster_key, c]));
+  const seenGateCases = new Set(); const seenProtectedCases = new Set();
   const byPayload = new Map();
   for (const row of payload) {
     if (!row || !row.bvid || byPayload.has(row.bvid)) fail(`payload duplicate/empty BVID: ${row && row.bvid}`);
@@ -196,6 +243,35 @@ function loadAndValidateFixture(file, payload) {
         fail(`fixture/evidence group provenance mismatch: ${c.cluster_key}/${fg.source_group_key}`);
       }
     }
+    const sourceEvidenceKey = c.mapping && c.mapping.source_evidence_key;
+    if (c.case_type === 'gate') {
+      const expectedGate = gateByKey.get(sourceEvidenceKey);
+      if (!expectedGate) fail(`fixture gate case is not one of the frozen 26: ${c.cluster_key}`);
+      if (seenGateCases.has(sourceEvidenceKey)) fail(`duplicate frozen gate mapping: ${sourceEvidenceKey}`);
+      seenGateCases.add(sourceEvidenceKey);
+      if (c.cluster_key !== expectedGate.cluster_key || c.author !== expectedGate.author
+        || c.verdict !== expectedGate.verdict || c.confidence !== expectedGate.confidence
+        || c.group_count !== expectedGate.group_count || c.record_count !== expectedGate.record_count
+        || c.expected_identity_count !== expectedGate.expected_identity_count
+        || c.packs_to_unify !== expectedGate.packs_to_unify || !sameSet(c.original_group_keys, expectedGate.group_keys)) {
+        fail(`fixture gate adjudication drift: ${c.cluster_key}`);
+      }
+    } else {
+      const excluded = excludedByCluster.get(c.cluster_key);
+      const adjudication = ledgerByCluster.get(c.cluster_key);
+      if (!excluded || !adjudication) fail(`fixture protected case is not one of the frozen 32: ${c.cluster_key}`);
+      if (seenProtectedCases.has(c.cluster_key)) fail(`duplicate frozen protected case: ${c.cluster_key}`);
+      seenProtectedCases.add(c.cluster_key);
+      const expectedKey = evidenceKey(adjudication.author, adjudication.group_keys || []);
+      if (sourceEvidenceKey !== expectedKey || c.author !== adjudication.author
+        || c.verdict !== adjudication.verdict || c.cluster_key !== adjudication.cluster_key
+        || c.group_count !== adjudication.group_count || c.record_count !== adjudication.record_count
+        || c.expected_identity_count !== adjudication.expected_identity_count
+        || !sameSet(c.original_group_keys, adjudication.group_keys || [])) {
+        fail(`fixture protected adjudication drift: ${c.cluster_key}`);
+      }
+      if (excluded.verdict !== c.verdict) fail(`fixture protected verdict drift: ${c.cluster_key}`);
+    }
     const rel = c.relations;
     if (!rel || !Array.isArray(rel.must_link) || !Array.isArray(rel.cannot_link) || !Array.isArray(rel.unknown_pairs) || !Array.isArray(rel.partitions)) fail(`fixture relations missing: ${c.cluster_key}`);
     const pairSet = (pairs) => new Set(pairs.map(([a, b]) => pairKey(a, b)));
@@ -203,10 +279,37 @@ function loadAndValidateFixture(file, payload) {
     for (const pairs of [rel.must_link, rel.cannot_link, rel.unknown_pairs]) for (const [a, b] of pairs) {
       if (!all.has(a) || !all.has(b) || a === b) fail(`fixture relation member missing: ${c.cluster_key}`);
     }
-    if (pairSet(rel.must_link).size !== rel.must_link.length || pairSet(rel.cannot_link).size !== rel.cannot_link.length) fail(`duplicate fixture relation: ${c.cluster_key}`);
+    const allPairs = pairwise([...all].sort());
+    const relationSets = [rel.must_link, rel.cannot_link, rel.unknown_pairs].map(pairSet);
+    if (relationSets.some((s, i) => s.size !== [rel.must_link, rel.cannot_link, rel.unknown_pairs][i].length)) fail(`duplicate fixture relation: ${c.cluster_key}`);
+    const relationUnion = new Set();
+    for (const set of relationSets) for (const key of set) {
+      if (relationUnion.has(key)) fail(`overlapping fixture relation: ${c.cluster_key}/${key}`);
+      relationUnion.add(key);
+    }
+    if (relationUnion.size !== allPairs.length || allPairs.some(([a, b]) => !relationUnion.has(pairKey(a, b)))) fail(`incomplete fixture relation coverage: ${c.cluster_key}`);
+    const partitionOwners = new Map();
+    for (const p of rel.partitions) {
+      if (!p || !p.identity || !Array.isArray(p.bvids) || !p.bvids.length) fail(`empty fixture partition: ${c.cluster_key}`);
+      for (const b of p.bvids) {
+        if (!all.has(b) || partitionOwners.has(b)) fail(`fixture partition member mismatch: ${c.cluster_key}/${b}`);
+        partitionOwners.set(b, p.identity);
+      }
+      for (const [a, b] of pairwise(p.bvids)) if (!pairSet(rel.must_link).has(pairKey(a, b))) fail(`partition hides non-must pair: ${c.cluster_key}/${a}/${b}`);
+    }
+    if (partitionOwners.size !== all.size) fail(`fixture partitions do not cover all members: ${c.cluster_key}`);
+    for (const [a, b] of rel.must_link) if (partitionOwners.get(a) !== partitionOwners.get(b)) fail(`must-link crosses fixture partitions: ${c.cluster_key}/${a}/${b}`);
     if (c.case_type === 'gate') for (const b of c.bvids) { if (gateBvids.has(b)) fail(`gate BVID reused: ${b}`); gateBvids.add(b); }
   }
   if (gateBvids.size !== 80) fail(`fixture gate unique BVIDs ${gateBvids.size}/80`);
+  if (seenGateCases.size !== gate.cases.length || [...gateByKey.keys()].some((k) => !seenGateCases.has(k))) fail('frozen gate case set is incomplete or changed');
+  if (seenProtectedCases.size !== gate.excluded_cases.length || [...excludedByCluster.keys()].some((k) => !seenProtectedCases.has(k))) fail('frozen protected case set is incomplete or changed');
+  // Verify the reviewed semantic pin only after structural/provenance checks.
+  // This keeps fail-closed diagnostics actionable for a malformed fixture
+  // (for example, an empty member list) while still rejecting any semantic
+  // drift before runtime execution.
+  if (FROZEN.fixtureSemantic && f.selection_contract.semantic_sha256 !== FROZEN.fixtureSemantic) fail('fixture semantic hash is not the reviewed frozen value');
+  if (fixtureSemanticSha(f) !== f.selection_contract.semantic_sha256) fail('fixture semantic hash mismatch');
   return f;
 }
 function esbuildPath() {
@@ -295,6 +398,65 @@ function allPopulationMembers(decisions, bvids) {
   return out;
 }
 function unique(xs) { return [...new Set(xs)]; }
+function registeredIdsFromPayloadRow(row) {
+  return new Set(registeredIdentityIdsFromLinks(row?.download_links || []));
+}
+function inspectExternalMembers(c, bvids, current, currentGroups, byBvid, fixtureMemberByBvid) {
+  const external = []; const seen = new Set(bvids);
+  const caseMembers = c.groups.flatMap((g) => g.members);
+  const caseMemberBvids = new Set(c.bvids);
+  const groupEvaluations = new Map();
+  const evaluateGroup = (groupKey) => {
+    if (groupEvaluations.has(groupKey)) return groupEvaluations.get(groupKey);
+    const groupBvids = currentGroups.get(groupKey) || [];
+    const idsByBvid = new Map(groupBvids.map((bvid) => {
+      const fixtureMember = fixtureMemberByBvid.get(bvid);
+      return [bvid, new Set(fixtureMember?.registered_identity_ids || registeredIdsFromPayloadRow(byBvid.get(bvid)))];
+    }));
+    const parent = new Map(groupBvids.map((bvid) => [bvid, bvid]));
+    const find = (bvid) => {
+      let p = parent.get(bvid);
+      while (p !== parent.get(p)) { parent.set(p, parent.get(p)); p = parent.get(p); }
+      return p;
+    };
+    const join = (a, b) => { const ra = find(a); const rb = find(b); if (ra !== rb) parent.set(rb, ra); };
+    const sharesId = (a, b) => [...(idsByBvid.get(a) || [])].some((id) => idsByBvid.get(b)?.has(id));
+    for (let i = 0; i < groupBvids.length; i++) for (let j = i + 1; j < groupBvids.length; j++) {
+      if (sharesId(groupBvids[i], groupBvids[j])) join(groupBvids[i], groupBvids[j]);
+    }
+    const anchorRoots = new Set(groupBvids.filter((bvid) => caseMemberBvids.has(bvid)
+      && (idsByBvid.get(bvid)?.size || 0)).map(find));
+    const result = { idsByBvid, anchorRoots, find };
+    groupEvaluations.set(groupKey, result);
+    return result;
+  };
+  for (const b of bvids) {
+    const key = current[b] && current[b].groupKey;
+    const group = currentGroups.get(key) || [];
+    for (const x of group) {
+      if (seen.has(x)) continue;
+      seen.add(x);
+      const row = byBvid.get(x);
+      const evaluation = evaluateGroup(key);
+      const extIds = evaluation.idsByBvid.get(x) || new Set();
+      const uploaderMatches = row && String(row.author || 'unknown').trim() === c.author;
+      let identityResult = 'UNKNOWN';
+      if (extIds.size && evaluation.anchorRoots.has(evaluation.find(x))) identityResult = 'same_registered_identity';
+      else if (extIds.size && evaluation.anchorRoots.size) identityResult = 'different_registered_identity';
+      const item = {
+        bvid: x,
+        title: row?.title || null,
+        author: row?.author || null,
+        group_key: current[x]?.groupKey || null,
+        registered_identity_ids: [...extIds].sort(),
+        identity_result: identityResult,
+        uploader_result: uploaderMatches ? 'same_uploader' : 'different_or_missing_uploader',
+      };
+      external.push(item);
+    }
+  }
+  return external;
+}
 function reportCase(c) {
   return {
     case_type: c.case_type,
@@ -338,17 +500,20 @@ function main() {
     console.log(JSON.stringify({ status: 'VALID', fixture: path.relative(ROOT, args.fixture), coverage: checkedFixture.coverage }, null, 2));
     return;
   }
-  if (!args.current) fail('--current-module is required unless --validate-only is used');
-
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'phase3gf-runtime-'));
-  let evidenceModule; let preFixModule;
+  let evidenceModule; let preFixModule; let currentModule; const testInjection = !!args.testModule;
   try {
     evidenceModule = compileGitRuntime('4bf5e0fe4c614f3e630ae242db2ed5b66ef95fea', temp, 'evidence-source');
     preFixModule = compileGitRuntime('1bee6dea6a30ff0b6368091c614c528263a2f0a2', temp, 'pre-fix-1bee6de');
   } catch (err) {
     fail(`reproducible baseline compilation failed: ${err.message}`);
   }
-  const evidenceHash = sha256File(evidenceModule); const preFixHash = sha256File(preFixModule); const currentHash = sha256File(args.current);
+  try {
+    currentModule = testInjection ? args.testModule : compileCurrentRuntime(temp);
+  } catch (err) {
+    fail(`current runtime compilation failed: ${err.message}`);
+  }
+  const evidenceHash = sha256File(evidenceModule); const preFixHash = sha256File(preFixModule); const currentHash = sha256File(currentModule);
   if (evidenceHash !== FROZEN.evidenceRuntime) fail(`evidence runtime bundle hash drifted: ${evidenceHash}`);
   if (preFixHash !== FROZEN.preFixRuntime) fail(`1bee6de runtime bundle hash drifted: ${preFixHash}`);
   const sourceRaw = fs.readFileSync(path.join(ROOT, SOURCE_REL));
@@ -360,7 +525,7 @@ function main() {
   let diffExit = 0; try { execFileSync('git', ['diff', '--quiet', '--', SOURCE_REL], { cwd: ROOT, stdio: 'ignore' }); } catch (e) { diffExit = typeof e.status === 'number' ? e.status : 1; }
   const baseline = moduleDecisions(evidenceModule, payload);
   const preFix = moduleDecisions(preFixModule, payload);
-  const current = moduleDecisions(args.current, payload);
+  const current = moduleDecisions(currentModule, payload);
   const baselineGroups = populationMembership(baseline); const preFixGroups = populationMembership(preFix); const currentGroups = populationMembership(current);
   const byBvid = new Map(payload.map((r) => [r.bvid, r]));
   const gateResults = []; const protectedResults = [];
@@ -380,24 +545,14 @@ function main() {
     const cannotAfter = relationList(current, c.relations.cannot_link);
     const unknownBefore = relationList(preFix, c.relations.unknown_pairs);
     const unknownAfter = relationList(current, c.relations.unknown_pairs);
+    const external = inspectExternalMembers(c, bvids, current, currentGroups, byBvid, fixtureMemberByBvid);
+    for (const x of external) {
+      if (x.uploader_result !== 'same_uploader') failures.push(`external member crosses uploader boundary: ${x.bvid}`);
+      if (x.identity_result !== 'same_registered_identity') failures.push(`unverified external member: ${x.bvid}`);
+    }
     if (c.case_type === 'gate') {
       for (const x of mustAfter) if (x.result !== 'SAME') failures.push(`must-link split: ${x.a}/${x.b}`);
       if (groupCount(current, bvids) !== 1) failures.push(`candidate has ${groupCount(current, bvids)} groups; expected one identity`);
-      const external = [];
-      const seen = new Set(bvids);
-      for (const b of bvids) {
-        const group = currentGroups.get(current[b] && current[b].groupKey) || [];
-        for (const x of group) if (!seen.has(x) && !external.some((e) => e.bvid === x)) external.push({ bvid: x, title: byBvid.get(x)?.title || null, group_key: current[x]?.groupKey || null });
-      }
-      for (const x of external) {
-        const caseMember = fixtureMemberByBvid.get(x.bvid);
-        const caseIds = new Set(c.groups.flatMap((g) => g.members).flatMap((m) => m.registered_identity_ids || []));
-        const extIds = new Set(caseMember ? caseMember.registered_identity_ids || [] : []);
-        const knownSame = [...caseIds].some((id) => extIds.has(id));
-        if (caseMember && knownSame) x.identity_result = 'same_registered_identity';
-        else if (caseMember && extIds.size && caseIds.size) { x.identity_result = 'different_registered_identity'; failures.push(`external member has disjoint registered identity: ${x.bvid}`); }
-        else { x.identity_result = 'UNKNOWN'; failures.push(`unverified external member: ${x.bvid}`); }
-      }
       const result = { ...reportCase(c), before: { group_count: groupCount(baseline, bvids), relation_counts: before }, pre_fix: { group_count: groupCount(preFix, bvids), relation_counts: pre }, after: { group_count: groupCount(current, bvids), relation_counts: after, group_keys_by_bvid: Object.fromEntries(sorted(bvids).map((b) => [b, current[b]?.groupKey || null])), population_groups: bvids.map((b) => ({ bvid: b, group_key: current[b]?.groupKey || null, all_population_members: currentGroups.get(current[b]?.groupKey) || [] })) }, expected: { identity_count: c.expected_identity_count, target_group_count: 1, record_count: c.record_count, packs_to_unify: c.packs_to_unify }, relations: { must_link_before: mustBefore, must_link_after: mustAfter, new_merges_vs_1bee: [], new_splits_vs_1bee: [], pure_renames_vs_1bee: [], unknown_external_members: external.filter((x) => x.identity_result === 'UNKNOWN'), external_members: external }, result: failures.length ? 'FAIL' : 'PASS', failure_reasons: failures };
       const oldPairs = new Set(c.relations.must_link.map(([a, b]) => pairKey(a, b)));
       for (let i = 0; i < bvids.length; i++) for (let j = i + 1; j < bvids.length; j++) { const a = bvids[i]; const b = bvids[j]; const beforeRel = relation(preFix, a, b); const afterRel = relation(current, a, b); if (beforeRel === 'DIFFERENT' && afterRel === 'SAME') result.relations.new_merges_vs_1bee.push({ a, b }); if (beforeRel === 'SAME' && afterRel === 'DIFFERENT') result.relations.new_splits_vs_1bee.push({ a, b }); if (oldPairs.has(pairKey(a, b)) && beforeRel === 'SAME' && afterRel === 'SAME' && preFix[a]?.groupKey !== current[a]?.groupKey) result.relations.pure_renames_vs_1bee.push({ a, b }); }
@@ -413,8 +568,15 @@ function main() {
       }
       for (const x of cannotAfter) if (x.result !== 'DIFFERENT') failures.push(`cannot-link violation: ${x.a}/${x.b} (${x.result})`);
       if (c.verdict === 'DIFFERENT_PACKS') {
-        for (const x of unknownAfter) {
-          if (x.result === 'SAME') failures.push(`unknown relation merged: ${x.a}/${x.b}`);
+        for (let i = 0; i < unknownAfter.length; i++) {
+          const was = unknownBefore[i]; const now = unknownAfter[i];
+          // A source group can already contain a legitimate same-pack relation
+          // that the adjudication deliberately left UNKNOWN.  Preserve that
+          // historical relation; only a new merge against the 1bee6de runtime
+          // is a protection failure.
+          if (now.result === 'SAME' && (!was || was.result === 'DIFFERENT')) {
+            failures.push(`unknown relation merged (new vs 1bee6de): ${now.a}/${now.b}`);
+          }
         }
       }
       if (c.verdict === 'AMBIGUOUS') {
@@ -423,7 +585,7 @@ function main() {
           if (was && was.result === 'DIFFERENT' && now.result === 'SAME') failures.push(`ambiguous new merge: ${now.a}/${now.b}`);
         }
       }
-      const result = { ...reportCase(c), before: { group_count: groupCount(baseline, bvids), relation_counts: before }, pre_fix: { group_count: groupCount(preFix, bvids), relation_counts: pre }, after: { group_count: groupCount(current, bvids), relation_counts: after, group_keys_by_bvid: Object.fromEntries(sorted(bvids).map((b) => [b, current[b]?.groupKey || null])), population_groups: bvids.map((b) => ({ bvid: b, group_key: current[b]?.groupKey || null, all_population_members: currentGroups.get(current[b]?.groupKey) || [] })) }, expected: { verdict: c.verdict, protected_semantics: c.verdict === 'AMBIGUOUS' ? 'unknown; no new merge' : 'partition separation plus existing must-links' }, relations: { must_link_before: mustBefore, must_link_after: mustAfter, cannot_link_before: cannotBefore, cannot_link_after: cannotAfter, unknown_before: unknownBefore, unknown_after: unknownAfter }, result: failures.length ? 'FAIL' : 'PROTECTED', failure_reasons: failures };
+      const result = { ...reportCase(c), before: { group_count: groupCount(baseline, bvids), relation_counts: before }, pre_fix: { group_count: groupCount(preFix, bvids), relation_counts: pre }, after: { group_count: groupCount(current, bvids), relation_counts: after, group_keys_by_bvid: Object.fromEntries(sorted(bvids).map((b) => [b, current[b]?.groupKey || null])), population_groups: bvids.map((b) => ({ bvid: b, group_key: current[b]?.groupKey || null, all_population_members: currentGroups.get(current[b]?.groupKey) || [] })) }, expected: { verdict: c.verdict, protected_semantics: c.verdict === 'AMBIGUOUS' ? 'unknown; no new merge' : 'partition separation plus existing must-links' }, relations: { must_link_before: mustBefore, must_link_after: mustAfter, cannot_link_before: cannotBefore, cannot_link_after: cannotAfter, unknown_before: unknownBefore, unknown_after: unknownAfter, external_members: external, unknown_external_members: external.filter((x) => x.identity_result !== 'same_registered_identity') }, result: failures.length ? 'FAIL' : 'PROTECTED', failure_reasons: failures };
       protectedResults.push(result);
     }
   }
@@ -438,7 +600,7 @@ function main() {
     baselines: {
       evidence_source_runtime: { source_commit: '4bf5e0fe4c614f3e630ae242db2ed5b66ef95fea', bundle_sha256: evidenceHash, expected_bundle_sha256: FROZEN.evidenceRuntime, semantic_role: 'ground-truth evidence source runtime' },
       pre_fix_runtime_1bee6de: { source_commit: '1bee6dea6a30ff0b6368091c614c528263a2f0a2', source_git_blob_sha1: '2c037399cf8106920f3d7e73fb846ecb16996d04', bundle_sha256: preFixHash, expected_bundle_sha256: FROZEN.preFixRuntime, semantic_role: 'repair-before runtime' },
-      candidate_runtime: { source_commit: sourceCommit, source_git_blob_sha1: sourceGitBlob, source_worktree_raw_sha256: sha256Bytes(sourceRaw), source_git_raw_sha256: sha256Bytes(sourceGitBytes), source_worktree_normalized_sha256: sha256Bytes(sourceNormalized), source_git_normalized_sha256: sha256Bytes(sourceGitNormalized), source_semantically_matches_git: sourceNormalized.equals(sourceGitNormalized), source_git_diff_exit: diffExit, bundle_sha256: currentHash, path: path.relative(ROOT, args.current) },
+      candidate_runtime: { source_commit: sourceCommit, source_git_blob_sha1: sourceGitBlob, source_worktree_raw_sha256: sha256Bytes(sourceRaw), source_git_raw_sha256: sha256Bytes(sourceGitBytes), source_worktree_normalized_sha256: sha256Bytes(sourceNormalized), source_git_normalized_sha256: sha256Bytes(sourceGitNormalized), source_semantically_matches_git: sourceNormalized.equals(sourceGitNormalized), source_git_diff_exit: diffExit, bundle_sha256: currentHash, path: path.relative(ROOT, currentModule), source_mode: testInjection ? 'test-only-external-module' : 'formal-acceptance-compiled-from-worktree', formal_acceptance: !testInjection, compiled_from_current_source: !testInjection },
     },
     source_inputs: { fixture_sha256: sha256File(args.fixture), gate_sha256: gateIntegrity.git_raw_sha256, gate_git_raw_sha256: gateIntegrity.git_raw_sha256, gate_worktree_raw_sha256: gateIntegrity.worktree_raw_sha256, gate_worktree_normalized_sha256: gateIntegrity.worktree_normalized_sha256, gate_semantically_matches_git: gateIntegrity.worktree_semantically_matches_git, evidence_sha256: sha256File(EVIDENCE_PATH), candidate_audit_sha256: sha256File(CANDIDATE_AUDIT_PATH), population_sha256: sha256File(PAYLOAD_PATH), population_records: payload.length, selection: 'All members are loaded from the immutable fixture; mutable evidence is hash-checked only.' },
     coverage: { gate_cases_expected: 26, gate_cases_checked: gateResults.length, gate_cases_passed: gateResults.filter((x) => x.result === 'PASS').length, gate_cases_failed: gateFailed.length, different_packs_expected: 27, different_packs_checked: diffResults.length, different_packs_protected: diffResults.filter((x) => x.result === 'PROTECTED').length, ambiguous_expected: 5, ambiguous_checked: ambResults.length, ambiguous_protected: ambResults.filter((x) => x.result === 'PROTECTED').length, unique_gate_bvids: new Set(gateResults.flatMap((x) => x.bvids)).size },

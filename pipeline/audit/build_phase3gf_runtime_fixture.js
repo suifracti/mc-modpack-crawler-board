@@ -46,6 +46,24 @@ const RUNTIME_PROVENANCE = {
 function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
 function sha256File(file) { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); }
 function sha256Text(text) { return crypto.createHash('sha256').update(text, 'utf8').digest('hex'); }
+function gitBlobSha256(relativePath) {
+  return crypto.createHash('sha256').update(
+    execFileSync('git', ['show', `HEAD:${relativePath}`], { cwd: ROOT }),
+  ).digest('hex');
+}
+function normalizeTextBytes(bytes) {
+  return Buffer.from(bytes.toString('utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n'), 'utf8');
+}
+function verifyTextArtifact(relativePath, expectedGitSha256) {
+  const worktreeBytes = fs.readFileSync(path.join(ROOT, relativePath));
+  const gitBytes = execFileSync('git', ['show', `HEAD:${relativePath}`], { cwd: ROOT });
+  const gitSha256 = crypto.createHash('sha256').update(gitBytes).digest('hex');
+  if (gitSha256 !== expectedGitSha256) throw new Error(`${relativePath} Git blob drifted`);
+  if (!normalizeTextBytes(worktreeBytes).equals(normalizeTextBytes(gitBytes))) {
+    throw new Error(`${relativePath} working-tree semantics drifted from Git`);
+  }
+  return { gitSha256, worktreeSha256: sha256File(path.join(ROOT, relativePath)) };
+}
 function gitShowSha(commit, rel) {
   return crypto.createHash('sha256').update(execFileSync('git', ['show', `${commit}:${rel}`], { cwd: ROOT })).digest('hex');
 }
@@ -91,6 +109,39 @@ function pairwise(items) {
   const out = [];
   for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) out.push([items[i], items[j]]);
   return out;
+}
+
+function semanticCase(c) {
+  return {
+    case_type: c.case_type,
+    cluster_key: c.cluster_key,
+    author: c.author,
+    verdict: c.verdict,
+    confidence: c.confidence,
+    group_count: c.group_count,
+    record_count: c.record_count,
+    expected_identity_count: c.expected_identity_count,
+    packs_to_unify: c.packs_to_unify,
+    original_group_keys: [...c.original_group_keys].sort(),
+    bvids: [...c.bvids].sort(),
+    mapping: c.mapping,
+    groups: c.groups.map((g) => ({
+      source_group_key: g.source_group_key,
+      member_count: g.member_count,
+      members: g.members.map((m) => ({
+        bvid: m.bvid,
+        title: m.title,
+        registered_identity_ids: [...m.registered_identity_ids].sort(),
+        evidence_download_link_count: m.evidence_download_link_count,
+        evidence_download_links_sha256: m.evidence_download_links_sha256,
+        source_member_sha256: m.source_member_sha256,
+      })),
+      evidence_download_url_count: g.evidence_download_url_count,
+      evidence_download_urls_sha256: g.evidence_download_urls_sha256,
+      evidence_qq_ids: [...g.evidence_qq_ids].sort(),
+    })),
+    relations: c.relations,
+  };
 }
 
 // These are ledger-backed same-pack relations that cross an old evidence
@@ -143,21 +194,6 @@ function unionFind(values) {
 
 function buildIdentityRelations(kind, adjudication, groups) {
   const members = groups.flatMap((g) => g.members);
-  const ids = members.flatMap((m) => m.registered_identity_ids);
-  const uf = unionFind([...new Set(ids)]);
-  for (const m of members) for (const [a, b] of pairwise(m.registered_identity_ids)) uf.join(a, b);
-  // Registered identities that co-occur in one evidence group are mirror
-  // references to the same pack for this fixture. No URL/QQ is used as a
-  // trigger by production runtime; this is only a ground-truth partition.
-  for (const g of groups) for (const [a, b] of pairwise([...new Set(g.members.flatMap((m) => m.registered_identity_ids))])) uf.join(a, b);
-
-  const labelFor = new Map();
-  for (const m of members) {
-    if (m.registered_identity_ids.length) {
-      const roots = [...new Set(m.registered_identity_ids.map((x) => uf.find(x)))].sort();
-      labelFor.set(m.bvid, `registered:${roots.join('+')}`);
-    }
-  }
   if (kind === 'gate') {
     return {
       basis: 'confirmed_or_strong_same_pack_adjudication',
@@ -167,95 +203,97 @@ function buildIdentityRelations(kind, adjudication, groups) {
       partitions: [{ identity: 'confirmed_case_identity', bvids: members.map((m) => m.bvid).sort() }],
     };
   }
-  if (adjudication.verdict === 'AMBIGUOUS') {
-    const must = [];
-    const partitions = [];
-    for (const g of groups) {
-      const idsInGroup = [...new Set(g.members.map((m) => m.bvid))].sort();
-      partitions.push({ identity: `existing_evidence_group:${g.source_group_key}`, bvids: idsInGroup });
-      must.push(...pairwise(idsInGroup));
+
+  const memberByBvid = new Map(members.map((m) => [m.bvid, m]));
+  const memberSet = new Set(memberByBvid.keys());
+  const relationKey = (a, b) => a < b ? `${a}\0${b}` : `${b}\0${a}`;
+  const idsOf = (bvid) => new Set(memberByBvid.get(bvid)?.registered_identity_ids || []);
+  const sharedIds = (a, b) => {
+    const left = idsOf(a); const right = idsOf(b);
+    return [...left].filter((id) => right.has(id));
+  };
+  const disjointKnownIds = (a, b) => {
+    const left = idsOf(a); const right = idsOf(b);
+    return left.size > 0 && right.size > 0 && sharedIds(a, b).length === 0;
+  };
+
+  // A registered id is evidence for a relation only when it is shared by the
+  // two records being related.  In particular, do not union all ids found on
+  // one record: a mixed/incorrect source row can carry links to several
+  // unrelated projects.  The old implementation did exactly that and turned
+  // 墨言eclipse::颠覆性的 into a must-link between two different packs.
+  const explicitMust = new Set();
+  const addExplicitMust = (a, b) => {
+    if (!memberSet.has(a) || !memberSet.has(b) || a === b) return;
+    explicitMust.add(relationKey(a, b));
+  };
+  for (const g of groups) {
+    const ids = g.members.map((m) => m.bvid);
+    if (EVIDENCE_BACKED_SOURCE_GROUP_MUST_LINKS.has(g.source_group_key)
+      || ids.every((bvid) => idsOf(bvid).size === 0)) {
+      for (const [a, b] of pairwise(ids)) addExplicitMust(a, b);
     }
-    return {
-      basis: 'ambiguous_protection_only; cross_group_identity_unknown',
-      must_link: must,
-      cannot_link: [],
-      unknown_pairs: pairwise(members.map((m) => m.bvid)).filter(([a, b]) => !must.some(([x, y]) => (x === a && y === b) || (x === b && y === a))),
-      partitions,
-    };
+  }
+  for (const bvids of EVIDENCE_BACKED_CROSS_GROUP_MUST_LINKS) {
+    for (const [a, b] of pairwise(bvids)) addExplicitMust(a, b);
   }
 
-  // For DIFFERENT_PACKS, a source group without a registered identity is not
-  // itself a ground-truth identity: the old runtime may have connected several
-  // products through a component token. Keep such relations UNKNOWN unless a
-  // ledger/evidence-backed relation below establishes them. A source group
-  // with exactly one registered identity can provisionally cover its unlinked
-  // siblings; a mixed registered group is partitioned by the member identity.
-  const memberSet = new Set(members.map((m) => m.bvid));
+  // Build conservative must-link components. A component is never allowed to
+  // contain a pair of disjoint known project ids; this prevents a multi-link
+  // row from acting as a bridge between two unrelated projects.
   const partitionUf = unionFind([...memberSet]);
-  const knownMembers = new Set();
-  const labelForMember = new Map();
-  for (const g of groups) {
-    const roots = [...new Set(g.members.flatMap((m) => m.registered_identity_ids || []).map((id) => uf.find(id)))].sort();
-    if (EVIDENCE_BACKED_SOURCE_GROUP_MUST_LINKS.has(g.source_group_key)) {
-      const label = `adjudicated_source_group:${g.source_group_key}`;
-      for (const m of g.members) {
-        labelForMember.set(m.bvid, label);
-        knownMembers.add(m.bvid);
-      }
-    } else if (roots.length === 1) {
-      const label = roots.length
-        ? `registered:${roots[0]}`
-        : `evidence_partition:${g.source_group_key}`;
-      for (const m of g.members) {
-        labelForMember.set(m.bvid, label);
-        knownMembers.add(m.bvid);
-      }
-    } else {
-      for (const m of g.members) {
-        const label = labelFor.get(m.bvid);
-        if (label) {
-          labelForMember.set(m.bvid, label);
-          knownMembers.add(m.bvid);
-        }
-      }
+  const componentMembers = () => {
+    const out = new Map();
+    for (const bvid of memberSet) {
+      const root = partitionUf.find(bvid);
+      const arr = out.get(root) || []; arr.push(bvid); out.set(root, arr);
     }
+    return out;
+  };
+  const canJoin = (a, b) => {
+    const comps = componentMembers();
+    const left = comps.get(partitionUf.find(a)) || [a];
+    const right = comps.get(partitionUf.find(b)) || [b];
+    for (const x of left) for (const y of right) if (disjointKnownIds(x, y)) return false;
+    return true;
+  };
+  const mustKeys = new Set();
+  const joinMust = (a, b, reason, allowKnownConflict = false) => {
+    const key = relationKey(a, b);
+    if (mustKeys.has(key)) return;
+    if (!allowKnownConflict && !canJoin(a, b)) throw new Error(`fixture relation conflict (${reason}): ${a}/${b}`);
+    partitionUf.join(a, b);
+    mustKeys.add(key);
+  };
+  for (const key of [...explicitMust].sort()) {
+    const [a, b] = key.split('\0');
+    joinMust(a, b, 'explicit adjudication', true);
   }
-  const byLabel = new Map();
-  for (const [bvid, label] of labelForMember) {
-    const arr = byLabel.get(label) || [];
-    arr.push(bvid); byLabel.set(label, arr);
+  const allPairs = pairwise([...memberSet].sort());
+  for (const [a, b] of allPairs) {
+    if (mustKeys.has(relationKey(a, b)) || !sharedIds(a, b).length) continue;
+    if (canJoin(a, b)) joinMust(a, b, 'shared registered identity');
   }
-  for (const bvids of byLabel.values()) for (const [a, b] of pairwise(bvids)) partitionUf.join(a, b);
-  for (const bvids of EVIDENCE_BACKED_CROSS_GROUP_MUST_LINKS) {
-    const present = bvids.filter((bvid) => memberSet.has(bvid));
-    if (present.length >= 2) {
-      for (const bvid of present) knownMembers.add(bvid);
-      for (const [a, b] of pairwise(present)) partitionUf.join(a, b);
-    }
-  }
-  const partitions = new Map();
-  for (const bvid of knownMembers) {
-    const root = partitionUf.find(bvid);
-    const arr = partitions.get(root) || [];
-    arr.push(bvid); partitions.set(root, arr);
-  }
-  const partitionValues = [...partitions.entries()].map(([root, bvids]) => {
-    const labels = [...new Set(bvids.map((bvid) => labelForMember.get(bvid)))].sort();
-    return { identity: labels.join('|') || `partition:${root}`, bvids: bvids.sort() };
-  });
+
+  const components = componentMembers();
+  const partitionValues = [...components.entries()].map(([root, bvids]) => {
+    const labels = [...new Set(bvids.flatMap((bvid) => [...idsOf(bvid)]))].sort();
+    return { identity: labels.length ? `registered:${labels.join('+')}` : `evidence_partition:${root}`, bvids: bvids.sort() };
+  }).sort((a, b) => a.bvids[0].localeCompare(b.bvids[0]));
   const must = partitionValues.flatMap((p) => pairwise(p.bvids));
+  const mustKeySet = new Set(must.map(([a, b]) => relationKey(a, b)));
   const cannot = [];
-  for (let i = 0; i < partitionValues.length; i++) for (let j = i + 1; j < partitionValues.length; j++) {
-    // Expand only evidence-backed cross-partition relations to every member.
-    for (const a of partitionValues[i].bvids) for (const b of partitionValues[j].bvids) cannot.push([a, b]);
+  for (const [a, b] of allPairs) {
+    if (mustKeySet.has(relationKey(a, b))) continue;
+    if (disjointKnownIds(a, b)) cannot.push([a, b]);
   }
-  const relationKey = (a, b) => a < b ? `${a}\0${b}` : `${b}\0${a}`;
-  const mustKeys = new Set(must.map(([a, b]) => relationKey(a, b)));
-  const cannotKeys = new Set(cannot.map(([a, b]) => relationKey(a, b)));
-  const unknown_pairs = pairwise([...memberSet].sort())
-    .filter(([a, b]) => !mustKeys.has(relationKey(a, b)) && !cannotKeys.has(relationKey(a, b)));
+  const cannotKeySet = new Set(cannot.map(([a, b]) => relationKey(a, b)));
+  const unknown_pairs = allPairs.filter(([a, b]) =>
+    !mustKeySet.has(relationKey(a, b)) && !cannotKeySet.has(relationKey(a, b)));
   return {
-    basis: 'different_pack_adjudication_note plus registered_identity_partitioning',
+    basis: adjudication.verdict === 'AMBIGUOUS'
+      ? 'ambiguous_protection_only; direct registered identities and existing no-id groups'
+      : 'different_pack_adjudication_note plus direct registered_identity_relations',
     must_link: must,
     cannot_link: cannot,
     unknown_pairs,
@@ -269,7 +307,10 @@ function main() {
   const evidence = readJson(EVIDENCE_PATH);
   const candidates = readJson(CANDIDATE_PATH);
   const payload = loadPayload();
-  if (sha256File(GATE_PATH) !== SHAS.gate) throw new Error('gate bytes drifted');
+  // The gate is tracked JSON and may be checked out with CRLF under
+  // core.autocrlf.  Its frozen hash is the Git blob hash; keep the working-tree
+  // container hash separately and compare normalized semantics explicitly.
+  verifyTextArtifact('pipeline/audit/confirmed_undermerge_runtime_gate.json', SHAS.gate);
   if (sha256File(EVIDENCE_PATH) !== SHAS.evidence) throw new Error('original evidence bytes drifted');
   if (sha256File(CANDIDATE_PATH) !== SHAS.candidate) throw new Error('candidate evidence bytes drifted');
   if (sha256File(PAYLOAD_PATH) !== SHAS.payload) throw new Error('population bytes drifted');
@@ -385,6 +426,8 @@ function main() {
   if (gateCases.length !== 26 || protectedCases.length !== 32 || usedGateBvids.size !== 80) throw new Error('fixture coverage is not 26 + 32 / 80');
   if (new Set(cases.map((x) => x.cluster_key)).size !== 58) throw new Error('fixture cluster keys are not unique');
 
+  const orderedCases = cases.sort((a, b) => a.cluster_key.localeCompare(b.cluster_key));
+  const semantic_sha256 = sha256Text(stable(orderedCases.map(semanticCase)));
   const result = {
     phase: '3G-F.3-A',
     artifact: 'phase3gf_runtime_acceptance_fixture',
@@ -404,6 +447,8 @@ function main() {
       protected_cases: 'exactly the 27 DIFFERENT_PACKS and 5 AMBIGUOUS rows from the frozen gate/ledger',
       no_rescan: 'runtime group keys are never used to select, shrink, or rewrite fixture members',
       fail_closed: ['missing', 'duplicate', 'empty', 'hash drift', 'non-unique mapping', 'payload/evidence mismatch'],
+      semantic_sha256,
+      relation_contract: 'every member pair is exactly one of must_link, cannot_link, or unknown_pairs; partitions cover every member exactly once and never hide a known conflict',
     },
     coverage: {
       gate_cases: gateCases.length,
@@ -412,7 +457,7 @@ function main() {
       ambiguous: protectedCases.filter((x) => x.verdict === 'AMBIGUOUS').length,
       gate_unique_bvids: usedGateBvids.size,
     },
-    cases: cases.sort((a, b) => a.cluster_key.localeCompare(b.cluster_key)),
+    cases: orderedCases,
   };
   fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
   fs.writeFileSync(OUT_PATH, JSON.stringify(result, null, 2) + '\n', 'utf8');
