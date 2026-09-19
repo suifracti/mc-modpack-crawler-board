@@ -40,6 +40,25 @@ source after the production-map attempt was removed; it is not the rejected
 static-map bundle. The probe rerun log is
 `docs/audit/logs/phase3gf-f3a-runtime-probe-rerun.log`.
 
+## Legacy audit-artifact read compatibility
+
+The 1bee6de baseline retains two pre-existing audit artifacts at their historical
+`.json` paths, but their raw bytes are gzip containers. The reader now detects
+the gzip magic bytes and only adapts I/O; it does not regenerate labels,
+reselect samples, or replace ground truth. The raw-file and decompressed
+semantic checks are intentionally separate:
+
+| Artifact | Raw bytes / SHA-256 | Decompressed semantic checks |
+|---|---:|---|
+| `pipeline/audit/bilibili_population_adjudication_v2.json` | 55,695 / `a6a6a4f92c10bf0c9d87dfb9501263fd3967405e3d750ae8854282b0602d18a8` | `candidates_total=100`, `real_false_merge=0`, `known_8_retired=8`, under-merge `60 reviewed / 33 confirmed` |
+| `pipeline/audit/bilibili_population_holdout_v2.json` | 25,742 / `bb3da23781dc1a2ac82780c63c37c81a1273d933dd52571d2e5f588e11ecf072` | frozen old corpus `24/22`; derived holdout `44/71` |
+
+The first unadapted adjudication run exited 1 with `UnicodeDecodeError` on the
+gzip magic byte; it is retained in
+`build/audit/test-logs/04-undermerge-adjudication.log`. After the minimal
+reader and 1bee6de baseline assertions were applied, the same 26-test suite
+exited 0; no legacy artifact bytes changed.
+
 The exact machine-readable artifacts are:
 
 - `pipeline/audit/bilibili_undermerge_runtime_closure.json`: 26→complete BVID
@@ -119,15 +138,17 @@ for a future general runtime design.
 | `npm --prefix apps/web run typecheck` | 0 | passed; `docs/audit/logs/phase3gf-f3a-runtime-finalization.log` |
 | `npm --prefix apps/web test -- --run` | 0 | 11 files / 103 tests passed; same finalization log |
 | `python -m unittest tests.test_bilibili_undermerge_runtime_closure -v` | 0 | 5 closure-contract tests passed; same finalization log |
+| `node pipeline/audit/build_bilibili_undermerge_runtime_closure.js` | 0 | 26/26 original gate cases mapped; 80 unique BVIDs; closure artifact |
 | `apps/web/node_modules/.bin/esbuild.cmd apps/web/src/domain/bilibiliGrouping.ts --bundle --platform=node --format=cjs --target=node20 --outfile=build/audit/bilibili_grouping_runtime_current.js` | 0 | current bundle hash recorded above |
 | `node pipeline/audit/probe_bilibili_undermerge_runtime.js build/audit/bilibili_grouping_runtime_current.js` | 2 | expected diagnostic `BLOCKED`; `docs/audit/logs/phase3gf-f3a-runtime-probe-rerun.log` |
+| `python -m unittest tests.test_bilibili_undermerge_adjudication -v` (after gzip compatibility) | 0 | 26 tests passed; `build/audit/test-logs/05-undermerge-adjudication-after-gzip.log` |
 
 An earlier combined Python command exited 1: the population benchmark setup lacked
 `converted_output/assets/index.js`, the adjudication setup observed regenerated
 candidate drift after that population run, and the closure test still had the
 pre-correction partition assertions. Those failures are retained in
 `docs/audit/logs/phase3gf-f3a-runtime-tests.log`; the corrected standalone
-closure-contract test above is the final test result. The standalone cbb/a690
-adjudication test was not rerun after the stable probe because its setup runs
-extractors that rewrite evidence/gate artifacts; input regeneration was outside
-this finalization scope.
+closure-contract and adjudication tests above are the final results. The
+adjudication rerun used the frozen restored candidate/evidence bytes and the
+gzip-compatible reader; it did not promote the 21 runtime failures or rewrite
+any verdict.

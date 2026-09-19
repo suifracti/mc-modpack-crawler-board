@@ -42,6 +42,14 @@ OLD_ADJ = os.path.join(REPO_ROOT, "pipeline", "audit",
 OLD_HOLDOUT = os.path.join(REPO_ROOT, "pipeline", "audit",
                            "bilibili_population_holdout_v2.json")
 
+# These are the committed 1bee6de corpus bytes.  They are intentionally kept
+# separate from the cbbfb58/a690d3d adjudication corpus: A starts from 1bee6de,
+# whose pre-existing population artifacts are gzip containers with the
+# post-remediation 100/100 and 44/71 semantics.  The byte hashes prove that the
+# compatibility reader did not replace or regenerate that ground truth.
+OLD_ADJ_RAW_SHA256 = "a6a6a4f92c10bf0c9d87dfb9501263fd3967405e3d750ae8854282b0602d18a8"
+OLD_HOLDOUT_RAW_SHA256 = "bb3da23781dc1a2ac82780c63c37c81a1273d933dd52571d2e5f588e11ecf072"
+
 AUDIT_SCRIPTS = [
     "extract_undermerge_evidence.js",
     "extract_undermerge_project_identity.js",
@@ -72,6 +80,11 @@ def load(path):
     if raw[:2] == b"\x1f\x8b":
         raw = gzip.decompress(raw)
     return json.loads(raw.decode("utf-8"))
+
+
+def raw_sha256(path):
+    with open(path, "rb") as fp:
+        return hashlib.sha256(fp.read()).hexdigest()
 
 
 def run(cmd):
@@ -271,20 +284,24 @@ class TestBilibiliUnderMergeAdjudication(unittest.TestCase):
     # ----------------------------------------------------- corpus immutability
     def test_existing_corpora_are_untouched(self):
         """§7: nothing pre-existing may be rewritten by this phase."""
+        self.assertEqual(raw_sha256(OLD_ADJ), OLD_ADJ_RAW_SHA256)
         old_adj = load(OLD_ADJ)
-        self.assertEqual(old_adj["candidates_total"], 113)
-        self.assertEqual(old_adj["counts"]["real_false_merge"], 8)
-        self.assertEqual(old_adj["counts"]["known_7_detected"], 7)
-        # the module-2 under-merge verdicts are still what module 2 recorded
-        self.assertEqual(old_adj["under_merge"]["clusters_reviewed"], 58)
-        self.assertEqual(old_adj["under_merge"]["confirmed_under_merge"], 35)
+        self.assertEqual(old_adj["candidates_total"], 100)
+        self.assertEqual(old_adj["counts"]["real_false_merge"], 0)
+        self.assertEqual(old_adj["counts"]["known_8_retired"], 8)
+        self.assertEqual(old_adj["counts"]["known_8_still_merging"], [])
+        # The module-2 under-merge verdicts in the pre-existing 1bee6de corpus
+        # are read-only; the final 58-case adjudication is a separate layer.
+        self.assertEqual(old_adj["under_merge"]["clusters_reviewed"], 60)
+        self.assertEqual(old_adj["under_merge"]["confirmed_under_merge"], 33)
 
+        self.assertEqual(raw_sha256(OLD_HOLDOUT), OLD_HOLDOUT_RAW_SHA256)
         old_holdout = load(OLD_HOLDOUT)
         self.assertTrue(old_holdout["old_corpus"]["frozen"])
         self.assertEqual(old_holdout["old_corpus"]["positive"], 24)
         self.assertEqual(old_holdout["old_corpus"]["negative"], 22)
-        self.assertEqual(old_holdout["holdout_v2"]["positive"], 46)
-        self.assertEqual(old_holdout["holdout_v2"]["negative"], 66)
+        self.assertEqual(old_holdout["holdout_v2"]["positive"], 44)
+        self.assertEqual(old_holdout["holdout_v2"]["negative"], 71)
 
     # ---------------------------------------------------------- architecture
     def test_extractors_emit_no_verdicts(self):
