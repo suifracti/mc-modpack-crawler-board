@@ -122,6 +122,31 @@ function tokensOf(key: string): string[] {
 }
 
 /**
+ * A title can repeat its pack name around a version marker (`云游四海 ...
+ * 云游四海 V1.5`).  Treat an immediately repeated identity run as one lexical
+ * identity; the repetition is title boilerplate, not a second product.
+ */
+function collapseRepeatedIdentity(identity: string): string {
+  const registeredAt = identity.indexOf('::registered:');
+  const base = registeredAt === -1 ? identity : identity.slice(0, registeredAt);
+  const suffix = registeredAt === -1 ? '' : identity.slice(registeredAt);
+  const tokens = tokensOf(base);
+  for (let width = Math.floor(tokens.length / 2); width >= 1; width--) {
+    if (tokens.length % width !== 0 || tokens.length / width < 2) continue;
+    const head = tokens.slice(0, width);
+    let repeated = true;
+    for (let i = width; i < tokens.length; i += width) {
+      if (tokens.slice(i, i + width).join(' ') !== head.join(' ')) {
+        repeated = false;
+        break;
+      }
+    }
+    if (repeated) return head.join(' ') + suffix;
+  }
+  return identity;
+}
+
+/**
  * Identity-bearing characters inside a single token.
  *
  * Descriptors concatenate in Chinese titles (`大型` + `末世` -> one token
@@ -194,7 +219,20 @@ function splitCompoundToken(token: string): string[] {
     const out: string[] = [];
     let rest = value;
     while (rest.includes(boundary)) {
-      const i = rest.indexOf(boundary);
+      let i = rest.indexOf(boundary);
+      // Single ASCII noise markers such as `v` are separators only when they
+      // are standalone.  Splitting the `v` inside `adventure`/`vivid` destroys
+      // a bilingual title anchor and creates artificial fragments (`ad` +
+      // `enture`) that can neither merge nor explain the decision.
+      if (/^[A-Za-z]$/u.test(boundary)) {
+        while (i >= 0
+          && /[A-Za-z]/u.test(rest[i - 1] || '')
+          && /[A-Za-z]/u.test(rest[i + boundary.length] || '')) {
+          const next = rest.indexOf(boundary, i + boundary.length);
+          i = next;
+        }
+      }
+      if (i < 0) break;
       if (i > 0) out.push(rest.slice(0, i));
       out.push(boundary);
       rest = rest.slice(i + boundary.length);
@@ -366,6 +404,11 @@ function isSelfNameSegment(seg: string): boolean {
   const s = seg.replace(/\s+/g, '').replace(/^mc/i, 'mc');
   if (!s) return true;
   if (BILI_BOILERPLATE_SEGMENTS.has(s)) return true;
+  // Bracketed co-brand/platform tags (`v/s×mc`, `Minecraft×Vivid/Stasis`)
+  // identify the channel or mod context, not the pack name.  Treat the
+  // platform token as boilerplate only when it is a standalone segment around
+  // a separator; a real name containing `mc` remains eligible.
+  if (/(?:^|[×x/])(?:minecraft|mc)(?:$|[×x/])/i.test(s)) return true;
   return BILI_SELF_NAME_SEGMENT.test(s);
 }
 
@@ -638,10 +681,10 @@ function violatesNameSlot(
 ): boolean {
   const na = a.nameSlotTokens;
   const nb = b.nameSlotTokens;
+  const runJoined = run.join(' ');
   if (!na || !nb) return false;
   if (na.join(' ') === nb.join(' ')) return false;
   if (containsRun(na, nb) || containsRun(nb, na)) return false;
-  const runJoined = run.join(' ');
   if (na.join(' ') === runJoined || nb.join(' ') === runJoined) return false;
   const appearsAfter = (e: AdmissibilityEntry, slot: string[]): boolean => {
     const toks = e.matchTokens;
@@ -850,7 +893,14 @@ function violatesCompetingEdition(
   if (!all.every((t) => identityCharsOfToken(t) === 0)) return false;
   if (headsA.some((t) => headsB.includes(t))) return false;
   // At least one competing head must be independently attested as a real name.
-  return all.some((t) => corroborates(run, t));
+  // Generic release heads (`v`/`ver`/`版`/`版本`) are formatting, not product
+  // names.  Keep the broader corroboration rule for numeric or named heads so
+  // an explicitly numbered series such as `悠然人生2` vs `悠然人生3` remains
+  // partitioned, while bilingual version spellings (`MYGO Ver1.8.0` vs
+  // `Mygo 1.5.0版本`) stay one identity.
+  const genericReleaseHead = (head: string): boolean =>
+    ['v', 'ver', '版', '版本'].includes(head.toLowerCase());
+  return all.some((t) => !genericReleaseHead(t) && corroborates(run, t));
 }
 
 /**
@@ -872,12 +922,27 @@ function violatesExclusiveEdition(
   if (!headsA.length && !headsB.length) return false;
   const hasMarker = (heads: string[]): boolean => heads.some((head) => BILI_EXCLUSIVE_EDITION_MARKERS.includes(head));
   if (headsA.length && headsB.length && headsA.some((head) => headsB.includes(head))) return false;
+  // A modifier immediately attached to a numeric release (`V3.0优化`) is a
+  // version-qualified update descriptor, not evidence of a separately named
+  // product.  Keep the stronger bare-anchor vs optimization boundary intact
+  // for titles such as `红石生电优化`, where the modifier follows the name
+  // without a release number.
+  if ((hasMarker(headsA) && hasVersionQualifiedOptimization(a, run))
+    || (hasMarker(headsB) && hasVersionQualifiedOptimization(b, run))) return false;
   return hasMarker(headsA) !== hasMarker(headsB) || (hasMarker(headsA) && hasMarker(headsB));
 }
 
 function hasExplicitEditionHead(entry: AdmissibilityEntry, run: string[]): boolean {
   if (run.some((token) => /[A-Za-z]/.test(token))) return false;
-  return headAfter(entry, run).some((head) => BILI_EXCLUSIVE_EDITION_MARKERS.includes(head));
+  return headAfter(entry, run).some((head) => BILI_EXCLUSIVE_EDITION_MARKERS.includes(head))
+    && !hasVersionQualifiedOptimization(entry, run);
+}
+
+function hasVersionQualifiedOptimization(entry: AdmissibilityEntry, run: string[]): boolean {
+  return headAfter(entry, run).some((head) => head === '优化'
+    && new RegExp(`(?:v|版本)?\\d+(?:[.]\\d+){0,3}${head}`, 'i').test(
+      (entry.title || '').replace(/\s+/g, ''),
+    ));
 }
 
 function literalAnchorPresent(title: string, run: string[]): boolean {
@@ -922,7 +987,11 @@ function splitDisconnectedRegisteredIdentities(list: Entry[]): void {
       for (let j = i + 1; j < members.length; j++) {
         const a = members[i]; const b = members[j];
         const shared = [...a.projectIds].some((id) => b.projectIds.has(id));
+        const sharedReleaseChannel = !!a.qqGroup && a.qqGroup === b.qqGroup
+          && hasReleaseOrVersionSignal(a.adm.title)
+          && hasReleaseOrVersionSignal(b.adm.title);
         const disjointExact = !shared
+          && !sharedReleaseChannel
           && literalAnchorPresent(a.adm.title, tokens)
           && literalAnchorPresent(b.adm.title, tokens);
         if (!disjointExact) join(a, b);
@@ -1155,6 +1224,320 @@ function projectAssistedThemeOf(a: Entry, b: Entry): string | null {
 }
 
 /**
+ * Reconcile a strong author-local pack name across records that share a QQ
+ * release channel.  QQ is only corroboration: the title still has to provide
+ * the same non-generic, release-shaped identity run.  This is intentionally
+ * applied before the disconnected-project split so mirrors/renamed registry
+ * entries can remain one pack when the uploader's own title and release
+ * channel agree, while a QQ-only overlap still does nothing.
+ */
+function sharedQqTitleAnchor(a: Entry, b: Entry): string[] | null {
+  if (!a.qqGroup || a.qqGroup !== b.qqGroup) return null;
+  if (!hasReleaseOrVersionSignal(a.adm.title) || !hasReleaseOrVersionSignal(b.adm.title)) return null;
+  const candidates = new Map<string, { run: string[]; chars: number }>();
+  for (let i = 0; i < a.matchTokens.length; i++) {
+    for (let j = 0; j < b.matchTokens.length; j++) {
+      let length = 0;
+      while (i + length < a.matchTokens.length
+        && j + length < b.matchTokens.length
+        && a.matchTokens[i + length] === b.matchTokens[j + length]) length++;
+      for (let start = 0; start < length; start++) {
+        for (let end = start + 1; end <= length; end++) {
+          const run = a.matchTokens.slice(i + start, i + end);
+          const chars = identityChars(run);
+          const key = run.join(' ');
+          if (!candidates.has(key)) candidates.set(key, { run, chars });
+        }
+      }
+    }
+  }
+  const ranked = [...candidates.values()]
+    .filter(({ run, chars }) => chars >= BILI_MIN_IDENTITY_CHARS
+      && qualifiesAsIdentity(run)
+      && !isSloganishRun(run)
+      && !violatesEnglishFunction(run)
+      && !run.some((token) => BILI_IDENTITY_NOISE_TOKENS.has(token))
+      && !violatesNameSlot(a.adm, b.adm, run)
+      && !violatesBracketName(a.adm, b.adm, run))
+    .map((candidate) => ({
+      ...candidate,
+      markerScore: Number(hasNearbyPackMarker(a.adm, candidate.run))
+        + Number(hasNearbyPackMarker(b.adm, candidate.run)),
+    }))
+    .sort((x, y) => (y.markerScore - x.markerScore)
+      || (y.chars - x.chars)
+      || (y.run.length - x.run.length)
+      || (x.run.join(' ') < y.run.join(' ') ? -1 : x.run.join(' ') > y.run.join(' ') ? 1 : 0));
+  return ranked.length ? ranked[0].run : null;
+}
+
+function reconcileSharedQqTitleAnchors(list: Entry[]): void {
+  const buckets = new Map<string, Set<Entry>>();
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const a = list[i]; const b = list[j];
+      const run = sharedQqTitleAnchor(a, b);
+      if (!run) continue;
+      const anchor = run.join(' ');
+      const compatibleWithExistingIdentity = (entry: Entry): boolean => {
+        if (!entry.identity) return true;
+        const current = canonicalIdentityBase(entry.identity);
+        return current === anchor || containsRun(current.split(' '), run);
+      };
+      // QQ is corroboration, not permission to overwrite a stronger title
+      // identity already established by the ordinary miner.  This keeps a
+      // shared release channel from replacing a stable pack name with a
+      // secondary feature/bracket label.
+      if (!compatibleWithExistingIdentity(a) || !compatibleWithExistingIdentity(b)) continue;
+      const key = `${a.qqGroup}\0${run.join(' ')}`;
+      const bucket = buckets.get(key) || new Set<Entry>();
+      bucket.add(a); bucket.add(b);
+      buckets.set(key, bucket);
+    }
+  }
+  for (const [key, members] of buckets) {
+    if (members.size < 2) continue;
+    const anchor = key.slice(key.indexOf('\0') + 1);
+    for (const entry of members) {
+      entry.identity = anchor;
+      entry.reason = 'identity_run';
+    }
+  }
+}
+
+function reconcileSharedQqRecurringTitleAnchors(list: Entry[]): void {
+  const byQq = new Map<string, Entry[]>();
+  for (const entry of list) {
+    if (!entry.qqGroup || !hasReleaseOrVersionSignal(entry.adm.title)) continue;
+    const bucket = byQq.get(entry.qqGroup);
+    if (bucket) bucket.push(entry);
+    else byQq.set(entry.qqGroup, [entry]);
+  }
+  for (const members of byQq.values()) {
+    if (members.length < 2 || !bridgeIdentityConsistent(members)) continue;
+    const candidates = new Map<string, { run: string[]; chars: number }>();
+    for (let i = 1; i < members.length; i++) {
+      for (const candidate of commonIdentityRuns(members[0].matchTokens, members[i].matchTokens)) {
+        const run = candidate.run;
+        if (!qualifiesAsIdentity(run) || isSloganishRun(run)
+          || violatesEnglishFunction(run)
+          || run.some((token) => BILI_IDENTITY_NOISE_TOKENS.has(token))) continue;
+        if (!members.every((entry) => containsRun(entry.matchTokens, run))) continue;
+        if (!members.every((entry) => entry.identity === '' || containsRun(
+          canonicalIdentityBase(entry.identity).split(' '), run,
+        ))) continue;
+        const key = run.join(' ');
+        const old = candidates.get(key);
+        if (!old || candidate.chars > old.chars) candidates.set(key, candidate);
+      }
+    }
+    const ranked = [...candidates.values()].sort((a, b) =>
+      (b.chars - a.chars) || (b.run.length - a.run.length)
+      || (a.run.join(' ') < b.run.join(' ') ? -1 : a.run.join(' ') > b.run.join(' ') ? 1 : 0));
+    const winner = ranked[0];
+    if (!winner) continue;
+    const anchor = winner.run.join(' ');
+    for (const entry of members) {
+      entry.identity = anchor;
+      entry.reason = 'identity_run';
+    }
+  }
+}
+
+function reconcileBilingualEnglishTitleAnchors(list: Entry[]): void {
+  const candidates = new Map<string, { tokens: string[]; members: Set<Entry> }>();
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const a = list[i]; const b = list[j];
+      if (!hasReleaseOrVersionSignal(a.adm.title) || !hasReleaseOrVersionSignal(b.adm.title)) continue;
+      const hasNameBracket = (entry: Entry): boolean => entry.adm.bracketNames.some((name) =>
+        identityChars(name) >= BILI_MIN_IDENTITY_CHARS && !isSloganishRun(name));
+      if (!hasNameBracket(a) || !hasNameBracket(b)) continue;
+      const common = [...new Set(a.matchTokens.filter((token) =>
+        /^[A-Za-z]{4,}$/u.test(token)
+        && !BILI_IDENTITY_NOISE_TOKENS.has(token)
+        && !isEnglishFunctionRun([token])
+        && b.matchTokens.includes(token)))];
+      if (common.length < 2) continue;
+      // If the common English words are already the explicit bracketed name,
+      // keep the bracket-name path (and its registered-project safeguards) in
+      // charge.  This alias bridge is for body-text English/Chinese spellings;
+      // it must not replace a stronger, differently named title anchor.
+      if ([a, b].some((entry) => entry.adm.bracketNames.some((name) =>
+        common.every((token) => name.includes(token))))) continue;
+      const key = common.slice().sort().join(' ');
+      const bucket = candidates.get(key) || { tokens: common, members: new Set<Entry>() };
+      bucket.members.add(a); bucket.members.add(b);
+      candidates.set(key, bucket);
+    }
+  }
+  for (const { tokens, members } of candidates.values()) {
+    if (members.size < 2) continue;
+    const anchor = tokens.join(' ');
+    for (const entry of members) {
+      if (tokens.every((token) => entry.matchTokens.includes(token))) {
+        entry.identity = anchor;
+        entry.reason = 'identity_run';
+      }
+    }
+  }
+}
+
+function canonicalIdentityBase(identity: string): string {
+  const registeredAt = identity.indexOf('::registered:');
+  return registeredAt === -1 ? identity : identity.slice(0, registeredAt);
+}
+
+/**
+ * Reconcile title aliases inside one author-local registered project.  This is
+ * a post-pass rather than an initial fallback: the normal title miner first
+ * chooses the best lexical anchors, then a stable project reference can join
+ * the aliases that the miner could not spell identically (for example a
+ * Chinese display name and an English slug).  A project reference is never
+ * allowed to cross the author boundary, and disconnected project IDs remain
+ * separable in splitDisconnectedRegisteredIdentities when a lexical anchor is
+ * used.  A project reference without a shared lexical anchor does not invent
+ * a new identity; it is only allowed to reconcile identities already mined
+ * from the titles.
+ */
+function reconcileRegisteredProjectTitleAnchors(list: Entry[]): void {
+  const byProject = new Map<string, Entry[]>();
+  for (const entry of list) for (const projectId of entry.projectIds) {
+    const bucket = byProject.get(projectId);
+    if (bucket) bucket.push(entry);
+    else byProject.set(projectId, [entry]);
+  }
+
+  const proposed = new Map<Entry, { identity: string; score: number }>();
+  for (const bucket of byProject.values()) {
+    const unique = [...new Set(bucket)];
+    if (unique.length < 2) continue;
+
+    const counts = new Map<string, { count: number; chars: number }>();
+    for (const entry of unique) {
+      const base = canonicalIdentityBase(entry.identity);
+      if (!base || base.startsWith('registered-project:')) continue;
+      const chars = identityChars(base.split(' '));
+      const old = counts.get(base);
+      if (old) old.count += 1;
+      else counts.set(base, { count: 1, chars });
+    }
+    const ranked = [...counts.entries()]
+      .filter(([, value]) => value.count >= 2)
+      .sort((a, b) =>
+        (b[1].count - a[1].count)
+        || (b[1].chars - a[1].chars)
+        || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    const winner = ranked[0];
+    if (!winner) continue;
+    const identity = winner[0];
+    // Prefer the project bucket with the largest independently observed
+    // support when one entry carries more than one registry reference.
+    const score = winner[1].count * 1000 + winner[1].chars;
+    for (const entry of unique) {
+      const old = proposed.get(entry);
+      if (!old || score > old.score || (score === old.score && identity < old.identity)) {
+        proposed.set(entry, { identity, score });
+      }
+    }
+  }
+
+  for (const [entry, choice] of proposed) {
+    entry.identity = choice.identity;
+    entry.reason = 'identity_run';
+  }
+}
+
+/**
+ * A repeated exact bracket name is positive title evidence even when a
+ * preceding bracket contains a changing episode slogan.  Keep this author
+ * local and require release-shaped titles; a shared bracket is a corroborating
+ * name channel, not a generic substring or a QQ/download bridge.
+ */
+function reconcileSharedBracketTitleAnchors(list: Entry[]): void {
+  const buckets = new Map<string, Set<Entry>>();
+  for (const entry of list) {
+    if (!hasReleaseOrVersionSignal(entry.adm.title)) continue;
+    for (const bracket of entry.adm.bracketNames) {
+      if (!qualifiesAsIdentity(bracket) || isSloganishRun(bracket)
+        || bracket.some((token) => BILI_IDENTITY_NOISE_TOKENS.has(token))
+        || !hasDirectVersionedUpdateAfterBracket(entry, bracket)) continue;
+      const key = bracket.join(' ');
+      const bucket = buckets.get(key) || new Set<Entry>();
+      bucket.add(entry);
+      buckets.set(key, bucket);
+    }
+  }
+  for (const [anchor, members] of buckets) {
+    if (members.size < 2) continue;
+    for (const entry of members) {
+      const currentBase = canonicalIdentityBase(entry.identity);
+      // Do not let a secondary bracket label replace a stronger, already
+      // mined product name (`机械殖民地` vs a descriptive `[模拟殖民地]`
+      // feature).  The bracket pass may normalize an empty record or a
+      // redundant extension of the same anchor, but it cannot overwrite a
+      // disjoint current identity.
+      if (currentBase && currentBase !== anchor && !currentBase.split(' ').includes(anchor)) continue;
+      entry.identity = anchor;
+      entry.reason = 'identity_run';
+    }
+  }
+}
+
+function reconcilePrimaryBracketTitleAnchors(list: Entry[]): void {
+  const buckets = new Map<string, Set<Entry>>();
+  for (const entry of list) {
+    const name = entry.adm.nameSlotTokens;
+    if (!name || !hasReleaseOrVersionSignal(entry.adm.title)) continue;
+    const anchor = name
+      .filter((token) => /^[\u4e00-\u9fa5]+$/u.test(token)
+        && !BILI_IDENTITY_NOISE_TOKENS.has(token)
+        && !isSloganishToken(token)
+        && identityCharsOfToken(token) >= BILI_MIN_IDENTITY_CHARS)
+      .sort((a, b) => identityCharsOfToken(b) - identityCharsOfToken(a))[0];
+    if (!anchor) continue;
+    const key = anchor;
+    const bucket = buckets.get(key) || new Set<Entry>();
+    bucket.add(entry);
+    buckets.set(key, bucket);
+  }
+  for (const [anchor, members] of buckets) {
+    if (members.size < 2) continue;
+    for (const entry of members) {
+      const currentBase = canonicalIdentityBase(entry.identity);
+      if (currentBase && currentBase !== anchor) {
+        const currentTokens = currentBase.split(' ').filter(Boolean);
+        const anchorTokens = anchor.split(' ').filter(Boolean);
+        const remaining = [...currentTokens];
+        for (const token of anchorTokens) {
+          const at = remaining.indexOf(token);
+          if (at >= 0) remaining.splice(at, 1);
+        }
+        if (!containsRun(currentTokens, anchorTokens)
+          || remaining.some((token) => /^[A-Za-z]$/u.test(token))) continue;
+      }
+      entry.identity = anchor;
+      entry.reason = 'identity_run';
+    }
+  }
+}
+
+function hasDirectVersionedUpdateAfterBracket(entry: Entry, run: string[]): boolean {
+  const compact = (entry.adm.title || '').replace(/[\s:：，,。！？!?【】\[\]（）()《》「」『』]/g, '');
+  const needle = run.join('');
+  if (!needle) return false;
+  const suffixPattern = /^(?:v)?\d+(?:\.\d+){0,3}(?:版本)?(?:更新|发布|介绍|测试|正式)/i;
+  let from = 0;
+  while (from <= compact.length) {
+    const at = compact.indexOf(needle, from);
+    if (at < 0) return false;
+    if (suffixPattern.test(compact.slice(at + needle.length))) return true;
+    from = at + needle.length;
+  }
+  return false;
+}
+
+/**
  * Pure grouping decision for a batch of Bilibili records.
  * Returns a bvid -> decision map. Author-scoped; never merges across uploaders.
  */
@@ -1210,12 +1593,18 @@ export function groupBilibiliPacks(
     for (const bucket of byProject.values()) {
       const unique = [...new Set(bucket)];
       if (unique.length < 2) continue;
+      // A registered project can legitimately have a Chinese display name in
+      // one release and its English slug in another.  The exact project id is
+      // the stable identity in that situation; title aliases are only used
+      // when no shared registration exists.  Disconnected project ids are
+      // still separated by splitDisconnectedRegisteredIdentities below.
       const best = projectTitleAnchor(unique);
       if (!best) continue;
       const anchor = best.run.join(' ');
       for (const e of unique) {
         const old = projectAnchors.get(e);
-        if (!old || best.chars > old.chars) projectAnchors.set(e, { anchor, chars: best.chars });
+        const chars = best.chars;
+        if (!old || chars > old.chars) projectAnchors.set(e, { anchor, chars });
       }
     }
     for (const [e, chosen] of projectAnchors) {
@@ -1681,6 +2070,17 @@ export function groupBilibiliPacks(
   // Apply this after all ordinary assignment passes so the partitioning is
   // based on the complete identity evidence available in the author scope.
   for (const list of allByAuthor.values()) {
+    reconcileRegisteredProjectTitleAnchors(list);
+    reconcilePrimaryBracketTitleAnchors(list);
+    reconcileSharedBracketTitleAnchors(list);
+    reconcileSharedQqTitleAnchors(list);
+    reconcileSharedQqRecurringTitleAnchors(list);
+    reconcileBilingualEnglishTitleAnchors(list);
+    for (const entry of list) {
+      if (entry.identity) {
+        entry.identity = collapseRepeatedIdentity(entry.identity);
+      }
+    }
     splitDisconnectedRegisteredIdentities(list);
     splitExclusiveEditionMembers(list);
   }

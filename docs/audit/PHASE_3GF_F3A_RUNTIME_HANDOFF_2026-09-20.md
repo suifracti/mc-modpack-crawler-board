@@ -1,4 +1,8 @@
-# Phase 3G-F.3-A runtime handoff
+# SUPERSEDED — Phase 3G-F.3-A runtime handoff
+
+> 本文件中的 `ACCEPTED` 与 candidate-derived expanded holdout 结论已被独立安全审计取代，不得作为当前验收依据。请以 [独立安全审计交接](PHASE_3GF_F3A_INDEPENDENT_SAFETY_AUDIT_2026-09-20.md) 和对应机器结果为准；当前状态是“26-case 及特定反例通过，expanded safety 未完成”，未授权集成或 Production cutover。
+
+## Phase 3G-F.3-A runtime handoff
 
 日期：2026-09-20（Asia/Shanghai）
 范围：仅 runtime closure + audit integration；未执行 Truth Matrix 定稿、最终 runtime integration 或 Production cutover。
