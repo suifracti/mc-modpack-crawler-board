@@ -1,0 +1,423 @@
+{
+  "phase": "3G-F.3-A",
+  "artifact": "phase3gf_expanded_runtime_audit",
+  "generated_at": "2026-09-19T17:05:32.269Z",
+  "status": "PASS",
+  "acceptance_contract": {
+    "holdout_false_merge_required": 0,
+    "recall_minimum": 0.75,
+    "known_8_still_merging_required": 0,
+    "raw_population_records_required": 936
+  },
+  "runtime": {
+    "source_commit": "dd1f62445695d3455c2b9f67d02d7d700a91eff6",
+    "source_rel": "apps/web/src/domain/bilibiliGrouping.ts",
+    "source_raw_sha256": "6a834dec354fee76c94b6bfcfa9a5527994b7fc65b823e029ebea88544b658b2",
+    "bundle_sha256": "388e36e576acbfb8c871e9cbebdf4d03ef6cb799eb6dea1b511f2366431a5cfa",
+    "formal_acceptance": true,
+    "compiled_from_current_source": true
+  },
+  "baseline_runtime": {
+    "source_commit": "ef411d1542433d8fdd7f06ed40946d6626d19252",
+    "bundle_sha256": "221ab66a98b738449943575029ce3e9a2e807dd499ef03f4be0da3e195252ae1",
+    "purpose": "known-8 retired source mapping and derived holdout old-vs-new baseline"
+  },
+  "source_inputs": {
+    "population_sha256": "049fe4c567fabafb4e4c58018b606c1aa23d01d2d1511933856454915e79bebe",
+    "holdout_v2_sha256": "bb3da23781dc1a2ac82780c63c37c81a1273d933dd52571d2e5f588e11ecf072",
+    "adjudication_v2_sha256": "a6a6a4f92c10bf0c9d87dfb9501263fd3967405e3d750ae8854282b0602d18a8",
+    "runtime_gate_sha256": "cafec9955c5e589315279b348dc5520a17594bebfc5d43dde08b4a810dfafad7"
+  },
+  "adjudication_ledger": {
+    "candidates_total": 100,
+    "adjudicated_total": 100,
+    "counts": {
+      "real_false_merge": 0,
+      "legitimate_same_pack": 100,
+      "false_split_indicator": 0,
+      "ambiguous": 0,
+      "known_8_retired": 8,
+      "known_8_still_merging": [],
+      "known_8_unexplained": [],
+      "candidates_total": 100,
+      "candidates_adjudicated": 100,
+      "retired_candidate_keys": 26
+    },
+    "under_merge": {
+      "clusters_reviewed": 60,
+      "confirmed_under_merge": 33,
+      "not_under_merge": 24,
+      "unreviewed": [],
+      "declared_but_absent": [],
+      "retired_clusters": {
+        "墨言eclipse||墨言eclipse::大型 禁忌 远古炼金 世界污染 3万行代码深度 涅槃v 0 宣传视频|墨言eclipse::沉浸 深度 a 咒镰双生|墨言eclipse::涅槃 无神明渡我 我亦是神明|墨言eclipse::涅槃 神吞降世 邪神投影 万魂幡 超越法则的 镰刀 之旅": {
+          "kind": "cluster_gone",
+          "was_verdict": "UNDER_MERGE",
+          "note": "确认：7 条 涅槃 记录（v0.1.5 → v0.2）属同一上传者墨言eclipse 的同一逻辑包，算法拆成 5 个 group key。此簇覆盖其中 4 个 key（第 5 个 未尽之路涅槃 被“未尽之路”桥接到另一簇）。"
+        },
+        "一个小寂哦||__NOOP": {
+          "kind": "placeholder",
+          "was_verdict": null,
+          "note": "placeholder-never-used"
+        },
+        "一个小寂哦||一个小寂哦::新泰坦生物 矿石菌种 更多泰坦 四叶草 幸运方块|一个小寂哦::新泰坦生物 神器小木剑 联机教程 更多泰坦 新增懒人模组 砧板 无尽贪婪": {
+          "kind": "superseded",
+          "was_verdict": "UNDER_MERGE",
+          "now": "一个小寂哦||一个小寂哦::全网 最全神器 星辉死神 凋零斯拉 执行之龙 泰坦 在 体验 时代的魅力|…|一个小寂哦::高版本神器随机合成 幸运与实力的考验 重温一遍经典娱乐模组",
+          "note": "该 2 键对已被 21 成员 live 簇（adjudicated NOT_UNDER_MERGE，通用词过度连通的巨簇）取代。原对级判定是 UNDER_MERGE（新泰坦生物 系列同包）；后者是更强的断言，先说于本表。"
+        },
+        "一个小寂哦||一个小寂哦::怪物大乱斗 手机版 经典 变身 哥斯拉 经典|一个小寂哦::怪物大乱斗重生": {
+          "kind": "superseded",
+          "was_verdict": "NOT_UNDER_MERGE",
+          "now": "一个小寂哦||一个小寂哦::全网 最全神器 星辉死神 凋零斯拉 执行之龙 泰坦 在 体验 时代的魅力|…|一个小寂哦::高版本神器随机合成 幸运与实力的考验 重温一遍经典娱乐模组",
+          "note": "该 2 键对已被 21 成员 live 簇取代。对级判定 NOT_UNDER_MERGE 与取代簇一致：`怪物大乱斗 手机版` 与 `怪物大乱斗重生` 是两个不同的包（见 RETIRED_FALSE_MERGES 的 R5 条目），不构成同包证据。"
+        },
+        "墨竹ギ||墨竹ギ::poetry of the abyss|墨竹ギ::quot 以神之名 染梦世间 quot 深渊之诗 异梦终途 traveldreams": {
+          "kind": "superseded",
+          "was_verdict": "NOT_UNDER_MERGE",
+          "now": "墨竹ギ||墨竹ギ::poetry of the abyss|…|墨竹ギ::终末之途 旅者之颂 踏上找寻世界 尽头旅程 终末旅颂 end travel ode",
+          "note": "该 2 键对已被 9 成员 live 簇（adjudicated NOT_UNDER_MERGE）取代。对级判定一致：《深渊之诗 / Poetry of the Abyss》与《深渊之诗-异梦终途 / TravelDreams》是两个不同产品，共享 `深渊之诗` 前缀不构成同包证据。"
+        },
+        "落烟雨辰呀||落烟雨辰呀::诡厄 使徒|落烟雨辰呀::诡厄使徒": {
+          "kind": "cluster_gone",
+          "was_verdict": "UNDER_MERGE",
+          "note": "确认：两组均为《诡厄使徒》同一包（1.0.6/1.0.7 与 1.1.0），差别仅在中英文冒号与空格 → 典型跨组拆分。"
+        },
+        "在职玩家JoStar||在职玩家jostar::去吧 方可梦大师|在职玩家jostar::方可梦": {
+          "kind": "cluster_gone",
+          "was_verdict": "UNDER_MERGE",
+          "note": "确认：「方可梦」与「去吧，方可梦大师」是同一包（候选层已判后者为同包）→ 被拆成两组。"
+        },
+        "在下Shmily||在下shmily::优化 最牛优化 cmpack即将来临|在下shmily::优化 老手机2000 fps 最牛优化|在下shmily::优化 老手机2800帧 最牛优化": {
+          "kind": "cluster_gone",
+          "was_verdict": "UNDER_MERGE",
+          "note": "确认：3 组均为该 uploader 的“最牛优化”性能包（老手机2000/2800帧为其宣传语）→ 被拆散。"
+        },
+        "芦苇草的梦想||芦苇草的梦想::芦苇 寒假来休闲一下 芦苇的 宣传片|芦苇草的梦想::芦苇的 宣传片4|芦苇草的梦想::芦苇的 版本 宣传片": {
+          "kind": "cluster_gone",
+          "was_verdict": "UNDER_MERGE",
+          "note": "确认（低风险）：3 组均为该 uploader 同名“芦苇的整合包”系列宣传片，编号 4 为其一 → 被拆散。"
+        },
+        "流霜雾影||流霜雾影::愚者 愚弄 伪装 欺诈 屠龙者终成恶龙 扮演所有的生物 使用它们的能力编织一场完美的欺诈盛宴|流霜雾影::愚者版本大": {
+          "kind": "cluster_gone",
+          "was_verdict": "UNDER_MERGE",
+          "note": "确认：两组均为《愚者》同一包（候选层已判后者为同包）→ 被拆成两组。"
+        },
+        "墨言eclipse||墨言eclipse::未尽之路涅槃|墨言eclipse::涅槃": {
+          "kind": "superseded",
+          "was_verdict": "UNDER_MERGE",
+          "note": "确认：RUNTIME 上 涅槃 家族现在恰好 2 组 —— `涅槃`（5 条，正确）与 `未尽之路涅槃`（2 条，正确）。这两组是**两个不同的包**（结构化下载链接互异 + 上传者明确说明无关），所以它们**不应合并**；但正是 pre-3G-F.2-A 的 7 条记录被拆成 5 组这件事，构成了 3G-F-A 的 under-merge 发现 BILI-GRP-UNDERMERGE-01。本条目记录的是「该发现已被解析」：5 个旧键已收敛为 2 个正确组，per-key rescue 见 PER_KEY_UNDER_MERGE。"
+        },
+        "Terminus_54-32||terminus_54-32::泰坦|terminus_54-32::泰坦生物 小|terminus_54-32::新泰坦生物 new titan creatures mod pack released": {
+          "kind": "superseded",
+          "was_verdict": "UNDER_MERGE",
+          "note": "确认（低风险）：三组均为该 uploader 的“泰坦 / 泰坦生物”系列，标题同构、无区分性包名 → 同一包被拆散。"
+        },
+        "墨言eclipse||墨言eclipse::命轮无章 infinite random|墨言eclipse::摄魂 破刹 定身 颠覆性的 交互体验 摄影奇境宣传片|墨言eclipse::大型 模块化 颠覆性的 革新 究极 爽的杀敌体验 辅助的锻刀之旅 千界万锻 宣传片|墨言eclipse::高版本沉浸 lt 未尽之诗 gt 官方宣传片 一首写给高版本 的远征诗": {
+          "kind": "superseded",
+          "was_verdict": "NOT_UNDER_MERGE",
+          "note": "否决：命轮无章 / 摄影奇境 / 千界万锻 / 未尽之诗 是四个不同包。簇由“颠覆性的”这一形容词连通——R2 已经否决它作为 anchor；把它当作跨组同包证据会立刻制造两个新的误合并。"
+        },
+        "在下Shmily||在下shmily::最牛优化": {
+          "kind": "cluster_gone",
+          "was_verdict": "UNDER_MERGE",
+          "note": "确认：`最牛优化` 组（3 条）已是同一包；本簇原由三个旧键组成，现全部收敛为这一个键 → 已解析，不再有跨组拆分（本条目保留以记录解析结果）。"
+        },
+        "芦苇草的梦想||芦苇草的梦想::芦苇的": {
+          "kind": "cluster_gone",
+          "was_verdict": "UNDER_MERGE",
+          "note": "确认（低风险）：`芦苇的` 组（3 条）已是同一包；三个旧键已收敛为这一个键 → 已解析。"
+        },
+        "流霜雾影||流霜雾影::愚者": {
+          "kind": "cluster_gone",
+          "was_verdict": "NOT_UNDER_MERGE",
+          "note": "否决：`愚者` 组（3 条）已是同一包的单组 → 没有跨组拆分需要修复（本条目保留以记录解析结果）。"
+        }
+      },
+      "retired_but_present": [],
+      "clusters_reviewed_at_3gf1b": 75,
+      "nie_clusters": 1,
+      "nie_under_merge_clusters": 0,
+      "nie_corrected_target_groups": 2,
+      "nie_group_keys_satisfied": [
+        "墨言eclipse::涅槃",
+        "墨言eclipse::未尽之路涅槃"
+      ],
+      "nie_group_keys_missing": [],
+      "nie_legacy_split_keys_present": [
+        "墨言eclipse::未尽之路涅槃"
+      ],
+      "nie_regressed_to_legacy_split": false,
+      "nie_legacy_key_caveat": "未尽之路涅槃 is itself one of the five pre-fix keys AND is part of the corrected target (it is a genuinely different pack), so presence of ONE legacy key is expected. Only >1 legacy key co-existing means 涅槃 re-fragmented.",
+      "nie_premise_correction": "3G-F-A recorded 涅槃 as 7 records -> 1 pack split 5 ways. Its own structured download_links disprove that: 5 records share mcmod modpack/1418 + xyebbs resources/37418, and 2 share bbsmc unfinished_path_nirvana + xyebbs res-id/TUPN. The corrected target is 2 groups."
+    }
+  },
+  "holdout_v2": {
+    "source": {
+      "positive_cases": 40,
+      "negative_cases": 62,
+      "total_cases": 102,
+      "positive_videos": 104,
+      "negative_videos": 223,
+      "uploader_count": 91,
+      "uploaders_disjoint_from_old_corpus": true,
+      "meets_requirement": true
+    },
+    "pairwise": {
+      "overall": {
+        "true_merge": 234,
+        "false_split": 0,
+        "true_separate": 326,
+        "false_merge": 0,
+        "precision": 1,
+        "recall": 1,
+        "false_merge_rate": 0,
+        "false_split_rate": 0
+      },
+      "positive": {
+        "true_merge": 111,
+        "false_split": 0,
+        "true_separate": 0,
+        "false_merge": 0,
+        "precision": 1,
+        "recall": 1,
+        "false_merge_rate": 0,
+        "false_split_rate": 0
+      },
+      "negative": {
+        "true_merge": 123,
+        "false_split": 0,
+        "true_separate": 326,
+        "false_merge": 0,
+        "precision": 1,
+        "recall": 1,
+        "false_merge_rate": 0,
+        "false_split_rate": 0
+      }
+    },
+    "case_partition": {
+      "overall_cases": 102,
+      "exact_cases": 102,
+      "failed_cases": 0,
+      "positive_exact": 40,
+      "negative_exact": 62
+    },
+    "failures": []
+  },
+  "frozen_holdout_v2_shape_check": {
+    "source_sha256": "bb3da23781dc1a2ac82780c63c37c81a1273d933dd52571d2e5f588e11ecf072",
+    "source_positive_cases": 44,
+    "source_negative_cases": 71,
+    "source_uploader_count": 97,
+    "current_runtime_partition_result": {
+      "pairwise": {
+        "overall": {
+          "true_merge": 223,
+          "false_split": 17,
+          "true_separate": 307,
+          "false_merge": 62,
+          "precision": 0.7825,
+          "recall": 0.9292,
+          "false_merge_rate": 0.168,
+          "false_split_rate": 0.0708
+        },
+        "positive": {
+          "true_merge": 113,
+          "false_split": 8,
+          "true_separate": 0,
+          "false_merge": 0,
+          "precision": 1,
+          "recall": 0.9339,
+          "false_merge_rate": 0,
+          "false_split_rate": 0.0661
+        },
+        "negative": {
+          "true_merge": 110,
+          "false_split": 9,
+          "true_separate": 307,
+          "false_merge": 62,
+          "precision": 0.6395,
+          "recall": 0.9244,
+          "false_merge_rate": 0.168,
+          "false_split_rate": 0.0756
+        }
+      },
+      "case_partition": {
+        "overall_cases": 115,
+        "exact_cases": 88,
+        "failed_cases": 27,
+        "positive_exact": 40,
+        "negative_exact": 48
+      }
+    },
+    "note": "The pre-F3A artifact is read-only historical input; its group_key partitions are not reused as final F3A labels because they predate the 26-case runtime gate."
+  },
+  "known_8_retirement": {
+    "expected": 8,
+    "checked": 8,
+    "source_runtime_commit": "ef411d1542433d8fdd7f06ed40946d6626d19252",
+    "retired": 8,
+    "still_merging": [],
+    "missing_old_snapshot": [],
+    "cases": [
+      {
+        "key": "一个小寂哦::星辉死神",
+        "fixed_by": "late_feature_list",
+        "source_member_count": 4,
+        "source_bvids": [
+          "BV1KxX5B7EE5",
+          "BV13fm7BXEL9",
+          "BV1Kw2JB2ESX",
+          "BV1cfn1zAEMR"
+        ],
+        "current_group_count": 3,
+        "current_group_keys": [
+          "一个小寂哦::神器收集计划 版本 最全神器 炫猫 星辉死神 斗蛐蛐专用",
+          "一个小寂哦::无尽幸运方块大陆 无尽",
+          "一个小寂哦::全网 最全神器 星辉死神 凋零斯拉 执行之龙 泰坦 在 体验 时代的魅力"
+        ],
+        "still_merging": false,
+        "status": "RETIRED"
+      },
+      {
+        "key": "一个小寂哦::四叶草",
+        "fixed_by": "late_feature_list",
+        "source_member_count": 2,
+        "source_bvids": [
+          "BV1TST76EEJo",
+          "BV16iC3BzEGr"
+        ],
+        "current_group_count": 2,
+        "current_group_keys": [
+          "一个小寂哦::新泰坦生物 矿石菌种 更多泰坦 四叶草 幸运方块",
+          "一个小寂哦::执行之龙 叶枫同款 强化工具 四叶草 超多经典模组 休闲娱乐包"
+        ],
+        "still_merging": false,
+        "status": "RETIRED"
+      },
+      {
+        "key": "一个小寂哦::各大主播同款",
+        "fixed_by": "late_feature_list",
+        "source_member_count": 2,
+        "source_bvids": [
+          "BV1iBB9B6EpD",
+          "BV1MZxnzsE2N"
+        ],
+        "current_group_count": 2,
+        "current_group_keys": [
+          "一个小寂哦::幸运方块大全 110 个高版本幸运方块 与朋友一起挑战充满幸运的世界 各大主播同款",
+          "一个小寂哦::超困难神器泰坦随机合成 各大主播同款 在 玩神器泰坦随机合成"
+        ],
+        "still_merging": false,
+        "status": "RETIRED"
+      },
+      {
+        "key": "墨言eclipse::颠覆性的",
+        "fixed_by": "late_feature_list",
+        "source_member_count": 2,
+        "source_bvids": [
+          "BV1Ljug6yEhC",
+          "BV1hA3Y6zEEQ"
+        ],
+        "current_group_count": 2,
+        "current_group_keys": [
+          "墨言eclipse::摄魂 破刹 定身 颠覆性的 交互体验 摄影奇境宣传片",
+          "墨言eclipse::大型 模块化 颠覆性的 革新 究极 爽的杀敌体验 辅助的锻刀之旅 千界万锻 宣传片"
+        ],
+        "still_merging": false,
+        "status": "RETIRED"
+      },
+      {
+        "key": "原界环::or not",
+        "fixed_by": "english_function_words",
+        "source_member_count": 2,
+        "source_bvids": [
+          "BV17ZwjzvEpG",
+          "BV1XPcXzWEZ4"
+        ],
+        "current_group_count": 2,
+        "current_group_keys": [
+          "原界环::少女 以及cqb or not girl amp gun",
+          "原界环::全新 pve 少女准备中 maiden or not 自locknar的 or not"
+        ],
+        "still_merging": false,
+        "status": "RETIRED"
+      },
+      {
+        "key": "叙利亚自爆民兵::voxy",
+        "fixed_by": "name_slot_disagreement",
+        "source_member_count": 2,
+        "source_bvids": [
+          "BV1Kc96BWENb",
+          "BV1PbAczPE4o"
+        ],
+        "current_group_count": 2,
+        "current_group_keys": [
+          "叙利亚自爆民兵::你好 新蒸程 正式 航空学 voxy 独家地形 构成 的视觉盛宴",
+          "叙利亚自爆民兵::你好 新世代 voxy 机械动力 瓦尔基里全新兼容"
+        ],
+        "still_merging": false,
+        "status": "RETIRED"
+      },
+      {
+        "key": "tibsalta::难度驱动",
+        "fixed_by": "name_slot_disagreement",
+        "source_member_count": 2,
+        "source_bvids": [
+          "BV1wu411W7dV",
+          "BV1ok4y1t7u9"
+        ],
+        "current_group_count": 2,
+        "current_group_keys": [
+          "tibsalta::抗争之际 难度驱动 向",
+          "tibsalta::旅途痕迹 难度驱动"
+        ],
+        "still_merging": false,
+        "status": "RETIRED"
+      },
+      {
+        "key": "一个小寂哦::怪物大乱斗",
+        "fixed_by": "competing_edition",
+        "source_member_count": 2,
+        "source_bvids": [
+          "BV1f4Kp6yEBf",
+          "BV1nRBFBFEFw"
+        ],
+        "current_group_count": 2,
+        "current_group_keys": [
+          "一个小寂哦::怪物大乱斗 手机版 经典 变身 哥斯拉 经典",
+          "一个小寂哦::怪物大乱斗重生"
+        ],
+        "still_merging": false,
+        "status": "RETIRED"
+      }
+    ]
+  },
+  "population_936": {
+    "raw_records": 936,
+    "unique_bvids": 936,
+    "grouped_cards": 648,
+    "net_collapse": 288,
+    "multi_record_groups": 135,
+    "records_in_multi_record_groups": 423,
+    "largest_group": 11,
+    "size_distribution": {
+      "1": 513,
+      "2": 74,
+      "10+": 1,
+      "5-9": 22,
+      "3-4": 38
+    }
+  },
+  "mechanical_power": {
+    "query": "机械动力",
+    "raw_records": 53,
+    "unique_bvids": 53,
+    "grouped_cards": 38,
+    "net_collapse": 15,
+    "multi_record_groups": 7,
+    "records_in_multi_record_groups": 22,
+    "flat_mode_raw_records": 53,
+    "flat_mode_invariant_ok": true
+  }
+}

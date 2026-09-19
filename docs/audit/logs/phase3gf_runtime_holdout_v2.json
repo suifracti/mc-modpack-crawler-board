@@ -1,0 +1,2815 @@
+{
+  "phase": "3G-F.3-A",
+  "artifact": "phase3gf_runtime_holdout_v2",
+  "generation_contract": {
+    "additive": true,
+    "source_ledger": "pipeline/audit/bilibili_population_adjudication_v2.json",
+    "baseline_runtime": "ef411d1542433d8fdd7f06ed40946d6626d19252",
+    "final_runtime": true,
+    "old_corpus_untouched": true,
+    "no_runtime_group_rescanning_for_gate": true,
+    "expected_labels": "merge/separate plus final group_key partition for derived negatives"
+  },
+  "old_corpus": {
+    "positive": 24,
+    "negative": 22,
+    "frozen": true
+  },
+  "holdout_v2": {
+    "positive": 40,
+    "negative": 62,
+    "uploader_count": 91,
+    "uploaders": [
+      "--axx--",
+      "-六五六-",
+      "_昊日天_",
+      "_鈴鹿御前_",
+      "akrcloud",
+      "arr-c6h6",
+      "arthur_bruce",
+      "deemo旋律",
+      "ero-dragon",
+      "forever糠酱追梦",
+      "from火星",
+      "grainalcohol",
+      "iamie_",
+      "inax白咕",
+      "jsi我的世界制作组",
+      "kodu16",
+      "limit小火柴",
+      "mc绵羊",
+      "minecraft菠萝君",
+      "monica_squirrel",
+      "plaudite_",
+      "puikre",
+      "sh1ntaro",
+      "sino_p",
+      "tibsalta",
+      "whisperstarlight",
+      "wzw_王宗王",
+      "xyebbs中文论坛",
+      "zanghero",
+      "zicaiot",
+      "zogos",
+      "一个个方块呀",
+      "一条鱼丸_",
+      "不上鑫",
+      "不知名的莫理沙",
+      "不走寻常路的路哥1号",
+      "以乐太洋",
+      "伽娄同学",
+      "全能小象",
+      "共轭o",
+      "冰冻酸奶盒",
+      "冷空awa",
+      "勾圈剋尖326",
+      "原界环",
+      "友止殷eugene",
+      "叙利亚自爆民兵",
+      "咱叫小屿",
+      "在下shmily",
+      "在职玩家jostar",
+      "城愿",
+      "大漠神枪",
+      "宅际不上班",
+      "宿墟-1exingt0n",
+      "小兜兜呀_",
+      "小小伊布酱",
+      "小水滴的源头",
+      "小硕3365",
+      "我的世界peaunt",
+      "整天摸鱼的咕咕稽",
+      "无双小星",
+      "星遥工坊",
+      "是熟鳕鱼",
+      "最爱仪仪",
+      "月与风-yyf",
+      "根号radical",
+      "梧桐之境mc",
+      "橘仔io",
+      "橘子皮zero",
+      "没睡醒的老王呀",
+      "流霜雾影",
+      "润润79",
+      "深夜鸽子",
+      "炒雪吵狐力o",
+      "烩炒稻草人",
+      "爱玩游戏的托累积压",
+      "爱玩游戏的烛梦",
+      "狐狸の妙妙屋",
+      "猛猛哒丶阿茗",
+      "瑶山枫叶",
+      "瞳彩鹿454445",
+      "碎砖做的砖块王",
+      "磁钢百合",
+      "科里森corrison",
+      "籽岷",
+      "腾星月lucky",
+      "莱斯莎沃rs_",
+      "账号已注销",
+      "青墨浮跃",
+      "青山半隐",
+      "马赵龙zhao_long",
+      "骑马的无情小叶"
+    ],
+    "uploader_overlap_with_old_corpus": [],
+    "meets_requirement": true
+  },
+  "positive_cases": [
+    {
+      "case_id": "HOLDOUT3-POS-28",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "勾圈剋尖326",
+      "group_key": "勾圈剋尖326::香草纪元 食旅纪行",
+      "old_distinct_keys": 7,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1Pr3i63E4R",
+          "title": "【整合包更新】香草纪元：食旅纪行2.7.1更新！全新钓鱼系统！模拟经营！悬赏板！森罗全家桶与乐事全附属，任务书细节优化与主线任务重置 超多定制内容"
+        },
+        {
+          "bvid": "BV13mFWzBEkg",
+          "title": "【整合包更新】香草纪元：食旅纪行2.6.1更新！出货箱重做！动态经济系统！Boss电话本！Alex洞穴维度与任务动画，商店查询与建筑蓝图 超多定制内容"
+        },
+        {
+          "bvid": "BV12zsVz8Eat",
+          "title": "【整合包更新】香草纪元：食旅纪行2.4.0更新！把Boss做成菜？异宠支线与纹理更新，图鉴查询与引导加强  2.1.0-2.4.0更新内容速览"
+        },
+        {
+          "bvid": "BV1u1u1zQEmH",
+          "title": "【整合包更新】香草纪元：食旅纪行2.1.0更新！优化/翻新 新生魔艺！将美食能量注入武器？新生物/群系/可放置食物 探秘厨神之力！"
+        },
+        {
+          "bvid": "BV1QJQsYoE4c",
+          "title": "【MC整合包发布】香草纪元：食旅纪行1.7.0大更新！当农夫乐事与星露谷物语杂交后会发生...? 农夫乐事全附属/养老/冒险/装饰/优化/种地/烹饪 大型整合包"
+        },
+        {
+          "bvid": "BV18C9PYBE67",
+          "title": "【MC整合包发布】香草纪元：食旅纪行1.5.0大更新！农夫乐事全附属！养老/冒险/装饰/优化/种地/烹饪/任务 准备好踏上焕然一新的旅程了吗？"
+        },
+        {
+          "bvid": "BV14dKTegEKo",
+          "title": "【MC整合包发布】香草纪元：食旅纪行  农夫乐事全附属！结合休闲养老与冒险/丰富任务/异界探索/微魔改大型整合包，原版（香草）风格的探索旅程！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-09",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "小兜兜呀_",
+      "group_key": "小兜兜呀_::原神",
+      "old_distinct_keys": 6,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1JU4k69E61",
+          "title": "【MC整合包更新】原神与机械冒险的时代v3.5.12版本更新——新增部分模组实机演示、部分结构模组移至可选模组、移除一些冗余模组及整合包相关优化"
+        },
+        {
+          "bvid": "BV1qi8r69Eck",
+          "title": "【MC整合包更新】原神与机械冒险的时代v3.5.11.1小版本更新--优化物品视觉辨识度和文字描述、修复附魔书没有显示词条问题"
+        },
+        {
+          "bvid": "BV1nJbQ6pEHo",
+          "title": "【MC整合包更新】原神与机械冒险的时代v3.5.10版本更新--新增精妙背包·GUI扩展模组、移除一些冗余模组、修复启动游戏加载缓慢、新建世界时生成异常缓慢问题"
+        },
+        {
+          "bvid": "BV1cjut6BEaG",
+          "title": "【MC整合包更新】原神与机械冒险的时代v3.5.7~v3.5.8版本更新--新增一些模组、新增血族传说等可选模组、修复原神·起源模组的元素爆发导致缩放问题等内容"
+        },
+        {
+          "bvid": "BV1Y2K467EGN",
+          "title": "【MC整合包更新】原神与机械冒险的时代v3.5.4.1~v3.5.4.2版本更新——新增一键背包整理模组、更新原神·起源模组（新增一些物品、等级功能测试）等内容"
+        },
+        {
+          "bvid": "BV1tUTK6JE2o",
+          "title": "【MC整合包发布】原神与机械冒险的时代--在方块世界体验提瓦特式的冒险、机械与探索吧！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-02",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "科里森Corrison",
+      "group_key": "科里森corrison::神之征伐",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1j5V56TEoE",
+          "title": "神之征伐1.21.1冒险整合包v2.3版本更新介绍【Apotheosis Conquest】"
+        },
+        {
+          "bvid": "BV1zGduBhEt2",
+          "title": "神之征伐1.21.1冒险整合包v2.2版本更新介绍【Apotheosis Conquest】"
+        },
+        {
+          "bvid": "BV1bzPMzYE91",
+          "title": "神之征伐1.21冒险整合包v2.1版本更新介绍【Apotheosis Conquest】"
+        },
+        {
+          "bvid": "BV1ApFYz2E7v",
+          "title": "神之征伐 1.21.1冒险整合包 2.0版本更新！"
+        },
+        {
+          "bvid": "BV1iCrMBnEG5",
+          "title": "【mc冒险整合包】神之征伐v1.1版本更新介绍！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-10",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "from火星",
+      "group_key": "from火星::类幸存者 终末幸存者 last one",
+      "old_distinct_keys": 3,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1k7to6NEKj",
+          "title": "MC类幸存者整合包《终末幸存者/Last One》版本更新0.3.8 更好的商店、更强的近战"
+        },
+        {
+          "bvid": "BV1BoKq6nEw3",
+          "title": "MC类幸存者整合包《终末幸存者/Last One》版本更新0.3.5"
+        },
+        {
+          "bvid": "BV1TyTi6eEFs",
+          "title": "MC类幸存者整合包《终末幸存者/Last One》版本更新0.3.3"
+        },
+        {
+          "bvid": "BV1w3jq6EET5",
+          "title": "MC类幸存者整合包《终末幸存者/Last One》大型更新——百张卡牌随意组合，更多职业流派"
+        },
+        {
+          "bvid": "BV1pkc4zYEgZ",
+          "title": "MC类幸存者整合包《终末幸存者/Last One》0.9 更新——更多职业、技能点、新空岛、BOSS"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-03",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "狐狸の妙妙屋",
+      "group_key": "狐狸の妙妙屋::蛊真人",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV11yT16sE7Z",
+          "title": "【整合包更新】蛊真人2.4版本-下载与更新内容介绍"
+        },
+        {
+          "bvid": "BV1stjK6KERb",
+          "title": "【整合包更新】蛊真人2.3版本-1.21.1-下载与更新内容介绍"
+        },
+        {
+          "bvid": "BV1CSLh6PEt9",
+          "title": "【整合包更新】蛊真人2.1版本-1.21.1-下载与更新内容介绍"
+        },
+        {
+          "bvid": "BV1E5QjBzEoZ",
+          "title": "【整合包更新】蛊真人-1.21.1-下载与更新内容介绍-整合包推荐"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-04",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "在下Shmily",
+      "group_key": "在下shmily::最牛",
+      "old_distinct_keys": 3,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1zNvCBrEgL",
+          "title": "[MC优化]最牛优化整合包V4.0发布，魔改CMpack即将来临!"
+        },
+        {
+          "bvid": "BV1XTqSBHEyr",
+          "title": "[MC优化]老手机2800帧,最牛优化整合包V3.9发布!"
+        },
+        {
+          "bvid": "BV12TxAzvE9r",
+          "title": "[MC优化]老手机2000＋FPS,最牛优化整合包发布！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-05",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "炒雪吵狐力o",
+      "group_key": "炒雪吵狐力o::rapidoptimization",
+      "old_distinct_keys": 3,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1zr8V62EvF",
+          "title": "【MC】低帧救星！Rapid Opt极致优化整合再次更新！Rapid Optimization快速优化整合包！"
+        },
+        {
+          "bvid": "BV16dcgzUEm2",
+          "title": "【MC】极致优化！Rapid Opt优化整合包再次更新！不用再纠结用哪个整合包了！RapidOptimization优化整合包"
+        },
+        {
+          "bvid": "BV1f3eAz3Env",
+          "title": "【MC】极致优化！Rapid Opt优化整合包再次更新！拯救你的游戏！RapidOptimization优化整合包"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-11",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "宅际不上班",
+      "group_key": "宅际不上班::我非我",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1gmu36VELt",
+          "title": "【整合包发布】我非我1.0正式版，器官构筑玩法，冒险爽包"
+        },
+        {
+          "bvid": "BV1n7Jj6eEPL",
+          "title": "【整合包更新】1.21.1类脆骨症整合包，我非我0.0.6更新介绍"
+        },
+        {
+          "bvid": "BV1WMG26qEgc",
+          "title": "【整合包发布】类脆骨症整合包 - 我非我"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-12",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "流霜雾影",
+      "group_key": "流霜雾影::愚者",
+      "old_distinct_keys": 3,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1s3ZNBYEQU",
+          "title": "【MC整合包发布】愚者v0.2：塔罗秘闻、罪梦流派、逆位诅咒！愚者版本大更新，全新挑战内容来袭！"
+        },
+        {
+          "bvid": "BV1CLnmzgECo",
+          "title": "【MC整合包发布】愚者v0.1：初升的暮色、日落的天堂、迷失梦境的旅人、萌芽地狱的新生...愚者版本大更新！更丰富的玩法、更具挑战的内容来了！！！"
+        },
+        {
+          "bvid": "BV1iRL7zYExj",
+          "title": "【MC整合包发布：愚者】愚弄、伪装、欺诈，屠龙者终成恶龙。扮演所有的生物，使用它们的能力编织一场完美的欺诈盛宴！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-29",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "星遥工坊",
+      "group_key": "星遥工坊::宁然一隅",
+      "old_distinct_keys": 3,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV15ThK6QE7c",
+          "title": "【整合包更新】宁然一隅 1.10.3 大更新！原创商店系统！原创农家乐经营！玩家交易！食物图鉴！任务优化！体验优化！"
+        },
+        {
+          "bvid": "BV12aSRBXETW",
+          "title": "【整合包发布】宁然一隅1.7.3！多人互动联机首选！10+自制模组！针对性深度优化！"
+        },
+        {
+          "bvid": "BV1hu3tzgE1P",
+          "title": "【MC整合包发布】宁然一隅 Continue ！一年磨一剑极致优化！超多定制趣味内容！休闲与轻冒险的完美结合！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-30",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "橘子皮zero",
+      "group_key": "橘子皮zero::拯救世界重建文明",
+      "old_distinct_keys": 3,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1Wg3dzVE2G",
+          "title": "【整合包发布】世界破碎→赤手空拳能否挖出人类希望？拯救世界重建文明？1.0凋落之花正式版发布！"
+        },
+        {
+          "bvid": "BV1aXNNe6EP7",
+          "title": "【整合包发布】末日降临！撑起人类的希望，拯救世界重建文明！大型超现实凋落之花整合包史诗级更新！"
+        },
+        {
+          "bvid": "BV11dCJYEEi7",
+          "title": "【整合包发布】在即将到来的末日中，撑起人类的希望，拯救世界重建文明！大型超现实，凋落之花发布！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-31",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "没睡醒的老王呀",
+      "group_key": "没睡醒的老王呀::annoying",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1Br7G6yEBh",
+          "title": "我的世界Annoying_Villagers_Players(烦村玩家)整合包1.20.1更新"
+        },
+        {
+          "bvid": "BV1hbFWe3EHN",
+          "title": "我的世界Annoying Players(烦人的玩家)整合包1.0正式版发布"
+        },
+        {
+          "bvid": "BV18tFHePEt5",
+          "title": "我的世界Annoying Players(烦人的玩家)整合包1.0正式版发布"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-01",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "_昊日天_",
+      "group_key": "_昊日天_::昊日天",
+      "old_distinct_keys": 2,
+      "confidence": "medium",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1EQ4y1X77m",
+          "title": "【昊日天】我的世界 这是一个你一定会需要的整合包！Minecarft1.16.5整合包发布"
+        },
+        {
+          "bvid": "BV1YJ411U7k1",
+          "title": "【昊日天】一款适合生存玩家和UP主的1.14整合包发布啦！我的世界Minecraft"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-06",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "GRAINALCOHOL",
+      "group_key": "grainalcohol::origincraft 起源",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1Qm4y1L7pK",
+          "title": "[OriginCraft] 我的世界:起源 &quot;年轻人的第一款整合包&quot; 大版本V2000发布&amp;预告"
+        },
+        {
+          "bvid": "BV1oX4y197xZ",
+          "title": "[OriginCraft] 我的世界:起源 &quot;年轻人的第一款整合包&quot; 正式版本v1.13发布"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-07",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "一个个方块呀",
+      "group_key": "一个个方块呀::雾中人",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1a57NzFENU",
+          "title": "V30.5.5的正式版--全新雾中人整合包发布！"
+        },
+        {
+          "bvid": "BV1hodfYNEWd",
+          "title": "【全新雾中人-整合包V2.0正式发布】2.0更新了哪些内容呢？需要你们自行进入游戏查看！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-08",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "最爱仪仪",
+      "group_key": "最爱仪仪::侏罗纪",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1AyGg6TEbf",
+          "title": "我的世界侏罗纪整合包1.1版本发布 侏罗纪模组已完全汉化"
+        },
+        {
+          "bvid": "BV1tEgY6vET9",
+          "title": "我的世界侏罗纪整合包发布 版本为1.21.1 侏罗纪模组已进行汉化"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-13",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "Akrcloud",
+      "group_key": "akrcloud::雾中人红衣学姐恐怖 雾中人红衣学姐",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1kK421v7Ps",
+          "title": "我的世界雾中人红衣学姐恐怖整合包更新4.0夸克蓝奏云分享"
+        },
+        {
+          "bvid": "BV1Lz42197X5",
+          "title": "我的世界雾中人红衣学姐恐怖整合包更新3.0蓝奏云分享"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-14",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "InAx白咕",
+      "group_key": "inax白咕::异世界种田顺便拯救世界",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1PcGk6dEiR",
+          "title": "[整合包发布]别卷了！这回，我依旧在异世界种田顺便拯救世界！*2!"
+        },
+        {
+          "bvid": "BV1t4AKe8Exm",
+          "title": "【整合包发布】别卷了！这次，我只想在异世界种田顺便拯救世界！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-15",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "JSI我的世界制作组",
+      "group_key": "jsi我的世界制作组::更有趣的末地 更有趣",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1kYicedEbK",
+          "title": "【我的世界】最好用的机械动力附属、农夫乐事整合包，更有趣的末地，幽暗之域更新，1.19.2休闲机械动力整合包更新啦 Create Delight 1.0.2"
+        },
+        {
+          "bvid": "BV1Ac41127zv",
+          "title": "【我的世界】最好用的机械动力附属、农夫乐事整合包，更有趣的末地，更宏伟的下界，幽暗之域更新，1.19.2休闲机械动力整合包 Create Delight"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-16",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "不知名的莫理沙",
+      "group_key": "不知名的莫理沙::勇者之章",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV13m7Yz3EST",
+          "title": "【整合包更新】☆星月枪姬与落魄勇者☆稳定版本！战斗魔改我的世界整合包勇者之章Ⅲ"
+        },
+        {
+          "bvid": "BV1CfVLzNE1b",
+          "title": "【整合包更新】☆星月枪姬与落魄勇者☆版本更新！我的世界魔改战斗整合包勇者之章Ⅲ"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-17",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "咱叫小屿",
+      "group_key": "咱叫小屿::隔离区",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV12fjBz5EsD",
+          "title": "【整合包发布】隔离区正式版-丧尸末日类型整合包-非正式介绍"
+        },
+        {
+          "bvid": "BV1oZ421u7Qk",
+          "title": "【隔离区】大型定制化丧尸末日整合包 - v0.2预告更新"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-18",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "宿墟-1eXiNGt0N",
+      "group_key": "宿墟-1exingt0n::暗涌 深岩恐惧",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1rBbT6hEGh",
+          "title": "我的世界《暗涌：深岩恐惧》整合包正式发布1.0.1版本！"
+        },
+        {
+          "bvid": "BV1RVXTB3EVW",
+          "title": "我的世界-暗涌：深岩恐惧整合包公测版本发布及简介"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-19",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "小硕3365",
+      "group_key": "小硕3365::masa 全家桶",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1hR4y1f7yF",
+          "title": "最新最全面1.19.2整合包发布：MASA全家桶+回放录像+优化+地毯+假人背包"
+        },
+        {
+          "bvid": "BV1Qr4y1W7pT",
+          "title": "【我的世界】1.18.2MASA全家桶+汉化+优化+实用+基础教程整合包发布 BY小硕3365"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-20",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "月与风-yyf",
+      "group_key": "月与风-yyf::慢砌山河 建筑",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1wSYb6uEc6",
+          "title": "慢砌山河整合包——我的世界生存建筑休闲整合包更新日志3"
+        },
+        {
+          "bvid": "BV1thtD6wE1r",
+          "title": "慢砌山河整合包——我的世界生存建筑整合包更新日志1"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-21",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "深夜鸽子",
+      "group_key": "深夜鸽子::真理之路",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV19M29YFE37",
+          "title": "【整合包发布】《真理之路》-v2.x系列“混沌理论”硬核上线！"
+        },
+        {
+          "bvid": "BV14D421G7hR",
+          "title": "【整合包发布】《真理之路》-Minecraft大型硬核综合向整合包-震撼发布！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-22",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "狐狸の妙妙屋",
+      "group_key": "狐狸の妙妙屋::时光牧场",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1prE16mEMW",
+          "title": "【整合包更新】时光牧场1.1版本-1.20.1-下载与更新内容介绍-整合包发布"
+        },
+        {
+          "bvid": "BV1BB9EBmEwV",
+          "title": "【整合包发布】时光牧场-以建设生态园为主的休闲养老包-下载与介绍"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-23",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "狐狸の妙妙屋",
+      "group_key": "狐狸の妙妙屋::模拟大都市",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1VnE16wEFj",
+          "title": "【整合包更新】模拟大都市1.3版本-1.20.1-下载与更新内容介绍-整合包推荐"
+        },
+        {
+          "bvid": "BV1nCdUBCEMK",
+          "title": "【整合包更新】模拟大都市-1.20.1-下载与更新内容介绍-整合包推荐"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-24",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "瞳彩鹿454445",
+      "group_key": "瞳彩鹿454445::hnt",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1R1ndzQEBd",
+          "title": "我的世界整合包发布：HNT正式版V1.5 探究文明，创造未来"
+        },
+        {
+          "bvid": "BV1KretzZEGG",
+          "title": "【MC自制科技向整合包】重现人类文明之巅，HNT测试版发布"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-25",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "莱斯莎沃RS_",
+      "group_key": "莱斯莎沃rs_::异世界探险家",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1Jm421E7w7",
+          "title": "【我的世界】1.20.1 休闲，养老，冒险《异世界探险家》整合包重大更新"
+        },
+        {
+          "bvid": "BV1bV411K7or",
+          "title": "【我的世界】1.18.2 休闲，养老，冒险《异世界探险家》整合包实机演示及发布"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-26",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "青山半隐",
+      "group_key": "青山半隐::蛊真人",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1brgs6mEoE",
+          "title": "【整合包更新】蛊真人2.5-下载与更新-1.21.1"
+        },
+        {
+          "bvid": "BV15D3u6JE2b",
+          "title": "1.21.1「蛊真人2.4整合包」-智道魂道更新-下载与介绍"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-27",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "骑马的无情小叶",
+      "group_key": "骑马的无情小叶::海贼之旅",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1hNup66ExJ",
+          "title": "我的世界整合包《海贼之旅》大更新"
+        },
+        {
+          "bvid": "BV18b5e6HEY3",
+          "title": "我的世界《海贼之旅》整合包正式发布"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-32",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "Puikre",
+      "group_key": "puikre::锻造大师",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1WA4m1L7QY",
+          "title": "MC整合包发布:一段由锻造师撰写的传奇篇幅!武器锻造|维度冒险|美食盛宴|定制模组——成为锻造大师！"
+        },
+        {
+          "bvid": "BV1qK411v7Ad",
+          "title": "MC整合包发布：一段由锻造师开辟的史诗篇章!BOSS挑战|资源探索|趣味美食|定制模组——成为锻造大师！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-33",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "Sino_P",
+      "group_key": "sino_p::瓶中伊甸",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1nPuy6DEq3",
+          "title": "【MC整合包发布】侵晨作剑，奥法谐鸣，战斗体系全面更新「瓶中伊甸」0.1.2版本更新介绍"
+        },
+        {
+          "bvid": "BV1hATk6dEQi",
+          "title": "【MC整合包发布】瓶中伊甸——烧瓶中，亦蕴含着「再创世」的潜能"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-34",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "ZangHeRo",
+      "group_key": "zanghero::机械殖民地",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1zQVEzqE94",
+          "title": "机械殖民地1171更新介绍【整合包】【模拟殖民地】【我的世界】"
+        },
+        {
+          "bvid": "BV1mfwNeREwk",
+          "title": "[整合包宣传]寒假和朋友来MC玩城镇建设吧，建筑小白也能拥有漂亮的城市！机械殖民地1.1.5寒假更新上线！[minecraft][我的世界]"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-35",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "共轭o",
+      "group_key": "共轭o::武道宗师",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1ozYCznEtV",
+          "title": "整合包「武道宗师」1.0完整版发布：拍卖所与家园系统扩展，新维度新副本！"
+        },
+        {
+          "bvid": "BV1zthLzMEja",
+          "title": "【整合包发布】武道宗师：凡尘初露锋芒起，侠影渐随剑气生"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-36",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "大漠神枪",
+      "group_key": "大漠神枪::level le",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1DiSnYkEa3",
+          "title": "【MC整合包发布】Level Up整合包1.1 加入更多自定义拔刀剑 新的武器词条"
+        },
+        {
+          "bvid": "BV18oyCYfEi7",
+          "title": "【MC整合包发布】Level Up 整合包 1.0  发布！性能优化 加入初号机 拔刀剑以及新的枪械升级"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-37",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "小小伊布酱",
+      "group_key": "小小伊布酱::光芒消逝之日",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1ot421K7G7",
+          "title": "暑假必玩的跨时代级末日整合包发布！光芒消逝之日1.4.0——何物于黑暗中绽放"
+        },
+        {
+          "bvid": "BV1bM411F7o4",
+          "title": "［MC整合包发布］光芒消逝之日－－末日，剧情，硬核，探索，跑酷类整合包，满足你对末日的一切幻想!听觉，视觉，玩法的多重盛宴!（可能是首个触发式剧情的整合包）"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-38",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "橘仔io",
+      "group_key": "橘仔io::体验自己一步一步 城镇和发展人口的乐趣 城镇",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV16eE8zjEMP",
+          "title": "海岛小镇1.20.1版本整合包更新发布!体验自己一步一步建造城镇和发展人口的乐趣"
+        },
+        {
+          "bvid": "BV14nLpzwEXH",
+          "title": "MC整合包发布!体验自己一步一步建造城镇和发展人口的乐趣~海岛小镇！！！1"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-39",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "润润79",
+      "group_key": "润润79::尘封古纪",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1xuMy6WE8b",
+          "title": "【MC整合包发布】尘封古纪v2.0.2——极致的史诗战斗、160+Boss挑战整合包"
+        },
+        {
+          "bvid": "BV1tugQzeESP",
+          "title": "【MC整合包发布】尘封古纪1.0，在骸骨堆旁追溯亡灵传说，在残垣里触摸传奇武器，在迷雾中破译灾厄术法。揭开凋灵风暴的秘密，这个尘封千年的古板，期待旅者的到来！"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-POS-40",
+      "expected": "merge",
+      "kind": "same_pack_split_by_baseline_runtime",
+      "uploader": "磁钢百合",
+      "group_key": "磁钢百合::旅行时光 饥饿",
+      "old_distinct_keys": 2,
+      "confidence": "high",
+      "source": "v2 LEGITIMATE_SAME_PACK member evidence + baseline-vs-final runtime diff",
+      "videos": [
+        {
+          "bvid": "BV1yX7P6NEbF",
+          "title": "bro，这个整合包包好玩的，信我，旅行时光:饥饿1.7.0更新"
+        },
+        {
+          "bvid": "BV16SfjBFEVt",
+          "title": "软核整合包，旅行时光:饥饿，公测"
+        }
+      ]
+    }
+  ],
+  "negative_cases": [
+    {
+      "case_id": "HOLDOUT3-NEG-20",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "狐狸の妙妙屋",
+      "group_count": 7,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV11yT16sE7Z",
+          "title": "【整合包更新】蛊真人2.4版本-下载与更新内容介绍",
+          "group_key": "狐狸の妙妙屋::蛊真人"
+        },
+        {
+          "bvid": "BV1TC736sExw",
+          "title": "【整合包更新】畸变一百天2.0版本-下载与更新内容介绍",
+          "group_key": "狐狸の妙妙屋::畸变一百天 版本 与 内容"
+        },
+        {
+          "bvid": "BV1stjK6KERb",
+          "title": "【整合包更新】蛊真人2.3版本-1.21.1-下载与更新内容介绍",
+          "group_key": "狐狸の妙妙屋::蛊真人"
+        },
+        {
+          "bvid": "BV1VnE16wEFj",
+          "title": "【整合包更新】模拟大都市1.3版本-1.20.1-下载与更新内容介绍-整合包推荐",
+          "group_key": "狐狸の妙妙屋::模拟大都市"
+        },
+        {
+          "bvid": "BV1prE16mEMW",
+          "title": "【整合包更新】时光牧场1.1版本-1.20.1-下载与更新内容介绍-整合包发布",
+          "group_key": "狐狸の妙妙屋::时光牧场"
+        },
+        {
+          "bvid": "BV1CSLh6PEt9",
+          "title": "【整合包更新】蛊真人2.1版本-1.21.1-下载与更新内容介绍",
+          "group_key": "狐狸の妙妙屋::蛊真人"
+        },
+        {
+          "bvid": "BV1cLRtBEExo",
+          "title": "【整合包更新】界之咒术-1.20.1-下载与更新内容介绍-整合包推荐",
+          "group_key": "狐狸の妙妙屋::界之咒术 与 内容"
+        },
+        {
+          "bvid": "BV1nCdUBCEMK",
+          "title": "【整合包更新】模拟大都市-1.20.1-下载与更新内容介绍-整合包推荐",
+          "group_key": "狐狸の妙妙屋::模拟大都市"
+        },
+        {
+          "bvid": "BV1E5QjBzEoZ",
+          "title": "【整合包更新】蛊真人-1.21.1-下载与更新内容介绍-整合包推荐",
+          "group_key": "狐狸の妙妙屋::蛊真人"
+        },
+        {
+          "bvid": "BV1ALDqBvEFr",
+          "title": "【整合包更新】冰火传说-1.20.1-下载与更新内容介绍-整合包推荐",
+          "group_key": "狐狸の妙妙屋::冰火传说"
+        },
+        {
+          "bvid": "BV1BB9EBmEwV",
+          "title": "【整合包发布】时光牧场-以建设生态园为主的休闲养老包-下载与介绍",
+          "group_key": "狐狸の妙妙屋::时光牧场"
+        },
+        {
+          "bvid": "BV1bmQoBME5j",
+          "title": "【我的世界整合包发布】山海大陆-1.20.1-下载与介绍-整合包推荐",
+          "group_key": "狐狸の妙妙屋::山海大陆 与"
+        },
+        {
+          "bvid": "BV1AHwozpEUR",
+          "title": "【我的世界整合包发布】冰火传说-1.20.1-下载与介绍-整合包推荐",
+          "group_key": "狐狸の妙妙屋::冰火传说"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-62",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "Minecraft菠萝君",
+      "group_count": 7,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1nh411r7MN",
+          "title": "[整合包]Minecraft基岩版战神整合包公测系列",
+          "group_key": "minecraft菠萝君::基岩版战神 系列"
+        },
+        {
+          "bvid": "BV1jK4y137JF",
+          "title": "[整合包]Minecraft手机版火影忍者整合包公测系列",
+          "group_key": "minecraft菠萝君::手机版火影忍者 系列"
+        },
+        {
+          "bvid": "BV1Qf4y1b7vZ",
+          "title": "[整合包]Minecraft手机版恐龙纪元整合包公测系列",
+          "group_key": "minecraft菠萝君::手机版恐龙纪元 系列"
+        },
+        {
+          "bvid": "BV15b4y1Z74Y",
+          "title": "[整合包]Minecraft手机版吸血鬼整合公测系列",
+          "group_key": "minecraft菠萝君::手机版吸血鬼整合 系列"
+        },
+        {
+          "bvid": "BV1mv41157D4",
+          "title": "[整合包]Minecraft手机版中世纪生存整合公测系列",
+          "group_key": "minecraft菠萝君::手机版中世纪 整合 系列"
+        },
+        {
+          "bvid": "BV1K64y1m7P8",
+          "title": "[整合包]Minecraft手机版畸变100公测系列",
+          "group_key": "minecraft菠萝君::手机版畸变100 系列"
+        },
+        {
+          "bvid": "BV1bq4y177NU",
+          "title": "[整合包]Minecraft手机版惊变100公测系列",
+          "group_key": "minecraft菠萝君::手机版惊变100 系列"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-37",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "马赵龙zhao_long",
+      "group_count": 6,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1CeUABqEnh",
+          "title": "神圣rpg整合包1.0正式版1.12.2版本发布",
+          "group_key": "马赵龙zhao_long::神圣 版本"
+        },
+        {
+          "bvid": "BV1wayMBzE7z",
+          "title": "【我的世界】《虚无世界3.6》最终版整合包更新！",
+          "group_key": "马赵龙zhao_long::虚无世界 最终版"
+        },
+        {
+          "bvid": "BV1v4yXBDEuU",
+          "title": "侏罗纪公园整合包1.0正式版发布",
+          "group_key": "马赵龙zhao_long::侏罗纪公园"
+        },
+        {
+          "bvid": "BV1wEtKzkEgN",
+          "title": "宝可梦1.16.5重铸整合包2.0内置幸运方块赛道及内容更新",
+          "group_key": "马赵龙zhao_long::宝可梦 重铸 内置幸运方块赛道及内容"
+        },
+        {
+          "bvid": "BV1ENucz3Ehq",
+          "title": "我的世界宝可梦重铸1.16.5整合包更新",
+          "group_key": "马赵龙zhao_long::宝可梦重铸"
+        },
+        {
+          "bvid": "BV1NRf5YzETo",
+          "title": "我的世界fcl手机启动器 ◔.̮◔✧[宝可梦整合包正式发布]",
+          "group_key": "马赵龙zhao_long::fcl手机启动器 宝可梦 正式"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-47",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "无双小星",
+      "group_count": 6,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV14WR8Y3EmD",
+          "title": "1.20.1幸运泰坦整合包发布",
+          "group_key": "无双小星::幸运泰坦"
+        },
+        {
+          "bvid": "BV1h7wFeEEQn",
+          "title": "1.12.2泰坦整合包发布",
+          "group_key": "__raw_BV1h7wFeEEQn"
+        },
+        {
+          "bvid": "BV1HPkxYsE1o",
+          "title": "1.7.10自制怪物大乱斗整合包发布",
+          "group_key": "无双小星::怪物大乱斗"
+        },
+        {
+          "bvid": "BV1yws5eNE4J",
+          "title": "1.21.1随机空岛整合包发布",
+          "group_key": "__raw_BV1yws5eNE4J"
+        },
+        {
+          "bvid": "BV15AYYeoErm",
+          "title": "1.8.9幸运大冒险低配整合包发布！！！",
+          "group_key": "无双小星::幸运大 低配"
+        },
+        {
+          "bvid": "BV16Z8beQEZj",
+          "title": "1.12.2幸运方块整合包（低配版）发布！",
+          "group_key": "无双小星::幸运方块 低配版"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-36",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "-六五六-",
+      "group_count": 5,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1kE2ZBEEPz",
+          "title": "【整合包介绍】它使你扣下的每一次扳机都与众不同 | 子弹呼啸枪战整合包发布",
+          "group_key": "-六五六-::它使你扣下的每一次扳机都与众不同 子弹呼啸枪战"
+        },
+        {
+          "bvid": "BV1r1EKzDEKm",
+          "title": "【MC】啥？你电脑带不动MC？ | 656极致优化整合包发布",
+          "group_key": "-六五六-::啥 你电脑带不动 656极致优化"
+        },
+        {
+          "bvid": "BV1sLVKzCEJh",
+          "title": "【MC】MC也能畅玩射击？| 六五六极致枪械整合包发布",
+          "group_key": "-六五六-::也能畅玩射击 六五六极致"
+        },
+        {
+          "bvid": "BV1kojFzwE2J",
+          "title": "【MC】生电玩家的福音来辣！| 656极致生电整合包发布",
+          "group_key": "-六五六-::生电玩家的福音来辣 656极致生电"
+        },
+        {
+          "bvid": "BV1rFjczFEww",
+          "title": "【MC】建筑生存党的福音来辣！| 六五六极致美化整合包发布",
+          "group_key": "-六五六-::建筑 党的福音来辣 六五六极致美化"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-01",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "我的世界peaunt",
+      "group_count": 4,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1QTYr6sEXA",
+          "title": "1.12.2泰坦整合包发布",
+          "group_key": "__raw_BV1QTYr6sEXA"
+        },
+        {
+          "bvid": "BV1EhYN6AEWo",
+          "title": "泰坦整合包1.7.10更新",
+          "group_key": "__raw_BV1EhYN6AEWo"
+        },
+        {
+          "bvid": "BV1QPSZBzEGe",
+          "title": "泰坦生物复刻1.20.1整合包更新",
+          "group_key": "我的世界peaunt::泰坦生物复刻"
+        },
+        {
+          "bvid": "BV1NRmCBHERX",
+          "title": "泰坦生物1.16.5整合包（仿照1.7.10）更新",
+          "group_key": "我的世界peaunt::泰坦生物"
+        },
+        {
+          "bvid": "BV1wg4zzPEUU",
+          "title": "泰坦生物1.12.2整合包发布",
+          "group_key": "我的世界peaunt::泰坦生物"
+        },
+        {
+          "bvid": "BV15aHHz4EKS",
+          "title": "泰坦生物1.20.1整合包更新发布",
+          "group_key": "我的世界peaunt::泰坦生物"
+        },
+        {
+          "bvid": "BV14cnVzQED2",
+          "title": "泰坦生物1.20.1整合包国庆节发布",
+          "group_key": "我的世界peaunt::泰坦生物"
+        },
+        {
+          "bvid": "BV1NNhRz4ErY",
+          "title": "泰坦生物复刻1.20.1整合包发布",
+          "group_key": "我的世界peaunt::泰坦生物复刻"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-32",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "一个个方块呀",
+      "group_count": 4,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1YPZ1B8EHt",
+          "title": "【Minecraft Horror】2026新雾中人恐怖生存整合包V39.5.5正式发布！",
+          "group_key": "一个个方块呀::horror 2026新雾中人恐怖 正式"
+        },
+        {
+          "bvid": "BV1NwN2zTEBm",
+          "title": "V32.5.5 &quot;迷雾牧师”整合包发布！搭配The Broken Script食用最佳！",
+          "group_key": "一个个方块呀::quot 迷雾牧师 搭配the broken script食用最佳"
+        },
+        {
+          "bvid": "BV1a57NzFENU",
+          "title": "V30.5.5的正式版--全新雾中人整合包发布！",
+          "group_key": "一个个方块呀::雾中人"
+        },
+        {
+          "bvid": "BV1uM52zvEY2",
+          "title": "【雾中人整合包V6.5发布！】致力于玩家们的选择，感谢大家的支持！",
+          "group_key": "一个个方块呀::雾中人"
+        },
+        {
+          "bvid": "BV15o5pzCEV2",
+          "title": "【雾中人整合包V4.0正式版发布！】恐怖程度+10000000%",
+          "group_key": "一个个方块呀::雾中人"
+        },
+        {
+          "bvid": "BV1pa5Ez5EsB",
+          "title": "【雾中人整合包V3.0优化正式版发布！】这次是一次重大变动！",
+          "group_key": "一个个方块呀::雾中人 优化 这次是一次重大变动"
+        },
+        {
+          "bvid": "BV1hodfYNEWd",
+          "title": "【全新雾中人-整合包V2.0正式发布】2.0更新了哪些内容呢？需要你们自行进入游戏查看！",
+          "group_key": "一个个方块呀::雾中人"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-12",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "骑马的无情小叶",
+      "group_count": 4,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV12ngH6vEdV",
+          "title": "【宝可梦整合包】我的世界《宝可梦：像素纪元》正式发布！开局任选宝可梦＋机械动力＋农夫乐事",
+          "group_key": "骑马的无情小叶::宝可梦 宝可梦 像素纪元 正式 开局任选宝可梦 机械动力 农夫乐事"
+        },
+        {
+          "bvid": "BV1hNup66ExJ",
+          "title": "我的世界整合包《海贼之旅》大更新",
+          "group_key": "骑马的无情小叶::海贼之旅"
+        },
+        {
+          "bvid": "BV18b5e6HEY3",
+          "title": "我的世界《海贼之旅》整合包正式发布",
+          "group_key": "骑马的无情小叶::海贼之旅"
+        },
+        {
+          "bvid": "BV1mWRQBFEVc",
+          "title": "我的世界：休闲田园整合包正式发布！",
+          "group_key": "骑马的无情小叶::休闲田园 正式"
+        },
+        {
+          "bvid": "BV1Y8o9BDEZn",
+          "title": "我的世界模拟城市整合包正式发布！！！",
+          "group_key": "骑马的无情小叶::模拟城市 正式"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-19",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "Monica_squirrel",
+      "group_count": 4,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1VxN96XEh7",
+          "title": "【MC整合包发布】另类的脆骨症-渎圣织罪0.5版本高度魔改-海量原创-机械飞升-血肉凌弱",
+          "group_key": "monica_squirrel::另类的脆骨症 渎圣织罪 版本高度 海量原创 机械飞升 血肉凌弱"
+        },
+        {
+          "bvid": "BV1S4NK62EjU",
+          "title": "【MC整合包发布】渎圣织罪0.5-zero正式版更新发布肢体拼装-血肉飞升",
+          "group_key": "monica_squirrel::渎圣织罪::registered:xyebbs:resource/1482"
+        },
+        {
+          "bvid": "BV1MrAezPE3h",
+          "title": "【MC整合包发布】肢体拼装高度魔改『血肉塑身⭐自制饰品』渎圣织罪整合包正式公测发布",
+          "group_key": "monica_squirrel::渎圣织罪::registered:xyebbs:res-id/bloodstain"
+        },
+        {
+          "bvid": "BV1FVtFzQEQ3",
+          "title": "超多定制饰品[MC硬核魔改整合包:亵渎]正式发布宣传",
+          "group_key": "monica_squirrel::亵渎"
+        },
+        {
+          "bvid": "BV1hg3zzuEbL",
+          "title": "超多定制饰品[MC硬核魔改整合包:亵渎]发布",
+          "group_key": "monica_squirrel::亵渎"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-54",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "账号已注销",
+      "group_count": 4,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1wa4y127Ni",
+          "title": "我的世界1.18.2整合包《末落龙瞳》发布",
+          "group_key": "账号已注销::末落龙瞳"
+        },
+        {
+          "bvid": "BV1Yw411s7Tb",
+          "title": "MC自制整合包末落龙瞳更新日志[01]",
+          "group_key": "账号已注销::末落龙瞳"
+        },
+        {
+          "bvid": "BV14D4y1N73i",
+          "title": "【整合包发布】异度之遥精神续作，Minecraft1.12.2异度刀剑录整合包宣传片",
+          "group_key": "账号已注销::异度之遥精神续作 异度刀剑录 宣传片"
+        },
+        {
+          "bvid": "BV1h14y1L78h",
+          "title": "【MC1.18.2】大型硬核冒险整合包发布 | Infinity-Reborn | 你将再次踏上无限的征途！",
+          "group_key": "账号已注销::大型 infinity reborn 你将再次踏上无限的征途"
+        },
+        {
+          "bvid": "BV1AP4y1N7Ja",
+          "title": "1.16.5【七咒挑战】（持续更新）在背负诅咒的情况下，你能否在这个世界中存活下来呢？我的世界forge整合包分享",
+          "group_key": "账号已注销::七咒挑战 持续 在背负诅咒的情况下 你能否在这个世界中存活下来呢"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-33",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "友止殷Eugene",
+      "group_count": 4,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1X3ZLBVEkj",
+          "title": "【发布】灵动视界|高版本美学优化整合包！在游戏里看动画，在动画里玩游戏",
+          "group_key": "友止殷eugene::灵动视界 高版本美学优化 在游戏里看动画 在动画里玩游戏"
+        },
+        {
+          "bvid": "BV1DT421a74L",
+          "title": "【整合包|发布】烂柯人大更新！最适合沉浸游玩的一集！神奇武器、原创剧情、统一美学！艾莉克斯也快来了噢！",
+          "group_key": "友止殷eugene::烂柯人大 最适合沉浸游玩的一集 神奇武器 原创 统一美学 艾莉克斯也快来了噢"
+        },
+        {
+          "bvid": "BV1wb4y1P7vF",
+          "title": "【整合包|发布】最新力作！《动画世界：烂柯人》，讲述全新MC故事！大量原创模组、数据包，更有独家定制内容和中国元素！美学统一，生存拟真，养老休闲，寒假必玩！",
+          "group_key": "友止殷eugene::力作 动画世界 烂柯人 讲述全新 故事 大量原创模组 数据包 更有独家定制内容和中国元素 美学统一 拟真 休闲 寒假必玩"
+        },
+        {
+          "bvid": "BV17M4y1k7Jk",
+          "title": "【美学整合包|公测】你的艾莉克斯，致上",
+          "group_key": "友止殷eugene::美学 你的艾莉克斯 致上"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-44",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "Puikre",
+      "group_count": 3,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1yB34zhEKs",
+          "title": "MC整合包发布：锻造大师-4.0！全面重置的神器锻造和特性效果，重新谱写这份独属于锻造大师们的冒险乐章！",
+          "group_key": "puikre::锻造大师"
+        },
+        {
+          "bvid": "BV1qM4m197eh",
+          "title": "MC整合包发布：奇妙的洞穴探索之旅！休闲|养老|冒险|美食|定制的交易系统！更多趣味联动！Alexcraft3.0重置大更新！",
+          "group_key": "puikre::奇妙的洞穴 之旅 休闲 美食 定制的交易系统 更多趣味联动 alexcraft 重置大"
+        },
+        {
+          "bvid": "BV1yr421n7yL",
+          "title": "MC整合包发布：一段追求极致的，属于锻造师的历练史诗！炼狱锻魂！成为锻造大师吧！",
+          "group_key": "puikre::锻造大师"
+        },
+        {
+          "bvid": "BV1ZW421N76z",
+          "title": "MC整合包发布：一段铸造奇迹的冒险史诗！锻造RPG|BOSS挑战|生活冒险|定制模组——那就成为锻造大师吧!",
+          "group_key": "puikre::锻造大师"
+        },
+        {
+          "bvid": "BV1WA4m1L7QY",
+          "title": "MC整合包发布:一段由锻造师撰写的传奇篇幅!武器锻造|维度冒险|美食盛宴|定制模组——成为锻造大师！",
+          "group_key": "puikre::锻造大师"
+        },
+        {
+          "bvid": "BV1qK411v7Ad",
+          "title": "MC整合包发布：一段由锻造师开辟的史诗篇章!BOSS挑战|资源探索|趣味美食|定制模组——成为锻造大师！",
+          "group_key": "puikre::锻造大师"
+        },
+        {
+          "bvid": "BV14e411k7aF",
+          "title": "MC整合包发布：一场紧张又刺激的Alex洞穴之旅！美食|魔法|挑战|冒险向的轻量化整合包！",
+          "group_key": "puikre::一场紧张又刺激的alex洞穴之旅 美食 挑战 向的轻量化"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-06",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "冰冻酸奶盒",
+      "group_count": 3,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1F44C6ZEvW",
+          "title": "【整合包发布】宝可梦创纪元v0.1正式发布！300+模组大型整合包，全新跨时代玩法！",
+          "group_key": "冰冻酸奶盒::宝可梦创纪元 正式 300 模组大型 全新跨时代玩法"
+        },
+        {
+          "bvid": "BV1aegV6XEHM",
+          "title": "〖我的世界整合包〗宝可梦地平线2.0正式发布，结合了方可梦的附属跟重铸的ui跟建模还有部分玩法。1.21.1＋voxy＋超高画质渲染，一款跨时代的宝可梦整合包！",
+          "group_key": "冰冻酸奶盒::地平线"
+        },
+        {
+          "bvid": "BV1ZdTe67Ebo",
+          "title": "【我的世界整合包】宝可梦地平线1.2正式发布----高度自定义加钛晶化加voxy的全宝可梦的1.21.1高版本整合包",
+          "group_key": "冰冻酸奶盒::地平线"
+        },
+        {
+          "bvid": "BV1QbjU6vE9N",
+          "title": "【我的世界整合包发布】宝可梦地平线v1.1正式发布----高版本全精灵重铸整合包+voxy+真实物理",
+          "group_key": "冰冻酸奶盒::地平线"
+        },
+        {
+          "bvid": "BV1wujN68E3B",
+          "title": "【MC整合包发布】宝可梦地平线v1.0----1.21.1高版本宝可梦重铸 voxy/地平线 真实物理！",
+          "group_key": "冰冻酸奶盒::地平线"
+        },
+        {
+          "bvid": "BV1CbR7BZESQ",
+          "title": "【我的世界整合包】宝可梦onlinev1.1版本正式发布voxy+真实物理，1.21.1neoforge高版本宝可梦重铸整合包",
+          "group_key": "冰冻酸奶盒::高版本宝可梦重铸 高"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-10",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "星遥工坊",
+      "group_count": 3,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV15ThK6QE7c",
+          "title": "【整合包更新】宁然一隅 1.10.3 大更新！原创商店系统！原创农家乐经营！玩家交易！食物图鉴！任务优化！体验优化！",
+          "group_key": "星遥工坊::宁然一隅"
+        },
+        {
+          "bvid": "BV12aSRBXETW",
+          "title": "【整合包发布】宁然一隅1.7.3！多人互动联机首选！10+自制模组！针对性深度优化！",
+          "group_key": "星遥工坊::宁然一隅"
+        },
+        {
+          "bvid": "BV17FUkBPEEb",
+          "title": "【整合包发布】刀剑异闻录周年更新，自制附属万行魔改，全新拔刀全新挑战，流程/性能全面优化",
+          "group_key": "星遥工坊::刀剑异闻录"
+        },
+        {
+          "bvid": "BV19zWszKEo8",
+          "title": "【整合包发布】星遥优化！MC优化焚诀！全面性能提升！可覆盖至其他整合包！",
+          "group_key": "星遥工坊::星遥优化 优化焚诀 全面性能提升 可覆盖至其他"
+        },
+        {
+          "bvid": "BV1hu3tzgE1P",
+          "title": "【MC整合包发布】宁然一隅 Continue ！一年磨一剑极致优化！超多定制趣味内容！休闲与轻冒险的完美结合！",
+          "group_key": "星遥工坊::宁然一隅"
+        },
+        {
+          "bvid": "BV1at1cYkEXV",
+          "title": "【整合包发布】《刀剑异闻录》我有一剑，可斩终末 &amp; 冒险 | 拔刀 | 定制魔改 | 任务引导 | 深度优化",
+          "group_key": "星遥工坊::刀剑异闻录"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-35",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "小水滴的源头",
+      "group_count": 3,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1SK6nBgEit",
+          "title": "【MC/脑叶公司/整合包】lobotocraft测试版发布！！！玩家工作全流程演示。",
+          "group_key": "小水滴的源头::脑叶公司 lobotocraft 玩家工作全流程"
+        },
+        {
+          "bvid": "BV1JzjJzjEwb",
+          "title": "MC x BA整合包低配版发布，现在低配电脑也能玩了",
+          "group_key": "小水滴的源头::x ba 低配版 现在低配电脑也能玩了"
+        },
+        {
+          "bvid": "BV14z9FYRED5",
+          "title": "当你在MC里拥有了学生们的能力！？整合包更新NPCAI系统！（跨时代篇）",
+          "group_key": "小水滴的源头::学生们"
+        },
+        {
+          "bvid": "BV13rfqY2Ejf",
+          "title": "在MC里使用学生们的力量！？我的世界x蔚蓝档案 整合包新版发布介绍！（更新篇）",
+          "group_key": "小水滴的源头::学生们"
+        },
+        {
+          "bvid": "BV1UGveexEHn",
+          "title": "当你在我的世界中拥有了学生们的能力！我的世界蔚蓝档案主题整合包发布！",
+          "group_key": "小水滴的源头::学生们"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-21",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "城愿",
+      "group_count": 3,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1ipEb6REpu",
+          "title": "【26.X整合包发布】更完美的MC——视听美学丨原版增强丨生存辅助",
+          "group_key": "城愿::26 x 更完美的 视听美学丨 增强丨 辅助"
+        },
+        {
+          "bvid": "BV1hC4y1X769",
+          "title": "【1.20.1整合包发布】更好的原版v1.9更新介绍——这是一个在视觉、听觉、辅助上全方位提升的原版风格整合包",
+          "group_key": "城愿::更好的 v 这是一个在视觉 听觉 辅助上全方位提升的 风格"
+        },
+        {
+          "bvid": "BV12u4y1D7BJ",
+          "title": "【1.20.1整合包】更好的原版—V1.7更新介绍",
+          "group_key": "城愿::更好的 v"
+        },
+        {
+          "bvid": "BV1sm4y1x7h6",
+          "title": "【1.20.1整合包】更好的原版整合包—v1.5更新",
+          "group_key": "城愿::更好的 v"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-48",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "ERO-Dragon",
+      "group_count": 3,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1WQAZeNEeY",
+          "title": "[整合包发布]Minenufactory。颠覆原版生存玩法，专注于工厂流水线建设的整合包。",
+          "group_key": "ero-dragon::minenufactory 颠覆 玩法 专注于工厂流水线建设的"
+        },
+        {
+          "bvid": "BV1dS411P794",
+          "title": "【整合包发布·背靠背】冒险战斗+养老生活！体验相辅相成带来的别样风情",
+          "group_key": "ero-dragon::背靠背 生活 体验相辅相成带来的别样风情"
+        },
+        {
+          "bvid": "BV1NP41197pK",
+          "title": "[MC1.16.5整合包]乐土韶光ver1.4更新！改善体验，以及公告",
+          "group_key": "ero-dragon::乐土韶光"
+        },
+        {
+          "bvid": "BV1Hc411P7qB",
+          "title": "【MC整合包发布】我的世界整合包：乐土韶光，及正确食用教程",
+          "group_key": "ero-dragon::乐土韶光"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-24",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "Arthur_Bruce",
+      "group_count": 3,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV14J98B8ELU",
+          "title": "【MC整合包发布】大型玄幻仙侠RPG「霁月千秋」八位主角！八大种族！耳目一新！",
+          "group_key": "arthur_bruce::大型玄幻仙侠 霁月千秋 八位主角 八大种族 耳目一新"
+        },
+        {
+          "bvid": "BV1msuJzgEGJ",
+          "title": "【MC整合包发布】古风玄幻RPG「霁月织尘」超大型开放世界！与龙娘一起书写仙侠故事！",
+          "group_key": "arthur_bruce::古风玄幻 霁月织尘 超大型开放世界 与龙娘一起书写仙侠故事"
+        },
+        {
+          "bvid": "BV1Wb421q7hm",
+          "title": "【MC整合包发布】爆肝两年！大型东方玄幻RPG地图整合包免费公开！荡气回肠的故事！精雕细琢的建筑！酣畅淋漓的战斗！",
+          "group_key": "arthur_bruce::爆肝两年 大型东方玄幻 地图 免费公开 荡气回肠的故事 精雕细琢的建筑 酣畅淋漓的"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-29",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "Iamie_",
+      "group_count": 3,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1hNQSB9Eq6",
+          "title": "1.20.1低配整合包《旅行之路》发布！",
+          "group_key": "iamie_::低配 旅行之路"
+        },
+        {
+          "bvid": "BV1iJckzYEby",
+          "title": "1.20.1自制全新整合包《重生之路》发布!",
+          "group_key": "iamie_::全新 重生之路"
+        },
+        {
+          "bvid": "BV1E3ACz1EsN",
+          "title": "1.21.4NeoForge新泰坦整合包v1.2版本发布",
+          "group_key": "iamie_::新泰坦 v 版本"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-31",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "WZW_王宗王",
+      "group_count": 3,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1cjPdz9ERW",
+          "title": "[FCL/ZL启动器] 勇者之章3 整合包 v3.11.5 手机移植版更新",
+          "group_key": "wzw_王宗王::fcl zl启动器 勇者之章3 手机移植版"
+        },
+        {
+          "bvid": "BV1Mv27BjE3b",
+          "title": "[FCL启动器] 农场物语 整合包 v1.3.0手机移植版更新",
+          "group_key": "wzw_王宗王::fcl启动器 农场物语 v 手机移植版"
+        },
+        {
+          "bvid": "BV1GmeBzeEiT",
+          "title": "[FCL] 低配宝可梦整合包V0.1手机版发布+安装教程",
+          "group_key": "wzw_王宗王::fcl 低配宝可梦 手机版 安装教程"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-53",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "Deemo旋律",
+      "group_count": 3,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1SA4m137QH",
+          "title": "【MC】地球3整合包 更新预览Ver0.21版本",
+          "group_key": "deemo旋律::地球3 预览 版本"
+        },
+        {
+          "bvid": "BV1oj411b7B2",
+          "title": "我的世界：地球2整合包 1.6版本更新",
+          "group_key": "deemo旋律::地球2 版本"
+        },
+        {
+          "bvid": "BV1xg411G7V6",
+          "title": "【MC】能玩一辈子的养老冒险2.0整合包发布",
+          "group_key": "deemo旋律::能玩一辈子的"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-03",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "瑶山枫叶",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1n2bw6DEUA",
+          "title": "MC空战整合包发布【空中杀手：无瑕王牌】",
+          "group_key": "瑶山枫叶::空战 空中杀手 无瑕王牌"
+        },
+        {
+          "bvid": "BV1ihtP61EJU",
+          "title": "MC整合包发布【阿卡迪亚的天启】1.8正式版更新！",
+          "group_key": "瑶山枫叶::阿卡迪亚的天启 阿卡迪亚"
+        },
+        {
+          "bvid": "BV1wauB6MEpw",
+          "title": "MC整合包发布【阿卡迪亚的天启】1.7.0正式版更新！",
+          "group_key": "瑶山枫叶::阿卡迪亚的天启 阿卡迪亚"
+        },
+        {
+          "bvid": "BV14LGu6TE7o",
+          "title": "MC整合包发布【阿卡迪亚的天启】V1.6.0正式版大更新！新BOSS、更强的前期体验、双形态炎葬、新武器潘多拉",
+          "group_key": "瑶山枫叶::阿卡迪亚的天启 阿卡迪亚"
+        },
+        {
+          "bvid": "BV1EiK66aEfk",
+          "title": "【MC整合包发布】阿卡迪亚的天启v1.5 正式版更新！新武器——长镰苏霍伊加入战场！",
+          "group_key": "瑶山枫叶::阿卡迪亚的天启 阿卡迪亚"
+        },
+        {
+          "bvid": "BV1xdNE6LEsk",
+          "title": "MC整合包发布【阿卡迪亚的天启】1.4.2正式版更新！",
+          "group_key": "瑶山枫叶::阿卡迪亚的天启 阿卡迪亚"
+        },
+        {
+          "bvid": "BV1izEz69EV4",
+          "title": "MC整合包发布【阿卡迪亚的天启】1.2.0正式版更新！",
+          "group_key": "瑶山枫叶::阿卡迪亚的天启 阿卡迪亚"
+        },
+        {
+          "bvid": "BV1ET5C6tEQ1",
+          "title": "【MC整合包发布】阿卡迪亚的天启0.9.5“神明啊，请指引我的道路！”",
+          "group_key": "瑶山枫叶::阿卡迪亚的天启 阿卡迪亚"
+        },
+        {
+          "bvid": "BV1zyfZByEk3",
+          "title": "【MC整合包发布】阿卡迪亚的天启 0.5.0“为了荣誉和胜利？还是说只是为了追求力量？”",
+          "group_key": "瑶山枫叶::阿卡迪亚的天启 阿卡迪亚"
+        },
+        {
+          "bvid": "BV1t6idBFEhy",
+          "title": "MC史诗战斗整合包发布【阿卡迪亚的天启】”你会选择成为佣兵还是骑士？“",
+          "group_key": "瑶山枫叶::阿卡迪亚的天启 阿卡迪亚"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-18",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "猛猛哒丶阿茗",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1qvK46REzX",
+          "title": "我的世界！农夫乐事附属大型整合包发布！7.0更新！",
+          "group_key": "猛猛哒丶阿茗::农夫乐事附属大型"
+        },
+        {
+          "bvid": "BV1u4wVeSEJe",
+          "title": "我的世界！农夫乐事附属大型整合包发布！6.0更新！",
+          "group_key": "猛猛哒丶阿茗::农夫乐事附属大型"
+        },
+        {
+          "bvid": "BV12XxQeUEQS",
+          "title": "我的世界！农夫乐事附属大型整合包发布！5.0更新！",
+          "group_key": "猛猛哒丶阿茗::农夫乐事附属大型"
+        },
+        {
+          "bvid": "BV1Dw4m1C7Kb",
+          "title": "我的世界！农夫乐事附属大型整合包发布！4.0更新！",
+          "group_key": "猛猛哒丶阿茗::农夫乐事附属大型"
+        },
+        {
+          "bvid": "BV1Bw4m1o7dU",
+          "title": "我的世界！农夫乐事附属大型整合包发布！3.0更新！",
+          "group_key": "猛猛哒丶阿茗::农夫乐事附属大型"
+        },
+        {
+          "bvid": "BV1da4y1k7Dd",
+          "title": "我的世界！农夫乐事附属大型整合包发布！2.0更新！",
+          "group_key": "猛猛哒丶阿茗::农夫乐事附属大型"
+        },
+        {
+          "bvid": "BV1ue41117LD",
+          "title": "我的世界！农夫乐事附属大型整合包发布！品尝料理千万种美食！尽情享受种田养老的乐趣！打造一个只属于吃货的理想世界！耗时一个多月！终于制作完成！",
+          "group_key": "猛猛哒丶阿茗::农夫乐事附属大型 品尝料理千万种美食 尽情享受种田 的乐趣 打造一个只属于吃货的理想世界 耗时一个多月 终于制作完成"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-25",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "ZiCaiOT",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1XA9tBYE5D",
+          "title": "【整合包更新】在我的世界中还原星露谷！农场物语1.4.1！",
+          "group_key": "zicaiot::农场物语::registered:bbsmc:modpack/ft-wt"
+        },
+        {
+          "bvid": "BV1CwWxznEJA",
+          "title": "【整合包更新】在我的世界中还原星露谷！农场物语forge1.2.6!",
+          "group_key": "zicaiot::农场物语::registered:bbsmc:modpack/ft-wt"
+        },
+        {
+          "bvid": "BV1REYKzgE45",
+          "title": "【整合包大更新】在我的世界中还原星露谷！农场物语forge1.2.0！",
+          "group_key": "zicaiot::农场物语::registered:bbsmc:modpack/ft-wt"
+        },
+        {
+          "bvid": "BV1TFYkzFEA3",
+          "title": "【整合包更新】我的世界与星露谷物语结合？以种田为主题的休闲整合包！农场物语forge1.1.7 新增奶酪成熟机制、养鱼玩法和上古水果",
+          "group_key": "zicaiot::农场物语::registered:bbsmc:modpack/ft-wt"
+        },
+        {
+          "bvid": "BV18hgCz7E55",
+          "title": "农场物语forge版整合包更新！[农夫乐事xLet&#x27;s Do兼容！统一作物 / 机械动力xLet&#x27;s Do联动！自动化酿酒]",
+          "group_key": "zicaiot::农场物语::registered:bbsmc:modpack/ft-wt"
+        },
+        {
+          "bvid": "BV1muJnziEdf",
+          "title": "[我的世界整合包更新]农场物语1.6.7 更好的Vanilla+整合包！原版玩腻了？那就来试试这个吧！",
+          "group_key": "zicaiot::农场物语::registered:bbsmc:modpack/farmingtales"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-34",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "在下Shmily",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1XLcszVEhL",
+          "title": "[MC优化]GreenMan优化整合包正式发布!",
+          "group_key": "在下shmily::优化 greenman优化 正式"
+        },
+        {
+          "bvid": "BV1zNvCBrEgL",
+          "title": "[MC优化]最牛优化整合包V4.0发布，魔改CMpack即将来临!",
+          "group_key": "在下shmily::最牛"
+        },
+        {
+          "bvid": "BV1XTqSBHEyr",
+          "title": "[MC优化]老手机2800帧,最牛优化整合包V3.9发布!",
+          "group_key": "在下shmily::最牛"
+        },
+        {
+          "bvid": "BV12TxAzvE9r",
+          "title": "[MC优化]老手机2000＋FPS,最牛优化整合包发布！",
+          "group_key": "在下shmily::最牛"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-38",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "在职玩家JoStar",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV14wUnBpEcQ",
+          "title": "【方可梦整合包】(11.25已更新)确定航线，出发！《去吧，方可梦大师》1.7尝鲜体验包现已发布~",
+          "group_key": "在职玩家jostar::方可梦大师"
+        },
+        {
+          "bvid": "BV1VNLRzYERC",
+          "title": "【方块宝可梦整合包】（ZA全mega已更新！）全系统、全图鉴！《去吧，方可梦大师》4.0“双版本”正式发布！也有服务端哦~持续更新方可梦最新内容~",
+          "group_key": "在职玩家jostar::方可梦大师"
+        },
+        {
+          "bvid": "BV1VVZjYHEag",
+          "title": "【方块宝可梦超全整合包3.0】化身小智！钛晶、mega、Z招式三系统全都要！踏上击败各地区道馆主的冠军之路吧！《去吧，方可梦大师！》3.0正式发布~",
+          "group_key": "在职玩家jostar::方可梦大师"
+        },
+        {
+          "bvid": "BV1RmPJejEDD",
+          "title": "【方块宝可梦最最新整合包】几乎全图鉴！想要的全都有！我的世界1.21.1方可梦整合包2.99版本发布啦",
+          "group_key": "在职玩家jostar::方块宝可梦最 几乎全图鉴 想要的全都有 方可梦 版本 啦"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-42",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "橘子皮zero",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1Wg3dzVE2G",
+          "title": "【整合包发布】世界破碎→赤手空拳能否挖出人类希望？拯救世界重建文明？1.0凋落之花正式版发布！",
+          "group_key": "橘子皮zero::拯救世界重建文明"
+        },
+        {
+          "bvid": "BV1aXNNe6EP7",
+          "title": "【整合包发布】末日降临！撑起人类的希望，拯救世界重建文明！大型超现实凋落之花整合包史诗级更新！",
+          "group_key": "橘子皮zero::拯救世界重建文明"
+        },
+        {
+          "bvid": "BV11dCJYEEi7",
+          "title": "【整合包发布】在即将到来的末日中，撑起人类的希望，拯救世界重建文明！大型超现实，凋落之花发布！",
+          "group_key": "橘子皮zero::拯救世界重建文明"
+        },
+        {
+          "bvid": "BV1pFavekEHi",
+          "title": "【整合包发布】想体验MC原版原汁原味却无趣？最坏的咸鱼你的新选择",
+          "group_key": "橘子皮zero::想体验 原汁原味却无趣 最坏的咸鱼你的新选择"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-04",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "爱玩游戏的烛梦",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1JPbn6AEL7",
+          "title": "我的世界基岩版余晖纪元整合包重磅更新! ! !加入大量载具，拥有自然灾害机制，使生存更加困难",
+          "group_key": "爱玩游戏的烛梦::基岩版余晖纪元 重磅 加入大量载具 拥有自然灾害机制 使 更加困难"
+        },
+        {
+          "bvid": "BV1iYt46kEtC",
+          "title": "我的世界基岩版仿亡者世界整合包 V1.2 更新",
+          "group_key": "爱玩游戏的烛梦::仿亡者世界"
+        },
+        {
+          "bvid": "BV1u34162EuC",
+          "title": "我的世界基岩版（自制）仿亡者世界整合包发布",
+          "group_key": "爱玩游戏的烛梦::仿亡者世界"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-23",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "InAx白咕",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1PcGk6dEiR",
+          "title": "[整合包发布]别卷了！这回，我依旧在异世界种田顺便拯救世界！*2!",
+          "group_key": "inax白咕::异世界种田顺便拯救世界"
+        },
+        {
+          "bvid": "BV1drT2zxETG",
+          "title": "【整合包更新】关于我在异世界养老 成就世界最强！",
+          "group_key": "inax白咕::关于我在异世界 成就世界最强"
+        },
+        {
+          "bvid": "BV1t4AKe8Exm",
+          "title": "【整合包发布】别卷了！这次，我只想在异世界种田顺便拯救世界！",
+          "group_key": "inax白咕::异世界种田顺便拯救世界"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-46",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "ZangHeRo",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1zQVEzqE94",
+          "title": "机械殖民地1171更新介绍【整合包】【模拟殖民地】【我的世界】",
+          "group_key": "zanghero::机械殖民地"
+        },
+        {
+          "bvid": "BV1mfwNeREwk",
+          "title": "[整合包宣传]寒假和朋友来MC玩城镇建设吧，建筑小白也能拥有漂亮的城市！机械殖民地1.1.5寒假更新上线！[minecraft][我的世界]",
+          "group_key": "zanghero::机械殖民地"
+        },
+        {
+          "bvid": "BV1mBmiYzE8K",
+          "title": "剑与王国：世界侵蚀更新丨更深度的魔改，更优化的流程[Minecraft][模拟殖民地整合包]",
+          "group_key": "zanghero::模拟殖民地"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-02",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "plaudite_",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1jNYn6KEth",
+          "title": "[v/s×mc]整合包Scarlet Adventure绯红冒险v2.0发布",
+          "group_key": "plaudite_::v s scarlet adventure绯红"
+        },
+        {
+          "bvid": "BV1oo4d6REzq",
+          "title": "[Minecraft×Vivid/Stasis]模组 绯红冒险Scarlet Adventure介绍+发布（附整合包）",
+          "group_key": "plaudite_::vivid stasis 模组 绯红 scarlet adventure 附"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-05",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "XyeBBS中文论坛",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1vwth6nEcg",
+          "title": "【MC整合包发布】《方可梦：炽白真形》宣传片：真正的RPG整合包",
+          "group_key": "xyebbs中文论坛::方可梦 炽白真形 宣传片 真正的"
+        },
+        {
+          "bvid": "BV1NT8v6nEL7",
+          "title": "【MC整合包发布】虚饰作品v1.3宣传片 四种职业 四种弹幕 百种饰品",
+          "group_key": "xyebbs中文论坛::虚饰作品v 宣传片 四种职业 四种弹幕 百种饰品"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-07",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "_鈴鹿御前_",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1DstN6BE7K",
+          "title": "《整合包更新》血族编年史·传奇魔剑士崛起 1.2.3版本更新",
+          "group_key": "_鈴鹿御前_::血族编年史 传奇魔剑士崛起 版本"
+        },
+        {
+          "bvid": "BV1Z8gK6GEeV",
+          "title": "[Minecraft - 恐怖整合包新发布]  新人首次制作整合包",
+          "group_key": "_鈴鹿御前_::恐怖 新 新人首次制作"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-08",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "MC绵羊",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1aBtw6AEGM",
+          "title": "【MC整合包发布】方块连杀正式版I超爽高机动FPS，闯关提升！",
+          "group_key": "mc绵羊::方块连杀 i超爽高机动fps 闯关提升"
+        },
+        {
+          "bvid": "BV15Cuf6nEqc",
+          "title": "严寒末日！丧尸灾难求生！超爽丧尸末日包！【整合包更新前瞻】冬境边域",
+          "group_key": "mc绵羊::严寒末日 丧尸灾难求生 超爽丧尸末日包 前瞻 冬境边域"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-09",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "Sh1ntaro",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1oTtA6GEYG",
+          "title": "【MC整合包发布】元素觉醒正式版｜沉浸式多职业RPG，新增超多法术与高燃Boss战！",
+          "group_key": "sh1ntaro::元素觉醒 多职业 新增超多法术与高燃boss战"
+        },
+        {
+          "bvid": "BV1wnWNeMEZD",
+          "title": "【超大型魔改定制冒险MC整合包更新发布】无限战争4最终的决战！",
+          "group_key": "sh1ntaro::超大型 定制 无限战争4最终的决战"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-11",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "青墨浮跃",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1gEb86CETu",
+          "title": "「超越原版」MC 整合包发布 - Beyond Vanilla✨ 让我的世界更加灵动鲜活 甚至超越原版",
+          "group_key": "青墨浮跃::超越 beyond vanilla 让 更加灵动鲜活 甚至超越"
+        },
+        {
+          "bvid": "BV1oeSvBSEAm",
+          "title": "「无际旅人」MC 整合包发布 - &quot;跨越维度之诗 唤醒旅程记忆&quot;",
+          "group_key": "青墨浮跃::无际旅人 quot 跨越维度之诗 唤醒旅程记忆 quot"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-13",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "--Axx--",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1XPuV6JEhV",
+          "title": "【整合包更新发布】鬼影重重！高度还原CF幽灵模式已上线！——MYGO Ver1.8.0正式版",
+          "group_key": "--axx--::mygo"
+        },
+        {
+          "bvid": "BV1W38zzVEQ1",
+          "title": "【MC多人枪战整合包发布】有着足足62张地图和6种不同模式的大型多人枪战地图——Mygo!!!!!1.5.0版本更新",
+          "group_key": "--axx--::多人枪战 有着足足62张地图和6种不同模式的大型多人枪战地图 mygo 版本"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-14",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "整天摸鱼的咕咕稽",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1hLuK6fE75",
+          "title": "[Mc整合包发布]还在无限,还在无限—1.18.2最强fabric冒险包!",
+          "group_key": "整天摸鱼的咕咕稽::无限"
+        },
+        {
+          "bvid": "BV1Wqa3zzEQf",
+          "title": "[Minecraft整合包发布]无限:重生v3.0正式版，旅途的终终点",
+          "group_key": "整天摸鱼的咕咕稽::无限 重生 旅途的终终点"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-15",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "伽娄同学",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1XJuH63EDy",
+          "title": "【整合包发布】虚无学更新丨怀旧向",
+          "group_key": "伽娄同学::虚无学 丨怀旧向"
+        },
+        {
+          "bvid": "BV1P13B6jEHp",
+          "title": "【整合包发布】怀旧向丨更平衡的虚无世界×神秘时代",
+          "group_key": "伽娄同学::怀旧向丨更平衡的虚无世界 神秘时代"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-16",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "是熟鳕鱼",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1t53q6mEjw",
+          "title": "[整合包发布] 遐想铸造厂1.0，对寂静装备的全面修正！",
+          "group_key": "是熟鳕鱼::遐想铸造厂 对寂静装备的全面修正"
+        },
+        {
+          "bvid": "BV11MSCYcED2",
+          "title": "暗影觉醒整合包更新！超高的可玩性，极致优化！",
+          "group_key": "是熟鳕鱼::暗影觉醒 超高的可玩性 极致优化"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-17",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "WhisperStarlight",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1pj3g6aEcK",
+          "title": "mc2026新整合包发布！神道传说！下载链接见评论区！（看简介！）",
+          "group_key": "whisperstarlight::2026新 神道传说 链接见评论区 看简介"
+        },
+        {
+          "bvid": "BV1y8zCBFEDd",
+          "title": "MC大型整合包星恒千里：旅者 正式发布！",
+          "group_key": "whisperstarlight::大型 星恒千里 旅者 正式"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-22",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "梧桐之境mc",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV15D7U65Efr",
+          "title": "1.16.5泰坦生物整合包小更新",
+          "group_key": "梧桐之境mc::泰坦生物 小"
+        },
+        {
+          "bvid": "BV12UdPBhEyN",
+          "title": "1.12.2神器整合包0.5版本发布！",
+          "group_key": "梧桐之境mc::神器 版本"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-26",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "叙利亚自爆民兵",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1Kc96BWENb",
+          "title": "《你好，新蒸程》整合包正式发布！航空学，voxy，独家地形，构成mc的视觉盛宴",
+          "group_key": "叙利亚自爆民兵::你好 新蒸程 正式 航空学 voxy 独家地形 构成 的视觉盛宴"
+        },
+        {
+          "bvid": "BV1PbAczPE4o",
+          "title": "《你好，新世代》整合包发布，voxy，机械动力6.0.8，瓦尔基里全新兼容，1.20.1forge",
+          "group_key": "叙利亚自爆民兵::你好 新世代 voxy 机械动力 瓦尔基里全新兼容"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-27",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "ARR-C6H6",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1cFDPBqEK2",
+          "title": "真菌感染加惊变100天整合包更新【1.20.1 旧世界v0.4Beta】",
+          "group_key": "arr-c6h6::真菌感染加惊变100天 旧世界"
+        },
+        {
+          "bvid": "BV1G7XTBzE2K",
+          "title": "真菌感染惊变类轻量化战斗爽整合包测试版发布！【我的世界1.20.1/旧世界v0.3Beta】",
+          "group_key": "arr-c6h6::真菌感染惊变类轻量化 爽 旧世界"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-28",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "爱玩游戏的托累积压",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1EEXPB3EF8",
+          "title": "在MC中变身战锤巨人？我的世界巨人整合包更新速看",
+          "group_key": "爱玩游戏的托累积压::在 中变身战锤巨人 巨人 速看"
+        },
+        {
+          "bvid": "BV128P1zPEYZ",
+          "title": "进击的世界！（附链接）我的世界高版本进击的巨人整合包测试版发布",
+          "group_key": "爱玩游戏的托累积压::进击的世界 附链接 高版本进击的巨人"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-30",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "原界环",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV17ZwjzvEpG",
+          "title": "少女，枪械以及CQB——Minecraft or Not：Girl&amp;Gun整合包发布！",
+          "group_key": "原界环::少女 以及cqb or not girl amp gun"
+        },
+        {
+          "bvid": "BV1XPcXzWEZ4",
+          "title": "全新我的世界PVE整合包发布[少女准备中//Maiden or not]（魔改自locknar的Minecraft or not）",
+          "group_key": "原界环::全新 pve 少女准备中 maiden or not 自locknar的 or not"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-39",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "不走寻常路的路哥1号",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1RWsfzMEmP",
+          "title": "【免费白嫖】《真菌帝国》整合包1.0版本已发布！！！",
+          "group_key": "不走寻常路的路哥1号::免费白嫖 真菌帝国 版本已"
+        },
+        {
+          "bvid": "BV1JL4y1A7BX",
+          "title": "我又更新了backrooms整合包！！！",
+          "group_key": "不走寻常路的路哥1号::我又 了backrooms"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-40",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "KODU16",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1ZvbDzaE8A",
+          "title": "【MC整合包发布】伊甸空天2———物理规则的边界，宇宙探索的前锋",
+          "group_key": "kodu16::伊甸空天::registered:mcmod:modpack/1060"
+        },
+        {
+          "bvid": "BV1Vw4m1o7op",
+          "title": "【MC整合包发布】伊甸空天——打破方块的束缚，翱翔于广阔的世界",
+          "group_key": "kodu16::伊甸空天::registered:mcmod:modpack/734"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-41",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "FOREVER糠酱追梦",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1kCuxzHEft",
+          "title": "【附下载】⭐我的世界1.5.2版本工业整合包⚔️持续更新",
+          "group_key": "forever糠酱追梦::附 版本 持续"
+        },
+        {
+          "bvid": "BV1YE421w7TC",
+          "title": "【附下载】我的世界自制beta1.7.3整合包发布！60+模组！FOREVER BETA1.7.3尝鲜版发布！",
+          "group_key": "forever糠酱追梦::附 beta 60 模组 forever beta 尝鲜版"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-43",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "ZOGOS",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1Ez38ztEje",
+          "title": "聚沙成塔，直抵终焉【巴别塔整合包公测开启】",
+          "group_key": "zogos::聚沙成塔 直抵终焉 巴别塔 开启"
+        },
+        {
+          "bvid": "BV1BF5DzxEoW",
+          "title": "1.20.1最大整合包500+模组正式发布！地球4模组整合包【科技/养老/建筑/冒险/TACZ/拔刀剑/YSM】“何必再做选择？一切尽在其中”",
+          "group_key": "zogos::最大 500 模组正式 地球4模组 建筑 tacz ysm 何必再做选择 一切尽在其中"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-45",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "冷空awa",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1wXT4z7Eja",
+          "title": "【MC整合包发布】穿越深邃！踏入未知维度的史诗级探险之旅！",
+          "group_key": "冷空awa::穿越深邃 踏入未知维度的史诗级探险之旅"
+        },
+        {
+          "bvid": "BV1fUEszhEMU",
+          "title": "【整合包发布】跨时代画质 极致优化下的MC超真实旅行",
+          "group_key": "冷空awa::跨时代画质 极致优化下的 超真实旅行"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-49",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "一条鱼丸_",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1JXpweREsu",
+          "title": "【我的世界整合包】你想在MC中当海盗吗? | 快来试试这个整合包吧(´▽`ʃƪ) | Forge&amp;Fabric双版本，附带一键开服包 | 持续更新中",
+          "group_key": "一条鱼丸_::你想在 中当海盗吗 快来试试这个 吧 amp 双版本 附带一键开服包 持续 中"
+        },
+        {
+          "bvid": "BV1tpnfeREgc",
+          "title": "《我的世界整合包》卓越2---迄今为止最大一次更新v3.0.0 | 已更新",
+          "group_key": "一条鱼丸_::卓越2 迄今为止最大一次 已"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-50",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "烩炒稻草人",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1wdYLe4Eiq",
+          "title": "【潘神的迷宫】定制地牢，独树一帜的趣味冒险！MC整合包发布，拒绝同质化！",
+          "group_key": "烩炒稻草人::潘神的迷宫 定制 独树一帜的趣味 拒绝同质化"
+        },
+        {
+          "bvid": "BV13r4y187EP",
+          "title": "高自由度探索与超强锻造模组的完美结合！我的世界【锻世】整合包公测",
+          "group_key": "烩炒稻草人::高自由度 与超强锻造模组的完美结合 锻世"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-51",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "碎砖做的砖块王",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1Yw4m1a7Yn",
+          "title": "【我的世界整合包】幸运之证-1.20.1，超多不同种类的幸运方块！全站首发！超高版本的幸运方块大冒险！低配",
+          "group_key": "碎砖做的砖块王::幸运之证 超多不同种类的幸运方块 全站 超高版本的幸运方块大 低配"
+        },
+        {
+          "bvid": "BV1324y1n7UY",
+          "title": "【我的世界整合包】幸运方块大冒险-1.19.2，高版本的幸运方块大冒险，全站首发！46个幸运方块，1.19.2版本！",
+          "group_key": "碎砖做的砖块王::幸运方块大 高版本的幸运方块大 全站 46个幸运方块 版本"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-52",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "不上鑫",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV13K421h7pi",
+          "title": "【我的世界】采菊1.20.1整合包1.0正式发布",
+          "group_key": "不上鑫::采菊 正式"
+        },
+        {
+          "bvid": "BV1Gb41197k3",
+          "title": "【MC】采菊整合包正式发布！会后续更新！",
+          "group_key": "不上鑫::采菊 正式 会后续"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-55",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "以乐太洋",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1Cb4y157XU",
+          "title": "【fcl】【hmclpe】的我的世界自制1.20.1ftb冒险整合包《生于灾厄》发布，低配丰富的整合包可不多见",
+          "group_key": "以乐太洋::fcl h lpe 的 ftb 生于灾厄 低配丰富的 可不多见"
+        },
+        {
+          "bvid": "BV1ge411y7tX",
+          "title": "【fcl】1.20.1优化整合包发布，帧率肯定包提升的啊( ˃̶̤́ ꒳ ˂̶̤̀ )",
+          "group_key": "以乐太洋::fcl 优化 帧率肯定包提升的啊"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-56",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "腾星月lucky",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV18w411H7tv",
+          "title": "【整合包发布】重返童年，生活冒险，寻找初心！",
+          "group_key": "腾星月lucky::重返童年 生活 寻找初心"
+        },
+        {
+          "bvid": "BV19p4y1F756",
+          "title": "【整合包发布】年轻方块人的第一款魔法整合包！幻想魔法之旅",
+          "group_key": "腾星月lucky::年轻方块人的第一款 幻想 之旅"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-57",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "全能小象",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1Qh4y1P7o2",
+          "title": "共158把神器，b站最弱的1.12.2神器整合包发布！",
+          "group_key": "全能小象::共158把神器 b站最弱的 神器"
+        },
+        {
+          "bvid": "BV18p4y1E73w",
+          "title": "挑战极限！共202把神器，b站神器最多的神器整合包2.0发布！",
+          "group_key": "全能小象::挑战极限 共202把神器 b站神器最多的神器"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-58",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "根号Radical",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1aF411y7kJ",
+          "title": "Minecraft整合包发布: 勿忘我, 极简主义与可玩性的碰撞",
+          "group_key": "根号radical::勿忘我 极简主义与可玩性的碰撞"
+        },
+        {
+          "bvid": "BV1RG4y1h78n",
+          "title": "（已停止更新）体验更到位、更自然的人工汉化！【喷气背包猫】整合包v4.2汉化发布（内含安装教程）",
+          "group_key": "根号radical::已停止 体验更到位 更自然的人工汉化 喷气背包猫 汉化 内含安装教程"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-59",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "籽岷",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1og4y1K7ZS",
+          "title": "这是MC整合包中的新锐！仅发布两月CF流行榜进前十！",
+          "group_key": "籽岷::这是 中的新锐 仅 两月cf流行榜进前十"
+        },
+        {
+          "bvid": "BV1q24y1U75z",
+          "title": "新年将至，整合包扎堆更新，1.20死亡黄昏3.0光荣上线",
+          "group_key": "籽岷::新年将至 扎堆 死亡黄昏 光荣上线"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-60",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "Tibsalta",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1wu411W7dV",
+          "title": "【抗争之际0.6】【难度驱动】1.19.2我的世界冒险向整合包发布",
+          "group_key": "tibsalta::抗争之际 难度驱动 向"
+        },
+        {
+          "bvid": "BV1ok4y1t7u9",
+          "title": "【旅途痕迹0.5】【难度驱动】1.19.2我的世界整合包发布",
+          "group_key": "tibsalta::旅途痕迹 难度驱动"
+        }
+      ]
+    },
+    {
+      "case_id": "HOLDOUT3-NEG-61",
+      "expected": "separate",
+      "kind": "same_uploader_distinct_packs_kept_apart",
+      "uploader": "Limit小火柴",
+      "group_count": 2,
+      "confidence": "strong",
+      "source": "final runtime group partition + v2 adjudication exclusion of real false-merge uploaders",
+      "videos": [
+        {
+          "bvid": "BV1HX4y1h7P4",
+          "title": "【MC整合包|动画世界：艾莉克斯】Animatecraft: Alex公测版发布！",
+          "group_key": "limit小火柴::动画世界 艾莉克斯 animatecraft alex"
+        },
+        {
+          "bvid": "BV1bg4y1F7DY",
+          "title": "【MC整合包发布】让你沉浸式的体验原汁原味的MC『视觉/听觉/细节/真实』",
+          "group_key": "limit小火柴::让你 的体验原汁原味的 视觉 听觉 细节 真实"
+        }
+      ]
+    }
+  ]
+}
