@@ -1,0 +1,55 @@
+{
+  "name": "mc-modpack-board-desktop",
+  "version": "0.1.0",
+  "description": "Windows desktop shell for the local Minecraft modpack board",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "build:frontend": "npm --prefix ../web run build:desktop",
+    "package:dir": "npm run build:frontend && electron-builder --dir",
+    "package:portable": "npm run build:frontend && electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^36.3.2",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "local.mcmodpack.board",
+    "productName": "我的世界整合包工作台",
+    "directories": {
+      "output": "../../dist/desktop"
+    },
+    "asar": true,
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "lib/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../build/desktop/frontend",
+        "to": "frontend"
+      },
+      {
+        "from": "../../build/desktop/runtime",
+        "to": "runtime"
+      },
+      {
+        "from": "../../build/desktop/source",
+        "to": "source"
+      }
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "artifactName": "MC-Modpack-Board-${version}.${ext}"
+    }
+  },
+  "allowScripts": {
+    "electron@36.9.5": true
+  }
+}

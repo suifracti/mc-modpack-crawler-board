@@ -15,6 +15,7 @@ import json
 import time
 import urllib.request
 import urllib.parse
+import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 
@@ -218,15 +219,17 @@ def standardize_pack(item):
         }
     }
 
-def save_current_state(global_packs):
+def save_current_state(global_packs, max_total=0):
     final_list = list(global_packs.values())
     final_list.sort(key=lambda x: x.get("downloads", 0), reverse=True)
+    if max_total:
+        final_list = final_list[:max_total]
     with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
         json.dump(final_list, f, ensure_ascii=False, indent=2)
     with open(OUTPUT_JS, "w", encoding="utf-8") as f:
         f.write("window.curseforgeModpacksData = " + json.dumps(final_list, ensure_ascii=False) + ";\n")
 
-def main():
+def main(max_total=0):
     print("=" * 70)
     print("  🚀 CurseForge 超级全量切片深挖爬虫 (全版本 × 全分类 × 全Loader)")
     print("  目标：完全抓完 CurseForge 存世所有 Minecraft 整合包！")
@@ -393,12 +396,16 @@ def main():
                 
             slice_total_items += len(items)
             with lock:
+                if max_total and len(global_packs) >= max_total:
+                    break
                 for item in items:
                     pid = str(item.get("id") or "")
                     if pid and pid not in global_packs:
                         pack = standardize_pack(item)
                         global_packs[pid] = pack
                         slice_new_count += 1
+                        if max_total and len(global_packs) >= max_total:
+                            break
                         
             total_count = res.get("pagination", {}).get("totalCount", 10000)
             index += len(items)
@@ -414,7 +421,7 @@ def main():
             if time.time() - last_save_time[0] > 60:
                 last_save_time[0] = time.time()
                 try:
-                    save_current_state(global_packs)
+                    save_current_state(global_packs, max_total=max_total)
                 except Exception:
                     pass
 
@@ -440,15 +447,20 @@ def main():
 
     elapsed = time.time() - start_time
     final_list = list(global_packs.values())
+    if max_total:
+        final_list = final_list[:max_total]
     final_list.sort(key=lambda x: x.get("downloads", 0), reverse=True)
 
     print("\n" + "=" * 70)
     print(f"  🎉 [完全抓取完毕] 成功全量采集去重 {len(final_list):,} 款 CurseForge 整合包！(总耗时 {elapsed:.1f} 秒)")
     print("=" * 70)
 
-    save_current_state(global_packs)
+    save_current_state(global_packs, max_total=max_total)
     print(f"  [OK] 全量 JSON 已持久化: {OUTPUT_JSON} ({os.path.getsize(OUTPUT_JSON) / 1024 / 1024:.2f} MB)")
     print(f"  [OK] 全量 JS 数据源已更新: {OUTPUT_JS} ({os.path.getsize(OUTPUT_JS) / 1024 / 1024:.2f} MB)")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="CurseForge 超级全量切片爬虫")
+    parser.add_argument("--max", type=int, default=0, help="最多采集条数（0 表示全量）")
+    args = parser.parse_args()
+    main(max_total=args.max)

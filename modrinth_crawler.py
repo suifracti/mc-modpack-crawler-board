@@ -9,6 +9,7 @@ import json
 import time
 import urllib.request
 import urllib.parse
+import argparse
 from datetime import datetime
 
 try:
@@ -143,10 +144,11 @@ def standardize_pack(item):
         }
     }
 
-def main():
+def main(max_total=None):
+    target_count = int(max_total) if max_total else TARGET_COUNT
     print("=" * 60)
     print("  🚀 Modrinth 整合包数据采集器 (API v2)")
-    print(f"  目标采集量: {TARGET_COUNT} 款热门整合包")
+    print(f"  目标采集量: {target_count} 款热门整合包")
     print("=" * 60)
     
     os.makedirs(os.path.dirname(OUTPUT_JSON), exist_ok=True)
@@ -159,10 +161,10 @@ def main():
     start_time = time.time()
     hits = []
     
-    while len(all_packs) < TARGET_COUNT:
-        limit = min(PAGE_LIMIT, TARGET_COUNT - len(all_packs))
+    while len(all_packs) < target_count:
+        limit = min(PAGE_LIMIT, target_count - len(all_packs))
         if len(all_packs) % 500 == 0 or len(all_packs) == 0:
-            print(f"[{len(all_packs)}/{total_available or TARGET_COUNT}] 正在拉取 offset={offset} ...")
+            print(f"[{len(all_packs)}/{total_available or target_count}] 正在拉取 offset={offset} ...")
         res = fetch_page(offset, limit=limit)
         if not res or not res.get("hits"):
             print("  [提示] 接口没有返回更多数据或拉取完毕。")
@@ -195,4 +197,7 @@ def main():
     print(f"  [OK] 保存 JS: {OUTPUT_JS} ({os.path.getsize(OUTPUT_JS) / 1024 / 1024:.2f} MB)")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Modrinth 整合包数据采集器")
+    parser.add_argument("--max", type=int, default=0, help="最多采集条数（0 表示按默认全量目标）")
+    args = parser.parse_args()
+    main(max_total=args.max or None)
