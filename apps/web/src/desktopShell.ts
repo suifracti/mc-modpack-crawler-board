@@ -106,6 +106,7 @@ declare global {
 }
 
 type FilterPlatform = 'all' | Platform;
+type DropdownId = 'version' | 'loader' | 'update-platform';
 
 const platformItems: Array<{ id: FilterPlatform; name: string; icon: string }> = [
   { id: 'all', name: '全部平台', icon: '✦' },
@@ -144,6 +145,8 @@ const state = {
   page: 1,
   pageSize: 48,
   hasMore: false,
+  openDropdown: '' as DropdownId | '',
+  updatePlatform: 'bilibili' as Platform,
   selected: null as DesktopRecord | null,
   comments: { sourceId: '', loading: false, available: false, pageCount: 0, comments: [] as DesktopComment[], sourceFile: null as string | null, error: '' },
   loading: true,
@@ -259,21 +262,30 @@ function renderComments(comments: DesktopComment[]): string {
   }).join('')}</div>`;
 }
 
-function renderOptions(values: string[], selected: string, emptyLabel: string): string {
-  return [`<option value="">${emptyLabel}</option>`, ...values.map((value) => `<option value="${esc(value)}"${value === selected ? ' selected' : ''}>${esc(value)}</option>`)].join('');
+function renderDropdown(id: DropdownId, selected: string, options: Array<{ value: string; label: string }>, disabled = false): string {
+  const selectedOption = options.find((option) => option.value === selected) || options[0];
+  const isOpen = state.openDropdown === id;
+  return `<div class="ui-dropdown ${isOpen ? 'is-open' : ''}" data-dropdown-root="${id}">
+    <button type="button" class="ui-dropdown-trigger" data-action="toggle-dropdown" data-dropdown="${id}" aria-haspopup="listbox" aria-expanded="${isOpen}" ${disabled ? 'disabled' : ''}><span>${esc(selectedOption?.label || '')}</span><span class="ui-dropdown-chevron" aria-hidden="true">⌄</span></button>
+    <div class="ui-dropdown-menu" id="${id}-menu" role="listbox" aria-label="${esc(selectedOption?.label || '')}">${options.map((option) => `<button type="button" class="ui-dropdown-option ${option.value === selected ? 'is-selected' : ''}" data-action="select-dropdown" data-dropdown="${id}" data-value="${esc(option.value)}" role="option" aria-selected="${option.value === selected}">${esc(option.label)}</button>`).join('')}</div>
+  </div>`;
+}
+
+function renderFilterDropdown(id: 'version' | 'loader', values: string[], selected: string, emptyLabel: string): string {
+  return renderDropdown(id, selected, [{ value: '', label: emptyLabel }, ...values.map((value) => ({ value, label: value }))]);
 }
 
 function updatePanel(): string {
   const update = state.update;
   const running = update?.state === 'running';
-  const platform = update?.platform || (state.platform === 'all' ? 'bilibili' : state.platform);
+  const platform = update?.platform || state.updatePlatform;
   const progress = update && typeof update.total === 'number' && update.total > 0 ? Math.min(100, Math.round((update.processed / update.total) * 100)) : null;
   const logLines = (state.logs.length ? state.logs : update?.logs || []).slice(-80);
   return `<section class="update-panel" aria-labelledby="update-title">
     <div class="panel-heading"><div><span class="eyebrow">DATA REFRESH</span><h2 id="update-title">更新数据</h2></div><span class="panel-dot ${running ? 'is-running' : ''}"></span></div>
     <p class="panel-copy">选择一个平台，采集将在隔离目录完成。成功后才切换新快照，失败或取消不会覆盖当前可用数据。</p>
     <label class="field-label" for="update-platform">更新平台</label>
-    <select id="update-platform" class="field" ${running ? 'disabled' : ''}>${ALL_PLATFORMS.map((id) => `<option value="${id}"${id === platform ? ' selected' : ''}>${PLATFORM_CONFIGS[id].name}</option>`).join('')}</select>
+    ${renderDropdown('update-platform', platform, ALL_PLATFORMS.map((id) => ({ value: id, label: PLATFORM_CONFIGS[id].name })), running)}
     <div class="field-row"><div><label class="field-label" for="update-limit">采集上限</label><input id="update-limit" class="field" inputmode="numeric" placeholder="默认平台策略" value="" ${running ? 'disabled' : ''}></div><div><label class="field-label" for="update-pages">B站页数</label><input id="update-pages" class="field" inputmode="numeric" placeholder="1" value="1" ${running ? 'disabled' : ''}></div></div>
     <div class="update-actions"><button class="button primary" data-action="start-update" ${running ? 'disabled' : ''}>${running ? '更新进行中' : '开始更新'}</button>${running ? '<button class="button danger" data-action="cancel-update">取消任务</button>' : ''}</div>
     <div class="update-status ${update?.state || 'idle'}"><div class="status-line"><strong>${esc(update?.phase || '等待操作')}</strong><span>${update?.processed ? `已处理 ${update.processed} 条` : ''}</span></div>${progress === null ? (running ? '<div class="status-meta">总量未知，按实际处理结果更新</div>' : '') : `<div class="progress-track"><span style="width:${progress}%"></span></div><div class="status-meta">${progress}% · ${update?.processed}/${update?.total}</div>`}${update?.error ? `<div class="error-box">${esc(update.error)}</div>` : ''}</div>
@@ -336,7 +348,7 @@ function renderCrossSearch(): string {
     <div class="csearch-top-row"><div><h2 id="cross-search-title" class="csearch-heading">全域整合包联合搜索</h2><p class="csearch-sub">沿用旧看板的跨平台入口，查询实际作用于完整本地数据，再按页展示结果。</p></div><div class="csearch-platforms-hint">${platformPills}</div></div>
     <div class="cross-search-input-wrap"><span class="cross-search-icon">🔍</span><input id="pack-search" class="cross-search-input" value="${esc(state.query)}" placeholder="输入名称、游戏版本、模组名、玩法或作者进行跨平台检索…" autocomplete="off"><div class="cross-search-kbd"><kbd>Ctrl</kbd><kbd>K</kbd></div></div>
     <div class="cross-chips-deck"><div class="chip-deck-row"><span class="deck-row-lbl">🎮 核心版本：</span><div class="deck-chips-group">${versionChips}</div></div><div class="chip-deck-row"><span class="deck-row-lbl">🔥 热门流派：</span><div class="deck-chips-group">${themeChips}</div></div></div>
-    <div class="desktop-filter-dock"><label for="version-filter">版本</label><select id="version-filter" class="hub-select">${renderOptions(state.availableVersions, state.version, '全部版本')}</select><label for="loader-filter">Loader</label><select id="loader-filter" class="hub-select">${renderOptions(state.availableLoaders, state.loader, '全部 Loader')}</select><button type="button" class="hub-reset-btn" data-action="clear-filters">重置筛选</button><button type="button" class="top-action-btn" data-action="choose-data">${state.data?.hasData ? '更换数据目录' : '选择已有数据'}</button></div>
+    <div class="desktop-filter-dock"><span class="filter-label">版本</span>${renderFilterDropdown('version', state.availableVersions, state.version, '全部版本')}<span class="filter-label">Loader</span>${renderFilterDropdown('loader', state.availableLoaders, state.loader, '全部 Loader')}<button type="button" class="hub-reset-btn" data-action="clear-filters">重置筛选</button><button type="button" class="top-action-btn" data-action="choose-data">${state.data?.hasData ? '更换数据目录' : '选择已有数据'}</button></div>
   </section>`;
 }
 
@@ -344,7 +356,7 @@ function renderPlatformHero(platform: Platform): string {
   const config = PLATFORM_CONFIGS[platform];
   const count = state.data?.platforms[platform]?.count ?? 0;
   return `<section class="channel-hero ${platform}-channel-hero"><div class="channel-hero-left"><span class="channel-badge-tag">${platformIcon(platform)} ${esc(config.name)}</span><div class="channel-title">${esc(config.name)}资料看板</div><div class="channel-desc">${esc(PLATFORM_TAGLINES[platform])}。详情页保留版本、模组、评论和原始来源入口。</div></div><div class="channel-quick-stats"><div class="cstat-item"><span class="cs-num">${formatCount(count)}</span><span class="cs-lbl">当前快照记录</span></div><div class="cstat-item"><span class="cs-num">${state.loading ? '…' : formatCount(state.total)}</span><span class="cs-lbl">当前结果总数</span></div></div></section>
-  <section class="central-hub"><div class="hub-tier-search"><div class="hub-stat-badge">当前平台 <strong>${esc(config.name)}</strong></div><div class="hub-search-box"><span class="hub-search-icon">🔍</span><input id="pack-search" class="hub-search-input" value="${esc(state.query)}" placeholder="输入名称、模组、版本或作者实时速搜…" autocomplete="off"></div><div class="hub-actions-cluster"><select id="version-filter" class="hub-select">${renderOptions(state.availableVersions, state.version, '全部版本')}</select><select id="loader-filter" class="hub-select">${renderOptions(state.availableLoaders, state.loader, '全部 Loader')}</select><button type="button" class="hub-reset-btn" data-action="clear-filters">重置筛选</button></div></div></section>`;
+  <section class="central-hub"><div class="hub-tier-search"><div class="hub-stat-badge">当前平台 <strong>${esc(config.name)}</strong></div><div class="hub-search-box"><span class="hub-search-icon">🔍</span><input id="pack-search" class="hub-search-input" value="${esc(state.query)}" placeholder="输入名称、模组、版本或作者实时速搜…" autocomplete="off"></div><div class="hub-actions-cluster">${renderFilterDropdown('version', state.availableVersions, state.version, '全部版本')}${renderFilterDropdown('loader', state.availableLoaders, state.loader, '全部 Loader')}<button type="button" class="hub-reset-btn" data-action="clear-filters">重置筛选</button></div></div></section>`;
 }
 
 function renderResultsWorkspace(selectedName: string): string {
@@ -432,8 +444,6 @@ function bindEvents(): void {
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => void loadRecords(), 180);
   });
-  root.querySelector<HTMLSelectElement>('#version-filter')?.addEventListener('change', (event) => { state.version = (event.target as HTMLSelectElement).value; void loadRecords(true); });
-  root.querySelector<HTMLSelectElement>('#loader-filter')?.addEventListener('change', (event) => { state.loader = (event.target as HTMLSelectElement).value; void loadRecords(true); });
 }
 
 async function loadComments(record: DesktopRecord): Promise<void> {
@@ -462,6 +472,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   const action = element.dataset.action;
   if (action === 'set-platform') {
     state.platform = (element.dataset.platform || 'all') as FilterPlatform;
+    if (state.platform !== 'all') state.updatePlatform = state.platform;
     state.selected = null;
     state.comments = { sourceId: '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
     await loadRecords(true);
@@ -482,8 +493,26 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
       state.message = error instanceof Error ? error.message : String(error);
       render();
     }
+  } else if (action === 'toggle-dropdown') {
+    const dropdown = element.dataset.dropdown as DropdownId | undefined;
+    if (dropdown) state.openDropdown = state.openDropdown === dropdown ? '' : dropdown;
+    render();
+  } else if (action === 'select-dropdown') {
+    const dropdown = element.dataset.dropdown as DropdownId | undefined;
+    const value = element.dataset.value || '';
+    state.openDropdown = '';
+    if (dropdown === 'version') {
+      state.version = value;
+      await loadRecords(true);
+    } else if (dropdown === 'loader') {
+      state.loader = value;
+      await loadRecords(true);
+    } else if (dropdown === 'update-platform' && ALL_PLATFORMS.includes(value as Platform)) {
+      state.updatePlatform = value as Platform;
+      render();
+    }
   } else if (action === 'start-update') {
-    const platform = root.querySelector<HTMLSelectElement>('#update-platform')?.value as Platform | undefined;
+    const platform = state.updatePlatform;
     const limitValue = root.querySelector<HTMLInputElement>('#update-limit')?.value.trim() || '';
     const pagesValue = root.querySelector<HTMLInputElement>('#update-pages')?.value.trim() || '';
     state.logs = [];
@@ -564,8 +593,30 @@ async function loadRecords(reset = true): Promise<void> {
   }
 }
 
+let documentEventsBound = false;
+
+function bindDocumentEvents(): void {
+  if (documentEventsBound) return;
+  documentEventsBound = true;
+  document.addEventListener('click', (event) => {
+    if (!state.openDropdown) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest('.ui-dropdown')) {
+      state.openDropdown = '';
+      render();
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && state.openDropdown) {
+      state.openDropdown = '';
+      render();
+    }
+  });
+}
+
 export async function initDesktopShell(): Promise<void> {
   root = document.querySelector<HTMLElement>('#desktop-root')!;
+  bindDocumentEvents();
   const savedTheme = localStorage.getItem('mcmod-desktop-theme');
   if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'eye' || savedTheme === 'warm' || savedTheme === 'pink') document.documentElement.dataset.theme = savedTheme;
   else document.documentElement.dataset.theme = 'light';
@@ -582,6 +633,7 @@ export async function initDesktopShell(): Promise<void> {
   }
   window.desktopApi.onUpdateStatus((update) => {
     state.update = update;
+    if (update.platform) state.updatePlatform = update.platform;
     state.logs = update.logs || state.logs;
     render();
     if (update.state === 'success') {
