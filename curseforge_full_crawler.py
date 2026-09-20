@@ -24,8 +24,9 @@ try:
 except Exception:
     pass
 
-OUTPUT_JSON = os.path.join("crawler_output", "curseforge_modpacks.json")
-OUTPUT_JS = os.path.join("converted_output", "data", "curseforge_data.js")
+WORKSPACE_ROOT = os.path.abspath(os.environ.get("MC_DESKTOP_WORKSPACE") or os.getcwd())
+OUTPUT_JSON = os.path.join(WORKSPACE_ROOT, "crawler_output", "curseforge_modpacks.json")
+OUTPUT_JS = os.path.join(WORKSPACE_ROOT, "converted_output", "data", "curseforge_data.js")
 PAGE_SIZE = 50
 MAX_WORKERS = 12
 

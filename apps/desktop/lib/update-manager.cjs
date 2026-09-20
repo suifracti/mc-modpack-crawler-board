@@ -8,6 +8,13 @@ function validLimit(value) {
   return parsed;
 }
 
+class CancelledBeforeCommit extends Error {
+  constructor() {
+    super('任务已取消，未替换当前数据');
+    this.name = 'CancelledBeforeCommit';
+  }
+}
+
 class UpdateManager extends EventEmitter {
   constructor({ store, runnerFactory, logger = () => {}, now = () => new Date().toISOString() }) {
     super();
@@ -16,6 +23,7 @@ class UpdateManager extends EventEmitter {
     this.logger = logger;
     this.now = now;
     this.active = null;
+    this.taskPromise = null;
     this.status = { state: 'idle', taskId: null, platform: null, phase: 'idle', processed: 0, total: null, logs: [] };
   }
 
@@ -43,7 +51,7 @@ class UpdateManager extends EventEmitter {
     }
   }
 
-  async start(platform, options = {}) {
+  start(platform, options = {}) {
     assertPlatform(platform);
     if (this.active) {
       const error = new Error('已有更新任务正在运行');
@@ -73,25 +81,48 @@ class UpdateManager extends EventEmitter {
     };
     this.emit('status', this.getStatus());
     this.appendLog(`开始更新 ${PLATFORM_CONFIGS[platform].name}，仅在隔离目录执行。`);
+    this.taskPromise = this.runTask(active, normalizedOptions);
+    active.promise = this.taskPromise;
+    return this.taskPromise;
+  }
+
+  assertNotCancelled(active) {
+    if (active.cancelled && !active.commitStarted) throw new CancelledBeforeCommit();
+  }
+
+  async runTask(active, normalizedOptions) {
     let prepared = null;
     try {
-      prepared = await this.store.prepareUpdateWorkspace(platform);
+      this.assertNotCancelled(active);
+      prepared = await this.store.prepareUpdateWorkspace(active.platform);
       active.workspace = prepared.workspace;
+      this.assertNotCancelled(active);
       active.runner = this.runnerFactory({
-        platform,
+        platform: active.platform,
         options: normalizedOptions,
         workspace: prepared.workspace,
         onLine: (line) => this.appendLog(line),
       });
+      this.assertNotCancelled(active);
       const result = await active.runner.promise;
-      if (active.cancelled) {
-        this.setStatus({ state: 'cancelled', phase: '已取消', endedAt: this.now(), error: null });
-        return this.getStatus();
-      }
+      this.assertNotCancelled(active);
       if (result.code !== 0) throw new Error(`采集进程退出码 ${result.code}${result.signal ? ` (${result.signal})` : ''}`);
       this.setStatus({ phase: '完整性检查' });
-      const validation = await this.store.validateStage(prepared.workspace, platform);
-      const manifest = await this.store.commitUpdate(prepared.workspace, platform, validation, { options: normalizedOptions });
+      const validation = await this.store.validateStage(prepared.workspace, active.platform);
+      this.assertNotCancelled(active);
+      const manifest = await this.store.commitUpdate(
+        prepared.workspace,
+        active.platform,
+        validation,
+        { options: normalizedOptions },
+        {
+          beforePointerCommit: () => {
+            this.assertNotCancelled(active);
+            active.commitStarted = true;
+          },
+        },
+      );
+      active.committed = true;
       this.setStatus({
         state: 'success',
         phase: '已完成并切换数据快照',
@@ -103,7 +134,7 @@ class UpdateManager extends EventEmitter {
       this.appendLog(`更新成功：${validation.count} 条数据已切换；上一份快照仍保留。`);
       return this.getStatus();
     } catch (error) {
-      const cancelled = active.cancelled;
+      const cancelled = error instanceof CancelledBeforeCommit || (active.cancelled && !active.commitStarted);
       this.setStatus({
         state: cancelled ? 'cancelled' : 'failed',
         phase: cancelled ? '已取消' : '失败，旧数据已保留',
@@ -114,22 +145,25 @@ class UpdateManager extends EventEmitter {
       return this.getStatus();
     } finally {
       if (prepared) await this.store.cleanupWorkspace(prepared.workspace).catch(() => {});
-      this.active = null;
+      if (this.active === active) this.active = null;
+      if (this.taskPromise && this.taskPromise === active.promise) this.taskPromise = null;
     }
   }
 
   cancel() {
-    if (!this.active) return false;
+    if (!this.active) return { cancelled: false, reason: 'idle' };
+    if (this.active.commitStarted) return { cancelled: false, reason: 'commit_started' };
+    if (this.active.cancelled) return { cancelled: false, reason: 'already_requested' };
     this.active.cancelled = true;
     this.setStatus({ phase: '正在取消' });
     this.appendLog('收到取消请求，正在结束本任务的进程树。');
     this.active.runner?.cancel?.();
-    return true;
+    return { cancelled: true };
   }
 
   async shutdown() {
     this.cancel();
-    if (this.active?.runner?.promise) await this.active.runner.promise.catch(() => {});
+    if (this.taskPromise) await this.taskPromise.catch(() => {});
   }
 }
 

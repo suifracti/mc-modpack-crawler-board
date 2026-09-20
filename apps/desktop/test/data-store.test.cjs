@@ -37,8 +37,52 @@ test('failed validation does not replace the active snapshot', async () => {
   await store.importDirectory(path.join(root, 'source'));
   const prepared = await store.prepareUpdateWorkspace('bilibili');
   await fs.writeFile(path.join(prepared.workspace, 'converted_output', 'data', 'bili_data.js'), 'window.biliModpacksData = [];\n', 'utf8');
-  await assert.rejects(() => store.validateStage(prepared.workspace, 'bilibili'), /更新结果为空/);
+  await assert.rejects(() => store.validateStage(prepared.workspace, 'bilibili'), /本轮采集结果合同/);
   await store.cleanupWorkspace(prepared.workspace);
   const records = await store.getPlatformRecords('bilibili');
   assert.equal(records.records[0].title, '旧快照');
+});
+
+test('filters the complete dataset before pagination and preserves modern fields', async () => {
+  const root = await tempDir();
+  const source = path.join(root, 'source', 'data');
+  const mcmod = [{
+    mid: 1,
+    title: 'MC百科测试包',
+    author: '测试作者',
+    url: 'https://www.mcmod.cn/modpack/1.html',
+    mcVersions: ['1.7.10'],
+    loaders: ['Forge'],
+    environmentClaims: [{ side: 'server', status: 'unknown', certainty: 'unknown', evidenceText: null }],
+  }];
+  const bili = Array.from({ length: 301 }, (_, index) => ({
+    bvid: `BV${index}`,
+    title: index === 300 ? '第301条唯一版本' : `测试视频${index}`,
+    author: '测试作者',
+    url: `https://www.bilibili.com/video/BV${index}`,
+    desc: index === 300 ? '正文描述也可搜索' : '',
+    pub_time: '2026-09-20 12:00',
+    all_versions: index === 300 ? ['9.9.9'] : ['1.20.1'],
+  }));
+  await writeSidecar(source, 'mcmod_data.js', mcmod, 'mcmodData');
+  await writeSidecar(source, 'bili_data.js', bili, 'biliModpacksData');
+  const store = new DataStore(path.join(root, 'user-data'));
+  await store.init();
+  await store.importDirectory(path.join(root, 'source'));
+
+  const firstPage = await store.getPlatformRecords('bilibili', { page: 1, pageSize: 300 });
+  assert.equal(firstPage.total, 301);
+  assert.equal(firstPage.records.length, 300);
+  assert.ok(firstPage.availableVersions.includes('9.9.9'));
+  const secondPage = await store.getPlatformRecords('bilibili', { page: 2, pageSize: 300 });
+  assert.equal(secondPage.records.length, 1);
+  assert.equal(secondPage.records[0].title, '第301条唯一版本');
+  const filtered = await store.getPlatformRecords('bilibili', { version: '9.9.9', page: 1, pageSize: 48 });
+  assert.equal(filtered.total, 1);
+  assert.equal(filtered.records[0].summary, '正文描述也可搜索');
+  assert.equal(filtered.records[0].updatedAt, '2026-09-20 12:00');
+
+  const mcmodRecords = await store.getPlatformRecords('mcmod', { page: 1, pageSize: 48 });
+  assert.deepEqual(mcmodRecords.records[0].versions, ['1.7.10']);
+  assert.equal(mcmodRecords.records[0].raw.mid, 1);
 });

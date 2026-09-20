@@ -6,21 +6,24 @@ monolithic crawler with ``--auto-convert`` and writes only below ``workspace``.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import runpy
 import shutil
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 
 PLATFORMS = {
-    "mcmod": {"script": "mcmod_full_crawler.py", "raw": "mcmod_modpacks.json"},
-    "bilibili": {"script": "bilibili_crawler.py", "raw": "bilibili_modpacks.json"},
-    "bbsmc": {"script": "bbsmc_crawler.py", "raw": "bbsmc_modpacks.json"},
-    "xyebbs": {"script": "xyebbs_crawler.py", "raw": "xyebbs_modpacks.json"},
-    "modrinth": {"script": "modrinth_crawler.py", "raw": "modrinth_modpacks.json"},
-    "curseforge": {"script": "curseforge_full_crawler.py", "raw": "curseforge_modpacks.json"},
+    "mcmod": {"script": "mcmod_full_crawler.py", "raw": "mcmod_modpacks.json", "sidecar": "mcmod_data.js"},
+    "bilibili": {"script": "bilibili_crawler.py", "raw": "bilibili_modpacks.json", "sidecar": "bili_data.js"},
+    "bbsmc": {"script": "bbsmc_crawler.py", "raw": "bbsmc_modpacks.json", "sidecar": "bbsmc_data.js"},
+    "xyebbs": {"script": "xyebbs_crawler.py", "raw": "xyebbs_modpacks.json", "sidecar": "xyebbs_data.js"},
+    "modrinth": {"script": "modrinth_crawler.py", "raw": "modrinth_modpacks.json", "sidecar": "modrinth_data.js"},
+    "curseforge": {"script": "curseforge_full_crawler.py", "raw": "curseforge_modpacks.json", "sidecar": "curseforge_data.js"},
 }
 
 
@@ -68,6 +71,92 @@ def ensure_stage_dirs(workspace: Path) -> None:
     (workspace / "build").mkdir(parents=True, exist_ok=True)
 
 
+def sha256(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def file_state(path: Path) -> dict[str, object]:
+    if not path.exists():
+        return {"exists": False, "size": 0, "mtimeNs": None, "sha256": None}
+    stat = path.stat()
+    return {"exists": True, "size": stat.st_size, "mtimeNs": stat.st_mtime_ns, "sha256": sha256(path)}
+
+
+def parse_sidecar(path: Path) -> list[object]:
+    text = path.read_text(encoding="utf-8-sig").strip()
+    if "=" not in text:
+        raise ValueError(f"sidecar assignment missing: {path.name}")
+    payload = text.split("=", 1)[1].strip()
+    if payload.endswith(";"):
+        payload = payload[:-1].strip()
+    value = json.loads(payload)
+    return value if isinstance(value, list) else list(value.values())
+
+
+def write_update_contract(workspace: Path, contract: dict[str, object]) -> None:
+    path = workspace / "build" / "desktop_update_result.json"
+    temp = path.with_suffix(f".{os.getpid()}.tmp")
+    temp.write_text(json.dumps(contract, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp.replace(path)
+
+
+def collect_output_contract(workspace: Path, platform: str, started_ns: int, before: dict[str, dict[str, object]]) -> dict[str, object]:
+    config = PLATFORMS[platform]
+    raw_path = workspace / "crawler_output" / config["raw"]
+    sidecar_path = workspace / "converted_output" / "data" / config["sidecar"]
+    raw_state = file_state(raw_path)
+    sidecar_state = file_state(sidecar_path)
+    raw_touched = bool(raw_state["exists"] and int(raw_state["mtimeNs"] or 0) >= started_ns)
+    sidecar_touched = bool(sidecar_state["exists"] and int(sidecar_state["mtimeNs"] or 0) >= started_ns)
+    raw_count = 0
+    sidecar_count = 0
+    failure_reason = None
+    try:
+        if not raw_state["exists"]:
+            raise ValueError("本轮没有生成原始 JSON")
+        raw_value = json.loads(raw_path.read_text(encoding="utf-8"))
+        if not isinstance(raw_value, list):
+            raise ValueError("本轮原始 JSON 不是数组")
+        raw_count = len(raw_value)
+        if not raw_count:
+            raise ValueError("本轮原始 JSON 为空")
+        if not sidecar_state["exists"]:
+            raise ValueError("本轮没有生成现代 sidecar")
+        sidecar_count = len(parse_sidecar(sidecar_path))
+        if not sidecar_count:
+            raise ValueError("本轮现代 sidecar 为空")
+        if not raw_touched or not sidecar_touched:
+            raise ValueError("原始 JSON 或现代 sidecar 未在本轮采集期间写入")
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
+        failure_reason = str(error)
+
+    changed = any(before[name].get("sha256") != after.get("sha256") for name, after in {"raw": raw_state, "sidecar": sidecar_state}.items())
+    outcome = "success_update" if not failure_reason and changed else "success_no_change" if not failure_reason else "failed"
+    return {
+        "schema": 1,
+        "platform": platform,
+        "startedAt": datetime.fromtimestamp(started_ns / 1_000_000_000, timezone.utc).isoformat(),
+        "finishedAt": datetime.now(timezone.utc).isoformat(),
+        "rawFile": config["raw"],
+        "sidecarFile": config["sidecar"],
+        "raw": raw_state,
+        "sidecar": sidecar_state,
+        "rawTouched": raw_touched,
+        "sidecarTouched": sidecar_touched,
+        "rawCount": raw_count,
+        "sidecarCount": sidecar_count,
+        "changed": changed,
+        "outcome": outcome,
+        "error": failure_reason,
+    }
+
+
 def run_selected_collector(args: argparse.Namespace) -> None:
     workspace = Path(args.workspace).resolve()
     source_root = Path(args.source_root).resolve()
@@ -85,33 +174,51 @@ def run_selected_collector(args: argparse.Namespace) -> None:
     emit(platform=args.platform, phase="采集", processed=0, total=None)
     print(f"desktop collector: {args.platform} args={script_args}", flush=True)
 
+    output_paths = {
+        "raw": workspace / "crawler_output" / config["raw"],
+        "sidecar": workspace / "converted_output" / "data" / config["sidecar"],
+    }
+    before = {name: file_state(path) for name, path in output_paths.items()}
+    started_ns = time.time_ns()
+
     previous_cwd = Path.cwd()
     previous_argv = sys.argv[:]
     previous_path = sys.path[:]
+    previous_workspace = os.environ.get("MC_DESKTOP_WORKSPACE")
     try:
         os.chdir(workspace)
         sys.path.insert(0, str(isolated_script.parent))
         sys.argv = [str(isolated_script), *script_args]
+        os.environ["MC_DESKTOP_WORKSPACE"] = str(workspace)
         runpy.run_path(str(isolated_script), run_name="__main__")
     finally:
         sys.argv = previous_argv
         sys.path[:] = previous_path
         os.chdir(previous_cwd)
+        if previous_workspace is None:
+            os.environ.pop("MC_DESKTOP_WORKSPACE", None)
+        else:
+            os.environ["MC_DESKTOP_WORKSPACE"] = previous_workspace
 
-    raw_path = workspace / "crawler_output" / config["raw"]
-    count = 0
-    if raw_path.exists():
-        with raw_path.open("r", encoding="utf-8") as handle:
-            raw = json.load(handle)
-        count = len(raw) if isinstance(raw, list) else 0
-    emit(platform=args.platform, phase="采集完成，准备完整性检查", processed=count, total=count)
+    contract = collect_output_contract(workspace, args.platform, started_ns, before)
+    write_update_contract(workspace, contract)
+    if contract["outcome"] == "failed":
+        emit(platform=args.platform, phase="失败", processed=contract["rawCount"], total=contract["rawCount"], error=contract["error"])
+        raise RuntimeError(str(contract["error"]))
+
+    count = int(contract["rawCount"])
+    emit(platform=args.platform, phase="采集完成，准备完整性检查", processed=count, total=count, outcome=contract["outcome"])
 
     snapshot_script = Path(__file__).with_name("snapshot_pipeline.py")
     if snapshot_script.exists():
         previous_argv = sys.argv[:]
         try:
             sys.argv = [str(snapshot_script), "--workspace", str(workspace), "--platform", args.platform, "--source-root", str(source_root)]
-            runpy.run_path(str(snapshot_script), run_name="__main__")
+            try:
+                runpy.run_path(str(snapshot_script), run_name="__main__")
+            except SystemExit as error:
+                if error.code not in (None, 0):
+                    raise
         finally:
             sys.argv = previous_argv
 

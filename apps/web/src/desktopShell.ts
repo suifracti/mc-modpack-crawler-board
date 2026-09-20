@@ -1,5 +1,14 @@
 import { ALL_PLATFORMS, PLATFORM_CONFIGS } from './data/platformRegistry';
 import type { Platform } from './domain/types';
+import { buildVersionModalViewModel } from './modals/version/buildViewModel';
+import {
+  buildBbsmcSearchDocument,
+  buildBilibiliSearchDocument,
+  buildCurseforgeSearchDocument,
+  buildMcmodSearchDocument,
+  buildModrinthSearchDocument,
+  buildXyebbsSearchDocument,
+} from './search/searchDocument';
 
 interface DesktopRecord {
   id: string;
@@ -13,6 +22,11 @@ interface DesktopRecord {
   loaders: string[];
   categories: string[];
   updatedAt: string;
+  coverUrl: string;
+  environment: { status: string; certainty: string; label: string; sourceField: string | null };
+  releases: Array<Record<string, unknown>>;
+  raw: Record<string, unknown>;
+  searchText: string;
   evidence: Array<{ label: string; value: string }>;
 }
 
@@ -52,10 +66,10 @@ interface DesktopUpdateStatus {
 
 interface DesktopApi {
   getState: () => Promise<{ data: DesktopDataState; update: DesktopUpdateStatus }>;
-  getPlatformRecords: (platform: Platform, query?: string) => Promise<{ platform: Platform; total: number; records: DesktopRecord[]; error?: string | null }>;
+  getPlatformRecords: (platform: Platform, options?: { query?: string; version?: string; loader?: string; page?: number; pageSize?: number }) => Promise<{ platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; error?: string | null }>;
   chooseDataDirectory: () => Promise<{ cancelled: boolean; data?: DesktopDataState }>;
   startUpdate: (platform: Platform, options?: { limit?: number; pages?: number; until?: string }) => Promise<DesktopUpdateStatus>;
-  cancelUpdate: () => Promise<{ cancelled: boolean }>;
+  cancelUpdate: () => Promise<{ cancelled: boolean; reason?: string }>;
   openExternal: (url: string) => Promise<{ opened: boolean }>;
   onUpdateStatus: (callback: (status: DesktopUpdateStatus) => void) => () => void;
   onUpdateLog: (callback: (line: string) => void) => () => void;
@@ -84,6 +98,11 @@ const state = {
   loader: '',
   records: [] as DesktopRecord[],
   total: 0,
+  availableVersions: [] as string[],
+  availableLoaders: [] as string[],
+  page: 1,
+  pageSize: 48,
+  hasMore: false,
   selected: null as DesktopRecord | null,
   loading: true,
   message: '',
@@ -113,19 +132,53 @@ function formatTime(value: string | null | undefined): string {
 }
 
 function currentRecords(): DesktopRecord[] {
-  const version = state.version.toLocaleLowerCase();
-  const loader = state.loader.toLocaleLowerCase();
-  return state.records.filter((record) => {
-    const versionMatch = !version || record.versions.some((item) => item.toLocaleLowerCase() === version);
-    const loaderMatch = !loader || record.loaders.some((item) => item.toLocaleLowerCase() === loader);
-    return versionMatch && loaderMatch;
-  });
+  return state.records;
 }
 
-function filterOptions(records: DesktopRecord[], selector: 'versions' | 'loaders'): string[] {
-  const values = new Set<string>();
-  for (const record of records) for (const value of record[selector]) if (value) values.add(value);
-  return [...values].sort((a, b) => a.localeCompare(b, 'zh-CN')).slice(0, 80);
+function existingSearchText(record: DesktopRecord): string {
+  const raw = record.raw as never;
+  try {
+    const document = record.platform === 'mcmod'
+      ? buildMcmodSearchDocument(raw as never)
+      : record.platform === 'bilibili'
+        ? buildBilibiliSearchDocument(raw as never)
+        : record.platform === 'bbsmc'
+          ? buildBbsmcSearchDocument(raw as never)
+          : record.platform === 'xyebbs'
+            ? buildXyebbsSearchDocument(raw as never)
+            : record.platform === 'modrinth'
+              ? buildModrinthSearchDocument(raw as never)
+              : buildCurseforgeSearchDocument(raw as never);
+    return document.allTextLower || '';
+  } catch {
+    return record.searchText;
+  }
+}
+
+function safeExternalUrl(value: unknown): string {
+  try {
+    const url = new URL(String(value || ''));
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+function rawText(record: DesktopRecord, keys: string[]): string {
+  for (const key of keys) {
+    const value = record.raw[key];
+    if (value !== undefined && value !== null && String(value).trim()) return String(value);
+  }
+  return '';
+}
+
+function rawList(record: DesktopRecord, keys: string[]): string[] {
+  for (const key of keys) {
+    const value = record.raw[key];
+    if (Array.isArray(value)) return value.filter(Boolean).map(String);
+    if (typeof value === 'string' && value.trim()) return value.split(/[,，|/]/).map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
 }
 
 function renderOptions(values: string[], selected: string, emptyLabel: string): string {
@@ -152,7 +205,8 @@ function updatePanel(): string {
 
 function renderRecord(record: DesktopRecord, index: number): string {
   const config = PLATFORM_CONFIGS[record.platform];
-  return `<article class="pack-card" data-action="select-record" data-index="${index}">
+  const searchContractText = existingSearchText(record).slice(0, 240);
+  return `<article class="pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
     <div class="card-top"><span class="platform-badge">${config.name}</span><span class="card-time">${esc(record.updatedAt || '更新时间未知')}</span></div>
     <h3>${esc(record.title)}</h3><p class="author">${esc(record.author)}</p>
     <p class="summary">${textOrUnknown(record.summary)}</p>
@@ -161,23 +215,47 @@ function renderRecord(record: DesktopRecord, index: number): string {
   </article>`;
 }
 
+function renderRelease(release: Record<string, unknown>): string {
+  const downloads = Array.isArray(release.downloads) ? release.downloads : [];
+  const links = downloads.map((download) => {
+    const item = (download || {}) as Record<string, unknown>;
+    const url = safeExternalUrl(item.url);
+    return url ? `<a class="detail-link" href="${esc(url)}" target="_blank" rel="noreferrer">${esc(String(item.name || '打开下载'))} ↗</a>` : '';
+  }).filter(Boolean).join('');
+  const versions = Array.isArray(release.gameVersions) ? release.gameVersions.map(String).join('、') : '';
+  const loaders = Array.isArray(release.loaders) ? release.loaders.map(String).join('、') : '';
+  const notes = String(release.changelogMd || release.changelog || '').trim();
+  return `<article class="release-item"><div class="release-head"><strong>${textOrUnknown(String(release.versionName || release.version_number || ''))}</strong><span>${esc(String(release.date || release.release_date || ''))}</span></div><div class="release-meta">${versions ? `Minecraft：${esc(versions)}` : ''}${loaders ? ` · Loader：${esc(loaders)}` : ''}</div>${notes ? `<p>${esc(notes)}</p>` : ''}${links ? `<div class="release-links">${links}</div>` : ''}</article>`;
+}
+
 function detailPanel(): string {
   const record = state.selected;
   if (!record) return '';
+  const vm = buildVersionModalViewModel(record.platform, record.raw as never, record.raw);
+  const comment = rawText(record, ['pinned_comment', 'desc', 'description', 'subtitle_summary']);
+  const modNames = rawList(record, ['includedModNames', 'mods']);
+  const previewMods = Array.isArray(record.raw.previewMods) ? record.raw.previewMods : [];
+  const mods = (previewMods.length ? previewMods : modNames.map((name) => ({ name }))).slice(0, 24) as Array<Record<string, unknown>>;
+  const releaseHtml = vm.releases?.length ? vm.releases.slice(0, 12).map((release) => renderRelease(release as unknown as Record<string, unknown>)).join('') : '<div class="empty-evidence">当前数据没有版本发布明细；可从下方版本详情入口查看原站记录。</div>';
+  const versionUrl = safeExternalUrl(vm.targetUrl);
+  const sourceUrl = safeExternalUrl(record.url);
+  const modHtml = mods.length ? `<div class="mod-list">${mods.map((mod) => { const url = safeExternalUrl(mod.url); return url ? `<a class="mod-chip" href="${esc(url)}" target="_blank" rel="noreferrer">${esc(String(mod.title || mod.name || '未知模组'))} ↗</a>` : `<span class="mod-chip">${esc(String(mod.title || mod.name || '未知模组'))}</span>`; }).join('')}</div>` : '<div class="empty-evidence">当前数据没有模组清单。</div>';
   return `<div class="detail-backdrop" data-action="close-detail"><aside class="detail-panel" data-detail-panel>
     <button class="icon-button close-detail" data-action="close-detail" aria-label="关闭详情">×</button>
     <span class="eyebrow">${esc(PLATFORM_CONFIGS[record.platform].name)} · 原始来源</span><h2>${esc(record.title)}</h2><p class="detail-author">${esc(record.author)}</p>
-    <div class="detail-section"><h3>适配摘要</h3><dl><div><dt>Minecraft</dt><dd>${record.versions.length ? esc(record.versions.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>Loader</dt><dd>${record.loaders.length ? esc(record.loaders.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>更新时间</dt><dd>${esc(formatTime(record.updatedAt))}</dd></div></dl></div>
+    <div class="detail-section"><h3>适配摘要</h3><dl><div><dt>Minecraft</dt><dd>${vm.mcVersionsList.length ? esc(vm.mcVersionsList.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>Loader</dt><dd>${record.loaders.length ? esc(record.loaders.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>更新时间</dt><dd>${esc(formatTime(record.updatedAt))}</dd></div><div><dt>服务端</dt><dd>${esc(vm.envDisplay || `${record.environment.label}（${record.environment.certainty}）`)}</dd></div></dl></div>
     <div class="detail-section"><h3>来源证据</h3><div class="evidence-list">${record.evidence.length ? record.evidence.map((item) => `<div class="evidence-item"><span>${esc(item.label)}</span><strong>${textOrUnknown(item.value)}</strong></div>`).join('') : '<div class="empty-evidence">当前数据没有提供可核对的来源字段。</div>'}</div></div>
-    <div class="detail-section"><h3>简介</h3><p class="detail-summary">${textOrUnknown(record.summary)}</p></div>
-    ${record.url ? `<button class="button primary wide" data-action="open-source" data-url="${esc(record.url)}">打开原站</button>` : '<div class="unknown-action">原站链接未知</div>'}
+    <div class="detail-section"><h3>简介 / 评论</h3><p class="detail-summary">${textOrUnknown(comment || record.summary)}</p></div>
+    <div class="detail-section"><h3>版本详情</h3><div class="release-list">${releaseHtml}</div></div>
+    <div class="detail-section"><h3>已收录模组</h3>${modHtml}</div>
+    <div class="detail-actions">${sourceUrl ? `<button class="button primary wide" data-action="open-source" data-url="${esc(sourceUrl)}">打开原站</button>` : '<div class="unknown-action">原站链接未知</div>'}${versionUrl && versionUrl !== sourceUrl ? `<button class="button secondary wide" data-action="open-source" data-url="${esc(versionUrl)}">打开版本详情</button>` : ''}</div>
   </aside></div>`;
 }
 
 function render(): void {
   const records = currentRecords();
-  const versions = filterOptions(state.records, 'versions');
-  const loaders = filterOptions(state.records, 'loaders');
+  const versions = state.availableVersions;
+  const loaders = state.availableLoaders;
   const data = state.data;
   const availableCount = data ? Object.values(data.platforms).filter((item) => item.available).length : 0;
   const selectedName = state.platform === 'all' ? '全部平台' : PLATFORM_CONFIGS[state.platform].name;
@@ -186,28 +264,28 @@ function render(): void {
     <main class="workspace"><section class="hero"><div><span class="eyebrow">LOCAL DISCOVERY DESK</span><h1>从一个名字开始，找到适合你的整合包。</h1><p>搜索本地快照中的整合包，逐步查看版本、Loader、服务端和原始来源。缺少数据时，导入已有看板目录即可开始。</p></div><div class="hero-actions"><button class="button secondary" data-action="choose-data">${data?.hasData ? '更换数据目录' : '选择已有数据'}</button></div></section>
     <section class="search-panel"><div class="search-wrap"><span>⌕</span><input id="pack-search" value="${esc(state.query)}" placeholder="搜索整合包名称、作者或关键词" autocomplete="off"></div><select id="version-filter" class="field compact">${renderOptions(versions, state.version, 'Minecraft 版本')}</select><select id="loader-filter" class="field compact">${renderOptions(loaders, state.loader, 'Loader')}</select></section>
     <nav class="platform-nav" aria-label="平台筛选">${platformItems.map((item) => `<button class="platform-tab ${state.platform === item.id ? 'active' : ''}" data-action="set-platform" data-platform="${item.id}"><span>${item.icon}</span>${item.name}${item.id !== 'all' && data ? `<em>${data.platforms[item.id].count.toLocaleString('zh-CN')}</em>` : ''}</button>`).join('')}</nav>
-    <div class="content-grid"><section class="results-column"><div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : state.query || state.version || state.loader ? '筛选结果' : '最近可用数据'}</h2></div><span class="result-count">${state.loading ? '' : `${records.length.toLocaleString('zh-CN')} / ${state.total.toLocaleString('zh-CN')}`}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${!data?.hasData ? `<div class="empty-state"><div class="empty-icon">◌</div><h3>还没有本地数据快照</h3><p>选择现有的 <code>converted_output</code>、<code>build/frontend_preview</code> 或其 <code>data</code> 目录。应用不会把空数据伪装成成功。</p><button class="button primary" data-action="choose-data">选择数据目录</button></div>` : state.loading ? '<div class="loading-state">正在读取当前快照…</div>' : records.length ? `<div class="pack-grid">${records.map(renderRecord).join('')}</div>` : `<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>`}</section>${updatePanel()}</div>
+    <div class="content-grid"><section class="results-column"><div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : state.query || state.version || state.loader ? '筛选结果' : '最近可用数据'}</h2></div><span class="result-count">${state.loading ? '' : `${records.length.toLocaleString('zh-CN')} / ${state.total.toLocaleString('zh-CN')}`}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${!data?.hasData ? `<div class="empty-state"><div class="empty-icon">◌</div><h3>还没有本地数据快照</h3><p>选择现有的 <code>converted_output</code>、<code>build/frontend_preview</code> 或其 <code>data</code> 目录。应用不会把空数据伪装成成功。</p><button class="button primary" data-action="choose-data">选择数据目录</button></div>` : state.loading ? '<div class="loading-state">正在读取当前快照…</div>' : records.length ? `<div class="pack-grid">${records.map(renderRecord).join('')}</div>${state.hasMore ? `<div class="load-more"><button class="button secondary" data-action="load-more">加载更多（已显示 ${records.length.toLocaleString('zh-CN')} / ${state.total.toLocaleString('zh-CN')}）</button></div>` : ''}` : `<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>`}</section>${updatePanel()}</div>
     <footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${detailPanel()}</div>`;
   bindEvents();
 }
 
 function bindEvents(): void {
-  root.querySelectorAll<HTMLElement>('[data-action]').forEach((element) => element.addEventListener('click', () => void handleAction(element)));
+  root.querySelectorAll<HTMLElement>('[data-action]').forEach((element) => element.addEventListener('click', (event) => void handleAction(element, event)));
   root.querySelector<HTMLInputElement>('#pack-search')?.addEventListener('input', (event) => {
     state.query = (event.target as HTMLInputElement).value;
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => void loadRecords(), 180);
   });
-  root.querySelector<HTMLSelectElement>('#version-filter')?.addEventListener('change', (event) => { state.version = (event.target as HTMLSelectElement).value; render(); });
-  root.querySelector<HTMLSelectElement>('#loader-filter')?.addEventListener('change', (event) => { state.loader = (event.target as HTMLSelectElement).value; render(); });
+  root.querySelector<HTMLSelectElement>('#version-filter')?.addEventListener('change', (event) => { state.version = (event.target as HTMLSelectElement).value; void loadRecords(true); });
+  root.querySelector<HTMLSelectElement>('#loader-filter')?.addEventListener('change', (event) => { state.loader = (event.target as HTMLSelectElement).value; void loadRecords(true); });
 }
 
-async function handleAction(element: HTMLElement): Promise<void> {
+async function handleAction(element: HTMLElement, event?: Event): Promise<void> {
   const action = element.dataset.action;
   if (action === 'set-platform') {
     state.platform = (element.dataset.platform || 'all') as FilterPlatform;
     state.selected = null;
-    await loadRecords();
+    await loadRecords(true);
   } else if (action === 'choose-data') {
     state.message = '正在读取所选目录…';
     render();
@@ -216,7 +294,7 @@ async function handleAction(element: HTMLElement): Promise<void> {
       if (!result.cancelled && result.data) {
         state.data = result.data;
         state.message = '';
-        await loadRecords();
+        await loadRecords(true);
       } else {
         state.message = '';
         render();
@@ -238,12 +316,14 @@ async function handleAction(element: HTMLElement): Promise<void> {
     }
   } else if (action === 'cancel-update') {
     await window.desktopApi.cancelUpdate();
+  } else if (action === 'load-more') {
+    await loadRecords(false);
   } else if (action === 'select-record') {
     const index = Number(element.dataset.index || '-1');
-    state.selected = currentRecords()[index] || null;
+    state.selected = state.records[index] || null;
     render();
   } else if (action === 'close-detail') {
-    if (element.hasAttribute('data-detail-panel')) return;
+    if (event && event.target !== element) return;
     state.selected = null;
     render();
   } else if (action === 'open-source') {
@@ -254,18 +334,34 @@ async function handleAction(element: HTMLElement): Promise<void> {
     document.documentElement.dataset.theme = next;
     localStorage.setItem('mcmod-desktop-theme', next);
   } else if (action === 'clear-filters') {
-    state.query = ''; state.version = ''; state.loader = ''; await loadRecords();
+    state.query = ''; state.version = ''; state.loader = ''; await loadRecords(true);
   }
 }
 
-async function loadRecords(): Promise<void> {
+async function loadRecords(reset = true): Promise<void> {
+  if (reset) {
+    state.page = 1;
+    state.records = [];
+  } else {
+    state.page += 1;
+  }
   state.loading = true;
   render();
   const platforms = state.platform === 'all' ? ALL_PLATFORMS : [state.platform];
   try {
-    const results = await Promise.all(platforms.map((platform) => window.desktopApi.getPlatformRecords(platform, state.query)));
-    state.records = results.flatMap((result) => result.records);
+    const results = await Promise.all(platforms.map((platform) => window.desktopApi.getPlatformRecords(platform, {
+      query: state.query,
+      version: state.version,
+      loader: state.loader,
+      page: state.page,
+      pageSize: state.pageSize,
+    })));
+    const nextRecords = results.flatMap((result) => result.records);
+    state.records = reset ? nextRecords : [...state.records, ...nextRecords];
     state.total = results.reduce((sum, result) => sum + result.total, 0);
+    state.availableVersions = [...new Set(results.flatMap((result) => result.availableVersions || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    state.availableLoaders = [...new Set(results.flatMap((result) => result.availableLoaders || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    state.hasMore = state.records.length < state.total;
     state.loading = false;
     render();
   } catch (error) {
@@ -295,7 +391,7 @@ export async function initDesktopShell(): Promise<void> {
     state.logs = update.logs || state.logs;
     render();
     if (update.state === 'success') {
-      void window.desktopApi.getState().then(async (next) => { state.data = next.data; await loadRecords(); });
+      void window.desktopApi.getState().then(async (next) => { state.data = next.data; await loadRecords(true); });
     }
   });
   window.desktopApi.onUpdateLog((line) => {
@@ -304,6 +400,6 @@ export async function initDesktopShell(): Promise<void> {
   });
   window.desktopApi.onDataChanged((data) => {
     state.data = data;
-    void loadRecords();
+    void loadRecords(true);
   });
 }

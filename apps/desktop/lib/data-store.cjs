@@ -44,6 +44,28 @@ async function copyIfExists(source, destination) {
   return false;
 }
 
+function parseQueryOptions(queryOrOptions) {
+  if (typeof queryOrOptions === 'string' || queryOrOptions === undefined || queryOrOptions === null) {
+    return { query: String(queryOrOptions || ''), version: '', loader: '', page: 1, pageSize: 48 };
+  }
+  const options = queryOrOptions || {};
+  const page = Number.isInteger(Number(options.page)) ? Math.max(1, Number(options.page)) : 1;
+  const pageSize = Number.isInteger(Number(options.pageSize)) ? Math.min(500, Math.max(1, Number(options.pageSize))) : 48;
+  return {
+    query: String(options.query || ''),
+    version: String(options.version || ''),
+    loader: String(options.loader || ''),
+    page,
+    pageSize,
+  };
+}
+
+function optionValues(records, key) {
+  const values = new Set();
+  for (const record of records) for (const value of record[key] || []) if (value) values.add(String(value));
+  return [...values].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+}
+
 async function copyDirectoryContents(sourceDir, destinationDir, predicate = () => true) {
   if (!(await exists(sourceDir))) return 0;
   await fsp.mkdir(destinationDir, { recursive: true });
@@ -134,20 +156,31 @@ class DataStore {
     };
   }
 
-  async getPlatformRecords(platform, query = '') {
+  async getPlatformRecords(platform, queryOrOptions = '') {
     assertPlatform(platform);
+    const options = parseQueryOptions(queryOrOptions);
     const active = await this.getActiveSnapshot();
-    if (!active) return { platform, total: 0, records: [], sourceFile: null };
+    if (!active) return { platform, total: 0, records: [], sourceFile: null, page: options.page, pageSize: options.pageSize, availableVersions: [], availableLoaders: [] };
     const result = readPlatformRecords(this.snapshotDataDir(active.snapshotId), platform);
     const normalized = result.records.map((record, index) => normaliseRecord(platform, record, index));
-    const needle = String(query || '').trim().toLocaleLowerCase();
-    const filtered = needle
-      ? normalized.filter((record) => `${record.title} ${record.author} ${record.summary} ${record.categories.join(' ')}`.toLocaleLowerCase().includes(needle))
-      : normalized;
+    const needle = options.query.trim().toLocaleLowerCase();
+    const searched = needle ? normalized.filter((record) => record.searchText.includes(needle)) : normalized;
+    const version = options.version.trim().toLocaleLowerCase();
+    const loader = options.loader.trim().toLocaleLowerCase();
+    const filtered = searched.filter((record) => {
+      const versionMatch = !version || record.versions.some((item) => item.toLocaleLowerCase() === version);
+      const loaderMatch = !loader || record.loaders.some((item) => item.toLocaleLowerCase() === loader);
+      return versionMatch && loaderMatch;
+    });
+    const offset = (options.page - 1) * options.pageSize;
     return {
       platform,
       total: filtered.length,
-      records: filtered.slice(0, 300),
+      page: options.page,
+      pageSize: options.pageSize,
+      records: filtered.slice(offset, offset + options.pageSize),
+      availableVersions: optionValues(searched, 'versions'),
+      availableLoaders: optionValues(searched, 'loaders'),
       sourceFile: result.sourceFile,
       error: result.error,
     };
@@ -174,25 +207,42 @@ class DataStore {
   async validateStage(workspace, platform) {
     assertPlatform(platform);
     const dataDir = path.join(workspace, 'converted_output', 'data');
-    const sidecar = findSidecar(dataDir, platform);
-    if (!sidecar) throw new Error(`${PLATFORM_CONFIGS[platform].name} 更新未生成可读取数据文件`);
+    const contractPath = path.join(workspace, 'build', 'desktop_update_result.json');
+    let contract;
+    try {
+      contract = JSON.parse(await fsp.readFile(contractPath, 'utf8'));
+    } catch {
+      throw new Error(`${PLATFORM_CONFIGS[platform].name} 缺少本轮采集结果合同，拒绝复用旧 sidecar`);
+    }
+    if (contract.platform !== platform || !['success_update', 'success_no_change'].includes(contract.outcome)) {
+      throw new Error(`${PLATFORM_CONFIGS[platform].name} 本轮采集未形成可提交结果`);
+    }
+    if (!contract.rawTouched || !contract.sidecarTouched) {
+      throw new Error(`${PLATFORM_CONFIGS[platform].name} 本轮未同时生成原始 JSON 与现代 sidecar`);
+    }
+    const expectedSidecar = path.join(dataDir, contract.sidecarFile || PLATFORM_CONFIGS[platform].sidecars[0]);
+    const sidecar = await exists(expectedSidecar) ? expectedSidecar : findSidecar(dataDir, platform);
+    if (!sidecar || path.basename(sidecar) !== path.basename(expectedSidecar)) throw new Error(`${PLATFORM_CONFIGS[platform].name} 更新未生成本轮现代数据文件`);
     const parsed = readPlatformRecords(dataDir, platform);
     if (parsed.error) throw new Error(`更新数据校验失败: ${parsed.error}`);
     if (!parsed.records.length) throw new Error(`${PLATFORM_CONFIGS[platform].name} 更新结果为空，保留旧数据`);
     const rawPath = path.join(workspace, 'crawler_output', PLATFORM_CONFIGS[platform].rawFile);
     const rawExists = await exists(rawPath);
-    if (rawExists) {
-      const raw = JSON.parse(await fsp.readFile(rawPath, 'utf8'));
-      if (!Array.isArray(raw)) throw new Error(`原始快照不是数组: ${PLATFORM_CONFIGS[platform].rawFile}`);
-    }
+    if (!rawExists) throw new Error(`本轮缺少原始快照: ${PLATFORM_CONFIGS[platform].rawFile}`);
+    const raw = JSON.parse(await fsp.readFile(rawPath, 'utf8'));
+    if (!Array.isArray(raw) || !raw.length) throw new Error(`本轮原始快照为空或不是数组: ${PLATFORM_CONFIGS[platform].rawFile}`);
     return {
       sidecar: path.basename(sidecar),
       count: parsed.records.length,
-      rawExists,
+      rawExists: true,
+      rawCount: raw.length,
+      outcome: contract.outcome,
+      changed: Boolean(contract.changed),
+      contract,
     };
   }
 
-  async commitUpdate(workspace, platform, validation, metadata = {}) {
+  async commitUpdate(workspace, platform, validation, metadata = {}, control = {}) {
     const active = await this.getActiveSnapshot();
     const snapshotId = `${new Date().toISOString().replace(/[-:.TZ]/g, '')}-${crypto.randomBytes(3).toString('hex')}`;
     const tempSnapshot = path.join(this.snapshotsDir, `.incoming-${snapshotId}`);
@@ -211,6 +261,7 @@ class DataStore {
     await copyDirectoryContents(path.join(workspace, 'crawler_output'), tempRaw, (name) => name.endsWith('.json'));
     await copyIfExists(path.join(workspace, 'build', 'canonical.db'), path.join(tempSnapshot, 'canonical.db'));
     await copyIfExists(path.join(workspace, 'build', 'desktop_snapshot_manifest.json'), path.join(tempSnapshot, 'desktop_snapshot_manifest.json'));
+    await copyIfExists(path.join(workspace, 'build', 'desktop_update_result.json'), path.join(tempSnapshot, 'desktop_update_result.json'));
 
     const state = readPlatformRecords(tempData, platform);
     const manifest = {
@@ -227,13 +278,24 @@ class DataStore {
         sidecar: validation.sidecar,
         count: state.records.length,
         rawFile: validation.rawExists ? PLATFORM_CONFIGS[platform].rawFile : null,
+        rawCount: validation.rawCount,
+        outcome: validation.outcome,
+        changed: validation.changed,
       },
       options: metadata.options || {},
     };
     await writeJsonAtomic(path.join(tempSnapshot, 'manifest.json'), manifest);
     await fsp.rename(tempSnapshot, finalSnapshot);
-    await writeJsonAtomic(this.activePointer, { schema: SNAPSHOT_SCHEMA, snapshotId, updatedAt: manifest.updatedAt });
-    return { ...manifest, snapshotId };
+    let pointerSwitched = false;
+    try {
+      control.beforePointerCommit?.();
+      await writeJsonAtomic(this.activePointer, { schema: SNAPSHOT_SCHEMA, snapshotId, updatedAt: manifest.updatedAt });
+      pointerSwitched = true;
+      return { ...manifest, snapshotId };
+    } catch (error) {
+      if (!pointerSwitched) await fsp.rm(finalSnapshot, { recursive: true, force: true }).catch(() => {});
+      throw error;
+    }
   }
 
   async importDirectory(sourceDirectory) {

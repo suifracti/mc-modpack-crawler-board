@@ -389,7 +389,10 @@ def crawl_xyebbs(max_total: int = 0, enrich_count: int = 1500) -> List[Dict[str,
     print("=" * 65)
 
     crawler = XyebbsCrawler(max_workers=25)
-    repo_root = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(
+        os.environ.get("MC_DESKTOP_WORKSPACE")
+        or os.path.dirname(os.path.abspath(__file__))
+    )
     out_dir = os.path.join(repo_root, "crawler_output")
     os.makedirs(out_dir, exist_ok=True)
     raw_cache_path = os.path.join(out_dir, "xyebbs_raw.json")
@@ -422,7 +425,10 @@ def crawl_xyebbs(max_total: int = 0, enrich_count: int = 1500) -> List[Dict[str,
     standardized = [standardize_pack(it) for it in raw_items]
 
     # 保存路径
-    repo_root = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(
+        os.environ.get("MC_DESKTOP_WORKSPACE")
+        or os.path.dirname(os.path.abspath(__file__))
+    )
     out_dir = os.path.join(repo_root, "crawler_output")
     os.makedirs(out_dir, exist_ok=True)
     json_path = os.path.join(out_dir, "xyebbs_modpacks.json")

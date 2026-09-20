@@ -53,6 +53,16 @@ def main() -> int:
     workspace = Path(args.workspace).resolve()
     raw_dir = workspace / "crawler_output"
     data_dir = workspace / "converted_output" / "data"
+    result_path = workspace / "build" / "desktop_update_result.json"
+    if not result_path.exists():
+        raise ValueError("缺少本轮采集结果合同，拒绝把旧 sidecar 视为成功")
+    update_result = json.loads(result_path.read_text(encoding="utf-8"))
+    if update_result.get("platform") != args.platform:
+        raise ValueError("本轮采集结果合同的平台不匹配")
+    if update_result.get("outcome") not in {"success_update", "success_no_change"}:
+        raise ValueError("本轮采集未形成成功结果，拒绝生成快照")
+    if not update_result.get("rawTouched") or not update_result.get("sidecarTouched"):
+        raise ValueError("本轮原始 JSON 或现代 sidecar 未实际写入")
     raw_meta: dict[str, object] = {}
     all_raw = True
     for platform, (raw_name, sidecars) in PLATFORMS.items():
@@ -101,6 +111,7 @@ def main() -> int:
         "platform": args.platform,
         "canonicalReady": canonical_ready,
         "canonicalReason": canonical_reason,
+        "updateResult": update_result,
         "platforms": raw_meta,
     }
     output = workspace / "build" / "desktop_snapshot_manifest.json"

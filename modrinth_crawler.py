@@ -17,8 +17,9 @@ try:
 except Exception:
     pass
 
-OUTPUT_JSON = os.path.join("crawler_output", "modrinth_modpacks.json")
-OUTPUT_JS = os.path.join("converted_output", "data", "modrinth_data.js")
+WORKSPACE_ROOT = os.path.abspath(os.environ.get("MC_DESKTOP_WORKSPACE") or os.getcwd())
+OUTPUT_JSON = os.path.join(WORKSPACE_ROOT, "crawler_output", "modrinth_modpacks.json")
+OUTPUT_JS = os.path.join(WORKSPACE_ROOT, "converted_output", "data", "modrinth_data.js")
 TARGET_COUNT = 100000  # 全量采集 Modrinth 全部整合包 (约 18,328 款)
 PAGE_LIMIT = 100       # Modrinth search 每页上限 100
 

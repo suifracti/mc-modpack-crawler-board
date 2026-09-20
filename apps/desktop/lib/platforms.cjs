@@ -127,22 +127,74 @@ function asList(value) {
   return value ? [String(value)] : [];
 }
 
+function fieldList(record, keys) {
+  for (const key of keys) {
+    const value = record && record[key];
+    if (Array.isArray(value) && value.length) return value.filter(Boolean).map(String);
+  }
+  return [];
+}
+
+function environmentInfo(record) {
+  const claims = Array.isArray(record?.environmentClaims) ? record.environmentClaims : [];
+  const serverClaim = claims.find((claim) => claim && claim.side === 'server');
+  if (serverClaim && serverClaim.status && serverClaim.status !== 'unknown') {
+    return {
+      status: String(serverClaim.status),
+      certainty: String(serverClaim.certainty || 'unknown'),
+      label: String(serverClaim.evidenceText || serverClaim.status),
+      sourceField: serverClaim.sourceField || null,
+    };
+  }
+  const serverSide = asText(firstValue(record, ['server_side', 'serverSide'])).toLowerCase();
+  if (['required', 'optional', 'supported', 'unsupported'].includes(serverSide)) {
+    return {
+      status: serverSide,
+      certainty: 'confirmed',
+      label: `来源字段 server_side=${serverSide}`,
+      sourceField: 'server_side',
+    };
+  }
+  if (typeof record?.has_server === 'boolean' && record.has_server) {
+    return {
+      status: 'supported',
+      certainty: 'inferred',
+      label: '旧字段 has_server 推断；未提供独立服务端来源字段',
+      sourceField: 'has_server',
+    };
+  }
+  return { status: 'unknown', certainty: 'unknown', label: '未提供可核对的服务端来源字段', sourceField: null };
+}
+
 function normaliseRecord(platform, record, index) {
+  const raw = record && typeof record === 'object' ? record : {};
   const title = asText(firstValue(record, ['title', 'name', 'preferred_title', 'chinese_name', 'project_title'])) || '未命名整合包';
   const author = asText(firstValue(record, ['author', 'uploader', 'creator', 'owner'])) || '未知作者';
   const url = asText(firstValue(record, ['url', 'source_url', 'link', 'homepage']));
-  const sourceId = asText(firstValue(record, ['bvid', 'project_id', 'mid', 'id', 'slug', 'source_id'])) || `${platform}-${index + 1}`;
-  const versions = asList(firstValue(record, ['all_versions', 'versions', 'mc_versions', 'mc_version']));
+  const sourceId = asText(firstValue(record, platform === 'mcmod'
+    ? ['mid', 'source_id', 'id', 'project_id']
+    : platform === 'bilibili'
+      ? ['bvid', 'source_id', 'id']
+      : ['project_id', 'source_id', 'id', 'slug', 'bvid', 'mid'])) || `${platform}-${index + 1}`;
+  const versions = platform === 'mcmod'
+    ? fieldList(record, ['mcVersions', 'mc_versions', 'all_versions', 'versions'])
+    : fieldList(record, ['all_versions', 'mc_versions', 'versions'])
+      .concat(asList(firstValue(record, ['mc_version'])))
+      .filter((value, itemIndex, values) => values.indexOf(value) === itemIndex);
   const loaders = asList(firstValue(record, ['loaders', 'loader']));
   const categories = asList(firstValue(record, ['categories', 'tags']));
-  const summary = asText(firstValue(record, ['description', 'summary', 'intro', 'pinned_comment']));
-  const updatedAt = asText(firstValue(record, ['date_modified', 'modified_at', 'updated_at', 'pubdate', 'published_at', 'date_created']));
-  const serverSide = asText(firstValue(record, ['server_side', 'server_support', 'has_server']));
+  const summary = asText(firstValue(record, platform === 'bilibili'
+    ? ['desc', 'description', 'summary', 'subtitle_summary', 'pinned_comment']
+    : ['description', 'summary', 'intro', 'desc', 'pinned_comment']));
+  const updatedAt = asText(firstValue(record, platform === 'bilibili'
+    ? ['update_notice_at', 'published_at', 'pub_time', 'date', 'pubdate']
+    : ['modifiedAt', 'date_modified', 'modified_at', 'updated_at', 'publishedAt', 'published_at', 'pubdate', 'date_created']));
+  const environment = environmentInfo(record);
   const evidence = [];
   if (url) evidence.push({ label: '原始来源', value: url });
   if (versions.length) evidence.push({ label: 'Minecraft 版本', value: versions.join('、') });
   if (loaders.length) evidence.push({ label: 'Loader', value: loaders.join('、') });
-  if (serverSide) evidence.push({ label: '服务端事实', value: serverSide });
+  evidence.push({ label: '服务端可用性', value: `${environment.label}（${environment.certainty}）` });
   const sourceMeta = record && record.source_meta;
   if (sourceMeta && typeof sourceMeta === 'object') {
     for (const [key, value] of Object.entries(sourceMeta)) {
@@ -163,6 +215,20 @@ function normaliseRecord(platform, record, index) {
     loaders,
     categories,
     updatedAt,
+    coverUrl: asText(firstValue(record, ['coverUrl', 'cover', 'icon_url', 'logo_url', 'cover_url'])),
+    environment,
+    releases: Array.isArray(record?.releases) ? record.releases : Array.isArray(record?.versions_data) ? record.versions_data : Array.isArray(record?.versions) ? record.versions : [],
+    raw,
+    searchText: [
+      title,
+      author,
+      summary,
+      versions.join(' '),
+      loaders.join(' '),
+      categories.join(' '),
+      asList(firstValue(record, ['includedModNames', 'mods', 'tags'])).join(' '),
+      asText(firstValue(record, ['chineseName', 'englishName', 'formerTitles', 'pinned_comment'])),
+    ].join(' ').toLocaleLowerCase(),
     evidence,
   };
 }

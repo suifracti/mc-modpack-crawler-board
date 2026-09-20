@@ -64,7 +64,10 @@ def enc_wbi(params: dict, img_key: str, sub_key: str) -> dict:
 
 class BiliAuth:
     """B站扫码登录与凭据持久化管理"""
-    REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+    REPO_ROOT = os.path.abspath(
+        os.environ.get("MC_DESKTOP_WORKSPACE")
+        or os.path.dirname(os.path.abspath(__file__))
+    )
     COOKIE_FILE = os.path.join(REPO_ROOT, "crawler_output", "bilibili_cookies.json")
 
     @classmethod
@@ -845,7 +848,10 @@ def crawl_bilibili_modpacks(until_date: Optional[str] = None, max_pages_per_kw: 
     print("=" * 65)
 
     crawler = BiliModpackCrawler()
-    repo_root = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(
+        os.environ.get("MC_DESKTOP_WORKSPACE")
+        or os.path.dirname(os.path.abspath(__file__))
+    )
     out_dir = os.path.join(repo_root, "crawler_output")
     os.makedirs(out_dir, exist_ok=True)
     json_path = os.path.join(out_dir, "bilibili_modpacks.json")
@@ -1073,7 +1079,10 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
     并发请求 B站 官方 API，巡检已录入整合包视频的最新【简介】与【置顶评论】。
     专门解决 UP 主不发新视频、仅在简介更新网盘/版本号，或者置顶提示群内有新版本的问题。
     """
-    repo_root = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(
+        os.environ.get("MC_DESKTOP_WORKSPACE")
+        or os.path.dirname(os.path.abspath(__file__))
+    )
     json_path = os.path.join(repo_root, "crawler_output", "bilibili_modpacks.json")
     js_path = os.path.join(repo_root, "converted_output", "data", "bili_data.js")
 

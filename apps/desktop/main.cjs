@@ -103,7 +103,7 @@ function registerIpc() {
   });
   ipcMain.handle('desktop:cancel-update', async (event) => {
     assertSender(event);
-    return { cancelled: updateManager.cancel() };
+    return updateManager.cancel();
   });
   ipcMain.handle('desktop:open-external', async (event, url) => {
     assertSender(event);

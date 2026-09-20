@@ -328,7 +328,10 @@ def crawl_bbsmc(project_type: str = "modpack", max_total: int = 0, enrich_versio
     processed.sort(key=lambda x: x['downloads'], reverse=True)
 
     print(f"\n[正在保存数据]...")
-    repo_root = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(
+        os.environ.get("MC_DESKTOP_WORKSPACE")
+        or os.path.dirname(os.path.abspath(__file__))
+    )
 
     # 1. 保存 JSON
     out_dir = os.path.join(repo_root, "crawler_output")
