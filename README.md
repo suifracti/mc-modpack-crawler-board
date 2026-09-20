@@ -6,6 +6,8 @@ A local Minecraft modpack discovery tool with collectors for **MCMod, Bilibili, 
 
 The application consists of a **Python data pipeline, TypeScript/Vite web frontend and cross-platform local browser service**. The service serves the dashboard on localhost and keeps collection/update work in the existing Python worker; no desktop executable is part of the current delivery path.
 
+For a one-click start, double-click `start_browser_service.cmd` on Windows, or `start_browser_service.command` on macOS. On Linux, run `start_browser_service.sh` from a terminal or mark it executable in the file manager. The launcher builds the browser frontend, starts the local service and opens the default browser.
+
 ## Open an existing dashboard
 
 When a complete `converted_output/index.html`, `assets/` and `data/` already exist, run from the repository root:

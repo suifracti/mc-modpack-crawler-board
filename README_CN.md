@@ -44,6 +44,8 @@ npm --prefix apps/desktop start
 
 服务默认打开 <http://127.0.0.1:8765/>。不自动打开浏览器时使用 `npm --prefix apps/desktop run start:no-open`。详细参数和数据目录说明见 [`apps/desktop/README.md`](apps/desktop/README.md)。
 
+也可以直接双击仓库根目录的 `start_browser_service.cmd`（Windows）或 `start_browser_service.command`（macOS）；Linux 可运行 `start_browser_service.sh`。启动器会先构建前端，再启动服务并打开默认浏览器。首次在 macOS 双击时如系统拦截，请在 Finder 中右键选择“打开”。
+
 ## 当前边界
 
 六平台有实现不等于所有字段和包身份都已核实。未知信息保留未知。B站归组仍有启发式判断，最新 A 候选尚未集成、独立安全覆盖不完整。详见[当前状态](docs/PROJECT_STATUS.md)；历史 Truth Matrix 不代表当前版本完整安全认证。

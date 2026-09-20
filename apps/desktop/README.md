@@ -22,6 +22,8 @@ npm --prefix apps/desktop start
 npm --prefix apps/desktop run start:no-open
 ```
 
+仓库根目录也提供一键启动器：Windows 双击 `start_browser_service.cmd`，macOS 双击 `start_browser_service.command`，Linux 运行 `start_browser_service.sh`。启动器会先构建前端；服务运行期间不要关闭它打开的终端窗口。
+
 默认地址为 `http://127.0.0.1:8765/`。可用参数覆盖本机端口、数据目录和 Python 命令：
 
 ```text
