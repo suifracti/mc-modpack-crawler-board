@@ -1,6 +1,12 @@
 import { ALL_PLATFORMS, PLATFORM_CONFIGS } from './data/platformRegistry';
+import { groupBilibiliPacks } from './domain/bilibiliGrouping';
 import type { Platform } from './domain/types';
 import { buildVersionModalViewModel } from './modals/version/buildViewModel';
+import { renderBbsmcCard } from './platforms/bbsmc/renderer';
+import { renderBiliFlatCard, renderBiliGroupedCard, type BiliGroup } from './platforms/bilibili/renderer';
+import { renderCurseforgeCard } from './platforms/curseforge/renderer';
+import { renderModrinthCard } from './platforms/modrinth/renderer';
+import { renderXyebbsCard } from './platforms/xyebbs/renderer';
 import {
   buildBbsmcSearchDocument,
   buildBilibiliSearchDocument,
@@ -9,6 +15,11 @@ import {
   buildModrinthSearchDocument,
   buildXyebbsSearchDocument,
 } from './search/searchDocument';
+import type { BilibiliPack } from './types/legacy/bilibili';
+import type { BbsmcPack } from './types/legacy/bbsmc';
+import type { CurseforgePack } from './types/legacy/curseforge';
+import type { ModrinthPack } from './types/legacy/modrinth';
+import type { XyebbsPack } from './types/legacy/xyebbs';
 
 export interface DesktopRecord {
   id: string;
@@ -131,8 +142,9 @@ declare global {
 }
 
 type FilterPlatform = 'all' | Platform;
-type DropdownId = 'version' | 'loader' | 'category' | 'pan' | 'date' | 'sort' | 'update-platform';
-type ViewMode = 'cards' | 'compact';
+type DropdownId = 'version' | 'loader' | 'category' | 'pan' | 'date' | 'sort' | 'page-size' | 'update-platform';
+type ViewMode = 'cards' | 'compact' | 'table';
+type BiliViewMode = 'grouped' | 'flat';
 
 const PLATFORM_SITE_ICONS: Record<Platform, string> = {
   mcmod: 'https://www.mcmod.cn/favicon.ico',
@@ -188,6 +200,8 @@ const state = {
   serverOnly: false,
   sort: 'updated_desc',
   viewMode: 'cards' as ViewMode,
+  biliViewMode: 'grouped' as BiliViewMode,
+  biliGroups: [] as BiliGroup[],
   records: [] as DesktopRecord[],
   total: 0,
   availableVersions: [] as string[],
@@ -329,6 +343,168 @@ function recordImageUrls(record: DesktopRecord): string[] {
   return [...new Set([cover, ...urls].filter(Boolean))];
 }
 
+function asNumber(value: unknown): number {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function toBilibiliPack(record: DesktopRecord): BilibiliPack {
+  const raw = { ...(record.raw || {}) } as Record<string, unknown>;
+  const versions = valueList(raw.all_versions ?? raw.allVersions ?? raw.mc_version ?? record.versions);
+  const links = Array.isArray(raw.download_links) ? raw.download_links : [];
+  return {
+    ...raw,
+    bvid: String(raw.bvid || record.sourceId),
+    title: String(raw.title || record.title),
+    author: String(raw.author || record.author),
+    url: String(raw.url || record.url),
+    views: asNumber(raw.views),
+    danmaku: asNumber(raw.danmaku),
+    likes: asNumber(raw.likes),
+    favorites: asNumber(raw.favorites),
+    reply: asNumber(raw.reply),
+    share: asNumber(raw.share),
+    has_server: Boolean(raw.has_server),
+    pic: String(raw.pic || raw.cover || ''),
+    pub_time: String(raw.pub_time || raw.published_at || raw.date || record.updatedAt || ''),
+    pub_timestamp: asNumber(raw.pub_timestamp),
+    mc_version: String(raw.mc_version || versions[0] || ''),
+    all_versions: versions,
+    loaders: valueList(raw.loaders ?? record.loaders),
+    categories: valueList(raw.categories ?? record.categories),
+    download_links: links,
+  } as BilibiliPack;
+}
+
+function buildBilibiliGroups(records: DesktopRecord[]): BiliGroup[] {
+  const packs = records.map(toBilibiliPack);
+  const decisions = groupBilibiliPacks(packs.map((pack) => ({ bvid: pack.bvid, title: pack.title, author: pack.author })));
+  const groups = new Map<string, BiliGroup>();
+  const timestampOf = (pack: BilibiliPack): number => asNumber(pack.pub_timestamp) || Date.parse(String(pack.pub_time || '')) || 0;
+
+  for (const pack of packs) {
+    const key = decisions.get(pack.bvid)?.groupKey || `__raw_${pack.bvid}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        key,
+        items: [],
+        allVersions: new Set<string>(),
+        allLoaders: new Set<string>(),
+        allCategories: new Set<string>(),
+        allGroups: new Set<string>(),
+        allLinks: [],
+        totalViews: 0,
+        totalLikes: 0,
+        totalCoins: 0,
+        totalFavs: 0,
+        totalDanmaku: 0,
+        totalReply: 0,
+        totalShare: 0,
+        latestTimestamp: 0,
+        latestPubTime: '',
+      };
+      groups.set(key, group);
+    }
+    group.items.push(pack);
+    const timestamp = timestampOf(pack);
+    if (timestamp >= group.latestTimestamp) {
+      group.latestTimestamp = timestamp;
+      group.latestPubTime = String(pack.pub_time || '');
+      group.pic = String(pack.pic || '');
+    }
+    for (const version of valueList(pack.mc_version)) if (version !== '未知') group.allVersions.add(version);
+    for (const version of valueList(pack.all_versions)) if (version !== '未知') group.allVersions.add(version);
+    for (const loader of valueList(pack.loaders)) group.allLoaders.add(loader);
+    for (const category of valueList(pack.categories)) group.allCategories.add(category);
+    if (pack.qq_group) group.allGroups.add(String(pack.qq_group));
+    if (Array.isArray(pack.download_links)) {
+      for (const link of pack.download_links) {
+        if (!link || typeof link !== 'object') continue;
+        const item = link as unknown as Record<string, unknown>;
+        group.allLinks.push({ name: String(item.name || item.pan_name || item.type || ''), url: String(item.url || ''), type: String(item.type || '') });
+      }
+    }
+    group.totalViews += asNumber(pack.views);
+    group.totalLikes += asNumber(pack.likes);
+    group.totalCoins += asNumber(pack.coins);
+    group.totalFavs += asNumber(pack.favorites);
+    group.totalDanmaku += asNumber(pack.danmaku);
+    group.totalReply += asNumber(pack.reply);
+    group.totalShare += asNumber(pack.share);
+    if (pack.has_server) group.has_server = true;
+    if (pack.has_group_version) group.has_group_version = true;
+    if (pack.pack_version && !group.pack_version) group.pack_version = String(pack.pack_version);
+    if (pack.group_version_note && !group.group_version_note) group.group_version_note = String(pack.group_version_note);
+    if (pack.desc_updated_at && !group.desc_updated_at) group.desc_updated_at = String(pack.desc_updated_at);
+  }
+
+  for (const group of groups.values()) {
+    group.items.sort((left, right) => timestampOf(right) - timestampOf(left));
+  }
+  return [...groups.values()];
+}
+
+function biliSortValue(group: BiliGroup, sort: string): number {
+  if (sort === 'views_desc') return group.totalViews;
+  if (sort === 'likes_desc') return group.totalLikes;
+  if (sort === 'favs_desc') return group.totalFavs;
+  if (sort === 'coins_desc') return group.totalCoins;
+  if (sort === 'share_desc') return group.totalShare;
+  if (sort === 'reply_desc' || sort === 'comments_desc') return group.totalReply;
+  if (sort === 'danmaku_desc') return group.totalDanmaku;
+  return group.latestTimestamp;
+}
+
+function sortBilibiliGroups(groups: BiliGroup[]): BiliGroup[] {
+  return [...groups].sort((left, right) => biliSortValue(right, state.sort) - biliSortValue(left, state.sort));
+}
+
+function legacyPackBase(record: DesktopRecord): Record<string, unknown> {
+  const raw = { ...(record.raw || {}) } as Record<string, unknown>;
+  const gallery = recordImageUrls(record);
+  const links = Array.isArray(raw.download_links) ? raw.download_links : [];
+  return {
+    ...raw,
+    title: String(raw.title || record.title),
+    author: String(raw.author || record.author || '未知'),
+    url: String(raw.url || record.url),
+    description: String(raw.description || raw.desc || raw.summary || record.summary || ''),
+    project_id: Number(raw.project_id || raw.projectId || record.sourceId) || record.sourceId,
+    projectId: raw.projectId || raw.project_id || record.sourceId,
+    downloads: asNumber(raw.downloads),
+    followers: asNumber(raw.followers),
+    views: asNumber(raw.views),
+    replies: asNumber(raw.replies ?? raw.comments),
+    has_server: Boolean(raw.has_server || record.environment.status === 'required' || record.environment.status === 'supported'),
+    categories: valueList(raw.categories ?? record.categories),
+    mc_versions: valueList(raw.mc_versions ?? raw.mcVersions ?? record.versions),
+    mc_version: String(raw.mc_version || valueList(raw.mcVersions)[0] || record.versions[0] || ''),
+    loaders: valueList(raw.loaders ?? record.loaders),
+    download_links: links,
+    releases: Array.isArray(raw.releases) ? raw.releases : record.releases,
+    gallery,
+    featured_gallery: gallery[0] || '',
+    icon_url: String(raw.icon_url || raw.iconUrl || gallery[0] || ''),
+    head_url: String(raw.head_url || gallery[0] || ''),
+    logo_url: String(raw.logo_url || raw.logoUrl || gallery[0] || ''),
+    date_modified: String(raw.date_modified || raw.modifiedAt || raw.modified_at || record.updatedAt || ''),
+    created_date: String(raw.created_date || raw.date_created || raw.createdAt || ''),
+    client_side: String(raw.client_side || raw.clientSide || ''),
+    server_side: String(raw.server_side || raw.serverSide || ''),
+    env_display: record.environment.label,
+  };
+}
+
+function renderPlatformRichCard(record: DesktopRecord): string {
+  const base = legacyPackBase(record);
+  if (record.platform === 'bbsmc') return renderBbsmcCard(base as unknown as BbsmcPack);
+  if (record.platform === 'xyebbs') return renderXyebbsCard(base as unknown as XyebbsPack);
+  if (record.platform === 'modrinth') return renderModrinthCard(base as unknown as ModrinthPack);
+  if (record.platform === 'curseforge') return renderCurseforgeCard(base as unknown as CurseforgePack);
+  return renderRecord(record, state.records.indexOf(record));
+}
+
 function renderImageButton(url: string, title: string, className = ''): string {
   const safeUrl = safeImageUrl(url);
   if (!safeUrl) return '';
@@ -408,16 +584,27 @@ function renderFilterDropdown(id: 'version' | 'loader' | 'category' | 'pan', val
 }
 
 function renderSortDropdown(): string {
-  const options = [
-    { value: 'updated_desc', label: '最近更新' },
-    { value: 'downloads_desc', label: '下载最多' },
-    { value: 'views_desc', label: '浏览最多' },
-    { value: 'followers_desc', label: '关注最多' },
-    { value: 'likes_desc', label: '点赞最多' },
-    { value: 'comments_desc', label: '评论最多' },
-    { value: 'created_desc', label: '创建时间' },
-    { value: 'title_asc', label: '名称 A-Z' },
-  ];
+  const options = state.platform === 'bilibili'
+    ? [
+      { value: 'updated_desc', label: '最新发布' },
+      { value: 'views_desc', label: '播放最多' },
+      { value: 'likes_desc', label: '点赞最多' },
+      { value: 'favs_desc', label: '收藏最多' },
+      { value: 'coins_desc', label: '投币最多' },
+      { value: 'share_desc', label: '分享最多' },
+      { value: 'reply_desc', label: '评论最多' },
+      { value: 'danmaku_desc', label: '弹幕最多' },
+    ]
+    : [
+      { value: 'updated_desc', label: '最近更新' },
+      { value: 'downloads_desc', label: '下载最多' },
+      { value: 'views_desc', label: '浏览最多' },
+      { value: 'followers_desc', label: '关注最多' },
+      { value: 'likes_desc', label: '点赞最多' },
+      { value: 'comments_desc', label: '评论最多' },
+      { value: 'created_desc', label: '创建时间' },
+      { value: 'title_asc', label: '名称 A-Z' },
+    ];
   return renderDropdown('sort', state.sort, options);
 }
 
@@ -455,6 +642,9 @@ function renderActiveFilters(): string {
 }
 
 function renderFilterControls(includeDataButton = false): string {
+  const viewButtons = state.platform === 'bilibili'
+    ? `<button type="button" class="desktop-view-button ${state.biliViewMode === 'grouped' ? 'is-active' : ''}" data-action="set-bili-view-mode" data-bili-view-mode="grouped">同包聚合</button><button type="button" class="desktop-view-button ${state.biliViewMode === 'flat' ? 'is-active' : ''}" data-action="set-bili-view-mode" data-bili-view-mode="flat">视频平铺</button>`
+    : `<button type="button" class="desktop-view-button ${state.viewMode === 'cards' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="cards">卡片</button><button type="button" class="desktop-view-button ${state.viewMode === 'compact' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="compact">紧凑</button>${state.platform === 'mcmod' ? `<button type="button" class="desktop-view-button ${state.viewMode === 'table' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="table">表格</button>` : ''}`;
   return `<div class="desktop-filter-dock desktop-filter-dock-rich">
     <span class="filter-label">版本</span>${renderFilterDropdown('version', state.availableVersions, state.version, '全部版本')}
     <span class="filter-label">Loader</span>${renderFilterDropdown('loader', state.availableLoaders, state.loader, '全部 Loader')}
@@ -462,8 +652,9 @@ function renderFilterControls(includeDataButton = false): string {
     <span class="filter-label">渠道</span>${renderFilterDropdown('pan', state.availablePans, state.pan, '全部渠道')}
     <span class="filter-label">时间</span>${renderDateDropdown()}
     <span class="filter-label">排序</span>${renderSortDropdown()}
+    <span class="filter-label">每页</span>${renderDropdown('page-size', String(state.pageSize), [{ value: '24', label: '24 条' }, { value: '48', label: '48 条' }, { value: '100', label: '100 条' }])}
     <label class="desktop-check"><input id="server-only-toggle" type="checkbox" ${state.serverOnly ? 'checked' : ''}> <span>仅含服务端</span></label>
-    <div class="desktop-view-toggle" role="group" aria-label="结果视图"><button type="button" class="desktop-view-button ${state.viewMode === 'cards' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="cards">卡片</button><button type="button" class="desktop-view-button ${state.viewMode === 'compact' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="compact">紧凑</button></div>
+    <div class="desktop-view-toggle" role="group" aria-label="结果视图">${viewButtons}</div>
     <button type="button" class="hub-reset-btn" data-action="clear-filters">重置筛选</button>${includeDataButton ? `<button type="button" class="top-action-btn" data-action="choose-data">${state.data?.hasData ? '更换数据目录' : '选择已有数据'}</button>` : ''}
   </div>${renderActiveFilters()}`;
 }
@@ -538,6 +729,44 @@ function renderCompactRecord(record: DesktopRecord, index: number): string {
   const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
   const metrics = recordMetricItems(record);
   return `<article class="compact-record" data-action="select-record" data-index="${index}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面"><img src="${esc(coverUrl)}" alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${esc(fallbackUrl)}'"></button><div class="compact-record-main"><div class="compact-record-head"><span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span><span class="card-time">${esc(record.updatedAt || '更新时间未知')}</span></div><h3>${esc(record.title)}</h3><p>${esc(record.author)} · ${textOrUnknown(record.summary)}</p><div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div></div><div class="compact-record-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}<button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div></article>`;
+}
+
+function renderMcmodTable(records: DesktopRecord[]): string {
+  const rows = records.map((record, index) => {
+    const raw = record.raw || {};
+    const trend = (raw.trendStats && typeof raw.trendStats === 'object' ? raw.trendStats : {}) as Record<string, unknown>;
+    const votes = (raw.votes && typeof raw.votes === 'object' ? raw.votes : {}) as Record<string, unknown>;
+    const categories = valueList(raw.categories ?? record.categories);
+    const mods = valueList(raw.includedModNames ?? raw.included_mod_names);
+    return `<tr class="mcmod-table-row" data-action="select-record" data-index="${index}">
+      <td class="mcmod-name-cell"><strong>${esc(record.title)}</strong><small>${esc(record.author || '作者未知')}</small><div class="mcmod-table-tags">${categories.slice(0, 4).map((item) => `<span>${esc(item)}</span>`).join('')}${categories.length > 4 ? `<span>+${categories.length - 4}</span>` : ''}</div></td>
+      <td>${esc(formatMetric(raw.views))}</td>
+      <td><strong>${esc(formatMetric(raw.score))}</strong><small>推荐 ${esc(formatMetric(raw.recommendations))}</small></td>
+      <td><span class="trend-number ${asNumber(trend.t7) >= 0 ? 'is-up' : 'is-down'}">${esc(formatMetric(trend.t7))}</span><small>7日 · 30日 ${esc(formatMetric(trend.t30))}</small></td>
+      <td><span class="vote-positive">${esc(formatMetric(votes.redVotes))}</span> / <span class="vote-negative">${esc(formatMetric(votes.blackVotes))}</span><small>红 / 黑</small></td>
+      <td>${esc(formatMetric(raw.commentsCount))}<small>推荐 ${esc(formatMetric(raw.recommendations))} · 收藏 ${esc(formatMetric(raw.favorites))}</small></td>
+      <td class="mcmod-mod-cell">${mods.slice(0, 3).map((item) => `<span>${esc(item)}</span>`).join('')}${mods.length > 3 ? `<small>另有 ${mods.length - 3} 款模组</small>` : ''}</td>
+    </tr>`;
+  }).join('');
+  if (!rows) return '<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>';
+  return `<div class="mcmod-table-wrap"><table class="mcmod-table"><thead><tr><th>整合包</th><th>浏览</th><th>热度 / 推荐</th><th>趋势</th><th>投票</th><th>评论 / 收藏</th><th>包含模组</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderBilibiliGroupedWorkspace(): string {
+  const groups = sortBilibiliGroups(state.biliGroups);
+  if (!groups.length) return '<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>';
+  const cards = groups.map((group) => {
+    const latest = group.items[0];
+    const index = latest ? state.records.findIndex((record) => record.sourceId === latest.bvid) : -1;
+    return `<article class="desktop-rich-card" data-action="select-record" data-index="${index}" data-bili-group-key="${esc(group.key)}">${renderBiliGroupedCard(group)}</article>`;
+  }).join('');
+  return `<div class="bili-legacy-mode-note"><strong>✨ 同名整合包智能聚合</strong><span>${formatCount(groups.length)} 款独立整合包 · 关联视频、统计、网盘与历史版本均保留</span></div><div class="bili-cards-grid desktop-bili-grid">${cards}</div>`;
+}
+
+function renderBilibiliFlatWorkspace(records: DesktopRecord[]): string {
+  if (!records.length) return '<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的视频</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>';
+  const cards = records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderBiliFlatCard(toBilibiliPack(record))}</article>`).join('');
+  return `<div class="bili-legacy-mode-note"><strong>视频平铺</strong><span>当前展示 ${formatCount(records.length)} / ${formatCount(state.total)} 条视频，可继续加载</span></div><div class="bili-cards-grid desktop-bili-grid">${cards}</div>`;
 }
 
 function platformIcon(platform: Platform): string {
@@ -650,12 +879,21 @@ function renderResultsWorkspace(selectedName: string): string {
   const records = currentRecords();
   const data = state.data;
   const hasFilter = state.query || state.version || state.loader || state.category || state.pan || state.dateRange || state.serverOnly;
-  const resultBody = records.length
-    ? state.viewMode === 'compact'
-      ? `<div class="compact-record-list">${records.map(renderCompactRecord).join('')}</div>`
-      : `<div class="pack-grid">${records.map(renderRecord).join('')}</div>`
-    : `<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>`;
-  return `<div class="content-grid"><section class="results-column"><div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : hasFilter ? '筛选结果' : '最近可用数据'}</h2></div><span class="result-count">${state.loading ? '' : `${formatCount(records.length)} / ${formatCount(state.total)}`}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${!data?.hasData ? `<div class="empty-state"><div class="empty-icon">◌</div><h3>还没有本地数据快照</h3><p>选择现有的 <code>converted_output</code>、<code>build/frontend_preview</code> 或其 <code>data</code> 目录。应用不会把空数据伪装成成功。</p><button class="button primary" data-action="choose-data">选择数据目录</button></div>` : state.loading ? '<div class="loading-state">正在读取当前快照…</div>' : `${resultBody}${state.hasMore ? `<div class="load-more"><button class="button secondary" data-action="load-more">加载更多（已显示 ${formatCount(records.length)} / ${formatCount(state.total)}）</button></div>` : ''}`}</section>${updatePanel()}</div>`;
+  const isBili = state.platform === 'bilibili';
+  const resultBody = isBili
+    ? state.biliViewMode === 'grouped' ? renderBilibiliGroupedWorkspace() : renderBilibiliFlatWorkspace(records)
+    : records.length
+      ? state.viewMode === 'compact'
+        ? `<div class="compact-record-list">${records.map(renderCompactRecord).join('')}</div>`
+        : state.viewMode === 'table' && state.platform === 'mcmod'
+          ? renderMcmodTable(records)
+          : state.platform !== 'all' && state.platform !== 'mcmod'
+            ? `<div class="pack-grid legacy-rich-grid">${records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderPlatformRichCard(record)}</article>`).join('')}</div>`
+          : `<div class="pack-grid">${records.map(renderRecord).join('')}</div>`
+      : `<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>`;
+  const displayedCount = isBili && state.biliViewMode === 'grouped' ? state.biliGroups.length : records.length;
+  const totalLabel = isBili && state.biliViewMode === 'grouped' ? displayedCount : state.total;
+  return `<div class="content-grid"><section class="results-column"><div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : hasFilter ? '筛选结果' : '最近可用数据'}</h2></div><span class="result-count">${state.loading ? '' : `${formatCount(displayedCount)} / ${formatCount(totalLabel)}`}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${!data?.hasData ? `<div class="empty-state"><div class="empty-icon">◌</div><h3>还没有本地数据快照</h3><p>选择现有的 <code>converted_output</code>、<code>build/frontend_preview</code> 或其 <code>data</code> 目录。应用不会把空数据伪装成成功。</p><button class="button primary" data-action="choose-data">选择数据目录</button></div>` : state.loading ? '<div class="loading-state">正在读取当前快照…</div>' : `${resultBody}${state.hasMore ? `<div class="load-more"><button class="button secondary" data-action="load-more">加载更多（已显示 ${formatCount(records.length)} / ${formatCount(state.total)}）</button></div>` : ''}`}</section>${updatePanel()}</div>`;
 }
 
 function renderRelease(release: Record<string, unknown>): string {
@@ -766,6 +1004,48 @@ function render(): void {
 
 function bindEvents(): void {
   root.querySelectorAll<HTMLElement>('[data-action]').forEach((element) => element.addEventListener('click', (event) => void handleAction(element, event)));
+  root.querySelectorAll<HTMLElement>('.js-copy-btn').forEach((element) => element.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const text = element.dataset.text || '';
+    if (!text) return;
+    const copy = navigator.clipboard?.writeText(text) || Promise.resolve();
+    void copy.then(() => {
+      state.message = '已复制到剪贴板';
+      render();
+    });
+  }));
+  root.querySelectorAll<HTMLElement>('.js-open-bili-group-versions').forEach((element) => element.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const key = element.dataset.groupKey || '';
+    const group = state.biliGroups.find((item) => item.key === key);
+    const latest = group?.items[0];
+    const record = latest ? state.records.find((item) => item.sourceId === latest.bvid) : null;
+    if (!record) return;
+    state.selected = record;
+    state.imagePreview = null;
+    void loadComments(record);
+  }));
+  root.querySelectorAll<HTMLElement>('.js-bbsmc-lightbox-thumb').forEach((element) => element.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const url = safeImageUrl(element.dataset.full || element.getAttribute('src') || '');
+    if (!url) return;
+    state.imagePreview = { url, title: element.dataset.title || '图片预览' };
+    render();
+  }));
+  root.querySelectorAll<HTMLElement>('.js-open-plat-version-modal').forEach((element) => element.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const card = element.closest<HTMLElement>('.desktop-rich-card');
+    const index = Number(card?.dataset.index || '-1');
+    const record = state.records[index];
+    if (!record) return;
+    state.selected = record;
+    state.imagePreview = null;
+    void loadComments(record);
+  }));
   root.querySelector<HTMLInputElement>('#server-only-toggle')?.addEventListener('change', (event) => {
     state.serverOnly = (event.target as HTMLInputElement).checked;
     void loadRecords(true);
@@ -840,6 +1120,8 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   } else if (action === 'set-platform') {
     state.platform = (element.dataset.platform || 'all') as FilterPlatform;
     if (state.platform !== 'all') state.updatePlatform = state.platform;
+    if (state.platform === 'bilibili' && !['updated_desc', 'views_desc', 'likes_desc', 'favs_desc', 'coins_desc', 'share_desc', 'reply_desc', 'danmaku_desc'].includes(state.sort)) state.sort = 'updated_desc';
+    if (state.platform !== 'mcmod' && state.viewMode === 'table') state.viewMode = 'cards';
     state.selected = null;
     state.imagePreview = null;
     state.compareOpen = false;
@@ -888,6 +1170,12 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     } else if (dropdown === 'sort') {
       state.sort = value;
       await loadRecords(true);
+    } else if (dropdown === 'page-size') {
+      const pageSize = Number(value);
+      if ([24, 48, 100].includes(pageSize)) {
+        state.pageSize = pageSize;
+        await loadRecords(true);
+      }
     } else if (dropdown === 'update-platform' && ALL_PLATFORMS.includes(value as Platform)) {
       state.updatePlatform = value as Platform;
       render();
@@ -908,6 +1196,8 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   } else if (action === 'load-more') {
     await loadRecords(false);
   } else if (action === 'select-record') {
+    const target = event?.target instanceof Element ? event.target : null;
+    if (target && target !== element && target.closest('a,button,details,summary')) return;
     const index = Number(element.dataset.index || '-1');
     state.selected = state.records[index] || null;
     state.imagePreview = null;
@@ -964,9 +1254,15 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     await loadRecords(true);
   } else if (action === 'set-view-mode') {
     const viewMode = element.dataset.viewMode;
-    if (viewMode === 'cards' || viewMode === 'compact') {
+    if (viewMode === 'cards' || viewMode === 'compact' || (viewMode === 'table' && state.platform === 'mcmod')) {
       state.viewMode = viewMode;
       render();
+    }
+  } else if (action === 'set-bili-view-mode') {
+    const viewMode = element.dataset.biliViewMode;
+    if (viewMode === 'grouped' || viewMode === 'flat') {
+      state.biliViewMode = viewMode;
+      await loadRecords(true);
     }
   }
 }
@@ -981,9 +1277,10 @@ async function loadRecords(reset = true): Promise<void> {
   state.loading = true;
   render();
   const platforms = state.platform === 'all' ? ALL_PLATFORMS : [state.platform];
-  const requestPageSize = state.platform === 'all' ? 12 : state.pageSize;
+  const groupedBili = state.platform === 'bilibili' && state.biliViewMode === 'grouped';
+  const requestPageSize = groupedBili ? 500 : state.platform === 'all' ? 12 : state.pageSize;
   try {
-    const results = await Promise.all(platforms.map((platform) => window.desktopApi.getPlatformRecords(platform, {
+    const getOptions = (page: number) => ({
       query: state.query,
       version: state.version,
       loader: state.loader,
@@ -992,18 +1289,30 @@ async function loadRecords(reset = true): Promise<void> {
       dateRange: state.dateRange,
       serverOnly: state.serverOnly,
       sort: state.sort,
-      page: state.page,
+      page,
       pageSize: requestPageSize,
-    })));
+    });
+    let results: Awaited<ReturnType<typeof window.desktopApi.getPlatformRecords>>[];
+    if (groupedBili) {
+      const first = await window.desktopApi.getPlatformRecords('bilibili', getOptions(1));
+      results = [first];
+      const pageCount = Math.ceil(first.total / Math.max(first.pageSize, 1));
+      for (let page = 2; page <= pageCount; page += 1) {
+        results.push(await window.desktopApi.getPlatformRecords('bilibili', getOptions(page)));
+      }
+    } else {
+      results = await Promise.all(platforms.map((platform) => window.desktopApi.getPlatformRecords(platform, getOptions(state.page))));
+    }
     const nextRecords = results.flatMap((result) => result.records);
     state.records = reset ? nextRecords : [...state.records, ...nextRecords];
     for (const record of nextRecords) state.compareRecords[record.id] = record;
+    state.biliGroups = groupedBili ? buildBilibiliGroups(state.records) : [];
     state.total = results.reduce((sum, result) => sum + result.total, 0);
     state.availableVersions = [...new Set(results.flatMap((result) => result.availableVersions || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availableLoaders = [...new Set(results.flatMap((result) => result.availableLoaders || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availableCategories = [...new Set(results.flatMap((result) => result.availableCategories || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availablePans = [...new Set(results.flatMap((result) => result.availablePans || []))];
-    state.hasMore = state.records.length < state.total;
+    state.hasMore = groupedBili ? false : state.records.length < state.total;
     state.loading = false;
     render();
   } catch (error) {
