@@ -7,6 +7,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { URL } = require('node:url');
 const { DataStore, defaultUserDataRoot } = require('./lib/data-store.cjs');
+const { PersonalLibrary } = require('./lib/personal-library.cjs');
 const { assertPlatform, redactLogLine } = require('./lib/platforms.cjs');
 const { UpdateManager } = require('./lib/update-manager.cjs');
 const { createProcessRunner } = require('./lib/process-runner.cjs');
@@ -104,7 +105,9 @@ function createBrowserService(options = {}) {
   const port = options.port ?? 8765;
   const sourceRoot = options.sourceRoot || repoRoot;
   const dataRoot = path.resolve(options.dataRoot || process.env.MC_DESKTOP_DATA_ROOT || defaultUserDataRoot());
-  const store = options.store || new DataStore(dataRoot);
+  const personalLibrary = options.personalLibrary || new PersonalLibrary(dataRoot);
+  const store = options.store || new DataStore(dataRoot, { personalLibrary });
+  if (store && !store.personalLibrary) store.personalLibrary = personalLibrary;
   const subscribers = new Set();
   let initialized = false;
 
@@ -132,6 +135,7 @@ function createBrowserService(options = {}) {
 
   async function ensureInitialized() {
     if (!initialized) {
+      await personalLibrary.init();
       await store.init();
       initialized = true;
     }
@@ -179,10 +183,22 @@ function createBrowserService(options = {}) {
         pan: requestUrl.searchParams.get('pan') || '',
         dateRange: requestUrl.searchParams.get('dateRange') || '',
         serverOnly: requestUrl.searchParams.get('serverOnly') === 'true',
+        personalStatus: requestUrl.searchParams.get('personalStatus') || '',
         sort: requestUrl.searchParams.get('sort') || '',
         page: requestUrl.searchParams.get('page') || 1,
         pageSize: requestUrl.searchParams.get('pageSize') || 48,
       }));
+    }
+
+    if (pathname === '/api/library' && request.method === 'GET') return json(response, 200, await personalLibrary.list());
+
+    const personalMatch = pathname.match(/^\/api\/library\/([^/]+)\/([^/]+)$/);
+    if (personalMatch && request.method === 'PATCH') {
+      const platform = decodeURIComponent(personalMatch[1]);
+      const sourceId = decodeURIComponent(personalMatch[2]);
+      assertPlatform(platform);
+      const patch = await readJsonBody(request, 64 * 1024);
+      return json(response, 200, await personalLibrary.update(platform, sourceId, patch));
     }
 
     const commentsMatch = pathname.match(/^\/api\/platforms\/([^/]+)\/comments\/([^/]+)$/);
