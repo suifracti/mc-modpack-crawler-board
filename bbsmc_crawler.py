@@ -23,6 +23,7 @@ import urllib.parse
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Any, Optional
+from desktop_collection_contract import write_collection_result
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -39,6 +40,7 @@ class BbsmcCrawler:
         self.api_base = api_base.rstrip('/')
         self.max_workers = max_workers
         self.headers = dict(HEADERS)
+        self.stats = {"requests": 0, "successful": 0, "failed": 0, "errors": [], "pages_completed": 0}
 
     def _get_json(self, endpoint: str, params: Optional[Dict[str, Any]] = None, timeout: int = 10) -> Optional[Any]:
         url = f"{self.api_base}/{endpoint.lstrip('/')}"
@@ -48,15 +50,31 @@ class BbsmcCrawler:
         req = urllib.request.Request(url, headers=self.headers)
         for attempt in range(3):
             try:
+                self.stats["requests"] += 1
                 with urllib.request.urlopen(req, timeout=timeout) as resp:
                     if resp.status == 200:
-                        return json.loads(resp.read().decode('utf-8'))
+                        value = json.loads(resp.read().decode('utf-8'))
+                        self.stats["successful"] += 1
+                        return value
+                    if attempt == 2:
+                        self.stats["failed"] += 1
+                        self.stats["errors"].append(f"HTTP {resp.status} {endpoint}")
             except urllib.error.HTTPError as e:
                 if e.code == 404:
+                    self.stats["failed"] += 1
+                    self.stats["errors"].append(f"HTTP 404 {endpoint}")
                     return None
-                time.sleep(0.5 * (attempt + 1))
-            except Exception:
-                time.sleep(0.5 * (attempt + 1))
+                if attempt == 2:
+                    self.stats["failed"] += 1
+                    self.stats["errors"].append(f"HTTP {e.code} {endpoint}")
+                else:
+                    time.sleep(0.5 * (attempt + 1))
+            except Exception as error:
+                if attempt == 2:
+                    self.stats["failed"] += 1
+                    self.stats["errors"].append(f"{endpoint}: {error}")
+                else:
+                    time.sleep(0.5 * (attempt + 1))
         return None
 
     def search_all_projects(self, project_type: str = "modpack", max_total: int = 0, page_size: int = 100) -> List[Dict[str, Any]]:
@@ -80,6 +98,7 @@ class BbsmcCrawler:
                 break
 
             hits = res.get('hits', [])
+            self.stats["pages_completed"] += 1
             if not hits:
                 break
 
@@ -314,6 +333,16 @@ def crawl_bbsmc(project_type: str = "modpack", max_total: int = 0, enrich_versio
 
     if not raw_projects:
         print("[!] 未获取到任何项目数据，退出。")
+        write_collection_result(
+            "bbsmc",
+            request_completed=crawler.stats["failed"] == 0,
+            fetched_count=0,
+            pages_completed=int(crawler.stats["pages_completed"]),
+            failed_requests=int(crawler.stats["failed"]),
+            errors=crawler.stats["errors"],
+            status="empty" if crawler.stats["failed"] == 0 else "failed",
+            details={"requestedLimit": max_total or None},
+        )
         return []
 
     # 丰富前 N 款热门项目的实际下载链接
@@ -358,6 +387,18 @@ def crawl_bbsmc(project_type: str = "modpack", max_total: int = 0, enrich_versio
     print(f"  - JSON 归档: {json_path}")
     print(f"  - 前端数据源: {js_path}")
     print("=" * 65)
+
+    request_completed = crawler.stats["failed"] == 0
+    write_collection_result(
+        "bbsmc",
+        request_completed=request_completed,
+        fetched_count=len(raw_projects),
+        pages_completed=int(crawler.stats["pages_completed"]),
+        failed_requests=int(crawler.stats["failed"]),
+        errors=crawler.stats["errors"],
+        status="success" if request_completed else "partial",
+        details={"outputCount": len(processed), "requestedLimit": max_total or None},
+    )
 
     return processed
 

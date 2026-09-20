@@ -40,6 +40,10 @@
       {
         "from": "../../build/desktop/source",
         "to": "source"
+      },
+      {
+        "from": "../../shared",
+        "to": "shared"
       }
     ],
     "win": {

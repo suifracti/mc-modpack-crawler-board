@@ -23,6 +23,7 @@ import urllib.parse
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Any, Optional
+from desktop_collection_contract import write_collection_result
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -40,6 +41,7 @@ class XyebbsCrawler:
         self.api_base = api_base.rstrip('/')
         self.max_workers = max_workers
         self.headers = dict(HEADERS)
+        self.stats = {"requests": 0, "successful": 0, "failed": 0, "errors": [], "pages_completed": 0}
 
     def _get_json(self, endpoint: str, params: Optional[Dict[str, Any]] = None, timeout: int = 10) -> Optional[Any]:
         url = f"{self.api_base}/{endpoint.lstrip('/')}"
@@ -49,15 +51,31 @@ class XyebbsCrawler:
         req = urllib.request.Request(url, headers=self.headers)
         for attempt in range(3):
             try:
+                self.stats["requests"] += 1
                 with urllib.request.urlopen(req, timeout=timeout) as resp:
                     if resp.status == 200:
-                        return json.loads(resp.read().decode('utf-8'))
+                        value = json.loads(resp.read().decode('utf-8'))
+                        self.stats["successful"] += 1
+                        return value
+                    if attempt == 2:
+                        self.stats["failed"] += 1
+                        self.stats["errors"].append(f"HTTP {resp.status} {endpoint}")
             except urllib.error.HTTPError as e:
                 if e.code == 404:
+                    self.stats["failed"] += 1
+                    self.stats["errors"].append(f"HTTP 404 {endpoint}")
                     return None
-                time.sleep(0.4 * (attempt + 1))
-            except Exception:
-                time.sleep(0.4 * (attempt + 1))
+                if attempt == 2:
+                    self.stats["failed"] += 1
+                    self.stats["errors"].append(f"HTTP {e.code} {endpoint}")
+                else:
+                    time.sleep(0.4 * (attempt + 1))
+            except Exception as error:
+                if attempt == 2:
+                    self.stats["failed"] += 1
+                    self.stats["errors"].append(f"{endpoint}: {error}")
+                else:
+                    time.sleep(0.4 * (attempt + 1))
         return None
 
     def fetch_all_resources(self, max_total: int = 0, page_size: int = 100) -> List[Dict[str, Any]]:
@@ -86,6 +104,7 @@ class XyebbsCrawler:
 
             data_obj = res.get('data', {})
             items = data_obj.get('data', [])
+            self.stats["pages_completed"] += 1
             if not items:
                 break
 
@@ -397,23 +416,32 @@ def crawl_xyebbs(max_total: int = 0, enrich_count: int = 1500) -> List[Dict[str,
     os.makedirs(out_dir, exist_ok=True)
     raw_cache_path = os.path.join(out_dir, "xyebbs_raw.json")
 
-    raw_items = []
+    cached_items = []
     if os.path.exists(raw_cache_path) and not max_total:
         try:
             with open(raw_cache_path, "r", encoding="utf-8") as f:
-                raw_items = json.load(f)
-            print(f"  [√] 从本地缓存命中 {len(raw_items)} 款整合包元数据！", flush=True)
+                cached_items = json.load(f)
+            print(f"  [输入缓存] 可供本轮增量参考的旧元数据 {len(cached_items)} 款；仍需完成本轮网络分页。", flush=True)
         except Exception:
-            raw_items = []
+            cached_items = []
 
-    if not raw_items:
-        raw_items = crawler.fetch_all_resources(max_total=max_total)
-        if raw_items and not max_total:
-            with open(raw_cache_path, "w", encoding="utf-8") as f:
-                json.dump(raw_items, f, ensure_ascii=False)
+    raw_items = crawler.fetch_all_resources(max_total=max_total)
+    if raw_items and not max_total:
+        with open(raw_cache_path, "w", encoding="utf-8") as f:
+            json.dump(raw_items, f, ensure_ascii=False)
 
     if not raw_items:
         print("[!] 未获取到任何项目数据，退出。", flush=True)
+        write_collection_result(
+            "xyebbs",
+            request_completed=crawler.stats["failed"] == 0,
+            fetched_count=0,
+            pages_completed=int(crawler.stats["pages_completed"]),
+            failed_requests=int(crawler.stats["failed"]),
+            errors=crawler.stats["errors"],
+            status="empty" if crawler.stats["failed"] == 0 else "failed",
+            details={"requestedLimit": max_total or None},
+        )
         return []
 
     # 丰富前 N 款热门项目的实际网盘链接
@@ -460,6 +488,18 @@ def crawl_xyebbs(max_total: int = 0, enrich_count: int = 1500) -> List[Dict[str,
     print(f"  -> 归档 JSON 路径: {json_path} ({os.path.getsize(json_path)/1024/1024:.2f} MB)")
     print(f"  -> 前端 JS 路径:   {js_path} ({os.path.getsize(js_path)/1024/1024:.2f} MB)")
     print("=" * 65)
+
+    request_completed = crawler.stats["failed"] == 0
+    write_collection_result(
+        "xyebbs",
+        request_completed=request_completed,
+        fetched_count=len(raw_items),
+        pages_completed=int(crawler.stats["pages_completed"]),
+        failed_requests=int(crawler.stats["failed"]),
+        errors=crawler.stats["errors"],
+        status="success" if request_completed else "partial",
+        details={"outputCount": len(standardized), "requestedLimit": max_total or None},
+    )
 
     return standardized
 

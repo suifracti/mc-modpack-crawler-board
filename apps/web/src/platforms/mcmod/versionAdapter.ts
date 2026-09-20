@@ -29,11 +29,11 @@ export function adaptMcmodToVersionModal(
     mcVersionsList: mcVersions,
     typeName: (extra?.typeName as string) || raw.type_name || raw.typeName || '优质模组包',
     modCountStr: p.includedModsCount ? `${p.includedModsCount} 款` : (raw.mod_count ? `${raw.mod_count} 款` : (extra?.modCount as string) || undefined),
-    targetUrl: (extra?.url as string) || `https://www.mcmod.cn/modpack/version/${mid}.html`,
+    targetUrl: (extra?.versionUrl as string) || (extra?.version_url as string) || raw.versionUrl || raw.version_url || `https://www.mcmod.cn/modpack/version/${mid}.html`,
     hasServer: Boolean(p.has_server || extra?.has_server),
     serverStatus: (p.has_server || extra?.has_server) ? 'supported' : 'unknown',
     envDisplay: (p.has_server || extra?.has_server) ? '支持联机开服 / 提供专用服务端' : '未声明服务端支持 / 无法确认',
     formerTitles: former,
-    releases: (extra?.releases as any[]) || [],
+    releases: (extra?.releases as any[]) || raw.releases || raw.versions_data || raw.version_history || [],
   };
 }

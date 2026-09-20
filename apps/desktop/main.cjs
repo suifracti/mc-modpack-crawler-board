@@ -84,6 +84,11 @@ function registerIpc() {
     assertPlatform(platform);
     return store.getPlatformRecords(platform, query);
   });
+  ipcMain.handle('desktop:get-platform-comments', async (event, platform, sourceId) => {
+    assertSender(event);
+    assertPlatform(platform);
+    return store.getPlatformComments(platform, sourceId);
+  });
   ipcMain.handle('desktop:choose-data-directory', async (event) => {
     assertSender(event);
     const result = await dialog.showOpenDialog(mainWindow, {

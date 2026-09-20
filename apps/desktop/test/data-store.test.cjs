@@ -53,6 +53,9 @@ test('filters the complete dataset before pagination and preserves modern fields
     url: 'https://www.mcmod.cn/modpack/1.html',
     mcVersions: ['1.7.10'],
     loaders: ['Forge'],
+    includedModNames: ['Fixture Mod'],
+    englishName: 'Desktop Fixture',
+    formerTitles: ['旧测试包'],
     environmentClaims: [{ side: 'server', status: 'unknown', certainty: 'unknown', evidenceText: null }],
   }];
   const bili = Array.from({ length: 301 }, (_, index) => ({
@@ -65,6 +68,8 @@ test('filters the complete dataset before pagination and preserves modern fields
     all_versions: index === 300 ? ['9.9.9'] : ['1.20.1'],
   }));
   await writeSidecar(source, 'mcmod_data.js', mcmod, 'mcmodData');
+  await fs.mkdir(path.join(source, 'comments'), { recursive: true });
+  await fs.writeFile(path.join(source, 'comments', '1.js'), 'window.__registerCommentData("1",' + JSON.stringify({ page_count: 2, comments: [{ author: "玩家", text: "独立评论正文" }] }) + ');\n', 'utf8');
   await writeSidecar(source, 'bili_data.js', bili, 'biliModpacksData');
   const store = new DataStore(path.join(root, 'user-data'));
   await store.init();
@@ -81,8 +86,16 @@ test('filters the complete dataset before pagination and preserves modern fields
   assert.equal(filtered.total, 1);
   assert.equal(filtered.records[0].summary, '正文描述也可搜索');
   assert.equal(filtered.records[0].updatedAt, '2026-09-20 12:00');
+  const descriptionSearch = await store.getPlatformRecords('bilibili', { query: '正文 描述', page: 1, pageSize: 48 });
+  assert.equal(descriptionSearch.total, 1);
 
   const mcmodRecords = await store.getPlatformRecords('mcmod', { page: 1, pageSize: 48 });
   assert.deepEqual(mcmodRecords.records[0].versions, ['1.7.10']);
   assert.equal(mcmodRecords.records[0].raw.mid, 1);
+  const mcmodSearch = await store.getPlatformRecords('mcmod', { query: '旧测试包 Fixture Mod', page: 1, pageSize: 48 });
+  assert.equal(mcmodSearch.total, 1);
+  const comments = await store.getPlatformComments('mcmod', '1');
+  assert.equal(comments.available, true);
+  assert.equal(comments.pageCount, 2);
+  assert.equal(comments.comments[0].text, '独立评论正文');
 });

@@ -18,12 +18,12 @@ from pathlib import Path
 
 
 PLATFORMS = {
-    "mcmod": {"script": "mcmod_full_crawler.py", "raw": "mcmod_modpacks.json", "sidecar": "mcmod_data.js"},
-    "bilibili": {"script": "bilibili_crawler.py", "raw": "bilibili_modpacks.json", "sidecar": "bili_data.js"},
-    "bbsmc": {"script": "bbsmc_crawler.py", "raw": "bbsmc_modpacks.json", "sidecar": "bbsmc_data.js"},
-    "xyebbs": {"script": "xyebbs_crawler.py", "raw": "xyebbs_modpacks.json", "sidecar": "xyebbs_data.js"},
-    "modrinth": {"script": "modrinth_crawler.py", "raw": "modrinth_modpacks.json", "sidecar": "modrinth_data.js"},
-    "curseforge": {"script": "curseforge_full_crawler.py", "raw": "curseforge_modpacks.json", "sidecar": "curseforge_data.js"},
+    "mcmod": {"script": "mcmod_full_crawler.py", "raw": "mcmod_modpacks.json", "sidecar": "mcmod_data.js", "result": "desktop_collection_result.json"},
+    "bilibili": {"script": "bilibili_crawler.py", "raw": "bilibili_modpacks.json", "sidecar": "bili_data.js", "result": "desktop_collection_result.json"},
+    "bbsmc": {"script": "bbsmc_crawler.py", "raw": "bbsmc_modpacks.json", "sidecar": "bbsmc_data.js", "result": "desktop_collection_result.json"},
+    "xyebbs": {"script": "xyebbs_crawler.py", "raw": "xyebbs_modpacks.json", "sidecar": "xyebbs_data.js", "result": "desktop_collection_result.json"},
+    "modrinth": {"script": "modrinth_crawler.py", "raw": "modrinth_modpacks.json", "sidecar": "modrinth_data.js", "result": "desktop_collection_result.json"},
+    "curseforge": {"script": "curseforge_full_crawler.py", "raw": "curseforge_modpacks.json", "sidecar": "curseforge_data.js", "result": "desktop_collection_result.json"},
 }
 
 
@@ -96,7 +96,18 @@ def parse_sidecar(path: Path) -> list[object]:
     if payload.endswith(";"):
         payload = payload[:-1].strip()
     value = json.loads(payload)
-    return value if isinstance(value, list) else list(value.values())
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        return list(value.values())
+    raise ValueError(f"sidecar 顶层不是数组或对象: {path.name}")
+
+
+def read_collection_result(path: Path) -> dict[str, object]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError("crawler result 顶层不是对象")
+    return value
 
 
 def write_update_contract(workspace: Path, contract: dict[str, object]) -> None:
@@ -106,18 +117,46 @@ def write_update_contract(workspace: Path, contract: dict[str, object]) -> None:
     temp.replace(path)
 
 
-def collect_output_contract(workspace: Path, platform: str, started_ns: int, before: dict[str, dict[str, object]]) -> dict[str, object]:
+def collect_output_contract(
+    workspace: Path,
+    platform: str,
+    started_ns: int,
+    before: dict[str, dict[str, object]],
+    crawler_error: str | None = None,
+) -> dict[str, object]:
     config = PLATFORMS[platform]
     raw_path = workspace / "crawler_output" / config["raw"]
     sidecar_path = workspace / "converted_output" / "data" / config["sidecar"]
+    result_path = workspace / "build" / config["result"]
     raw_state = file_state(raw_path)
     sidecar_state = file_state(sidecar_path)
+    result_state = file_state(result_path)
     raw_touched = bool(raw_state["exists"] and int(raw_state["mtimeNs"] or 0) >= started_ns)
     sidecar_touched = bool(sidecar_state["exists"] and int(sidecar_state["mtimeNs"] or 0) >= started_ns)
+    result_touched = bool(result_state["exists"] and int(result_state["mtimeNs"] or 0) >= started_ns)
     raw_count = 0
     sidecar_count = 0
+    crawler_result: dict[str, object] | None = None
     failure_reason = None
     try:
+        if crawler_error:
+            raise ValueError(f"crawler 执行失败: {crawler_error}")
+        if not result_state["exists"] or not result_touched:
+            raise ValueError("本轮没有生成 crawler 采集结果合同")
+        crawler_result = read_collection_result(result_path)
+        if crawler_result.get("platform") != platform:
+            raise ValueError("crawler 采集结果合同的平台不匹配")
+        if crawler_result.get("status") not in {"success", "success_no_change"}:
+            raise ValueError(f"crawler 报告本轮结果为 {crawler_result.get('status') or 'unknown'}")
+        if not crawler_result.get("requestCompleted"):
+            raise ValueError("crawler 未确认请求/分页完整完成")
+        if crawler_result.get("truncated"):
+            raise ValueError("crawler 报告本轮分页被截断")
+        if int(crawler_result.get("failedRequests") or 0) > 0:
+            raise ValueError("crawler 报告存在失败请求")
+        fetched_count = int(crawler_result.get("fetchedCount") or 0)
+        if fetched_count <= 0 and not crawler_result.get("noChangeConfirmed"):
+            raise ValueError("crawler 未获取到当前结果，也未确认有效无变化")
         if not raw_state["exists"]:
             raise ValueError("本轮没有生成原始 JSON")
         raw_value = json.loads(raw_path.read_text(encoding="utf-8"))
@@ -131,7 +170,7 @@ def collect_output_contract(workspace: Path, platform: str, started_ns: int, bef
         sidecar_count = len(parse_sidecar(sidecar_path))
         if not sidecar_count:
             raise ValueError("本轮现代 sidecar 为空")
-        if not raw_touched or not sidecar_touched:
+        if crawler_result.get("status") != "success_no_change" and (not raw_touched or not sidecar_touched):
             raise ValueError("原始 JSON 或现代 sidecar 未在本轮采集期间写入")
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
         failure_reason = str(error)
@@ -147,8 +186,11 @@ def collect_output_contract(workspace: Path, platform: str, started_ns: int, bef
         "sidecarFile": config["sidecar"],
         "raw": raw_state,
         "sidecar": sidecar_state,
+        "collectionResult": result_state,
+        "crawlerResult": crawler_result,
         "rawTouched": raw_touched,
         "sidecarTouched": sidecar_touched,
+        "collectionResultTouched": result_touched,
         "rawCount": raw_count,
         "sidecarCount": sidecar_count,
         "changed": changed,
@@ -169,6 +211,10 @@ def run_selected_collector(args: argparse.Namespace) -> None:
     isolated_script = workspace / "_collector" / config["script"]
     isolated_script.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_script, isolated_script)
+    helper_source = source_root / "desktop_collection_contract.py"
+    if not helper_source.exists():
+        raise FileNotFoundError(f"collector contract helper not found: {helper_source}")
+    shutil.copy2(helper_source, isolated_script.parent / helper_source.name)
 
     script_args = build_script_args(args.platform, args)
     emit(platform=args.platform, phase="采集", processed=0, total=None)
@@ -177,6 +223,7 @@ def run_selected_collector(args: argparse.Namespace) -> None:
     output_paths = {
         "raw": workspace / "crawler_output" / config["raw"],
         "sidecar": workspace / "converted_output" / "data" / config["sidecar"],
+        "result": workspace / "build" / config["result"],
     }
     before = {name: file_state(path) for name, path in output_paths.items()}
     started_ns = time.time_ns()
@@ -185,12 +232,21 @@ def run_selected_collector(args: argparse.Namespace) -> None:
     previous_argv = sys.argv[:]
     previous_path = sys.path[:]
     previous_workspace = os.environ.get("MC_DESKTOP_WORKSPACE")
+    previous_result_path = os.environ.get("MC_DESKTOP_COLLECTION_RESULT")
+    crawler_error = None
     try:
         os.chdir(workspace)
         sys.path.insert(0, str(isolated_script.parent))
         sys.argv = [str(isolated_script), *script_args]
         os.environ["MC_DESKTOP_WORKSPACE"] = str(workspace)
-        runpy.run_path(str(isolated_script), run_name="__main__")
+        os.environ["MC_DESKTOP_COLLECTION_RESULT"] = str(workspace / "build" / config["result"])
+        try:
+            runpy.run_path(str(isolated_script), run_name="__main__")
+        except SystemExit as error:
+            if error.code not in (None, 0):
+                crawler_error = f"SystemExit({error.code})"
+        except Exception as error:  # noqa: BLE001 - report the crawler boundary
+            crawler_error = str(error)
     finally:
         sys.argv = previous_argv
         sys.path[:] = previous_path
@@ -199,8 +255,12 @@ def run_selected_collector(args: argparse.Namespace) -> None:
             os.environ.pop("MC_DESKTOP_WORKSPACE", None)
         else:
             os.environ["MC_DESKTOP_WORKSPACE"] = previous_workspace
+        if previous_result_path is None:
+            os.environ.pop("MC_DESKTOP_COLLECTION_RESULT", None)
+        else:
+            os.environ["MC_DESKTOP_COLLECTION_RESULT"] = previous_result_path
 
-    contract = collect_output_contract(workspace, args.platform, started_ns, before)
+    contract = collect_output_contract(workspace, args.platform, started_ns, before, crawler_error)
     write_update_contract(workspace, contract)
     if contract["outcome"] == "failed":
         emit(platform=args.platform, phase="失败", processed=contract["rawCount"], total=contract["rawCount"], error=contract["error"])

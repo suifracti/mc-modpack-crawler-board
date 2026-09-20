@@ -42,6 +42,7 @@ import urllib.request
 import urllib.parse
 import http.cookiejar
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from desktop_collection_contract import write_collection_result
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
@@ -76,6 +77,7 @@ def get_headers(referer=None):
 COOKIE_JAR = http.cookiejar.CookieJar()
 OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(COOKIE_JAR))
 IS_BANNED = False
+COLLECTION_STATS = {"requests": 0, "successful": 0, "not_found": 0, "failed": 0, "errors": []}
 
 def init_network(proxy=None, no_proxy=False):
     """初始化网络层，支持纯直连模式或指定 HTTP/HTTPS 代理"""
@@ -122,19 +124,35 @@ def fetch_html(url, retries=3, timeout=12):
         if IS_BANNED:
             return None
         try:
+            COLLECTION_STATS["requests"] += 1
             req = urllib.request.Request(url, headers=get_headers())
             with OPENER.open(req, timeout=timeout) as resp:
+                if resp.status == 404:
+                    COLLECTION_STATS["not_found"] += 1
+                    return None
                 if resp.status == 200:
                     text = resp.read().decode('utf-8', errors='ignore')
                     if check_banned_response(text):
+                        COLLECTION_STATS["failed"] += 1
+                        COLLECTION_STATS["errors"].append("MC百科访问频控")
                         return None
+                    COLLECTION_STATS["successful"] += 1
                     return text
         except urllib.error.HTTPError as e:
             if e.code == 404:
+                COLLECTION_STATS["not_found"] += 1
                 return None
-            time.sleep(1.0 * (attempt + 1))
-        except Exception:
-            time.sleep(1.5 * (attempt + 1))
+            if attempt == retries - 1:
+                COLLECTION_STATS["failed"] += 1
+                COLLECTION_STATS["errors"].append(f"HTTP {e.code} {url}")
+            else:
+                time.sleep(1.0 * (attempt + 1))
+        except Exception as error:
+            if attempt == retries - 1:
+                COLLECTION_STATS["failed"] += 1
+                COLLECTION_STATS["errors"].append(f"{url}: {error}")
+            else:
+                time.sleep(1.5 * (attempt + 1))
     return None
 
 def fetch_trend_data(mid, retries=3, timeout=12):
@@ -151,11 +169,15 @@ def fetch_trend_data(mid, retries=3, timeout=12):
         if IS_BANNED:
             return []
         try:
+            COLLECTION_STATS["requests"] += 1
             req = urllib.request.Request(url, data=post_data, headers=headers)
             with OPENER.open(req, timeout=timeout) as resp:
                 raw_text = resp.read().decode('utf-8', errors='ignore')
                 if check_banned_response(raw_text):
+                    COLLECTION_STATS["failed"] += 1
+                    COLLECTION_STATS["errors"].append("MC百科走势请求触发风控")
                     return []
+                COLLECTION_STATS["successful"] += 1
                 data = json.loads(raw_text)
                 if data.get("state") == 0:
                     html = data.get("html", "")
@@ -164,8 +186,21 @@ def fetch_trend_data(mid, retries=3, timeout=12):
                         dates = [str(d) for d in ast.literal_eval(arrays[0])]
                         values = [float(v) for v in ast.literal_eval(arrays[1])]
                         return list(zip(dates, values))
-        except Exception:
-            time.sleep(1.5 * (attempt + 1))
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                COLLECTION_STATS["not_found"] += 1
+                return []
+            if attempt == retries - 1:
+                COLLECTION_STATS["failed"] += 1
+                COLLECTION_STATS["errors"].append(f"走势 HTTP {error.code} {mid}")
+            else:
+                time.sleep(1.5 * (attempt + 1))
+        except Exception as error:
+            if attempt == retries - 1:
+                COLLECTION_STATS["failed"] += 1
+                COLLECTION_STATS["errors"].append(f"走势 {mid}: {error}")
+            else:
+                time.sleep(1.5 * (attempt + 1))
     return []
 
 def fetch_version_data(mid, retries=3, timeout=12):
@@ -1354,6 +1389,21 @@ def main():
     print("-" * 70)
     print(f"  🏆 [执行完毕] 新增收录: {new_count} 款 | 基础指标刷新: {updated_metrics_count} 款 | 走势缝合: {updated_trend_count} 款 | 版本日志提取: {updated_ver_count} 款 | 当前全量: {len(rows):,} 款")
     print("=" * 70 + "\n")
+
+    request_completed = not IS_BANNED and COLLECTION_STATS["failed"] == 0
+    no_change_confirmed = request_completed and new_count == 0 and COLLECTION_STATS["not_found"] > 0
+    status = "success" if new_count > 0 and request_completed else "success_no_change" if no_change_confirmed else "partial" if not request_completed and rows else "failed"
+    write_collection_result(
+        "mcmod",
+        request_completed=request_completed,
+        fetched_count=int(new_count),
+        pages_completed=int(COLLECTION_STATS["successful"] + COLLECTION_STATS["not_found"]),
+        failed_requests=int(COLLECTION_STATS["failed"]),
+        errors=COLLECTION_STATS["errors"],
+        status=status,
+        no_change_confirmed=no_change_confirmed,
+        details={"rowsBefore": len(rows) - int(new_count), "rowsAfter": len(rows), "notFoundProbes": int(COLLECTION_STATS["not_found"]), "mode": args.mode},
+    )
 
 if __name__ == "__main__":
     main()

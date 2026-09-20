@@ -18,6 +18,7 @@ import urllib.parse
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
+from desktop_collection_contract import write_collection_result
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
@@ -34,6 +35,8 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "application/json"
 }
+
+REQUEST_STATS = {"requests": 0, "successful": 0, "failed": 0, "errors": []}
 
 LOADER_TYPE_MAP = {
     1: "Forge",
@@ -116,14 +119,22 @@ def fetch_slice_page(index, category_id=None, game_version=None, mod_loader_type
 
     for attempt in range(retries):
         try:
+            REQUEST_STATS["requests"] += 1
             req = urllib.request.Request(url, headers=HEADERS)
             with urllib.request.urlopen(req, timeout=12) as resp:
                 if resp.status == 200:
-                    return json.loads(resp.read().decode("utf-8"))
-        except Exception:
+                    value = json.loads(resp.read().decode("utf-8"))
+                    REQUEST_STATS["successful"] += 1
+                    return value
+                if attempt == retries - 1:
+                    REQUEST_STATS["failed"] += 1
+                    REQUEST_STATS["errors"].append(f"HTTP {resp.status} index={index}")
+        except Exception as error:
             if attempt < retries - 1:
                 time.sleep(1)
             else:
+                REQUEST_STATS["failed"] += 1
+                REQUEST_STATS["errors"].append(f"index={index}: {error}")
                 return None
     return None
 
@@ -385,10 +396,15 @@ def main(max_total=0):
         index = 0
         slice_new_count = 0
         slice_total_items = 0
+        slice_failed = False
+        slice_truncated = False
         
         while index + PAGE_SIZE <= 10000:
             res = fetch_slice_page(index, category_id=cid, game_version=gv, mod_loader_type=lt, sort_field=sf, sort_order=so)
-            if not res or not res.get("data"):
+            if res is None:
+                slice_failed = True
+                break
+            if not res.get("data"):
                 break
                 
             items = res.get("data", [])
@@ -426,18 +442,28 @@ def main(max_total=0):
                 except Exception:
                     pass
 
-        return t_label, slice_total_items, slice_new_count
+        if not max_total and index >= 10000:
+            last_total = locals().get("total_count", 10000)
+            slice_truncated = bool(last_total > index)
+        return t_label, slice_total_items, slice_new_count, slice_failed, slice_truncated
 
     completed_slices = 0
     total_slices = len(slice_tasks)
+    failed_slices = 0
+    fetched_count = 0
+    truncated = False
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {executor.submit(worker_slice, t): t for t in slice_tasks}
         for future in as_completed(futures):
             completed_slices += 1
             try:
-                lbl, fetched_cnt, new_cnt = future.result()
+                lbl, fetched_cnt, new_cnt, slice_failed, slice_truncated = future.result()
             except Exception as e:
-                lbl, fetched_cnt, new_cnt = "Error", 0, 0
+                lbl, fetched_cnt, new_cnt, slice_failed, slice_truncated = "Error", 0, 0, True, False
+
+            fetched_count += fetched_cnt
+            failed_slices += int(slice_failed)
+            truncated = truncated or bool(slice_truncated)
                 
             with lock:
                 current_total = len(global_packs)
@@ -459,6 +485,20 @@ def main(max_total=0):
     save_current_state(global_packs, max_total=max_total)
     print(f"  [OK] 全量 JSON 已持久化: {OUTPUT_JSON} ({os.path.getsize(OUTPUT_JSON) / 1024 / 1024:.2f} MB)")
     print(f"  [OK] 全量 JS 数据源已更新: {OUTPUT_JS} ({os.path.getsize(OUTPUT_JS) / 1024 / 1024:.2f} MB)")
+
+    request_completed = failed_slices == 0 and REQUEST_STATS["failed"] == 0 and not truncated
+    status = "success" if fetched_count and request_completed else "empty" if request_completed else "partial" if fetched_count else "failed"
+    write_collection_result(
+        "curseforge",
+        request_completed=request_completed,
+        fetched_count=fetched_count,
+        pages_completed=int(REQUEST_STATS["successful"]),
+        truncated=truncated,
+        failed_requests=int(REQUEST_STATS["failed"] + failed_slices),
+        errors=REQUEST_STATS["errors"],
+        status=status,
+        details={"completedSlices": completed_slices, "totalSlices": total_slices, "uniqueOutputCount": len(final_list), "requestedLimit": max_total or None},
+    )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CurseForge 超级全量切片爬虫")

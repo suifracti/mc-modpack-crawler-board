@@ -1,5 +1,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const {
+  buildSearchDocument,
+  matchesSearchDocument,
+} = require('../../shared/search-contract.cjs');
 
 const PLATFORM_CONFIGS = Object.freeze({
   mcmod: {
@@ -130,9 +134,14 @@ function asList(value) {
 function fieldList(record, keys) {
   for (const key of keys) {
     const value = record && record[key];
-    if (Array.isArray(value) && value.length) return value.filter(Boolean).map(String);
+    const values = asList(value);
+    if (values.length) return values;
   }
   return [];
+}
+
+function buildSearchContractText(platform, record) {
+  return buildSearchDocument(platform, record).allTextLower;
 }
 
 function environmentInfo(record) {
@@ -168,6 +177,7 @@ function environmentInfo(record) {
 
 function normaliseRecord(platform, record, index) {
   const raw = record && typeof record === 'object' ? record : {};
+  const searchDocument = buildSearchDocument(platform, raw);
   const title = asText(firstValue(record, ['title', 'name', 'preferred_title', 'chinese_name', 'project_title'])) || '未命名整合包';
   const author = asText(firstValue(record, ['author', 'uploader', 'creator', 'owner'])) || '未知作者';
   const url = asText(firstValue(record, ['url', 'source_url', 'link', 'homepage']));
@@ -219,16 +229,8 @@ function normaliseRecord(platform, record, index) {
     environment,
     releases: Array.isArray(record?.releases) ? record.releases : Array.isArray(record?.versions_data) ? record.versions_data : Array.isArray(record?.versions) ? record.versions : [],
     raw,
-    searchText: [
-      title,
-      author,
-      summary,
-      versions.join(' '),
-      loaders.join(' '),
-      categories.join(' '),
-      asList(firstValue(record, ['includedModNames', 'mods', 'tags'])).join(' '),
-      asText(firstValue(record, ['chineseName', 'englishName', 'formerTitles', 'pinned_comment'])),
-    ].join(' ').toLocaleLowerCase(),
+    searchText: searchDocument.allTextLower,
+    searchDocument,
     evidence,
   };
 }
@@ -257,6 +259,8 @@ module.exports = {
   parseSidecarFile,
   readPlatformRecords,
   normaliseRecord,
+  buildSearchContractText,
+  matchesSearchDocument,
   isHttpUrl,
   redactLogLine,
 };

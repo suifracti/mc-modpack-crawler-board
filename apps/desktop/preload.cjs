@@ -9,6 +9,7 @@ function subscribe(channel, callback) {
 contextBridge.exposeInMainWorld('desktopApi', Object.freeze({
   getState: () => ipcRenderer.invoke('desktop:get-state'),
   getPlatformRecords: (platform, query = '') => ipcRenderer.invoke('desktop:get-platform-records', platform, query),
+  getPlatformComments: (platform, sourceId) => ipcRenderer.invoke('desktop:get-platform-comments', platform, sourceId),
   chooseDataDirectory: () => ipcRenderer.invoke('desktop:choose-data-directory'),
   startUpdate: (platform, options = {}) => ipcRenderer.invoke('desktop:start-update', platform, options),
   cancelUpdate: () => ipcRenderer.invoke('desktop:cancel-update'),

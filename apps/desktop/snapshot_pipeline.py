@@ -61,7 +61,10 @@ def main() -> int:
         raise ValueError("本轮采集结果合同的平台不匹配")
     if update_result.get("outcome") not in {"success_update", "success_no_change"}:
         raise ValueError("本轮采集未形成成功结果，拒绝生成快照")
-    if not update_result.get("rawTouched") or not update_result.get("sidecarTouched"):
+    crawler_result = update_result.get("crawlerResult") or {}
+    if crawler_result.get("status") != "success_no_change" and (
+        not update_result.get("rawTouched") or not update_result.get("sidecarTouched")
+    ):
         raise ValueError("本轮原始 JSON 或现代 sidecar 未实际写入")
     raw_meta: dict[str, object] = {}
     all_raw = True

@@ -11,6 +11,7 @@ const {
   findSidecar,
   readPlatformRecords,
   normaliseRecord,
+  matchesSearchDocument,
 } = require('./platforms.cjs');
 
 const SNAPSHOT_SCHEMA = 1;
@@ -64,6 +65,32 @@ function optionValues(records, key) {
   const values = new Set();
   for (const record of records) for (const value of record[key] || []) if (value) values.add(String(value));
   return [...values].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+}
+
+async function readMcmodComments(dataDir, sourceId) {
+  if (!/^\d+$/.test(String(sourceId || ''))) return { available: false, sourceFile: null, pageCount: 0, comments: [] };
+  const base = path.join(dataDir, 'comments', String(sourceId));
+  const candidates = [`${base}.js`, `${base}.json`];
+  for (const candidate of candidates) {
+    if (!(await exists(candidate))) continue;
+    try {
+      const source = await fsp.readFile(candidate, 'utf8');
+      let payload;
+      if (candidate.endsWith('.json')) {
+        payload = JSON.parse(source);
+      } else {
+        const match = source.match(/window\.__registerCommentData\(\s*["']?\d+["']?\s*,\s*([\s\S]+)\)\s*;?\s*$/);
+        if (!match) throw new Error('评论 sidecar 格式无法识别');
+        payload = JSON.parse(match[1]);
+      }
+      const comments = Array.isArray(payload) ? payload : Array.isArray(payload?.comments) ? payload.comments : [];
+      const pageCount = Number(payload?.page_count ?? payload?.pageCount ?? payload?.count ?? comments.length) || comments.length;
+      return { available: true, sourceFile: path.relative(dataDir, candidate), pageCount, comments };
+    } catch (error) {
+      return { available: false, sourceFile: path.relative(dataDir, candidate), pageCount: 0, comments: [], error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+  return { available: false, sourceFile: null, pageCount: 0, comments: [] };
 }
 
 async function copyDirectoryContents(sourceDir, destinationDir, predicate = () => true) {
@@ -163,8 +190,9 @@ class DataStore {
     if (!active) return { platform, total: 0, records: [], sourceFile: null, page: options.page, pageSize: options.pageSize, availableVersions: [], availableLoaders: [] };
     const result = readPlatformRecords(this.snapshotDataDir(active.snapshotId), platform);
     const normalized = result.records.map((record, index) => normaliseRecord(platform, record, index));
-    const needle = options.query.trim().toLocaleLowerCase();
-    const searched = needle ? normalized.filter((record) => record.searchText.includes(needle)) : normalized;
+    const searched = options.query.trim()
+      ? normalized.filter((record) => matchesSearchDocument(record.searchDocument, options.query))
+      : normalized;
     const version = options.version.trim().toLocaleLowerCase();
     const loader = options.loader.trim().toLocaleLowerCase();
     const filtered = searched.filter((record) => {
@@ -183,6 +211,18 @@ class DataStore {
       availableLoaders: optionValues(searched, 'loaders'),
       sourceFile: result.sourceFile,
       error: result.error,
+    };
+  }
+
+  async getPlatformComments(platform, sourceId) {
+    assertPlatform(platform);
+    const active = await this.getActiveSnapshot();
+    if (!active) return { platform, sourceId: String(sourceId || ''), available: false, sourceFile: null, pageCount: 0, comments: [] };
+    if (platform !== 'mcmod') return { platform, sourceId: String(sourceId || ''), available: false, sourceFile: null, pageCount: 0, comments: [] };
+    return {
+      platform,
+      sourceId: String(sourceId || ''),
+      ...(await readMcmodComments(this.snapshotDataDir(active.snapshotId), sourceId)),
     };
   }
 
@@ -217,7 +257,10 @@ class DataStore {
     if (contract.platform !== platform || !['success_update', 'success_no_change'].includes(contract.outcome)) {
       throw new Error(`${PLATFORM_CONFIGS[platform].name} 本轮采集未形成可提交结果`);
     }
-    if (!contract.rawTouched || !contract.sidecarTouched) {
+    if (!contract.collectionResultTouched || !contract.crawlerResult || !['success', 'success_no_change'].includes(contract.crawlerResult.status)) {
+      throw new Error(`${PLATFORM_CONFIGS[platform].name} 缺少 crawler 对本轮请求完整性的确认`);
+    }
+    if (contract.crawlerResult.status !== 'success_no_change' && (!contract.rawTouched || !contract.sidecarTouched)) {
       throw new Error(`${PLATFORM_CONFIGS[platform].name} 本轮未同时生成原始 JSON 与现代 sidecar`);
     }
     const expectedSidecar = path.join(dataDir, contract.sidecarFile || PLATFORM_CONFIGS[platform].sidecars[0]);

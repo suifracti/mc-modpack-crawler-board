@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 import urllib.request
 from pathlib import Path
@@ -13,7 +14,7 @@ PROJECT_ROOT = DESKTOP_ROOT.parents[1]
 if str(DESKTOP_ROOT) not in sys.path:
     sys.path.insert(0, str(DESKTOP_ROOT))
 
-from collector_worker import PLATFORMS, run_selected_collector  # noqa: E402
+from collector_worker import PLATFORMS, collect_output_contract, file_state, run_selected_collector  # noqa: E402
 
 
 class StubResponse:
@@ -140,6 +141,44 @@ def write_sidecar(path: Path, global_name: str, value) -> None:
 
 
 class CollectorWorkerIntegrationTest(unittest.TestCase):
+    def test_explicit_no_change_can_reuse_untouched_cache(self):
+        with tempfile.TemporaryDirectory(prefix="desktop-collector-no-change-") as temp:
+            workspace = Path(temp)
+            raw_path = workspace / "crawler_output" / PLATFORMS["curseforge"]["raw"]
+            sidecar_path = workspace / "converted_output" / "data" / PLATFORMS["curseforge"]["sidecar"]
+            result_path = workspace / "build" / PLATFORMS["curseforge"]["result"]
+            raw_path.parent.mkdir(parents=True)
+            sidecar_path.parent.mkdir(parents=True)
+            result_path.parent.mkdir(parents=True)
+            old = [{"project_id": "old", "title": "unchanged cache"}]
+            raw_path.write_text(json.dumps(old), encoding="utf-8")
+            write_sidecar(sidecar_path, "curseforgeModpacksData", old)
+            started_ns = time.time_ns()
+            old_ns = started_ns - 1_000_000
+            os.utime(raw_path, ns=(old_ns, old_ns))
+            os.utime(sidecar_path, ns=(old_ns, old_ns))
+            before = {
+                "raw": file_state(raw_path),
+                "sidecar": file_state(sidecar_path),
+                "result": file_state(result_path),
+            }
+            result_path.write_text(json.dumps({
+                "schema": 1,
+                "platform": "curseforge",
+                "status": "success_no_change",
+                "requestCompleted": True,
+                "fetchedCount": 0,
+                "pagesCompleted": 1,
+                "truncated": False,
+                "failedRequests": 0,
+                "errors": [],
+                "noChangeConfirmed": True,
+            }), encoding="utf-8")
+            contract = collect_output_contract(workspace, "curseforge", started_ns, before)
+            self.assertEqual(contract["outcome"], "success_no_change")
+            self.assertFalse(contract["rawTouched"])
+            self.assertFalse(contract["sidecarTouched"])
+
     def test_all_platforms_write_current_workspace_outputs_and_mcmod_modern_sidecar(self):
         stub = ControlledRequests()
         with tempfile.TemporaryDirectory(prefix="desktop-collector-contract-") as temp:
@@ -192,6 +231,42 @@ class CollectorWorkerIntegrationTest(unittest.TestCase):
                     self.assertEqual(modern[0]["mcVersions"], ["1.7.10"])
                 if platform == "curseforge":
                     self.assertEqual(json.loads(raw_path.read_text(encoding="utf-8"))[0]["title"], "旧 CurseForge 输入")
+
+    def test_cached_curseforge_is_rejected_when_requests_are_empty_or_failed(self):
+        for mode in ("empty", "error"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory(prefix="desktop-collector-cache-guard-") as temp:
+                root = Path(temp)
+                workspace = root / "curseforge"
+                data_dir = workspace / "converted_output" / "data"
+                raw_dir = workspace / "crawler_output"
+                data_dir.mkdir(parents=True)
+                raw_dir.mkdir(parents=True)
+                old = [{"project_id": "old", "title": "Cached old record", "downloads": 1}]
+                (raw_dir / PLATFORMS["curseforge"]["raw"]).write_text(json.dumps(old), encoding="utf-8")
+                write_sidecar(data_dir / PLATFORMS["curseforge"]["sidecar"], "curseforgeModpacksData", old)
+                args = type("Args", (), {
+                    "platform": "curseforge",
+                    "workspace": str(workspace),
+                    "source_root": str(PROJECT_ROOT),
+                    "limit": 1,
+                    "pages": 1,
+                    "until": None,
+                })()
+
+                def empty_or_error(request, timeout=None):
+                    if mode == "error":
+                        raise OSError("controlled network failure")
+                    return StubResponse({"data": [], "pagination": {"totalCount": 0}})
+
+                with patch.object(urllib.request, "urlopen", side_effect=empty_or_error), \
+                     patch("time.sleep", return_value=None):
+                    with self.assertRaises(RuntimeError):
+                        run_selected_collector(args)
+
+                contract = json.loads((workspace / "build" / "desktop_update_result.json").read_text(encoding="utf-8"))
+                self.assertEqual(contract["outcome"], "failed")
+                self.assertIn(contract["crawlerResult"]["status"], {"empty", "failed"})
+                self.assertEqual(json.loads((raw_dir / PLATFORMS["curseforge"]["raw"]).read_text(encoding="utf-8"))[0]["title"], "Cached old record")
 
 
 if __name__ == "__main__":

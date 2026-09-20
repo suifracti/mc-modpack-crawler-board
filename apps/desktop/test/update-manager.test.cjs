@@ -28,7 +28,15 @@ function fakeRunnerFactory(mode = 'success') {
       if (mode === 'fail') { onLine('network unavailable'); resolvePromise({ code: 1, signal: null }); return; }
       await fs.writeFile(path.join(workspace, 'converted_output', 'data', 'bili_data.js'), 'window.biliModpacksData = [{"bvid":"new","title":"新数据","url":"https://example.com/new"}];\n', 'utf8');
       await fs.writeFile(path.join(workspace, 'crawler_output', 'bilibili_modpacks.json'), '[{"bvid":"new","title":"新数据"}]', 'utf8');
-      await fs.writeFile(path.join(workspace, 'build', 'desktop_update_result.json'), JSON.stringify({ platform: 'bilibili', outcome: 'success_update', rawTouched: true, sidecarTouched: true, changed: true }), 'utf8');
+      await fs.writeFile(path.join(workspace, 'build', 'desktop_update_result.json'), JSON.stringify({
+        platform: 'bilibili',
+        outcome: 'success_update',
+        rawTouched: true,
+        sidecarTouched: true,
+        collectionResultTouched: true,
+        crawlerResult: { status: 'success', requestCompleted: true, fetchedCount: 1, failedRequests: 0, truncated: false },
+        changed: true,
+      }), 'utf8');
       onLine('DESKTOP_EVENT {"phase":"采集完成","processed":1,"total":1}');
       resolvePromise({ code: 0, signal: null });
     });

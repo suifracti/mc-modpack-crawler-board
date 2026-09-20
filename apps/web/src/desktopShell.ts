@@ -30,6 +30,28 @@ interface DesktopRecord {
   evidence: Array<{ label: string; value: string }>;
 }
 
+interface DesktopComment {
+  author?: string;
+  user?: string;
+  name?: string;
+  text?: string;
+  message?: string;
+  content?: string;
+  body?: string;
+  replies?: DesktopComment[];
+  [key: string]: unknown;
+}
+
+interface DesktopCommentsResult {
+  platform: Platform;
+  sourceId: string;
+  available: boolean;
+  sourceFile: string | null;
+  pageCount: number;
+  comments: DesktopComment[];
+  error?: string;
+}
+
 interface DesktopPlatformState {
   id: Platform;
   name: string;
@@ -67,6 +89,7 @@ interface DesktopUpdateStatus {
 interface DesktopApi {
   getState: () => Promise<{ data: DesktopDataState; update: DesktopUpdateStatus }>;
   getPlatformRecords: (platform: Platform, options?: { query?: string; version?: string; loader?: string; page?: number; pageSize?: number }) => Promise<{ platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; error?: string | null }>;
+  getPlatformComments: (platform: Platform, sourceId: string) => Promise<DesktopCommentsResult>;
   chooseDataDirectory: () => Promise<{ cancelled: boolean; data?: DesktopDataState }>;
   startUpdate: (platform: Platform, options?: { limit?: number; pages?: number; until?: string }) => Promise<DesktopUpdateStatus>;
   cancelUpdate: () => Promise<{ cancelled: boolean; reason?: string }>;
@@ -104,6 +127,7 @@ const state = {
   pageSize: 48,
   hasMore: false,
   selected: null as DesktopRecord | null,
+  comments: { sourceId: '', loading: false, available: false, pageCount: 0, comments: [] as DesktopComment[], sourceFile: null as string | null, error: '' },
   loading: true,
   message: '',
   logs: [] as string[],
@@ -181,6 +205,42 @@ function rawList(record: DesktopRecord, keys: string[]): string[] {
   return [];
 }
 
+function valueList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String);
+  if (typeof value === 'string' && value.trim()) return value.split(/[,，|/]/).map((item) => item.trim()).filter(Boolean);
+  return [];
+}
+
+function rawRecords(record: DesktopRecord, keys: string[]): Array<Record<string, unknown>> {
+  for (const key of keys) {
+    const value = record.raw[key];
+    if (Array.isArray(value)) {
+      return value.filter(Boolean).map((item) => typeof item === 'object' && item !== null ? item as Record<string, unknown> : { name: String(item) });
+    }
+  }
+  return [];
+}
+
+function commentBody(comment: DesktopComment): string {
+  const value = comment.text ?? comment.message ?? comment.content ?? comment.body;
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    const nested = value as Record<string, unknown>;
+    return String(nested.message ?? nested.text ?? nested.content ?? '').trim();
+  }
+  return '';
+}
+
+function renderComments(comments: DesktopComment[]): string {
+  if (!comments.length) return '<div class="empty-evidence">当前没有可读取的独立评论正文。</div>';
+  return `<div class="comment-list">${comments.map((comment, index) => {
+    const author = String(comment.author ?? comment.user ?? comment.name ?? `评论 ${index + 1}`);
+    const replies = Array.isArray(comment.replies) ? comment.replies : [];
+    const replyHtml = replies.length ? `<div class="comment-replies">${replies.map((reply) => `<div class="comment-reply"><strong>${esc(String(reply.author ?? reply.user ?? '回复'))}</strong><span>${textOrUnknown(commentBody(reply))}</span></div>`).join('')}</div>` : '';
+    return `<article class="comment-item"><div class="comment-head"><strong>${esc(author)}</strong><span>${esc(String(comment.time ?? comment.date ?? comment.floor ?? ''))}</span></div><p>${textOrUnknown(commentBody(comment))}</p>${replyHtml}</article>`;
+  }).join('')}</div>`;
+}
+
 function renderOptions(values: string[], selected: string, emptyLabel: string): string {
   return [`<option value="">${emptyLabel}</option>`, ...values.map((value) => `<option value="${esc(value)}"${value === selected ? ' selected' : ''}>${esc(value)}</option>`)].join('');
 }
@@ -216,37 +276,52 @@ function renderRecord(record: DesktopRecord, index: number): string {
 }
 
 function renderRelease(release: Record<string, unknown>): string {
-  const downloads = Array.isArray(release.downloads) ? release.downloads : [];
+  const downloads = Array.isArray(release.downloads) ? release.downloads : Array.isArray(release.download_links) ? release.download_links : Array.isArray(release.files) ? release.files : [];
   const links = downloads.map((download) => {
     const item = (download || {}) as Record<string, unknown>;
     const url = safeExternalUrl(item.url);
     return url ? `<a class="detail-link" href="${esc(url)}" target="_blank" rel="noreferrer">${esc(String(item.name || '打开下载'))} ↗</a>` : '';
   }).filter(Boolean).join('');
-  const versions = Array.isArray(release.gameVersions) ? release.gameVersions.map(String).join('、') : '';
-  const loaders = Array.isArray(release.loaders) ? release.loaders.map(String).join('、') : '';
+  const versions = valueList(release.gameVersions ?? release.game_versions ?? release.mc_versions).join('、');
+  const loaders = valueList(release.loaders ?? release.loader).join('、');
   const notes = String(release.changelogMd || release.changelog || '').trim();
   return `<article class="release-item"><div class="release-head"><strong>${textOrUnknown(String(release.versionName || release.version_number || ''))}</strong><span>${esc(String(release.date || release.release_date || ''))}</span></div><div class="release-meta">${versions ? `Minecraft：${esc(versions)}` : ''}${loaders ? ` · Loader：${esc(loaders)}` : ''}</div>${notes ? `<p>${esc(notes)}</p>` : ''}${links ? `<div class="release-links">${links}</div>` : ''}</article>`;
+}
+
+function renderCommentSection(record: DesktopRecord): string {
+  const description = rawText(record, ['desc', 'description', 'summary', 'subtitle_summary']) || record.summary;
+  const pinned = rawText(record, ['pinned_comment']);
+  const commentState = state.comments.sourceId === record.sourceId ? state.comments : null;
+  const independentComments = commentState?.available ? renderComments(commentState.comments) : commentState?.loading ? '<div class="loading-state">正在读取独立评论…</div>' : commentState?.error ? `<div class="error-box">${esc(commentState.error)}</div>` : '<div class="empty-evidence">当前快照没有独立评论文件。</div>';
+  const pinnedHtml = pinned ? `<article class="comment-item"><div class="comment-head"><strong>来源置顶评论</strong></div><p>${esc(pinned)}</p></article>` : '';
+  const meta = commentState?.pageCount ? `<span class="detail-submeta">记录数：${commentState.pageCount}</span>` : '';
+  return `<div class="detail-section"><h3>简介</h3><p class="detail-summary">${textOrUnknown(description)}</p></div><div class="detail-section"><h3>评论 / 讨论 ${meta}</h3>${pinnedHtml}${independentComments}</div>`;
 }
 
 function detailPanel(): string {
   const record = state.selected;
   if (!record) return '';
   const vm = buildVersionModalViewModel(record.platform, record.raw as never, record.raw);
-  const comment = rawText(record, ['pinned_comment', 'desc', 'description', 'subtitle_summary']);
-  const modNames = rawList(record, ['includedModNames', 'mods']);
-  const previewMods = Array.isArray(record.raw.previewMods) ? record.raw.previewMods : [];
-  const mods = (previewMods.length ? previewMods : modNames.map((name) => ({ name }))).slice(0, 24) as Array<Record<string, unknown>>;
-  const releaseHtml = vm.releases?.length ? vm.releases.slice(0, 12).map((release) => renderRelease(release as unknown as Record<string, unknown>)).join('') : '<div class="empty-evidence">当前数据没有版本发布明细；可从下方版本详情入口查看原站记录。</div>';
+  const modNames = rawList(record, ['includedModNames', 'included_mod_names']);
+  const modsByName = new Map<string, Record<string, unknown>>();
+  for (const mod of rawRecords(record, ['includedMods', 'included_mods', 'previewMods', 'mods'])) {
+    const name = String(mod.title || mod.name || '').trim();
+    if (name && !modsByName.has(name)) modsByName.set(name, mod);
+  }
+  for (const name of modNames) if (!modsByName.has(name)) modsByName.set(name, { name });
+  const mods = [...modsByName.values()];
+  const releases = vm.releases?.length ? vm.releases : rawRecords(record, ['releases', 'versions_data', 'version_history']);
+  const releaseHtml = releases.length ? releases.map((release) => renderRelease(release as unknown as Record<string, unknown>)).join('') : '<div class="empty-evidence">当前数据没有版本发布明细；可从下方版本详情入口查看原站记录。</div>';
   const versionUrl = safeExternalUrl(vm.targetUrl);
   const sourceUrl = safeExternalUrl(record.url);
-  const modHtml = mods.length ? `<div class="mod-list">${mods.map((mod) => { const url = safeExternalUrl(mod.url); return url ? `<a class="mod-chip" href="${esc(url)}" target="_blank" rel="noreferrer">${esc(String(mod.title || mod.name || '未知模组'))} ↗</a>` : `<span class="mod-chip">${esc(String(mod.title || mod.name || '未知模组'))}</span>`; }).join('')}</div>` : '<div class="empty-evidence">当前数据没有模组清单。</div>';
+  const modHtml = mods.length ? `<details class="detail-expand" open><summary>共 ${mods.length} 款</summary><div class="mod-list">${mods.map((mod) => { const url = safeExternalUrl(mod.url); return url ? `<a class="mod-chip" href="${esc(url)}" target="_blank" rel="noreferrer">${esc(String(mod.title || mod.name || '未知模组'))} ↗</a>` : `<span class="mod-chip">${esc(String(mod.title || mod.name || '未知模组'))}</span>`; }).join('')}</div></details>` : '<div class="empty-evidence">当前数据没有模组清单。</div>';
   return `<div class="detail-backdrop" data-action="close-detail"><aside class="detail-panel" data-detail-panel>
     <button class="icon-button close-detail" data-action="close-detail" aria-label="关闭详情">×</button>
     <span class="eyebrow">${esc(PLATFORM_CONFIGS[record.platform].name)} · 原始来源</span><h2>${esc(record.title)}</h2><p class="detail-author">${esc(record.author)}</p>
     <div class="detail-section"><h3>适配摘要</h3><dl><div><dt>Minecraft</dt><dd>${vm.mcVersionsList.length ? esc(vm.mcVersionsList.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>Loader</dt><dd>${record.loaders.length ? esc(record.loaders.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>更新时间</dt><dd>${esc(formatTime(record.updatedAt))}</dd></div><div><dt>服务端</dt><dd>${esc(vm.envDisplay || `${record.environment.label}（${record.environment.certainty}）`)}</dd></div></dl></div>
     <div class="detail-section"><h3>来源证据</h3><div class="evidence-list">${record.evidence.length ? record.evidence.map((item) => `<div class="evidence-item"><span>${esc(item.label)}</span><strong>${textOrUnknown(item.value)}</strong></div>`).join('') : '<div class="empty-evidence">当前数据没有提供可核对的来源字段。</div>'}</div></div>
-    <div class="detail-section"><h3>简介 / 评论</h3><p class="detail-summary">${textOrUnknown(comment || record.summary)}</p></div>
-    <div class="detail-section"><h3>版本详情</h3><div class="release-list">${releaseHtml}</div></div>
+    ${renderCommentSection(record)}
+    <div class="detail-section"><h3>版本详情 <span class="detail-submeta">${releases.length ? `记录数：${releases.length}` : ''}</span></h3><div class="release-list">${releaseHtml}</div></div>
     <div class="detail-section"><h3>已收录模组</h3>${modHtml}</div>
     <div class="detail-actions">${sourceUrl ? `<button class="button primary wide" data-action="open-source" data-url="${esc(sourceUrl)}">打开原站</button>` : '<div class="unknown-action">原站链接未知</div>'}${versionUrl && versionUrl !== sourceUrl ? `<button class="button secondary wide" data-action="open-source" data-url="${esc(versionUrl)}">打开版本详情</button>` : ''}</div>
   </aside></div>`;
@@ -280,11 +355,34 @@ function bindEvents(): void {
   root.querySelector<HTMLSelectElement>('#loader-filter')?.addEventListener('change', (event) => { state.loader = (event.target as HTMLSelectElement).value; void loadRecords(true); });
 }
 
+async function loadComments(record: DesktopRecord): Promise<void> {
+  state.comments = { sourceId: record.sourceId, loading: true, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
+  render();
+  try {
+    const result = await window.desktopApi.getPlatformComments(record.platform, record.sourceId);
+    if (state.selected?.id !== record.id) return;
+    state.comments = {
+      sourceId: result.sourceId,
+      loading: false,
+      available: result.available,
+      pageCount: result.pageCount,
+      comments: result.comments || [],
+      sourceFile: result.sourceFile,
+      error: result.error || '',
+    };
+  } catch (error) {
+    if (state.selected?.id !== record.id) return;
+    state.comments = { sourceId: record.sourceId, loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: error instanceof Error ? error.message : String(error) };
+  }
+  render();
+}
+
 async function handleAction(element: HTMLElement, event?: Event): Promise<void> {
   const action = element.dataset.action;
   if (action === 'set-platform') {
     state.platform = (element.dataset.platform || 'all') as FilterPlatform;
     state.selected = null;
+    state.comments = { sourceId: '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
     await loadRecords(true);
   } else if (action === 'choose-data') {
     state.message = '正在读取所选目录…';
@@ -321,10 +419,13 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   } else if (action === 'select-record') {
     const index = Number(element.dataset.index || '-1');
     state.selected = state.records[index] || null;
+    state.comments = { sourceId: state.selected?.sourceId || '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
     render();
+    if (state.selected) await loadComments(state.selected);
   } else if (action === 'close-detail') {
     if (event && event.target !== element) return;
     state.selected = null;
+    state.comments = { sourceId: '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
     render();
   } else if (action === 'open-source') {
     const url = element.dataset.url;

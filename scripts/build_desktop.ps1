@@ -32,6 +32,7 @@ foreach ($file in $runtimeFiles) {
 }
 
 $crawlerFiles = @(
+    'desktop_collection_contract.py',
     'bilibili_crawler.py',
     'mcmod_full_crawler.py',
     'bbsmc_crawler.py',
