@@ -146,7 +146,7 @@ function createBrowserService(options = {}) {
     let stat;
     try { stat = await fsp.stat(filePath); } catch { return errorJson(res, 404, '资源不存在'); }
     if (!stat.isFile()) return errorJson(res, 404, '资源不存在');
-    res.writeHead(200, { 'content-type': contentType(filePath), 'cache-control': requested === 'desktop.html' ? 'no-store' : 'public, max-age=31536000' });
+    res.writeHead(200, { 'content-type': contentType(filePath), 'cache-control': 'no-store' });
     fs.createReadStream(filePath).pipe(res);
   }
 

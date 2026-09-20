@@ -410,7 +410,7 @@ function render(): void {
   const availableCount = data ? Object.values(data.platforms).filter((item) => item.available).length : 0;
   const selectedName = state.platform === 'all' ? '全部平台' : PLATFORM_CONFIGS[state.platform].name;
   const totalCount = data ? ALL_PLATFORMS.reduce((sum, platform) => sum + (data.platforms[platform]?.count || 0), 0) : 0;
-  const theme = document.documentElement.dataset.theme || 'dark';
+  const theme = document.documentElement.dataset.theme || 'light';
   const topNav = platformItems.map((item) => {
     const count = item.id === 'all' ? totalCount : data?.platforms[item.id]?.count || 0;
     return `<button type="button" class="top-plat-btn ${state.platform === item.id ? 'active' : ''}" data-action="set-platform" data-platform="${item.id}"><span>${item.icon}</span>${esc(item.name)}<span class="pnav-badge">${count ? formatCount(count) : '—'}</span></button>`;
@@ -568,6 +568,7 @@ export async function initDesktopShell(): Promise<void> {
   root = document.querySelector<HTMLElement>('#desktop-root')!;
   const savedTheme = localStorage.getItem('mcmod-desktop-theme');
   if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'eye' || savedTheme === 'warm' || savedTheme === 'pink') document.documentElement.dataset.theme = savedTheme;
+  else document.documentElement.dataset.theme = 'light';
   render();
   try {
     const initial = await window.desktopApi.getState();
