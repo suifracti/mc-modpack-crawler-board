@@ -42,7 +42,7 @@
         "to": "source"
       },
       {
-        "from": "../../shared",
+        "from": "../shared",
         "to": "shared"
       }
     ],
