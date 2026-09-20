@@ -413,7 +413,12 @@ class DataStore {
 }
 
 function defaultUserDataRoot(appName = 'MCModpackBoard') {
-  const base = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+  const base = process.env.APPDATA
+    || (process.platform === 'darwin'
+      ? path.join(os.homedir(), 'Library', 'Application Support')
+      : process.platform === 'win32'
+        ? path.join(os.homedir(), 'AppData', 'Roaming')
+        : process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'));
   return path.join(base, appName, 'data');
 }
 

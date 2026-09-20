@@ -1,59 +1,13 @@
 {
   "name": "mc-modpack-board-desktop",
   "version": "0.1.0",
-  "description": "Windows desktop shell for the local Minecraft modpack board",
+  "description": "Cross-platform local browser service for the Minecraft modpack board",
   "private": true,
-  "main": "main.cjs",
+  "main": "server.cjs",
   "scripts": {
-    "start": "electron .",
+    "start": "node server.cjs --open",
+    "start:no-open": "node server.cjs",
     "test": "node --test test/*.test.cjs",
-    "build:frontend": "npm --prefix ../web run build:desktop",
-    "package:dir": "npm run build:frontend && electron-builder --dir",
-    "package:portable": "npm run build:frontend && electron-builder --win portable"
-  },
-  "devDependencies": {
-    "electron": "^36.3.2",
-    "electron-builder": "^26.0.12"
-  },
-  "build": {
-    "appId": "local.mcmodpack.board",
-    "productName": "我的世界整合包工作台",
-    "directories": {
-      "output": "../../dist/desktop"
-    },
-    "asar": true,
-    "files": [
-      "main.cjs",
-      "preload.cjs",
-      "lib/**/*",
-      "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "../../build/desktop/frontend",
-        "to": "frontend"
-      },
-      {
-        "from": "../../build/desktop/runtime",
-        "to": "runtime"
-      },
-      {
-        "from": "../../build/desktop/source",
-        "to": "source"
-      },
-      {
-        "from": "../shared",
-        "to": "shared"
-      }
-    ],
-    "win": {
-      "target": [
-        "portable"
-      ],
-      "artifactName": "MC-Modpack-Board-${version}.${ext}"
-    }
-  },
-  "allowScripts": {
-    "electron@36.9.5": true
+    "build:frontend": "npm --prefix ../web run build:desktop"
   }
 }

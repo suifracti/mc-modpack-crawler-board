@@ -29,6 +29,17 @@ python -m http.server 8766 --bind 127.0.0.1 --directory build/frontend_preview
 
 `npm --prefix apps/web run build` 只构建前端，不会独立生成完整平台数据。
 
+## 本地浏览器服务
+
+桌面交付当前采用跨平台 Node.js 本地服务，不再打包 Electron EXE。构建并启动：
+
+```powershell
+npm --prefix apps/web run build:desktop
+npm --prefix apps/desktop start
+```
+
+服务默认监听 `127.0.0.1:8765`，通过同源 HTTP API 和 SSE 为浏览器页面提供数据读取、筛选、详情、更新进度和取消操作；更新仍由现有 Python worker 在隔离目录执行。可用 `npm --prefix apps/desktop run start:no-open` 禁止自动打开浏览器，更多参数见 [`apps/desktop/README.md`](../apps/desktop/README.md)。
+
 ## 验证与协作
 
 ```powershell

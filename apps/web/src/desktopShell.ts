@@ -10,7 +10,7 @@ import {
   buildXyebbsSearchDocument,
 } from './search/searchDocument';
 
-interface DesktopRecord {
+export interface DesktopRecord {
   id: string;
   platform: Platform;
   sourceId: string;
@@ -30,7 +30,7 @@ interface DesktopRecord {
   evidence: Array<{ label: string; value: string }>;
 }
 
-interface DesktopComment {
+export interface DesktopComment {
   author?: string;
   user?: string;
   name?: string;
@@ -42,7 +42,7 @@ interface DesktopComment {
   [key: string]: unknown;
 }
 
-interface DesktopCommentsResult {
+export interface DesktopCommentsResult {
   platform: Platform;
   sourceId: string;
   available: boolean;
@@ -52,7 +52,7 @@ interface DesktopCommentsResult {
   error?: string;
 }
 
-interface DesktopPlatformState {
+export interface DesktopPlatformState {
   id: Platform;
   name: string;
   icon: string;
@@ -62,7 +62,7 @@ interface DesktopPlatformState {
   available: boolean;
 }
 
-interface DesktopDataState {
+export interface DesktopDataState {
   hasData: boolean;
   snapshotId: string | null;
   updatedAt: string | null;
@@ -71,7 +71,7 @@ interface DesktopDataState {
   platforms: Record<Platform, DesktopPlatformState>;
 }
 
-interface DesktopUpdateStatus {
+export interface DesktopUpdateStatus {
   state: 'idle' | 'running' | 'success' | 'failed' | 'cancelled';
   taskId: string | null;
   platform: Platform | null;
@@ -86,7 +86,7 @@ interface DesktopUpdateStatus {
   logs: string[];
 }
 
-interface DesktopApi {
+export interface DesktopApi {
   getState: () => Promise<{ data: DesktopDataState; update: DesktopUpdateStatus }>;
   getPlatformRecords: (platform: Platform, options?: { query?: string; version?: string; loader?: string; page?: number; pageSize?: number }) => Promise<{ platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; error?: string | null }>;
   getPlatformComments: (platform: Platform, sourceId: string) => Promise<DesktopCommentsResult>;

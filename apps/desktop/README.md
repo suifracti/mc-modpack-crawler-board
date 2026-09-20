@@ -1,15 +1,45 @@
-# Windows 桌面看板
+# 本地浏览器服务
 
-开发预览需要 Node.js/npm；最终便携包通过 `scripts/build_desktop.ps1` 打包 Electron、桌面 renderer 和应用内嵌的 Python runtime。用户启动便携 exe 后不需要命令行、Node 或单独安装 Python。
+本项目不再打包 Electron EXE。它由 Node.js 启动一个仅监听本机的 HTTP 服务，并在默认浏览器打开看板，因此 Windows、macOS 和 Linux 共用同一套入口。
+
+## 启动
+
+在仓库根目录先构建桌面前端：
 
 ```powershell
-./scripts/build_desktop.ps1 -Target portable
+npm --prefix apps/web run build:desktop
 ```
 
-包内不会包含仓库 `.git`、浏览器 profile、Cookie、token、个人数据库或审计目录。数据快照写入 Windows 用户数据目录（Electron `app.getPath('userData')`）下的 `data/`，更新先写 `incoming/`，校验成功后通过 active pointer 切换；旧快照不被覆盖。
+启动服务并自动打开浏览器：
 
-如果还没有数据，桌面应用会显示可操作的空状态。可以选择已有 `converted_output`、`build/frontend_preview` 或其 `data` 目录导入。导入的是数据文件，不会执行选中目录里的 JavaScript。
+```powershell
+npm --prefix apps/desktop start
+```
 
-更新任务一次只允许一个平台；平台参数显式传给现有对应 crawler。更新入口不调用统一爬虫的 `--auto-convert`，也不写仓库 `converted_output/`。
+只启动服务、不自动打开浏览器：
 
-开发时可用 `MC_DESKTOP_PYTHON` 指定 Python；便携构建默认下载 Python 3.12.10 embeddable runtime。首次联网更新是否成功取决于平台访问、限流和登录状态，应用会把真实失败原因留在任务日志中。
+```powershell
+npm --prefix apps/desktop run start:no-open
+```
+
+默认地址为 `http://127.0.0.1:8765/`。可用参数覆盖本机端口、数据目录和 Python 命令：
+
+```text
+node apps/desktop/server.cjs --port 8765 --data-root <本地数据目录> --python <python3路径>
+```
+
+服务默认使用系统用户数据目录保存快照：Windows 为 `%APPDATA%/MCModpackBoard/data`，macOS 为 `~/Library/Application Support/MCModpackBoard/data`，Linux 为 `$XDG_DATA_HOME/MCModpackBoard/data` 或 `~/.local/share/MCModpackBoard/data`。也可通过 `MC_DESKTOP_DATA_ROOT` 指定。
+
+## 浏览器端能力
+
+- 浏览器页面通过同源 HTTP API 读取状态、完整数据筛选、评论和版本详情。
+- 更新任务仍由现有 Python worker 执行，单次只允许一个平台，事件通过 SSE 推送到页面。
+- 选择已有数据时，浏览器服务会要求输入本机数据目录路径；服务不会执行被导入目录中的 JavaScript。
+- 外部来源链接在新浏览器标签页打开。
+- 更新继续使用隔离 workspace、合同校验、active pointer 和旧快照保留机制。
+
+## 依赖与边界
+
+开发运行需要 Node.js、Python 3 和现有采集器依赖；服务只监听 `127.0.0.1`，不作为公网服务使用。平台访问限制、登录态、限流和网络失败会按真实结果显示，不会把失败伪装成成功。
+
+`main.cjs`、`preload.cjs` 和旧 Electron 测试文件暂留作为历史实现参考，但当前启动脚本和交付路径不再使用 Electron 或生成 EXE。
