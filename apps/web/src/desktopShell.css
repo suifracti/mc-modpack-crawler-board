@@ -1,3 +1,5 @@
+@import "../../../web/assets/css/dashboard.css";
+
 :root {
   font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
   color: #edf4ff;
@@ -23,8 +25,15 @@ body { margin: 0; min-width: 1080px; min-height: 100vh; color: var(--text); back
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 .desktop-app { min-height: 100vh; }
-.topbar { height: 82px; padding: 0 42px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); background: rgba(12, 20, 32, .48); backdrop-filter: blur(16px); }
-:root[data-theme="light"] .topbar { background: rgba(255,255,255,.7); }
+.topbar { position: sticky; top: 0; z-index: 900; height: 52px; padding: 0; display: block; border-bottom: 1px solid var(--border-subtle, var(--line)); background: var(--bg-base, var(--bg)); backdrop-filter: blur(14px); }
+.topbar-inner { max-width: 1560px; height: 100%; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.topbar-left, .topbar-center, .topbar-actions { min-width: 0; }
+.topbar-left { flex-shrink: 0; display: flex; align-items: center; }
+.topbar-center { flex: 1 1 auto; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+.topbar-actions { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+.topbar-brand { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--text-primary, var(--text)); cursor: pointer; }
+.topbar-brand:hover { color: var(--text-primary, var(--text)); }
+:root[data-theme="light"] .topbar { background: var(--bg-base, var(--bg)); }
 .brand, .top-actions, .field-row, .update-actions, .status-line, .card-top, .card-footer, .workspace-footer { display: flex; align-items: center; }
 .brand { gap: 13px; }
 .brand-mark { width: 38px; height: 38px; border: 1px solid rgba(123,214,196,.5); border-radius: 12px; display: grid; place-items: center; color: var(--primary); background: rgba(123,214,196,.1); font-size: 22px; }
@@ -145,3 +154,35 @@ dd, .evidence-item strong { margin: 0; text-align: right; font-weight: 560; }
 .load-more .button { min-width: 260px; }
 @keyframes pulse { 50% { opacity: .45; } }
 @media (max-width: 1220px) { .workspace { padding-left: 28px; padding-right: 28px; } .pack-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Desktop shell keeps the legacy dashboard hierarchy while its content remains IPC-backed. */
+.legacy-shell { min-height: 100vh; position: relative; }
+.legacy-shell .main-content { position: relative; z-index: 0; }
+.legacy-shell .topbar-brand:focus-visible,
+.legacy-shell .top-plat-btn:focus-visible,
+.legacy-shell .top-action-btn:focus-visible,
+.legacy-shell .top-tdot:focus-visible,
+.legacy-shell .hot-chip:focus-visible,
+.legacy-shell .showcase-tag-chip:focus-visible,
+.legacy-shell .showcase-btn:focus-visible,
+.legacy-shell .hub-reset-btn:focus-visible { outline: 2px solid var(--accent-primary, var(--primary)); outline-offset: 2px; }
+.desktop-filter-dock { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 14px; margin-top: 16px; border-top: 1px solid var(--border-subtle, var(--line)); }
+.desktop-filter-dock label { color: var(--text-secondary, var(--muted)); font-size: .76rem; font-weight: 700; }
+.desktop-filter-dock .hub-select { min-width: 150px; }
+.desktop-filter-dock .top-action-btn { margin-left: auto; }
+.desktop-section-heading { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 4px 0 14px; }
+.desktop-section-heading h2 { color: var(--text-primary, var(--text)); font-size: 1.1rem; }
+.desktop-section-heading p { color: var(--text-secondary, var(--muted)); font-size: .78rem; }
+.showcase-source-meta { color: var(--text-muted, var(--muted)); font-size: .7rem; }
+.showcase-empty { padding: 8px 6px; color: var(--text-muted, var(--muted)); font-size: .76rem; }
+.showcase-featured-box .featured-item { width: 100%; border: 0; text-align: left; font: inherit; }
+.legacy-shell .content-grid { margin-top: 4px; }
+.legacy-shell .pack-card { background: var(--bg-surface, var(--panel)); border-color: var(--border-subtle, var(--line)); }
+.legacy-shell .platform-badge,
+.legacy-shell .card-footer { color: var(--accent-primary, var(--primary)); }
+.legacy-shell .pack-card:hover { border-color: var(--border-hover, var(--line)); }
+@media (max-width: 1200px) {
+  .topbar-inner { padding: 0 12px; }
+  .topbar-actions .data-status { display: none; }
+  .desktop-filter-dock .top-action-btn { margin-left: 0; }
+}
