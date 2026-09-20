@@ -164,10 +164,20 @@ function sortRecords(records, sort) {
         ? ['followers']
         : sort === 'views_desc'
           ? ['views']
-          : sort === 'likes_desc'
-            ? ['likes']
-            : sort === 'comments_desc'
-              ? ['comments', 'commentsCount', 'reply']
+      : sort === 'likes_desc'
+        ? ['likes']
+        : sort === 'favs_desc'
+          ? ['favorites', 'favourites']
+          : sort === 'coins_desc'
+            ? ['coins']
+            : sort === 'share_desc'
+              ? ['share', 'shares']
+              : sort === 'reply_desc'
+                ? ['reply', 'comments']
+                : sort === 'danmaku_desc'
+                  ? ['danmaku']
+          : sort === 'comments_desc'
+            ? ['comments', 'commentsCount', 'reply']
               : sort === 'created_desc'
                 ? ['created_timestamp', 'date_created']
                 : [];

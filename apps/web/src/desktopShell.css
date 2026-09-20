@@ -334,3 +334,41 @@ dd, .evidence-item strong { margin: 0; text-align: right; font-weight: 560; }
   .legacy-shell .pack-grid { grid-template-columns: 1fr; }
   .detail-image-gallery, .comment-image-gallery { grid-template-columns: 1fr; }
 }
+
+/* Old HTML parity: the source page had a rich Bilibili card mode and a
+   professional MC百科 table. Both are rendered from the current API snapshot
+   so they keep the browser service's filtering and detail contracts. */
+.desktop-bili-grid { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+.desktop-rich-card { min-width: 0; cursor: pointer; }
+.legacy-rich-grid .desktop-rich-card > .bbsmc-pack-card,
+.legacy-rich-grid .desktop-rich-card > .xyebbs-pack-card,
+.legacy-rich-grid .desktop-rich-card > .modrinth-pack-card,
+.legacy-rich-grid .desktop-rich-card > .curseforge-pack-card { height: 100%; background: var(--bg-surface, var(--panel)); border-color: var(--border-subtle, var(--line)); }
+.desktop-rich-card .bili-pack-card { height: 100%; background: var(--bg-surface, var(--panel)); border-color: var(--border-subtle, var(--line)); }
+.desktop-rich-card .bili-card-title, .desktop-rich-card .bili-card-cover { cursor: pointer; }
+.desktop-rich-card .bili-card-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.bili-legacy-mode-note { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 12px; padding: 10px 13px; color: var(--text-secondary, var(--muted)); border: 1px solid rgba(251,114,153,.2); border-radius: 10px; background: rgba(251,114,153,.07); font-size: 11px; }
+.bili-legacy-mode-note strong { color: #d94d7f; font-size: 12px; }
+.bili-legacy-mode-note span { color: var(--text-muted, var(--muted)); }
+.mcmod-table-wrap { overflow-x: auto; border: 1px solid var(--border-subtle, var(--line)); border-radius: 14px; background: var(--bg-surface, var(--panel)); }
+.mcmod-table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 11px; }
+.mcmod-table th { padding: 11px 10px; color: var(--text-muted, var(--muted)); background: var(--bg-surface-elevated, var(--bg-soft)); border-bottom: 1px solid var(--border-subtle, var(--line)); text-align: left; font-size: 10px; font-weight: 750; white-space: nowrap; }
+.mcmod-table td { padding: 11px 10px; color: var(--text-secondary, var(--text)); border-top: 1px solid var(--border-subtle, var(--line)); vertical-align: top; }
+.mcmod-table-row { cursor: pointer; transition: background .14s ease; }
+.mcmod-table-row:hover { background: var(--accent-primary-tint, rgba(19,140,121,.08)); }
+.mcmod-table td small { display: block; margin-top: 4px; color: var(--text-muted, var(--muted)); font-size: 10px; line-height: 1.35; }
+.mcmod-name-cell { width: 28%; }
+.mcmod-name-cell strong { display: block; color: var(--text-primary, var(--text)); font-size: 12px; line-height: 1.4; }
+.mcmod-name-cell > small { margin-top: 3px; }
+.mcmod-table-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+.mcmod-table-tags span, .mcmod-mod-cell span { display: inline-block; max-width: 150px; padding: 3px 5px; overflow: hidden; color: var(--text-muted, var(--muted)); border: 1px solid var(--border-subtle, var(--line)); border-radius: 5px; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
+.mcmod-mod-cell { max-width: 230px; }
+.mcmod-mod-cell span { display: block; max-width: 220px; margin-bottom: 4px; }
+.trend-number.is-up { color: var(--accent-primary, var(--primary)); }
+.trend-number.is-down { color: var(--danger); }
+.vote-positive { color: #16a34a; }
+.vote-negative { color: #dc2626; }
+@media (max-width: 700px) {
+  .bili-legacy-mode-note { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .desktop-bili-grid { grid-template-columns: 1fr; }
+}
