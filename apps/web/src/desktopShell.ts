@@ -52,6 +52,17 @@ export interface DesktopCommentsResult {
   error?: string;
 }
 
+export interface DesktopAuditResult {
+  available: boolean;
+  message: string | null;
+  generated_at: string | null;
+  stats: Record<string, unknown> | null;
+  added: Array<Record<string, unknown>>;
+  updated: Array<Record<string, unknown>>;
+  removed: Array<Record<string, unknown>>;
+  version_gained: Array<Record<string, unknown>>;
+}
+
 export interface DesktopPlatformState {
   id: Platform;
   name: string;
@@ -71,6 +82,19 @@ export interface DesktopDataState {
   platforms: Record<Platform, DesktopPlatformState>;
 }
 
+export interface DesktopRecordQuery {
+  query?: string;
+  version?: string;
+  loader?: string;
+  category?: string;
+  pan?: string;
+  dateRange?: string;
+  serverOnly?: boolean;
+  sort?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 export interface DesktopUpdateStatus {
   state: 'idle' | 'running' | 'success' | 'failed' | 'cancelled';
   taskId: string | null;
@@ -88,7 +112,8 @@ export interface DesktopUpdateStatus {
 
 export interface DesktopApi {
   getState: () => Promise<{ data: DesktopDataState; update: DesktopUpdateStatus }>;
-  getPlatformRecords: (platform: Platform, options?: { query?: string; version?: string; loader?: string; page?: number; pageSize?: number }) => Promise<{ platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; error?: string | null }>;
+  getAuditDiff: () => Promise<DesktopAuditResult>;
+  getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availablePans: string[]; error?: string | null }>;
   getPlatformComments: (platform: Platform, sourceId: string) => Promise<DesktopCommentsResult>;
   chooseDataDirectory: () => Promise<{ cancelled: boolean; data?: DesktopDataState }>;
   startUpdate: (platform: Platform, options?: { limit?: number; pages?: number; until?: string }) => Promise<DesktopUpdateStatus>;
@@ -106,11 +131,21 @@ declare global {
 }
 
 type FilterPlatform = 'all' | Platform;
-type DropdownId = 'version' | 'loader' | 'update-platform';
+type DropdownId = 'version' | 'loader' | 'category' | 'pan' | 'date' | 'sort' | 'update-platform';
+type ViewMode = 'cards' | 'compact';
 
-const platformItems: Array<{ id: FilterPlatform; name: string; icon: string }> = [
-  { id: 'all', name: '全部平台', icon: '✦' },
-  ...ALL_PLATFORMS.map((id) => ({ id, name: PLATFORM_CONFIGS[id].name, icon: id === 'mcmod' ? '📦' : id === 'bilibili' ? '📺' : id === 'bbsmc' ? '💎' : id === 'xyebbs' ? '🍃' : id === 'modrinth' ? '🌐' : '🔥' })),
+const PLATFORM_SITE_ICONS: Record<Platform, string> = {
+  mcmod: 'https://www.mcmod.cn/favicon.ico',
+  bilibili: 'https://www.bilibili.com/favicon.ico',
+  bbsmc: 'https://bbsmc.net/favicon.ico',
+  xyebbs: 'https://www.xyebbs.com/favicon.ico',
+  modrinth: 'https://modrinth.com/favicon.ico',
+  curseforge: 'https://www.curseforge.com/favicon.ico',
+};
+
+const platformItems: Array<{ id: FilterPlatform; name: string }> = [
+  { id: 'all', name: '全部平台' },
+  ...ALL_PLATFORMS.map((id) => ({ id, name: PLATFORM_CONFIGS[id].name })),
 ];
 
 const PLATFORM_ACCENTS: Record<Platform, string> = {
@@ -147,10 +182,18 @@ const state = {
   query: '',
   version: '',
   loader: '',
+  category: '',
+  pan: '',
+  dateRange: '',
+  serverOnly: false,
+  sort: 'updated_desc',
+  viewMode: 'cards' as ViewMode,
   records: [] as DesktopRecord[],
   total: 0,
   availableVersions: [] as string[],
   availableLoaders: [] as string[],
+  availableCategories: [] as string[],
+  availablePans: [] as string[],
   page: 1,
   pageSize: 24,
   hasMore: false,
@@ -158,6 +201,11 @@ const state = {
   updatePlatform: 'bilibili' as Platform,
   selected: null as DesktopRecord | null,
   imagePreview: null as { url: string; title: string } | null,
+  audit: null as DesktopAuditResult | null,
+  auditOpen: false,
+  compareOpen: false,
+  compareIds: [] as string[],
+  compareRecords: {} as Record<string, DesktopRecord>,
   comments: { sourceId: '', loading: false, available: false, pageCount: 0, comments: [] as DesktopComment[], sourceFile: null as string | null, error: '' },
   loading: true,
   message: '',
@@ -355,8 +403,69 @@ function renderDropdown(id: DropdownId, selected: string, options: Array<{ value
   </div>`;
 }
 
-function renderFilterDropdown(id: 'version' | 'loader', values: string[], selected: string, emptyLabel: string): string {
+function renderFilterDropdown(id: 'version' | 'loader' | 'category' | 'pan', values: string[], selected: string, emptyLabel: string): string {
   return renderDropdown(id, selected, [{ value: '', label: emptyLabel }, ...values.map((value) => ({ value, label: value }))]);
+}
+
+function renderSortDropdown(): string {
+  const options = [
+    { value: 'updated_desc', label: '最近更新' },
+    { value: 'downloads_desc', label: '下载最多' },
+    { value: 'views_desc', label: '浏览最多' },
+    { value: 'followers_desc', label: '关注最多' },
+    { value: 'likes_desc', label: '点赞最多' },
+    { value: 'comments_desc', label: '评论最多' },
+    { value: 'created_desc', label: '创建时间' },
+    { value: 'title_asc', label: '名称 A-Z' },
+  ];
+  return renderDropdown('sort', state.sort, options);
+}
+
+function renderDateDropdown(): string {
+  return renderDropdown('date', state.dateRange, [
+    { value: '', label: '全部时间' },
+    { value: '7d', label: '近 7 天' },
+    { value: '30d', label: '近 30 天' },
+    { value: '90d', label: '近 90 天' },
+    { value: '2026', label: '2026 年' },
+    { value: '2026-09', label: '2026 年 9 月' },
+  ]);
+}
+
+function panLabel(value: string): string {
+  const labels: Record<string, string> = {
+    official: '官方原站',
+    Modrinth: 'Modrinth',
+    CurseForge: 'CurseForge',
+  };
+  return labels[value] || value;
+}
+
+function renderActiveFilters(): string {
+  const filters: Array<{ key: string; label: string }> = [];
+  if (state.query) filters.push({ key: 'query', label: `关键词：${state.query}` });
+  if (state.version) filters.push({ key: 'version', label: `版本：${state.version}` });
+  if (state.loader) filters.push({ key: 'loader', label: `Loader：${state.loader}` });
+  if (state.category) filters.push({ key: 'category', label: `分类：${state.category}` });
+  if (state.pan) filters.push({ key: 'pan', label: `渠道：${panLabel(state.pan)}` });
+  if (state.dateRange) filters.push({ key: 'dateRange', label: `时间：${state.dateRange}` });
+  if (state.serverOnly) filters.push({ key: 'serverOnly', label: '仅含服务端' });
+  if (!filters.length) return '';
+  return `<div class="desktop-active-filters" aria-label="当前筛选条件">${filters.map((filter) => `<button type="button" class="desktop-active-filter" data-action="clear-filter" data-filter="${esc(filter.key)}">${esc(filter.label)} <span aria-hidden="true">×</span></button>`).join('')}<button type="button" class="desktop-active-clear" data-action="clear-filters">清空全部</button></div>`;
+}
+
+function renderFilterControls(includeDataButton = false): string {
+  return `<div class="desktop-filter-dock desktop-filter-dock-rich">
+    <span class="filter-label">版本</span>${renderFilterDropdown('version', state.availableVersions, state.version, '全部版本')}
+    <span class="filter-label">Loader</span>${renderFilterDropdown('loader', state.availableLoaders, state.loader, '全部 Loader')}
+    <span class="filter-label">分类</span>${renderFilterDropdown('category', state.availableCategories, state.category, '全部分类')}
+    <span class="filter-label">渠道</span>${renderFilterDropdown('pan', state.availablePans, state.pan, '全部渠道')}
+    <span class="filter-label">时间</span>${renderDateDropdown()}
+    <span class="filter-label">排序</span>${renderSortDropdown()}
+    <label class="desktop-check"><input id="server-only-toggle" type="checkbox" ${state.serverOnly ? 'checked' : ''}> <span>仅含服务端</span></label>
+    <div class="desktop-view-toggle" role="group" aria-label="结果视图"><button type="button" class="desktop-view-button ${state.viewMode === 'cards' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="cards">卡片</button><button type="button" class="desktop-view-button ${state.viewMode === 'compact' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="compact">紧凑</button></div>
+    <button type="button" class="hub-reset-btn" data-action="clear-filters">重置筛选</button>${includeDataButton ? `<button type="button" class="top-action-btn" data-action="choose-data">${state.data?.hasData ? '更换数据目录' : '选择已有数据'}</button>` : ''}
+  </div>${renderActiveFilters()}`;
 }
 
 function updatePanel(): string {
@@ -377,23 +486,64 @@ function updatePanel(): string {
   </section>`;
 }
 
+function formatMetric(value: unknown): string {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  if (number >= 100_000_000) return `${(number / 100_000_000).toFixed(1).replace(/\.0$/, '')}亿`;
+  if (number >= 10_000) return `${(number / 10_000).toFixed(1).replace(/\.0$/, '')}万`;
+  return number.toLocaleString('zh-CN');
+}
+
+function recordMetricItems(record: DesktopRecord): string[] {
+  const raw = record.raw || {};
+  const entries: Array<[string, unknown]> = record.platform === 'mcmod'
+    ? [['浏览', raw.views], ['评论', raw.commentsCount], ['收藏', raw.favorites]]
+    : record.platform === 'bilibili'
+      ? [['播放', raw.views], ['点赞', raw.likes], ['评论', raw.reply]]
+      : record.platform === 'bbsmc'
+        ? [['下载', raw.downloads], ['关注', raw.followers], ['评论', raw.comments]]
+        : record.platform === 'xyebbs'
+          ? [['下载', raw.downloads], ['浏览', raw.views], ['评论', raw.comments]]
+          : [['下载', raw.downloads], ['关注', raw.followers], ['点赞', raw.likes]];
+  return entries.filter(([, value]) => value !== undefined && value !== null && value !== '').map(([label, value]) => `${label} ${formatMetric(value)}`);
+}
+
+function renderQuickDownloadLinks(record: DesktopRecord): string {
+  const links = rawRecords(record, ['download_links']).filter((item) => safeExternalUrl(item.url));
+  if (!links.length) return '';
+  const visible = links.slice(0, 3);
+  return `<div class="card-downloads">${visible.map((link) => `<a class="card-download-link" href="${esc(safeExternalUrl(link.url))}" target="_blank" rel="noreferrer" data-action="open-source" data-url="${esc(safeExternalUrl(link.url))}">${esc(String(link.name || link.type || '下载'))} ↗</a>`).join('')}${links.length > visible.length ? `<span class="card-download-more">+${links.length - visible.length} 个</span>` : ''}</div>`;
+}
+
 function renderRecord(record: DesktopRecord, index: number): string {
   const config = PLATFORM_CONFIGS[record.platform];
   const searchContractText = existingSearchText(record).slice(0, 240);
   const coverUrl = recordCoverUrl(record);
   const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
+  const metrics = recordMetricItems(record);
   return `<article class="pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
     <button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面"><img src="${esc(coverUrl)}" alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${esc(fallbackUrl)}'"></button>
-    <div class="card-top"><span class="platform-badge">${config.name}</span><span class="card-time">${esc(record.updatedAt || '更新时间未知')}</span></div>
+    <div class="card-top"><span class="platform-badge">${platformIcon(record.platform)} ${config.name}</span><span class="card-time">${esc(record.updatedAt || '更新时间未知')}</span></div>
     <h3>${esc(record.title)}</h3><p class="author">${esc(record.author)}</p>
     <p class="summary">${textOrUnknown(record.summary)}</p>
     <div class="chips">${record.versions.slice(0, 4).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${!record.versions.length && !record.loaders.length ? '<span class="muted-chip">兼容信息未知</span>' : ''}</div>
-    <div class="card-footer"><span>查看来源证据</span><span class="arrow">↗</span></div>
+    ${metrics.length ? `<div class="card-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}</div>` : ''}
+    ${renderQuickDownloadLinks(record)}
+    <div class="card-footer"><span>查看详情与来源证据</span><button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div>
   </article>`;
 }
 
+function renderCompactRecord(record: DesktopRecord, index: number): string {
+  const coverUrl = recordCoverUrl(record);
+  const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
+  const metrics = recordMetricItems(record);
+  return `<article class="compact-record" data-action="select-record" data-index="${index}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面"><img src="${esc(coverUrl)}" alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${esc(fallbackUrl)}'"></button><div class="compact-record-main"><div class="compact-record-head"><span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span><span class="card-time">${esc(record.updatedAt || '更新时间未知')}</span></div><h3>${esc(record.title)}</h3><p>${esc(record.author)} · ${textOrUnknown(record.summary)}</p><div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div></div><div class="compact-record-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}<button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div></article>`;
+}
+
 function platformIcon(platform: Platform): string {
-  return platformItems.find((item) => item.id === platform)?.icon || '📦';
+  const src = PLATFORM_SITE_ICONS[platform];
+  const short = platform === 'mcmod' ? 'MC' : platform === 'bilibili' ? 'B' : platform === 'bbsmc' ? 'BBS' : platform === 'xyebbs' ? 'XYE' : platform === 'modrinth' ? 'MR' : 'CF';
+  return `<span class="platform-icon-wrap"><img class="platform-site-icon" src="${esc(src)}" alt="${esc(PLATFORM_CONFIGS[platform].name)}图标" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true;this.nextElementSibling.hidden=false;"><span class="platform-icon-fallback" hidden>${short}</span></span>`;
 }
 
 function formatCount(value: number): string {
@@ -435,21 +585,77 @@ function renderCrossSearch(): string {
     <div class="csearch-top-row"><div><h2 id="cross-search-title" class="csearch-heading">全域整合包联合搜索</h2><p class="csearch-sub">沿用旧看板的跨平台入口，查询实际作用于完整本地数据，再按页展示结果。</p></div><div class="csearch-platforms-hint">${platformPills}</div></div>
     <div class="cross-search-input-wrap"><span class="cross-search-icon">🔍</span><input id="pack-search" class="cross-search-input" value="${esc(state.query)}" placeholder="输入名称、游戏版本、模组名、玩法或作者进行跨平台检索…" autocomplete="off"><div class="cross-search-kbd"><kbd>Ctrl</kbd><kbd>K</kbd></div></div>
     <div class="cross-chips-deck"><div class="chip-deck-row"><span class="deck-row-lbl">🎮 核心版本：</span><div class="deck-chips-group">${versionChips}</div></div><div class="chip-deck-row"><span class="deck-row-lbl">🔥 热门流派：</span><div class="deck-chips-group">${themeChips}</div></div></div>
-    <div class="desktop-filter-dock"><span class="filter-label">版本</span>${renderFilterDropdown('version', state.availableVersions, state.version, '全部版本')}<span class="filter-label">Loader</span>${renderFilterDropdown('loader', state.availableLoaders, state.loader, '全部 Loader')}<button type="button" class="hub-reset-btn" data-action="clear-filters">重置筛选</button><button type="button" class="top-action-btn" data-action="choose-data">${state.data?.hasData ? '更换数据目录' : '选择已有数据'}</button></div>
+    ${renderFilterControls(true)}
+    ${renderCrossResults()}
   </section>`;
+}
+
+function renderCrossResults(): string {
+  if (!state.query.trim()) return '';
+  const groups = ALL_PLATFORMS.map((platform) => {
+    const records = state.records.filter((record) => record.platform === platform).slice(0, 4);
+    if (!records.length) return '';
+    return `<section class="cross-result-column"><div class="cross-result-column-head"><span>${platformIcon(platform)} ${esc(PLATFORM_CONFIGS[platform].name)}</span><strong>${records.length} 条当前页结果</strong></div>${records.map((record) => { const index = state.records.indexOf(record); return `<button type="button" class="cross-result-item" data-action="select-record" data-index="${index}"><span>${esc(record.title)}</span><small>${esc(record.author || '未知作者')}</small></button>`; }).join('')}</section>`;
+  }).filter(Boolean).join('');
+  return groups ? `<div class="cross-results-wrap"><div class="cross-results-heading"><strong>跨平台匹配结果</strong><span>按当前筛选条件展示各平台首批结果</span></div><div class="cross-results-grid">${groups}</div></div>` : '<div class="cross-results-wrap cross-results-empty">当前关键词在已载入平台中没有匹配结果。</div>';
+}
+
+function auditCount(audit: DesktopAuditResult | null): number {
+  const stats = audit?.stats || {};
+  return ['added_count', 'updated_count', 'removed_count', 'version_gained_count'].reduce((sum, key) => sum + Number(stats[key] || 0), 0);
+}
+
+function auditRows(audit: DesktopAuditResult): string {
+  const groups: Array<[string, Array<Record<string, unknown>>]> = [
+    ['新增', audit.added],
+    ['更新', audit.updated],
+    ['新增版本', audit.version_gained],
+    ['移除', audit.removed],
+  ];
+  const rows = groups.flatMap(([label, items]) => items.slice(0, 80).map((item) => `<article class="audit-row"><div><strong>${esc(label)} · ${esc(String(item.title || item.name || item.id || '未命名记录'))}</strong><span>${esc(String(item.platform || '平台未知'))} · ${esc(String(item.author || '作者未知'))}</span></div><a class="detail-link" href="${esc(safeExternalUrl(item.url))}" target="_blank" rel="noreferrer">原站 ↗</a></article>`));
+  return rows.length ? rows.join('') : '<div class="empty-evidence">当前快照没有可展示的变动条目。</div>';
+}
+
+function auditPanel(): string {
+  if (!state.auditOpen) return '';
+  const audit = state.audit;
+  const stats = audit?.stats || {};
+  return `<div class="audit-backdrop" data-action="close-audit" role="dialog" aria-modal="true" aria-label="变动审计"><section class="audit-panel"><button type="button" class="icon-button audit-close" data-action="close-audit" aria-label="关闭审计">×</button><div class="eyebrow">SNAPSHOT AUDIT</div><h2>抓取变动审计</h2>${audit ? `<p class="audit-meta">${esc(audit.generated_at || '当前快照')} · ${audit.available ? '可用历史对比' : '没有可用历史基线'}</p>${audit.message ? `<div class="notice">${esc(audit.message)}</div>` : ''}<div class="audit-kpis"><div><strong>${formatCount(Number(stats.total_current || 0))}</strong><span>当前范围</span></div><div><strong>${formatCount(Number(stats.added_count || 0))}</strong><span>新增</span></div><div><strong>${formatCount(Number(stats.updated_count || 0))}</strong><span>更新</span></div><div><strong>${formatCount(Number(stats.removed_count || 0))}</strong><span>移除</span></div></div><div class="audit-list">${auditRows(audit)}</div>` : '<div class="loading-state">正在读取当前快照的审计文件…</div>'}</section></div>`;
+}
+
+function compareEntries(): DesktopRecord[] {
+  return state.compareIds.map((id) => state.compareRecords[id]).filter(Boolean);
+}
+
+function renderCompareTray(): string {
+  const entries = compareEntries();
+  if (!entries.length) return '';
+  return `<aside class="compare-tray"><div><strong>待比较整合包</strong><span>${entries.length} 个${state.compareIds.length > entries.length ? `，当前筛选外 ${state.compareIds.length - entries.length} 个` : ''}</span></div><div class="compare-tray-names">${entries.slice(0, 5).map((record) => `<span>${esc(record.title)}</span>`).join('')}</div><button type="button" class="button secondary" data-action="open-compare" ${entries.length < 2 ? 'disabled' : ''}>全面对比</button><button type="button" class="button" data-action="clear-compare">清空</button></aside>`;
+}
+
+function renderComparePanel(): string {
+  if (!state.compareOpen) return '';
+  const entries = compareEntries();
+  return `<div class="compare-backdrop" data-action="close-compare"><section class="compare-panel"><button type="button" class="icon-button compare-close" data-action="close-compare" aria-label="关闭比较">×</button><div class="eyebrow">MODPACK COMPARISON</div><h2>整合包全面对比</h2>${entries.length < 2 ? '<div class="empty-evidence">至少选择两个当前已载入的整合包。</div>' : `<div class="compare-table"><div class="compare-row compare-row-head"><span>字段</span>${entries.map((record) => `<strong>${esc(record.title)}</strong>`).join('')}</div><div class="compare-row"><span>平台</span>${entries.map((record) => `<span>${esc(PLATFORM_CONFIGS[record.platform].name)}</span>`).join('')}</div><div class="compare-row"><span>作者</span>${entries.map((record) => `<span>${esc(record.author)}</span>`).join('')}</div><div class="compare-row"><span>Minecraft</span>${entries.map((record) => `<span>${esc(record.versions.join('、') || '未知')}</span>`).join('')}</div><div class="compare-row"><span>Loader</span>${entries.map((record) => `<span>${esc(record.loaders.join('、') || '未知')}</span>`).join('')}</div><div class="compare-row"><span>分类</span>${entries.map((record) => `<span>${esc(record.categories.join('、') || '未知')}</span>`).join('')}</div><div class="compare-row"><span>服务端</span>${entries.map((record) => `<span>${esc(record.environment.label)}</span>`).join('')}</div><div class="compare-row"><span>平台指标</span>${entries.map((record) => `<span>${esc(recordMetricItems(record).join(' · ') || '未知')}</span>`).join('')}</div></div>`}</section></div>`;
 }
 
 function renderPlatformHero(platform: Platform): string {
   const config = PLATFORM_CONFIGS[platform];
   const count = state.data?.platforms[platform]?.count ?? 0;
   return `<section class="channel-hero ${platform}-channel-hero"><div class="channel-hero-left"><span class="channel-badge-tag">${platformIcon(platform)} ${esc(config.name)}</span><div class="channel-title">${esc(config.name)}资料看板</div><div class="channel-desc">${esc(PLATFORM_TAGLINES[platform])}。详情页保留版本、模组、评论和原始来源入口。</div></div><div class="channel-quick-stats"><div class="cstat-item"><span class="cs-num">${formatCount(count)}</span><span class="cs-lbl">当前快照记录</span></div><div class="cstat-item"><span class="cs-num">${state.loading ? '…' : formatCount(state.total)}</span><span class="cs-lbl">当前结果总数</span></div></div></section>
-  <section class="central-hub"><div class="hub-tier-search"><div class="hub-stat-badge">当前平台 <strong>${esc(config.name)}</strong></div><div class="hub-search-box"><span class="hub-search-icon">🔍</span><input id="pack-search" class="hub-search-input" value="${esc(state.query)}" placeholder="输入名称、模组、版本或作者实时速搜…" autocomplete="off"></div><div class="hub-actions-cluster">${renderFilterDropdown('version', state.availableVersions, state.version, '全部版本')}${renderFilterDropdown('loader', state.availableLoaders, state.loader, '全部 Loader')}<button type="button" class="hub-reset-btn" data-action="clear-filters">重置筛选</button></div></div></section>`;
+  <section class="central-hub"><div class="hub-tier-search"><div class="hub-stat-badge">当前平台 <strong>${esc(config.name)}</strong></div><div class="hub-search-box"><span class="hub-search-icon">🔍</span><input id="pack-search" class="hub-search-input" value="${esc(state.query)}" placeholder="输入名称、模组、版本或作者实时速搜…" autocomplete="off"></div></div>${renderFilterControls()}</section>`;
 }
 
 function renderResultsWorkspace(selectedName: string): string {
   const records = currentRecords();
   const data = state.data;
-  return `<div class="content-grid"><section class="results-column"><div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : state.query || state.version || state.loader ? '筛选结果' : '最近可用数据'}</h2></div><span class="result-count">${state.loading ? '' : `${formatCount(records.length)} / ${formatCount(state.total)}`}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${!data?.hasData ? `<div class="empty-state"><div class="empty-icon">◌</div><h3>还没有本地数据快照</h3><p>选择现有的 <code>converted_output</code>、<code>build/frontend_preview</code> 或其 <code>data</code> 目录。应用不会把空数据伪装成成功。</p><button class="button primary" data-action="choose-data">选择数据目录</button></div>` : state.loading ? '<div class="loading-state">正在读取当前快照…</div>' : records.length ? `<div class="pack-grid">${records.map(renderRecord).join('')}</div>${state.hasMore ? `<div class="load-more"><button class="button secondary" data-action="load-more">加载更多（已显示 ${formatCount(records.length)} / ${formatCount(state.total)}）</button></div>` : ''}` : `<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>`}</section>${updatePanel()}</div>`;
+  const hasFilter = state.query || state.version || state.loader || state.category || state.pan || state.dateRange || state.serverOnly;
+  const resultBody = records.length
+    ? state.viewMode === 'compact'
+      ? `<div class="compact-record-list">${records.map(renderCompactRecord).join('')}</div>`
+      : `<div class="pack-grid">${records.map(renderRecord).join('')}</div>`
+    : `<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>`;
+  return `<div class="content-grid"><section class="results-column"><div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : hasFilter ? '筛选结果' : '最近可用数据'}</h2></div><span class="result-count">${state.loading ? '' : `${formatCount(records.length)} / ${formatCount(state.total)}`}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${!data?.hasData ? `<div class="empty-state"><div class="empty-icon">◌</div><h3>还没有本地数据快照</h3><p>选择现有的 <code>converted_output</code>、<code>build/frontend_preview</code> 或其 <code>data</code> 目录。应用不会把空数据伪装成成功。</p><button class="button primary" data-action="choose-data">选择数据目录</button></div>` : state.loading ? '<div class="loading-state">正在读取当前快照…</div>' : `${resultBody}${state.hasMore ? `<div class="load-more"><button class="button secondary" data-action="load-more">加载更多（已显示 ${formatCount(records.length)} / ${formatCount(state.total)}）</button></div>` : ''}`}</section>${updatePanel()}</div>`;
 }
 
 function renderRelease(release: Record<string, unknown>): string {
@@ -481,6 +687,24 @@ function renderMediaSection(record: DesktopRecord): string {
   return `<div class="detail-section"><h3>图片 <span class="detail-submeta">${urls.length} 张 · 点击放大</span></h3><div class="detail-image-gallery">${urls.map((url, index) => renderImageButton(url, `${record.title}图片${index + 1}`, 'detail-image')).join('')}</div></div>`;
 }
 
+function renderDetailFacts(record: DesktopRecord): string {
+  const raw = record.raw || {};
+  const pairs: Array<[string, string]> = record.platform === 'bilibili'
+    ? [['播放', formatMetric(raw.views)], ['点赞', formatMetric(raw.likes)], ['投币', formatMetric(raw.coins)], ['收藏', formatMetric(raw.favorites)], ['评论', formatMetric(raw.reply)], ['弹幕', formatMetric(raw.danmaku)], ['QQ群', raw.qq_group ? String(raw.qq_group) : '未知'], ['提取码', raw.extract_code ? String(raw.extract_code) : '未知']]
+    : record.platform === 'mcmod'
+      ? [['浏览', formatMetric(raw.views)], ['推荐', formatMetric(raw.recommendations)], ['收藏', formatMetric(raw.favorites)], ['评论', formatMetric(raw.commentsCount)], ['模组数', raw.includedModsCount ? `${raw.includedModsCount} 款` : '未知'], ['类型', raw.typeName ? String(raw.typeName) : '未知']]
+      : [['下载', formatMetric(raw.downloads)], ['关注', formatMetric(raw.followers)], ['点赞', formatMetric(raw.likes)], ['浏览', formatMetric(raw.views)], ['评论', formatMetric(raw.comments)]];
+  const valid = pairs.filter(([, value]) => value && value !== '—');
+  if (!valid.length) return '';
+  return `<div class="detail-section"><h3>平台数据</h3><dl class="detail-facts">${valid.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl></div>`;
+}
+
+function renderDetailDownloadLinks(record: DesktopRecord): string {
+  const links = rawRecords(record, ['download_links']).filter((item) => safeExternalUrl(item.url));
+  if (!links.length) return '';
+  return `<div class="detail-section"><h3>下载与渠道 <span class="detail-submeta">${links.length} 个入口</span></h3><div class="release-links">${links.map((link) => `<a class="detail-link" href="${esc(safeExternalUrl(link.url))}" target="_blank" rel="noreferrer">${esc(String(link.name || link.type || '下载入口'))} ↗</a>`).join('')}</div></div>`;
+}
+
 function detailPanel(): string {
   const record = state.selected;
   if (!record) return '';
@@ -504,6 +728,8 @@ function detailPanel(): string {
     ${renderMediaSection(record)}
     <div class="detail-section"><h3>适配摘要</h3><dl><div><dt>Minecraft</dt><dd>${vm.mcVersionsList.length ? esc(vm.mcVersionsList.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>Loader</dt><dd>${record.loaders.length ? esc(record.loaders.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>更新时间</dt><dd>${esc(formatTime(record.updatedAt))}</dd></div><div><dt>服务端</dt><dd>${esc(vm.envDisplay || `${record.environment.label}（${record.environment.certainty}）`)}</dd></div></dl></div>
     <div class="detail-section"><h3>来源证据</h3><div class="evidence-list">${record.evidence.length ? record.evidence.map((item) => `<div class="evidence-item"><span>${esc(item.label)}</span><strong>${textOrUnknown(item.value)}</strong></div>`).join('') : '<div class="empty-evidence">当前数据没有提供可核对的来源字段。</div>'}</div></div>
+    ${renderDetailFacts(record)}
+    ${renderDetailDownloadLinks(record)}
     ${renderCommentSection(record)}
     <div class="detail-section"><h3>版本详情 <span class="detail-submeta">${releases.length ? `记录数：${releases.length}` : ''}</span></h3><div class="release-list">${releaseHtml}</div></div>
     <div class="detail-section"><h3>已收录模组</h3>${modHtml}</div>
@@ -525,20 +751,25 @@ function render(): void {
   const theme = document.documentElement.dataset.theme || 'light';
   const topNav = platformItems.map((item) => {
     const count = item.id === 'all' ? totalCount : data?.platforms[item.id]?.count || 0;
-    return `<button type="button" class="top-plat-btn ${state.platform === item.id ? 'active' : ''}" data-action="set-platform" data-platform="${item.id}"><span>${item.icon}</span>${esc(item.name)}<span class="pnav-badge">${count ? formatCount(count) : '—'}</span></button>`;
+    const icon = item.id === 'all' ? '<span class="platform-icon-wrap platform-all-icon"><span class="platform-icon-fallback">全</span></span>' : platformIcon(item.id);
+    return `<button type="button" class="top-plat-btn ${state.platform === item.id ? 'active' : ''}" data-tab="${item.id}" data-action="set-platform" data-platform="${item.id}" aria-current="${state.platform === item.id ? 'page' : 'false'}"><span class="platform-nav-icon">${icon}</span><span class="platform-nav-label">${esc(item.name)}</span><span class="pnav-badge">${count ? formatCount(count) : '—'}</span></button>`;
   }).join('');
   const themeButtons = [['dark', '🌙'], ['light', '☀️'], ['eye', '🌿'], ['warm', '☕'], ['pink', '🌸']].map(([id, icon]) => `<button type="button" class="top-tdot ${theme === id ? 'active' : ''}" data-action="set-theme" data-theme="${id}" title="切换${id}主题">${icon}</button>`).join('');
   const body = state.platform === 'all'
     ? `${renderCrossSearch()}<section class="all-platforms-grid" aria-label="六平台数据看板">${ALL_PLATFORMS.map(renderLegacyShowcaseCard).join('')}</section><div class="desktop-section-heading"><span class="eyebrow">LIVE SNAPSHOT</span><h2>当前快照浏览</h2><p>卡片、版本筛选与详情入口均来自本地快照；需要更多结果时可继续加载。</p></div>${renderResultsWorkspace(selectedName)}`
     : `${renderPlatformHero(state.platform)}${renderResultsWorkspace(selectedName)}`;
   root.innerHTML = `<div class="desktop-app legacy-shell"><div class="bg-layer" aria-hidden="true"></div>
-    <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav></div><div class="topbar-actions"><span class="data-status ${data?.hasData ? 'ready' : 'empty'}"><i></i>${data?.hasData ? `快照 ${esc(data.snapshotId || '已载入')}` : '等待数据'}</span><button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button><div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
-    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${detailPanel()}${imagePreviewPanel()}</div>`;
+    <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button><span class="data-status ${data?.hasData ? 'ready' : 'empty'}"><i></i>${data?.hasData ? `快照 ${esc(data.snapshotId || '已载入')}` : '等待数据'}</span><button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button><div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
+    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${auditPanel()}${renderComparePanel()}</div>`;
   bindEvents();
 }
 
 function bindEvents(): void {
   root.querySelectorAll<HTMLElement>('[data-action]').forEach((element) => element.addEventListener('click', (event) => void handleAction(element, event)));
+  root.querySelector<HTMLInputElement>('#server-only-toggle')?.addEventListener('change', (event) => {
+    state.serverOnly = (event.target as HTMLInputElement).checked;
+    void loadRecords(true);
+  });
   root.querySelector<HTMLInputElement>('#pack-search')?.addEventListener('input', (event) => {
     state.query = (event.target as HTMLInputElement).value;
     window.clearTimeout(searchTimer);
@@ -570,11 +801,48 @@ async function loadComments(record: DesktopRecord): Promise<void> {
 
 async function handleAction(element: HTMLElement, event?: Event): Promise<void> {
   const action = element.dataset.action;
-  if (action === 'set-platform') {
+  if (action === 'toggle-audit') {
+    state.auditOpen = !state.auditOpen;
+    if (state.auditOpen && !state.audit) {
+      render();
+      try {
+        state.audit = await window.desktopApi.getAuditDiff();
+      } catch (error) {
+        state.audit = { available: false, message: error instanceof Error ? error.message : String(error), generated_at: null, stats: null, added: [], updated: [], removed: [], version_gained: [] };
+      }
+    }
+    render();
+  } else if (action === 'close-audit') {
+    if (element.classList.contains('audit-backdrop') && event && event.target !== element) return;
+    state.auditOpen = false;
+    render();
+  } else if (action === 'open-compare') {
+    if (compareEntries().length >= 2) {
+      state.compareOpen = true;
+      render();
+    }
+  } else if (action === 'close-compare') {
+    if (element.classList.contains('compare-backdrop') && event && event.target !== element) return;
+    state.compareOpen = false;
+    render();
+  } else if (action === 'clear-compare') {
+    state.compareIds = [];
+    state.compareOpen = false;
+    render();
+  } else if (action === 'toggle-compare') {
+    event?.stopPropagation();
+    const index = Number(element.dataset.index || '-1');
+    const record = state.records[index];
+    if (!record) return;
+    state.compareRecords[record.id] = record;
+    state.compareIds = state.compareIds.includes(record.id) ? state.compareIds.filter((id) => id !== record.id) : [...state.compareIds, record.id];
+    render();
+  } else if (action === 'set-platform') {
     state.platform = (element.dataset.platform || 'all') as FilterPlatform;
     if (state.platform !== 'all') state.updatePlatform = state.platform;
     state.selected = null;
     state.imagePreview = null;
+    state.compareOpen = false;
     state.comments = { sourceId: '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
     await loadRecords(true);
   } else if (action === 'choose-data') {
@@ -607,6 +875,18 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
       await loadRecords(true);
     } else if (dropdown === 'loader') {
       state.loader = value;
+      await loadRecords(true);
+    } else if (dropdown === 'category') {
+      state.category = value;
+      await loadRecords(true);
+    } else if (dropdown === 'pan') {
+      state.pan = value;
+      await loadRecords(true);
+    } else if (dropdown === 'date') {
+      state.dateRange = value;
+      await loadRecords(true);
+    } else if (dropdown === 'sort') {
+      state.sort = value;
       await loadRecords(true);
     } else if (dropdown === 'update-platform' && ALL_PLATFORMS.includes(value as Platform)) {
       state.updatePlatform = value as Platform;
@@ -651,6 +931,8 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     state.imagePreview = null;
     render();
   } else if (action === 'open-source') {
+    event?.preventDefault();
+    event?.stopPropagation();
     const url = element.dataset.url;
     if (url) await window.desktopApi.openExternal(url);
   } else if (action === 'quick-search') {
@@ -669,7 +951,23 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     localStorage.setItem('mcmod-desktop-theme', next);
     render();
   } else if (action === 'clear-filters') {
-    state.query = ''; state.version = ''; state.loader = ''; await loadRecords(true);
+    state.query = ''; state.version = ''; state.loader = ''; state.category = ''; state.pan = ''; state.dateRange = ''; state.serverOnly = false; state.sort = 'updated_desc'; await loadRecords(true);
+  } else if (action === 'clear-filter') {
+    const filter = element.dataset.filter;
+    if (filter === 'query') state.query = '';
+    if (filter === 'version') state.version = '';
+    if (filter === 'loader') state.loader = '';
+    if (filter === 'category') state.category = '';
+    if (filter === 'pan') state.pan = '';
+    if (filter === 'dateRange') state.dateRange = '';
+    if (filter === 'serverOnly') state.serverOnly = false;
+    await loadRecords(true);
+  } else if (action === 'set-view-mode') {
+    const viewMode = element.dataset.viewMode;
+    if (viewMode === 'cards' || viewMode === 'compact') {
+      state.viewMode = viewMode;
+      render();
+    }
   }
 }
 
@@ -689,14 +987,22 @@ async function loadRecords(reset = true): Promise<void> {
       query: state.query,
       version: state.version,
       loader: state.loader,
+      category: state.category,
+      pan: state.pan,
+      dateRange: state.dateRange,
+      serverOnly: state.serverOnly,
+      sort: state.sort,
       page: state.page,
       pageSize: requestPageSize,
     })));
     const nextRecords = results.flatMap((result) => result.records);
     state.records = reset ? nextRecords : [...state.records, ...nextRecords];
+    for (const record of nextRecords) state.compareRecords[record.id] = record;
     state.total = results.reduce((sum, result) => sum + result.total, 0);
     state.availableVersions = [...new Set(results.flatMap((result) => result.availableVersions || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availableLoaders = [...new Set(results.flatMap((result) => result.availableLoaders || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    state.availableCategories = [...new Set(results.flatMap((result) => result.availableCategories || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    state.availablePans = [...new Set(results.flatMap((result) => result.availablePans || []))];
     state.hasMore = state.records.length < state.total;
     state.loading = false;
     render();

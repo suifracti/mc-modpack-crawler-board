@@ -1,5 +1,5 @@
 import type { Platform } from './domain/types';
-import type { DesktopApi, DesktopDataState, DesktopCommentsResult, DesktopUpdateStatus } from './desktopShell';
+import type { DesktopApi, DesktopDataState, DesktopCommentsResult, DesktopUpdateStatus, DesktopAuditResult } from './desktopShell';
 
 async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers || {}) } });
@@ -45,11 +45,17 @@ export function installBrowserApi(): void {
   if (window.desktopApi) return;
   const api: DesktopApi = {
     getState: () => request<{ data: DesktopDataState; update: DesktopUpdateStatus }>('/api/state'),
+    getAuditDiff: () => request<DesktopAuditResult>('/api/audit'),
     getPlatformRecords: (platform, options = {}) => {
       const params = new URLSearchParams({
         query: options.query || '',
         version: options.version || '',
         loader: options.loader || '',
+        category: options.category || '',
+        pan: options.pan || '',
+        dateRange: options.dateRange || '',
+        serverOnly: options.serverOnly ? 'true' : 'false',
+        sort: options.sort || '',
         page: String(options.page || 1),
         pageSize: String(options.pageSize || 48),
       });

@@ -165,6 +165,7 @@ function createBrowserService(options = {}) {
       return;
     }
     if (pathname === '/api/state' && request.method === 'GET') return json(response, 200, { data: await store.getState(), update: updateManager.getStatus() });
+    if (pathname === '/api/audit' && request.method === 'GET') return json(response, 200, await store.getAuditDiff());
 
     const recordsMatch = pathname.match(/^\/api\/platforms\/([^/]+)\/records$/);
     if (recordsMatch && request.method === 'GET') {
@@ -174,6 +175,11 @@ function createBrowserService(options = {}) {
         query: requestUrl.searchParams.get('query') || '',
         version: requestUrl.searchParams.get('version') || '',
         loader: requestUrl.searchParams.get('loader') || '',
+        category: requestUrl.searchParams.get('category') || '',
+        pan: requestUrl.searchParams.get('pan') || '',
+        dateRange: requestUrl.searchParams.get('dateRange') || '',
+        serverOnly: requestUrl.searchParams.get('serverOnly') === 'true',
+        sort: requestUrl.searchParams.get('sort') || '',
         page: requestUrl.searchParams.get('page') || 1,
         pageSize: requestUrl.searchParams.get('pageSize') || 48,
       }));

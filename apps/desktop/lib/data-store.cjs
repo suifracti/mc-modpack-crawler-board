@@ -9,6 +9,7 @@ const {
   PLATFORM_CONFIGS,
   assertPlatform,
   findSidecar,
+  parseSidecarFile,
   readPlatformRecords,
   normaliseRecord,
   matchesSearchDocument,
@@ -47,7 +48,18 @@ async function copyIfExists(source, destination) {
 
 function parseQueryOptions(queryOrOptions) {
   if (typeof queryOrOptions === 'string' || queryOrOptions === undefined || queryOrOptions === null) {
-    return { query: String(queryOrOptions || ''), version: '', loader: '', page: 1, pageSize: 48 };
+    return {
+      query: String(queryOrOptions || ''),
+      version: '',
+      loader: '',
+      category: '',
+      pan: '',
+      dateRange: '',
+      serverOnly: false,
+      sort: '',
+      page: 1,
+      pageSize: 48,
+    };
   }
   const options = queryOrOptions || {};
   const page = Number.isInteger(Number(options.page)) ? Math.max(1, Number(options.page)) : 1;
@@ -56,6 +68,11 @@ function parseQueryOptions(queryOrOptions) {
     query: String(options.query || ''),
     version: String(options.version || ''),
     loader: String(options.loader || ''),
+    category: String(options.category || ''),
+    pan: String(options.pan || ''),
+    dateRange: String(options.dateRange || ''),
+    serverOnly: options.serverOnly === true || options.serverOnly === 1 || String(options.serverOnly || '').toLowerCase() === 'true',
+    sort: String(options.sort || ''),
     page,
     pageSize,
   };
@@ -65,6 +82,105 @@ function optionValues(records, key) {
   const values = new Set();
   for (const record of records) for (const value of record[key] || []) if (value) values.add(String(value));
   return [...values].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+}
+
+const PAN_FILTERS = ['百度', '夸克', '123', '蓝奏', '迅雷', 'Modrinth', 'CurseForge', 'official'];
+
+function rawDownloadLinks(record) {
+  const links = record?.raw?.download_links;
+  return Array.isArray(links) ? links.filter((item) => item && typeof item === 'object') : [];
+}
+
+function matchesPan(record, selectedPan) {
+  const pan = String(selectedPan || '').trim().toLowerCase();
+  if (!pan) return true;
+  if (pan === 'official') return record.platform === 'xyebbs' && Boolean(record.url);
+  return rawDownloadLinks(record).some((link) => {
+    const name = String(link.name || '').toLowerCase();
+    const url = String(link.url || '').toLowerCase();
+    const filename = String(link.filename || '').toLowerCase();
+    const type = String(link.type || '').toLowerCase();
+    if (pan === 'modrinth') return name.includes('modrinth') || filename.includes('.mrpack') || url.includes('cdn.bbsmc.net');
+    if (pan === 'curseforge') return name.includes('curseforge') || url.includes('curseforge.com');
+    if (pan === '夸克') return name.includes('夸克') || url.includes('pan.quark.cn') || type === 'quark';
+    if (pan === '百度') return name.includes('百度') || url.includes('pan.baidu.com') || type === 'baidu';
+    if (pan === '123') return name.includes('123') || url.includes('123pan') || type.includes('123');
+    if (pan === '迅雷') return name.includes('迅雷') || url.includes('pan.xunlei.com') || type === 'xunlei';
+    if (pan === '蓝奏') return name.includes('蓝奏') || url.includes('lanzou') || type.includes('lanzou');
+    return name.includes(pan) || url.includes(pan) || type.includes(pan);
+  });
+}
+
+function recordTimestamp(record) {
+  const raw = record?.raw || {};
+  const numeric = [raw.pub_timestamp, raw.modified_timestamp, raw.created_timestamp, raw.date_modified_timestamp]
+    .map((value) => Number(value))
+    .find((value) => Number.isFinite(value) && value > 0);
+  if (numeric) return numeric > 10_000_000_000 ? numeric : numeric * 1000;
+  const parsed = Date.parse(String(record.updatedAt || ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function matchesDateRange(record, dateRange, referenceTime) {
+  const range = String(dateRange || '').trim();
+  if (!range) return true;
+  const updatedAt = String(record.updatedAt || '');
+  if (/^\d{4}(?:-\d{2})?$/.test(range)) return updatedAt.startsWith(range);
+  const days = { '7d': 7, '30d': 30, '90d': 90 }[range];
+  if (!days) return true;
+  const timestamp = recordTimestamp(record);
+  return Boolean(timestamp && referenceTime - timestamp <= days * 86_400_000);
+}
+
+function hasServerSupport(record) {
+  if (record?.raw?.has_server === true) return true;
+  return ['required', 'optional', 'supported'].includes(record?.environment?.status);
+}
+
+function metricValue(record, keys) {
+  for (const key of keys) {
+    const value = Number(record?.raw?.[key]);
+    if (Number.isFinite(value)) return value;
+  }
+  return 0;
+}
+
+function recordCreatedTimestamp(record) {
+  const raw = record?.raw || {};
+  const numeric = Number(raw.created_timestamp);
+  if (Number.isFinite(numeric) && numeric > 0) return numeric > 10_000_000_000 ? numeric : numeric * 1000;
+  const parsed = Date.parse(String(raw.date_created || ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function sortRecords(records, sort) {
+  if (!sort) return records;
+  const sorted = [...records];
+  sorted.sort((left, right) => {
+    if (sort === 'title_asc') return String(left.title).localeCompare(String(right.title), 'zh-CN');
+    const keys = sort === 'downloads_desc'
+      ? ['downloads']
+      : sort === 'followers_desc'
+        ? ['followers']
+        : sort === 'views_desc'
+          ? ['views']
+          : sort === 'likes_desc'
+            ? ['likes']
+            : sort === 'comments_desc'
+              ? ['comments', 'commentsCount', 'reply']
+              : sort === 'created_desc'
+                ? ['created_timestamp', 'date_created']
+                : [];
+    const leftValue = sort === 'created_desc' ? recordCreatedTimestamp(left) : (keys.length ? metricValue(left, keys) : recordTimestamp(left));
+    const rightValue = sort === 'created_desc' ? recordCreatedTimestamp(right) : (keys.length ? metricValue(right, keys) : recordTimestamp(right));
+    if (rightValue !== leftValue) return rightValue - leftValue;
+    return String(left.title).localeCompare(String(right.title), 'zh-CN');
+  });
+  return sorted;
+}
+
+function availablePanValues(records) {
+  return PAN_FILTERS.filter((pan) => records.some((record) => matchesPan(record, pan)));
 }
 
 async function readMcmodComments(dataDir, sourceId) {
@@ -212,7 +328,18 @@ class DataStore {
     assertPlatform(platform);
     const options = parseQueryOptions(queryOrOptions);
     const active = await this.getActiveSnapshot();
-    if (!active) return { platform, total: 0, records: [], sourceFile: null, page: options.page, pageSize: options.pageSize, availableVersions: [], availableLoaders: [] };
+    if (!active) return {
+      platform,
+      total: 0,
+      records: [],
+      sourceFile: null,
+      page: options.page,
+      pageSize: options.pageSize,
+      availableVersions: [],
+      availableLoaders: [],
+      availableCategories: [],
+      availablePans: [],
+    };
     const cached = this.readCachedPlatform(active.snapshotId, platform);
     const result = cached.result;
     if (!cached.normalized) cached.normalized = result.records.map((record, index) => normaliseRecord(platform, record, index));
@@ -222,20 +349,28 @@ class DataStore {
       : normalized;
     const version = options.version.trim().toLocaleLowerCase();
     const loader = options.loader.trim().toLocaleLowerCase();
+    const referenceTime = Math.max(Date.now(), ...searched.map(recordTimestamp));
     const filtered = searched.filter((record) => {
       const versionMatch = !version || record.versions.some((item) => item.toLocaleLowerCase() === version);
       const loaderMatch = !loader || record.loaders.some((item) => item.toLocaleLowerCase() === loader);
-      return versionMatch && loaderMatch;
+      const categoryMatch = !options.category || record.categories.includes(options.category);
+      const panMatch = matchesPan(record, options.pan);
+      const serverMatch = !options.serverOnly || hasServerSupport(record);
+      const dateMatch = matchesDateRange(record, options.dateRange, referenceTime);
+      return versionMatch && loaderMatch && categoryMatch && panMatch && serverMatch && dateMatch;
     });
+    const sorted = sortRecords(filtered, options.sort);
     const offset = (options.page - 1) * options.pageSize;
     return {
       platform,
-      total: filtered.length,
+      total: sorted.length,
       page: options.page,
       pageSize: options.pageSize,
-      records: filtered.slice(offset, offset + options.pageSize),
+      records: sorted.slice(offset, offset + options.pageSize),
       availableVersions: optionValues(searched, 'versions'),
       availableLoaders: optionValues(searched, 'loaders'),
+      availableCategories: optionValues(searched, 'categories'),
+      availablePans: availablePanValues(searched),
       sourceFile: result.sourceFile,
       error: result.error,
     };
@@ -251,6 +386,28 @@ class DataStore {
       sourceId: String(sourceId || ''),
       ...(await readMcmodComments(this.snapshotDataDir(active.snapshotId), sourceId)),
     };
+  }
+
+  async getAuditDiff() {
+    const active = await this.getActiveSnapshot();
+    if (!active) return { available: false, message: '还没有可读取的本地快照。', generated_at: null, stats: null, added: [], updated: [], removed: [], version_gained: [] };
+    const filePath = path.join(this.snapshotDataDir(active.snapshotId), 'audit_diff.js');
+    if (!(await exists(filePath))) return { available: false, message: '当前快照没有 audit_diff.js，无法伪造历史变动审计。', generated_at: null, stats: null, added: [], updated: [], removed: [], version_gained: [] };
+    try {
+      const payload = parseSidecarFile(filePath);
+      return {
+        available: payload?.is_available !== false,
+        message: payload?.message || null,
+        generated_at: payload?.generated_at || null,
+        stats: payload?.stats || null,
+        added: Array.isArray(payload?.added) ? payload.added : [],
+        updated: Array.isArray(payload?.updated) ? payload.updated : [],
+        removed: Array.isArray(payload?.removed) ? payload.removed : [],
+        version_gained: Array.isArray(payload?.version_gained) ? payload.version_gained : [],
+      };
+    } catch (error) {
+      return { available: false, message: `审计文件读取失败：${error instanceof Error ? error.message : String(error)}`, generated_at: null, stats: null, added: [], updated: [], removed: [], version_gained: [] };
+    }
   }
 
   async prepareUpdateWorkspace(platform) {
