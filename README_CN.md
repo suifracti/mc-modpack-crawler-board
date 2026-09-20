@@ -4,7 +4,7 @@
 
 用于本地查找、筛选、查看 Minecraft 整合包的工具。已有 **MC百科、哔哩哔哩、BBSMC、XYEBBS、Modrinth、CurseForge** 六个平台的采集与展示代码，可查看版本、模组和来源记录并跳转原站。
 
-目前形态是 **Python 数据流水线 + TypeScript/Vite 网页前端**。下一步做带采集更新功能的 Windows 桌面软件，目前还没有交付桌面安装包。
+目前形态是 **Python 数据流水线 + TypeScript/Vite 网页前端 + 跨平台本地浏览器服务**。服务监听本机地址并可自动打开浏览器，Windows、macOS 和 Linux 使用同一套入口；当前不再交付 EXE。
 
 ## 使用已有看板
 
@@ -25,12 +25,26 @@ python -m http.server 8765 --bind 127.0.0.1 --directory converted_output
 | `多平台聚合爬虫_v1.0.py`、各平台 crawler | 统一采集入口及六平台实现 |
 | `pipeline/` | Canonical SQLite 数据模型、平台适配、导出与发布工具 |
 | `apps/web/` | 现代前端源码和单元测试 |
+| `apps/desktop/` | 跨平台本地浏览器服务、更新管理和数据快照 |
 | `web/`、`多平台聚合转换器_v1.0.py` | 共用样式及仍在使用的旧转换兼容路径 |
 | `tests/`、`pipeline/tests/` | Python 检查，部分依赖本地数据 |
 | `docs/` | 当前状态、契约、开发说明和历史证据 |
 | `feedback/` | 可选反馈服务模板 |
 
 采集数据 `crawler_output/`、看板 `converted_output/`、数据库和构建 `build/`、登录凭据及缓存留在本地，不提交 Git。
+
+## 启动本地浏览器服务
+
+在仓库根目录执行：
+
+```powershell
+npm --prefix apps/web run build:desktop
+npm --prefix apps/desktop start
+```
+
+服务默认打开 <http://127.0.0.1:8765/>。不自动打开浏览器时使用 `npm --prefix apps/desktop run start:no-open`。详细参数和数据目录说明见 [`apps/desktop/README.md`](apps/desktop/README.md)。
+
+也可以直接双击仓库根目录的 `start_browser_service.cmd`（Windows）或 `start_browser_service.command`（macOS）；Linux 可运行 `start_browser_service.sh`。启动器会先构建前端，再启动服务并打开默认浏览器。首次在 macOS 双击时如系统拦截，请在 Finder 中右键选择“打开”。
 
 ## 当前边界
 

@@ -28,6 +28,7 @@ from hashlib import md5
 from typing import Dict, List, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
+from desktop_collection_contract import write_collection_result
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
@@ -64,7 +65,10 @@ def enc_wbi(params: dict, img_key: str, sub_key: str) -> dict:
 
 class BiliAuth:
     """B站扫码登录与凭据持久化管理"""
-    REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+    REPO_ROOT = os.path.abspath(
+        os.environ.get("MC_DESKTOP_WORKSPACE")
+        or os.path.dirname(os.path.abspath(__file__))
+    )
     COOKIE_FILE = os.path.join(REPO_ROOT, "crawler_output", "bilibili_cookies.json")
 
     @classmethod
@@ -219,6 +223,7 @@ class BiliAuth:
 
 class BiliModpackCrawler:
     def __init__(self):
+        self.stats = {"requests": 0, "successful": 0, "failed": 0, "errors": [], "pages_completed": 0}
         self.img_key = ""
         self.sub_key = ""
         self.cookie_str = BiliAuth.load_cookie_str()
@@ -229,12 +234,14 @@ class BiliModpackCrawler:
 
     def _init_wbi_keys(self):
         req = urllib.request.Request('https://api.bilibili.com/x/web-interface/nav', headers=self.headers)
+        self.stats["requests"] += 1
         with urllib.request.urlopen(req, timeout=8) as resp:
             res = json.loads(resp.read().decode('utf-8'))
             img_url = res.get('data', {}).get('wbi_img', {}).get('img_url', '')
             sub_url = res.get('data', {}).get('wbi_img', {}).get('sub_url', '')
             self.img_key = img_url.rsplit('/', 1)[1].split('.')[0]
             self.sub_key = sub_url.rsplit('/', 1)[1].split('.')[0]
+            self.stats["successful"] += 1
 
     def search_videos(self, keyword: str, page: int = 1, page_size: int = 20, order: str = "pubdate") -> List[Dict[str, Any]]:
         params = {
@@ -248,11 +255,18 @@ class BiliModpackCrawler:
         url = 'https://api.bilibili.com/x/web-interface/wbi/search/type?' + urllib.parse.urlencode(signed)
         req = urllib.request.Request(url, headers=self.headers)
         try:
+            self.stats["requests"] += 1
             with urllib.request.urlopen(req, timeout=8) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
                 if data.get('code') == 0:
+                    self.stats["successful"] += 1
+                    self.stats["pages_completed"] += 1
                     return data.get('data', {}).get('result', [])
+                self.stats["failed"] += 1
+                self.stats["errors"].append(f"search code={data.get('code')} keyword={keyword} page={page}")
         except Exception as e:
+            self.stats["failed"] += 1
+            self.stats["errors"].append(f"search {keyword} page={page}: {e}")
             print(f"  [!] 搜索接口请求异常: {e}")
         return []
 
@@ -260,11 +274,17 @@ class BiliModpackCrawler:
         url = f'https://api.bilibili.com/x/web-interface/view?bvid={bvid}'
         req = urllib.request.Request(url, headers=self.headers)
         try:
+            self.stats["requests"] += 1
             with urllib.request.urlopen(req, timeout=8) as resp:
                 res = json.loads(resp.read().decode('utf-8'))
                 if res.get('code') == 0:
+                    self.stats["successful"] += 1
                     return res.get('data')
+                self.stats["failed"] += 1
+                self.stats["errors"].append(f"detail code={res.get('code')} bvid={bvid}")
         except Exception as e:
+            self.stats["failed"] += 1
+            self.stats["errors"].append(f"detail {bvid}: {e}")
             print(f"  [!] 获取详情异常 [{bvid}]: {e}")
         return None
 
@@ -272,9 +292,11 @@ class BiliModpackCrawler:
         url = f'https://api.bilibili.com/x/v2/reply/main?type=1&oid={aid}&mode=3'
         req = urllib.request.Request(url, headers=self.headers)
         try:
+            self.stats["requests"] += 1
             with urllib.request.urlopen(req, timeout=8) as resp:
                 res = json.loads(resp.read().decode('utf-8'))
                 if res.get('code') == 0:
+                    self.stats["successful"] += 1
                     top = res.get('data', {}).get('top', {})
                     upper_top = top.get('upper')
                     if upper_top:
@@ -286,8 +308,12 @@ class BiliModpackCrawler:
                             'time': t_str,
                             'ctime': ctime
                         }
-        except Exception:
-            pass
+                else:
+                    self.stats["failed"] += 1
+                    self.stats["errors"].append(f"pinned code={res.get('code')} aid={aid}")
+        except Exception as error:
+            self.stats["failed"] += 1
+            self.stats["errors"].append(f"pinned aid={aid}: {error}")
         return {'message': '', 'time': '', 'ctime': 0}
 
     def get_video_subtitle(self, aid: int, cid: int, bvid: str = "") -> Dict[str, Any]:
@@ -303,16 +329,28 @@ class BiliModpackCrawler:
         req = urllib.request.Request(url, headers=self.headers)
         
         try:
+            self.stats["requests"] += 1
             with urllib.request.urlopen(req, timeout=6) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
+                if data.get('code', 0) != 0:
+                    self.stats["failed"] += 1
+                    self.stats["errors"].append(f"subtitle code={data.get('code')} bvid={bvid}")
+                    return {'has_subtitle': False, 'lan_doc': '', 'subtitle_text': '', 'subtitle_summary': ''}
+                self.stats["successful"] += 1
                 subtitle_info = data.get('data', {}).get('subtitle', {})
                 subs = subtitle_info.get('subtitles', [])
                 if not subs:
                     # 备用轻量接口
                     v2_url = f'https://api.bilibili.com/x/player/v2?aid={aid}&cid={cid}'
                     req2 = urllib.request.Request(v2_url, headers=self.headers)
+                    self.stats["requests"] += 1
                     with urllib.request.urlopen(req2, timeout=5) as r2:
                         d2 = json.loads(r2.read().decode('utf-8'))
+                        if d2.get('code', 0) != 0:
+                            self.stats["failed"] += 1
+                            self.stats["errors"].append(f"subtitle fallback code={d2.get('code')} bvid={bvid}")
+                            return {'has_subtitle': False, 'lan_doc': '', 'subtitle_text': '', 'subtitle_summary': ''}
+                        self.stats["successful"] += 1
                         subs = d2.get('data', {}).get('subtitle', {}).get('subtitles', [])
 
                 if subs:
@@ -330,8 +368,10 @@ class BiliModpackCrawler:
                         if sub_url.startswith('//'):
                             sub_url = 'https:' + sub_url
                         sub_req = urllib.request.Request(sub_url, headers=self.headers)
+                        self.stats["requests"] += 1
                         with urllib.request.urlopen(sub_req, timeout=6) as sub_resp:
                             sub_json = json.loads(sub_resp.read().decode('utf-8'))
+                            self.stats["successful"] += 1
                             body = sub_json.get('body', [])
                             lines = [item.get('content', '').strip() for item in body if item.get('content')]
                             full_sub_text = ' '.join(lines)
@@ -342,8 +382,9 @@ class BiliModpackCrawler:
                                 'subtitle_text': full_sub_text,
                                 'subtitle_summary': summary
                             }
-        except Exception:
-            pass
+        except Exception as error:
+            self.stats["failed"] += 1
+            self.stats["errors"].append(f"subtitle {bvid}: {error}")
         return {'has_subtitle': False, 'lan_doc': '', 'subtitle_text': '', 'subtitle_summary': ''}
 
     @staticmethod
@@ -845,7 +886,10 @@ def crawl_bilibili_modpacks(until_date: Optional[str] = None, max_pages_per_kw: 
     print("=" * 65)
 
     crawler = BiliModpackCrawler()
-    repo_root = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(
+        os.environ.get("MC_DESKTOP_WORKSPACE")
+        or os.path.dirname(os.path.abspath(__file__))
+    )
     out_dir = os.path.join(repo_root, "crawler_output")
     os.makedirs(out_dir, exist_ok=True)
     json_path = os.path.join(out_dir, "bilibili_modpacks.json")
@@ -1064,6 +1108,17 @@ def crawl_bilibili_modpacks(until_date: Optional[str] = None, max_pages_per_kw: 
     print(f"  - JSON 归档: {json_path}")
     print(f"  - 前端数据源: {js_path}")
     print("=" * 65)
+    request_completed = crawler.stats["failed"] == 0
+    write_collection_result(
+        "bilibili",
+        request_completed=request_completed,
+        fetched_count=len(candidates),
+        pages_completed=int(crawler.stats["pages_completed"]),
+        failed_requests=int(crawler.stats["failed"]),
+        errors=crawler.stats["errors"],
+        status="success" if candidates and request_completed else "empty" if request_completed else "partial" if candidates else "failed",
+        details={"outputCount": len(processed), "newCount": int(new_added[0]), "requestedLimit": max_total or None, "requestedPages": max_pages_per_kw},
+    )
     return processed
 
 
@@ -1073,7 +1128,10 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
     并发请求 B站 官方 API，巡检已录入整合包视频的最新【简介】与【置顶评论】。
     专门解决 UP 主不发新视频、仅在简介更新网盘/版本号，或者置顶提示群内有新版本的问题。
     """
-    repo_root = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(
+        os.environ.get("MC_DESKTOP_WORKSPACE")
+        or os.path.dirname(os.path.abspath(__file__))
+    )
     json_path = os.path.join(repo_root, "crawler_output", "bilibili_modpacks.json")
     js_path = os.path.join(repo_root, "converted_output", "data", "bili_data.js")
 

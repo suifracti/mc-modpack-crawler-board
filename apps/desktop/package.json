@@ -1,0 +1,13 @@
+{
+  "name": "mc-modpack-board-desktop",
+  "version": "0.1.0",
+  "description": "Cross-platform local browser service for the Minecraft modpack board",
+  "private": true,
+  "main": "server.cjs",
+  "scripts": {
+    "start": "node server.cjs --open",
+    "start:no-open": "node server.cjs",
+    "test": "node --test test/*.test.cjs",
+    "build:frontend": "npm --prefix ../web run build:desktop"
+  }
+}

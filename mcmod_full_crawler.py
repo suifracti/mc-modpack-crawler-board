@@ -42,13 +42,17 @@ import urllib.request
 import urllib.parse
 import http.cookiejar
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from desktop_collection_contract import write_collection_result
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
 except Exception:
     pass
 
-REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(
+    os.environ.get("MC_DESKTOP_WORKSPACE")
+    or os.path.dirname(os.path.abspath(__file__))
+)
 TABLE_ROWS_PATH = os.path.join(REPO_ROOT, "converted_output", "data", "table_rows.js")
 APP_DATA_PATH = os.path.join(REPO_ROOT, "converted_output", "data", "app_data.js")
 RAW_OUTPUT_DIR = os.path.join(REPO_ROOT, "crawler_output")
@@ -73,6 +77,7 @@ def get_headers(referer=None):
 COOKIE_JAR = http.cookiejar.CookieJar()
 OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(COOKIE_JAR))
 IS_BANNED = False
+COLLECTION_STATS = {"requests": 0, "successful": 0, "not_found": 0, "failed": 0, "errors": []}
 
 def init_network(proxy=None, no_proxy=False):
     """初始化网络层，支持纯直连模式或指定 HTTP/HTTPS 代理"""
@@ -119,19 +124,35 @@ def fetch_html(url, retries=3, timeout=12):
         if IS_BANNED:
             return None
         try:
+            COLLECTION_STATS["requests"] += 1
             req = urllib.request.Request(url, headers=get_headers())
             with OPENER.open(req, timeout=timeout) as resp:
+                if resp.status == 404:
+                    COLLECTION_STATS["not_found"] += 1
+                    return None
                 if resp.status == 200:
                     text = resp.read().decode('utf-8', errors='ignore')
                     if check_banned_response(text):
+                        COLLECTION_STATS["failed"] += 1
+                        COLLECTION_STATS["errors"].append("MC百科访问频控")
                         return None
+                    COLLECTION_STATS["successful"] += 1
                     return text
         except urllib.error.HTTPError as e:
             if e.code == 404:
+                COLLECTION_STATS["not_found"] += 1
                 return None
-            time.sleep(1.0 * (attempt + 1))
-        except Exception:
-            time.sleep(1.5 * (attempt + 1))
+            if attempt == retries - 1:
+                COLLECTION_STATS["failed"] += 1
+                COLLECTION_STATS["errors"].append(f"HTTP {e.code} {url}")
+            else:
+                time.sleep(1.0 * (attempt + 1))
+        except Exception as error:
+            if attempt == retries - 1:
+                COLLECTION_STATS["failed"] += 1
+                COLLECTION_STATS["errors"].append(f"{url}: {error}")
+            else:
+                time.sleep(1.5 * (attempt + 1))
     return None
 
 def fetch_trend_data(mid, retries=3, timeout=12):
@@ -148,11 +169,15 @@ def fetch_trend_data(mid, retries=3, timeout=12):
         if IS_BANNED:
             return []
         try:
+            COLLECTION_STATS["requests"] += 1
             req = urllib.request.Request(url, data=post_data, headers=headers)
             with OPENER.open(req, timeout=timeout) as resp:
                 raw_text = resp.read().decode('utf-8', errors='ignore')
                 if check_banned_response(raw_text):
+                    COLLECTION_STATS["failed"] += 1
+                    COLLECTION_STATS["errors"].append("MC百科走势请求触发风控")
                     return []
+                COLLECTION_STATS["successful"] += 1
                 data = json.loads(raw_text)
                 if data.get("state") == 0:
                     html = data.get("html", "")
@@ -161,8 +186,21 @@ def fetch_trend_data(mid, retries=3, timeout=12):
                         dates = [str(d) for d in ast.literal_eval(arrays[0])]
                         values = [float(v) for v in ast.literal_eval(arrays[1])]
                         return list(zip(dates, values))
-        except Exception:
-            time.sleep(1.5 * (attempt + 1))
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                COLLECTION_STATS["not_found"] += 1
+                return []
+            if attempt == retries - 1:
+                COLLECTION_STATS["failed"] += 1
+                COLLECTION_STATS["errors"].append(f"走势 HTTP {error.code} {mid}")
+            else:
+                time.sleep(1.5 * (attempt + 1))
+        except Exception as error:
+            if attempt == retries - 1:
+                COLLECTION_STATS["failed"] += 1
+                COLLECTION_STATS["errors"].append(f"走势 {mid}: {error}")
+            else:
+                time.sleep(1.5 * (attempt + 1))
     return []
 
 def fetch_version_data(mid, retries=3, timeout=12):
@@ -755,8 +793,101 @@ def build_raw_modpack_entry(r, app_info):
         "mc_versions": app_info.get("mc_versions", [])
     }
 
+def build_modern_mcmod_entry(r, app_info):
+    """Build the structured mcmod_data.js contract from this run's rows."""
+    raw = build_raw_modpack_entry(r, app_info)
+    mid = int(raw.get("mid") or 0)
+    trend_dates = [item.strip() for item in str(r.get("trend_dates", "")).split(",") if item.strip()]
+    trend_values = [item.strip() for item in str(r.get("trend_vals", "")).split(",") if item.strip()]
+    trend_points = []
+    for date, value in zip(trend_dates, trend_values):
+        try:
+            trend_points.append({"date": date, "viewsDelta": float(value)})
+        except (TypeError, ValueError):
+            continue
+    included_mod_names = app_info.get("includedModNames")
+    if not isinstance(included_mod_names, list):
+        included_mod_names = app_info.get("mods") or []
+    included_mod_names = [str(name) for name in included_mod_names if name]
+    claims = app_info.get("environmentClaims")
+    if not isinstance(claims, list):
+        has_server = bool(app_info.get("has_server"))
+        claims = [
+            {
+                "side": "server",
+                "status": "supported" if has_server else "unknown",
+                "certainty": "inferred" if has_server else "unknown",
+                "evidenceType": "text_rule" if has_server else "no_evidence",
+                "evidenceText": "MC百科历史字段推断" if has_server else None,
+                "sourceField": "has_server" if has_server else None,
+                "rawValue": app_info.get("has_server") if has_server else None,
+            },
+            {
+                "side": "client",
+                "status": "unknown",
+                "certainty": "unknown",
+                "evidenceType": "no_evidence",
+                "evidenceText": None,
+                "sourceField": None,
+                "rawValue": None,
+            },
+        ]
+    mc_versions = app_info.get("mc_versions") or raw.get("mc_versions") or []
+    categories = app_info.get("categories") or raw.get("categories") or []
+    return {
+        "mid": mid,
+        "title": raw.get("title", ""),
+        "chineseName": app_info.get("title_cn") or raw.get("title_cn", ""),
+        "englishName": app_info.get("title_en") or raw.get("title_en", ""),
+        "formerTitles": app_info.get("former_titles") or r.get("former_titles") or [],
+        "url": raw.get("url", ""),
+        "author": app_info.get("author") or r.get("author") or "未知",
+        "typeName": raw.get("type_name", "原生整合"),
+        "moldId": raw.get("mold_id", "1"),
+        "coverUrl": raw.get("cover_url", ""),
+        "views": raw.get("views", 0),
+        "score": raw.get("score"),
+        "recommendations": int(r.get("rec_n", 0) or app_info.get("recommend", 0) or 0),
+        "favorites": int(r.get("fav_n", 0) or app_info.get("favorite", 0) or 0),
+        "commentsCount": int(r.get("com_n", 0) or app_info.get("comments", 0) or 0),
+        "votes": {
+            "redVotes": int(r.get("rv_n", 0) or app_info.get("red_votes", 0) or 0),
+            "blackVotes": int(r.get("bv_n", 0) or app_info.get("black_votes", 0) or 0),
+            "redPercent": int(r.get("rp_n", 50) or 50),
+            "blackPercent": int(r.get("bp_n", 50) or 50),
+        },
+        "trendStats": {
+            "lat": int(r.get("lat_n", 0) or 0),
+            "max": int(r.get("max_n", 0) or 0),
+            "avg": float(r.get("avg_n", 0) or 0),
+            "days": int(r.get("days_n", 0) or 0),
+            "t7": float(r.get("t7_n", 0) or 0),
+            "t30": float(r.get("t30_n", 0) or 0),
+            "t60": float(r.get("t60_n", 0) or 0),
+            "tall": float(r.get("tall_n", 0) or 0),
+            "score": raw.get("score"),
+            "history7d": [point["viewsDelta"] for point in trend_points[-7:]],
+            "trendValsStr": r.get("trend_vals", ""),
+            "trendDatesStr": r.get("trend_dates", ""),
+        },
+        "tags": app_info.get("tags") or raw.get("tags") or [],
+        "categories": categories,
+        "mcVersions": mc_versions,
+        "loaders": app_info.get("loaders") or raw.get("loaders") or [],
+        "includedModsCount": int(r.get("mod_count", len(included_mod_names)) or len(included_mod_names)),
+        "modCategories": app_info.get("modCategories") or [],
+        "previewMods": app_info.get("previewMods") or [],
+        "includedModNames": included_mod_names,
+        "modCategorySearch": ", ".join(str(item) for item in (app_info.get("mod_categories") or [])),
+        "trendPoints": trend_points,
+        "environmentClaims": claims,
+        "has_server": bool(app_info.get("has_server")),
+        "publishedAt": app_info.get("published_at") or app_info.get("release_date") or "",
+        "modifiedAt": app_info.get("modified_at") or app_info.get("last_update_date") or "",
+    }
+
 def save_all_outputs(rows, compare_data):
-    """保存 table_rows.js, app_data.js 以及 crawler_output/mcmod_modpacks.json"""
+    """保存 legacy inputs, raw archive, and the current structured sidecar."""
     # 按总浏览量倒序排序
     rows.sort(key=lambda x: int(x.get("views_n", 0) or 0), reverse=True)
 
@@ -781,10 +912,16 @@ def save_all_outputs(rows, compare_data):
     with open(RAW_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(raw_list, f, ensure_ascii=False, indent=2)
 
+    modern_list = [build_modern_mcmod_entry(row, compare_data.get(str(row.get("mid", "")), {})) for row in rows]
+    modern_path = os.path.join(REPO_ROOT, "converted_output", "data", "mcmod_data.js")
+    with open(modern_path, "w", encoding="utf-8") as f:
+        f.write("window.mcmodData = " + json.dumps(modern_list, ensure_ascii=False, separators=(",", ":")) + ";\n")
+
     print(f"  [落盘成功] 已同步保存:")
     print(f"    - 前端主数据: {TABLE_ROWS_PATH} ({len(rows):,} 条)")
     print(f"    - 模组对比库: {APP_DATA_PATH} ({len(compare_data):,} 条)")
     print(f"    - 标准归档库: {RAW_JSON_PATH} ({len(raw_list):,} 条)")
+    print(f"    - 现代结构化数据: {modern_path} ({len(modern_list):,} 条)")
 
 # ═══════════════════════ 采集调度引擎 ═══════════════════════
 
@@ -1252,6 +1389,21 @@ def main():
     print("-" * 70)
     print(f"  🏆 [执行完毕] 新增收录: {new_count} 款 | 基础指标刷新: {updated_metrics_count} 款 | 走势缝合: {updated_trend_count} 款 | 版本日志提取: {updated_ver_count} 款 | 当前全量: {len(rows):,} 款")
     print("=" * 70 + "\n")
+
+    request_completed = not IS_BANNED and COLLECTION_STATS["failed"] == 0
+    no_change_confirmed = request_completed and new_count == 0 and COLLECTION_STATS["not_found"] > 0
+    status = "success" if new_count > 0 and request_completed else "success_no_change" if no_change_confirmed else "partial" if not request_completed and rows else "failed"
+    write_collection_result(
+        "mcmod",
+        request_completed=request_completed,
+        fetched_count=int(new_count),
+        pages_completed=int(COLLECTION_STATS["successful"] + COLLECTION_STATS["not_found"]),
+        failed_requests=int(COLLECTION_STATS["failed"]),
+        errors=COLLECTION_STATS["errors"],
+        status=status,
+        no_change_confirmed=no_change_confirmed,
+        details={"rowsBefore": len(rows) - int(new_count), "rowsAfter": len(rows), "notFoundProbes": int(COLLECTION_STATS["not_found"]), "mode": args.mode},
+    )
 
 if __name__ == "__main__":
     main()

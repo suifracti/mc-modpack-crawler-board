@@ -4,7 +4,9 @@
 
 A local Minecraft modpack discovery tool with collectors for **MCMod, Bilibili, BBSMC, XYEBBS, Modrinth and CurseForge**. Search and filter local records, inspect versions/mods/source information and follow links to the original platforms.
 
-The application currently consists of a **Python data pipeline and TypeScript/Vite web frontend**. A Windows desktop application with in-app collection and updates is the next task; no desktop executable has been released yet.
+The application consists of a **Python data pipeline, TypeScript/Vite web frontend and cross-platform local browser service**. The service serves the dashboard on localhost and keeps collection/update work in the existing Python worker; no desktop executable is part of the current delivery path.
+
+For a one-click start, double-click `start_browser_service.cmd` on Windows, or `start_browser_service.command` on macOS. On Linux, run `start_browser_service.sh` from a terminal or mark it executable in the file manager. The launcher builds the browser frontend, starts the local service and opens the default browser.
 
 ## Open an existing dashboard
 
