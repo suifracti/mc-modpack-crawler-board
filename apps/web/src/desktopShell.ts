@@ -131,6 +131,15 @@ const PLATFORM_TAGLINES: Record<Platform, string> = {
   curseforge: '项目档案、版本发布与文件入口',
 };
 
+const PLATFORM_COVER_FALLBACKS: Record<Platform, string> = {
+  mcmod: 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23fff7e6%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%23b66c2a%22 font-family%3D%22sans-serif%22 font-size%3D%2216%22%3EMC%E7%99%BE%E7%A7%91%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E',
+  bilibili: 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23fff0f5%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%23fb7299%22 font-family%3D%22sans-serif%22 font-size%3D%2216%22%3EB%E7%AB%99%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E',
+  bbsmc: 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23eef8ff%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%230284c7%22 font-family%3D%22sans-serif%22 font-size%3D%2216%22%3EBBSMC%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E',
+  xyebbs: 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23effcf5%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%23059669%22 font-family%3D%22sans-serif%22 font-size%3D%2216%22%3EXYEBBS%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E',
+  modrinth: 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23ecfdf5%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%2300af5c%22 font-family%3D%22sans-serif%22 font-size%3D%2216%22%3EModrinth%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E',
+  curseforge: 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23fff4ed%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%23f97316%22 font-family%3D%22sans-serif%22 font-size%3D%2216%22%3ECurseForge%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E',
+};
+
 const state = {
   data: null as DesktopDataState | null,
   update: null as DesktopUpdateStatus | null,
@@ -143,11 +152,12 @@ const state = {
   availableVersions: [] as string[],
   availableLoaders: [] as string[],
   page: 1,
-  pageSize: 48,
+  pageSize: 24,
   hasMore: false,
   openDropdown: '' as DropdownId | '',
   updatePlatform: 'bilibili' as Platform,
   selected: null as DesktopRecord | null,
+  imagePreview: null as { url: string; title: string } | null,
   comments: { sourceId: '', loading: false, available: false, pageCount: 0, comments: [] as DesktopComment[], sourceFile: null as string | null, error: '' },
   loading: true,
   message: '',
@@ -209,6 +219,80 @@ function safeExternalUrl(value: unknown): string {
   }
 }
 
+function safeImageUrl(value: unknown): string {
+  const text = String(value ?? '').trim();
+  if (text.startsWith('data:image/')) return text;
+  return safeExternalUrl(text);
+}
+
+function imageValueUrls(value: unknown): string[] {
+  if (typeof value === 'string') {
+    const direct = safeImageUrl(value);
+    if (direct) return [direct];
+    const embedded = value.match(/data-image-url=["']([^"']+)["']/i)?.[1];
+    const embeddedUrl = safeImageUrl(embedded);
+    return embeddedUrl ? [embeddedUrl] : [];
+  }
+  if (Array.isArray(value)) return value.flatMap((item) => imageValueUrls(item));
+  if (value && typeof value === 'object') {
+    const item = value as Record<string, unknown>;
+    return imageValueUrls(item.url ?? item.src ?? item.image ?? item.full ?? item.dataFull);
+  }
+  return [];
+}
+
+function bilibiliCoverUrl(value: unknown): string {
+  const url = safeImageUrl(value).replace(/^http:/, 'https:');
+  if (!url) return '';
+  return url.includes('@') ? url : `${url}@480w_300h_1c.webp`;
+}
+
+function recordRealCoverUrl(record: DesktopRecord): string {
+  const raw = record.raw || {};
+  const galleryFirst = Array.isArray(raw.gallery) ? raw.gallery[0] : undefined;
+  const candidate = record.platform === 'bilibili'
+    ? bilibiliCoverUrl(raw.pic ?? raw.cover_url ?? raw.coverUrl)
+    : record.platform === 'bbsmc'
+      ? safeImageUrl(raw.featured_gallery ?? galleryFirst ?? raw.icon_url)
+      : record.platform === 'xyebbs'
+        ? safeImageUrl(raw.head_url ?? raw.icon_url)
+        : safeImageUrl(raw.icon_url ?? raw.logo_url ?? raw.cover_url ?? raw.coverUrl ?? record.coverUrl);
+  if (candidate) return candidate;
+  if (record.platform === 'mcmod') {
+    const c0 = imageValueUrls(raw.c0)[0];
+    if (c0) return c0;
+  }
+  return '';
+}
+
+function recordCoverUrl(record: DesktopRecord): string {
+  return recordRealCoverUrl(record) || PLATFORM_COVER_FALLBACKS[record.platform];
+}
+
+function recordImageUrls(record: DesktopRecord): string[] {
+  const raw = record.raw || {};
+  const keys = record.platform === 'bbsmc'
+    ? ['featured_gallery', 'gallery']
+    : record.platform === 'bilibili'
+      ? ['pic', 'images', 'gallery']
+      : ['gallery', 'images', 'intro_images', 'screenshots', 'cover_url', 'coverUrl', 'icon_url', 'head_url'];
+  const urls = keys.flatMap((key) => imageValueUrls(raw[key]));
+  const cover = recordRealCoverUrl(record);
+  return [...new Set([cover, ...urls].filter(Boolean))];
+}
+
+function renderImageButton(url: string, title: string, className = ''): string {
+  const safeUrl = safeImageUrl(url);
+  if (!safeUrl) return '';
+  return `<button type="button" class="image-preview-trigger ${className}" data-action="open-image" data-image-url="${esc(safeUrl)}" data-image-title="${esc(title)}" title="点击查看${esc(title)}"><img src="${esc(safeUrl)}" alt="${esc(title)}" loading="lazy" referrerpolicy="no-referrer"></button>`;
+}
+
+function renderCommentImages(comment: DesktopComment, title: string): string {
+  const urls = imageValueUrls(comment.images);
+  if (!urls.length) return '';
+  return `<div class="comment-image-gallery">${urls.map((url, index) => renderImageButton(url, `${title}图片${index + 1}`, 'comment-image')).join('')}</div>`;
+}
+
 function rawText(record: DesktopRecord, keys: string[]): string {
   for (const key of keys) {
     const value = record.raw[key];
@@ -257,8 +341,8 @@ function renderComments(comments: DesktopComment[]): string {
   return `<div class="comment-list">${comments.map((comment, index) => {
     const author = String(comment.author ?? comment.user ?? comment.name ?? `评论 ${index + 1}`);
     const replies = Array.isArray(comment.replies) ? comment.replies : [];
-    const replyHtml = replies.length ? `<div class="comment-replies">${replies.map((reply) => `<div class="comment-reply"><strong>${esc(String(reply.author ?? reply.user ?? '回复'))}</strong><span>${textOrUnknown(commentBody(reply))}</span></div>`).join('')}</div>` : '';
-    return `<article class="comment-item"><div class="comment-head"><strong>${esc(author)}</strong><span>${esc(String(comment.time ?? comment.date ?? comment.floor ?? ''))}</span></div><p>${textOrUnknown(commentBody(comment))}</p>${replyHtml}</article>`;
+    const replyHtml = replies.length ? `<div class="comment-replies">${replies.map((reply) => `<div class="comment-reply"><strong>${esc(String(reply.author ?? reply.user ?? '回复'))}</strong><span>${textOrUnknown(commentBody(reply))}</span>${renderCommentImages(reply, '回复')}</div>`).join('')}</div>` : '';
+    return `<article class="comment-item"><div class="comment-head"><strong>${esc(author)}</strong><span>${esc(String(comment.time ?? comment.date ?? comment.floor ?? ''))}</span></div><p>${textOrUnknown(commentBody(comment))}</p>${renderCommentImages(comment, '评论')}${replyHtml}</article>`;
   }).join('')}</div>`;
 }
 
@@ -296,7 +380,10 @@ function updatePanel(): string {
 function renderRecord(record: DesktopRecord, index: number): string {
   const config = PLATFORM_CONFIGS[record.platform];
   const searchContractText = existingSearchText(record).slice(0, 240);
+  const coverUrl = recordCoverUrl(record);
+  const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
   return `<article class="pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
+    <button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面"><img src="${esc(coverUrl)}" alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${esc(fallbackUrl)}'"></button>
     <div class="card-top"><span class="platform-badge">${config.name}</span><span class="card-time">${esc(record.updatedAt || '更新时间未知')}</span></div>
     <h3>${esc(record.title)}</h3><p class="author">${esc(record.author)}</p>
     <p class="summary">${textOrUnknown(record.summary)}</p>
@@ -388,6 +475,12 @@ function renderCommentSection(record: DesktopRecord): string {
   return `<div class="detail-section"><h3>简介</h3><p class="detail-summary">${textOrUnknown(description)}</p></div><div class="detail-section"><h3>评论 / 讨论 ${meta}</h3>${pinnedHtml}${independentComments}</div>`;
 }
 
+function renderMediaSection(record: DesktopRecord): string {
+  const urls = recordImageUrls(record);
+  if (!urls.length) return '<div class="detail-section"><h3>图片</h3><div class="empty-evidence">当前现代数据契约没有提供封面或图片地址。</div></div>';
+  return `<div class="detail-section"><h3>图片 <span class="detail-submeta">${urls.length} 张 · 点击放大</span></h3><div class="detail-image-gallery">${urls.map((url, index) => renderImageButton(url, `${record.title}图片${index + 1}`, 'detail-image')).join('')}</div></div>`;
+}
+
 function detailPanel(): string {
   const record = state.selected;
   if (!record) return '';
@@ -408,6 +501,7 @@ function detailPanel(): string {
   return `<div class="detail-backdrop" data-action="close-detail"><aside class="detail-panel" data-detail-panel>
     <button class="icon-button close-detail" data-action="close-detail" aria-label="关闭详情">×</button>
     <span class="eyebrow">${esc(PLATFORM_CONFIGS[record.platform].name)} · 原始来源</span><h2>${esc(record.title)}</h2><p class="detail-author">${esc(record.author)}</p>
+    ${renderMediaSection(record)}
     <div class="detail-section"><h3>适配摘要</h3><dl><div><dt>Minecraft</dt><dd>${vm.mcVersionsList.length ? esc(vm.mcVersionsList.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>Loader</dt><dd>${record.loaders.length ? esc(record.loaders.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>更新时间</dt><dd>${esc(formatTime(record.updatedAt))}</dd></div><div><dt>服务端</dt><dd>${esc(vm.envDisplay || `${record.environment.label}（${record.environment.certainty}）`)}</dd></div></dl></div>
     <div class="detail-section"><h3>来源证据</h3><div class="evidence-list">${record.evidence.length ? record.evidence.map((item) => `<div class="evidence-item"><span>${esc(item.label)}</span><strong>${textOrUnknown(item.value)}</strong></div>`).join('') : '<div class="empty-evidence">当前数据没有提供可核对的来源字段。</div>'}</div></div>
     ${renderCommentSection(record)}
@@ -415,6 +509,12 @@ function detailPanel(): string {
     <div class="detail-section"><h3>已收录模组</h3>${modHtml}</div>
     <div class="detail-actions">${sourceUrl ? `<button class="button primary wide" data-action="open-source" data-url="${esc(sourceUrl)}">打开原站</button>` : '<div class="unknown-action">原站链接未知</div>'}${versionUrl && versionUrl !== sourceUrl ? `<button class="button secondary wide" data-action="open-source" data-url="${esc(versionUrl)}">打开版本详情</button>` : ''}</div>
   </aside></div>`;
+}
+
+function imagePreviewPanel(): string {
+  const preview = state.imagePreview;
+  if (!preview) return '';
+  return `<div class="image-lightbox" data-action="close-image" role="dialog" aria-modal="true" aria-label="图片预览"><div class="image-lightbox-panel"><button type="button" class="icon-button image-lightbox-close" data-action="close-image" aria-label="关闭图片预览">×</button><img src="${esc(preview.url)}" alt="${esc(preview.title)}" referrerpolicy="no-referrer"><div class="image-lightbox-title">${esc(preview.title)}</div><a class="button secondary" href="${esc(preview.url)}" target="_blank" rel="noreferrer">在新标签页打开原图 ↗</a></div></div>`;
 }
 
 function render(): void {
@@ -433,7 +533,7 @@ function render(): void {
     : `${renderPlatformHero(state.platform)}${renderResultsWorkspace(selectedName)}`;
   root.innerHTML = `<div class="desktop-app legacy-shell"><div class="bg-layer" aria-hidden="true"></div>
     <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav></div><div class="topbar-actions"><span class="data-status ${data?.hasData ? 'ready' : 'empty'}"><i></i>${data?.hasData ? `快照 ${esc(data.snapshotId || '已载入')}` : '等待数据'}</span><button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button><div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
-    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${detailPanel()}</div>`;
+    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${detailPanel()}${imagePreviewPanel()}</div>`;
   bindEvents();
 }
 
@@ -474,6 +574,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     state.platform = (element.dataset.platform || 'all') as FilterPlatform;
     if (state.platform !== 'all') state.updatePlatform = state.platform;
     state.selected = null;
+    state.imagePreview = null;
     state.comments = { sourceId: '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
     await loadRecords(true);
   } else if (action === 'choose-data') {
@@ -529,13 +630,25 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   } else if (action === 'select-record') {
     const index = Number(element.dataset.index || '-1');
     state.selected = state.records[index] || null;
+    state.imagePreview = null;
     state.comments = { sourceId: state.selected?.sourceId || '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
     render();
     if (state.selected) await loadComments(state.selected);
   } else if (action === 'close-detail') {
     if (event && event.target !== element) return;
     state.selected = null;
+    state.imagePreview = null;
     state.comments = { sourceId: '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
+    render();
+  } else if (action === 'open-image') {
+    event?.stopPropagation();
+    const url = safeImageUrl(element.dataset.imageUrl);
+    if (!url) return;
+    state.imagePreview = { url, title: element.dataset.imageTitle || '图片预览' };
+    render();
+  } else if (action === 'close-image') {
+    if (element.classList.contains('image-lightbox') && event && event.target !== element) return;
+    state.imagePreview = null;
     render();
   } else if (action === 'open-source') {
     const url = element.dataset.url;
@@ -570,13 +683,14 @@ async function loadRecords(reset = true): Promise<void> {
   state.loading = true;
   render();
   const platforms = state.platform === 'all' ? ALL_PLATFORMS : [state.platform];
+  const requestPageSize = state.platform === 'all' ? 12 : state.pageSize;
   try {
     const results = await Promise.all(platforms.map((platform) => window.desktopApi.getPlatformRecords(platform, {
       query: state.query,
       version: state.version,
       loader: state.loader,
       page: state.page,
-      pageSize: state.pageSize,
+      pageSize: requestPageSize,
     })));
     const nextRecords = results.flatMap((result) => result.records);
     state.records = reset ? nextRecords : [...state.records, ...nextRecords];

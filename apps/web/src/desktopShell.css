@@ -21,7 +21,8 @@
 
 :root[data-theme="light"] { --bg: #edf2f5; --bg-soft: #f7fafb; --panel: rgba(255,255,255,.88); --panel-strong: #fff; --line: rgba(42, 63, 82, .14); --text: #172538; --muted: #64748b; --primary: #138c79; --primary-strong: #08705f; --accent: #b66c2a; --danger: #b54e5c; --shadow: 0 24px 70px rgba(50, 73, 90, .14); }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 1080px; min-height: 100vh; color: var(--text); background: radial-gradient(circle at 18% 0%, rgba(89, 179, 167, .18), transparent 30rem), radial-gradient(circle at 100% 12%, rgba(220, 153, 89, .12), transparent 28rem), var(--bg); }
+html, #desktop-root { min-height: 100%; }
+body { margin: 0; min-width: 0; min-height: 100vh; overflow-x: hidden; color: var(--text); background: radial-gradient(circle at 18% 0%, rgba(89, 179, 167, .18), transparent 30rem), radial-gradient(circle at 100% 12%, rgba(220, 153, 89, .12), transparent 28rem), var(--bg); }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 .desktop-app { min-height: 100vh; }
@@ -157,7 +158,7 @@ dd, .evidence-item strong { margin: 0; text-align: right; font-weight: 560; }
 
 /* Desktop shell keeps the legacy dashboard hierarchy while its content remains IPC-backed. */
 .legacy-shell { min-height: 100vh; position: relative; }
-.legacy-shell .main-content { position: relative; z-index: 0; }
+.legacy-shell .main-content { position: relative; z-index: 0; display: block !important; visibility: visible !important; opacity: 1 !important; width: auto; max-width: 1560px; margin: 0 auto; padding: 24px 20px 80px; }
 .legacy-shell .topbar-brand:focus-visible,
 .legacy-shell .top-plat-btn:focus-visible,
 .legacy-shell .top-action-btn:focus-visible,
@@ -222,3 +223,32 @@ dd, .evidence-item strong { margin: 0; text-align: right; font-weight: 560; }
 .desktop-filter-dock .ui-dropdown { min-width: 160px; }
 .hub-actions-cluster .ui-dropdown { min-width: 150px; }
 .update-panel .ui-dropdown { width: 100%; }
+
+/* The old dashboard supplied the image affordance; keep it in the browser shell. */
+.pack-card { padding: 0; overflow: hidden; }
+.pack-card-cover { display: block; width: 100%; height: 132px; padding: 0; border: 0; border-radius: 0; overflow: hidden; background: var(--bg-surface-elevated, var(--bg-soft)); cursor: zoom-in; }
+.pack-card-cover img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .2s ease; }
+.pack-card-cover:hover img { transform: scale(1.035); }
+.pack-card > .card-top { margin: 14px 17px 0; }
+.pack-card > h3, .pack-card > .author, .pack-card > .summary, .pack-card > .chips, .pack-card > .card-footer { margin-left: 17px; margin-right: 17px; }
+.pack-card > h3 { margin-top: 14px; }
+.pack-card > .card-footer { margin-bottom: 17px; }
+.image-preview-trigger { border: 0; background: transparent; cursor: zoom-in; }
+.detail-image-gallery, .comment-image-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.detail-image, .comment-image { width: 100%; aspect-ratio: 16 / 9; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: var(--bg-soft); }
+.detail-image img, .comment-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.image-lightbox { position: fixed; inset: 0; z-index: 2200; display: grid; place-items: center; padding: 24px; background: rgba(15, 23, 42, .68); backdrop-filter: blur(5px); }
+.image-lightbox-panel { position: relative; display: grid; gap: 12px; width: min(920px, 100%); max-height: calc(100vh - 48px); padding: 18px; overflow: auto; border: 1px solid rgba(255,255,255,.25); border-radius: 16px; background: var(--panel-strong); box-shadow: 0 24px 80px rgba(0,0,0,.32); }
+.image-lightbox-panel img { display: block; width: 100%; max-height: calc(100vh - 150px); object-fit: contain; border-radius: 10px; background: var(--bg-soft); }
+.image-lightbox-close { position: absolute; top: 26px; right: 26px; z-index: 1; color: #fff; background: rgba(15,23,42,.7); border-color: rgba(255,255,255,.45); }
+.image-lightbox-title { color: var(--text); font-size: 13px; }
+@media (max-width: 900px) {
+  .legacy-shell .main-content { padding: 16px 12px 48px; }
+  .legacy-shell .content-grid { grid-template-columns: 1fr; }
+  .legacy-shell .update-panel { position: static; }
+  .legacy-shell .pack-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .legacy-shell .pack-grid { grid-template-columns: 1fr; }
+  .detail-image-gallery, .comment-image-gallery { grid-template-columns: 1fr; }
+}

@@ -117,6 +117,10 @@ class DataStore {
     this.snapshotsDir = path.join(this.rootDir, 'snapshots');
     this.incomingDir = path.join(this.rootDir, 'incoming');
     this.activePointer = path.join(this.rootDir, 'active.json');
+    // Active snapshots are immutable after the pointer switch. Keep the
+    // parsed sidecars so every browser request does not repeat the same
+    // multi-megabyte parse and normalisation work.
+    this.platformCache = new Map();
   }
 
   async init() {
@@ -147,6 +151,27 @@ class DataStore {
     return path.join(this.snapshotsDir, snapshotId, 'crawler_output');
   }
 
+  readCachedPlatform(snapshotId, platform) {
+    const dataDir = this.snapshotDataDir(snapshotId);
+    const sidecar = findSidecar(dataDir, platform);
+    let signature = 'missing';
+    if (sidecar) {
+      try {
+        const stat = fs.statSync(sidecar);
+        signature = `${sidecar}:${stat.size}:${stat.mtimeMs}`;
+      } catch {
+        signature = `${sidecar}:unreadable`;
+      }
+    }
+    const key = `${snapshotId}:${platform}`;
+    const cached = this.platformCache.get(key);
+    if (cached && cached.signature === signature) return cached;
+    const result = readPlatformRecords(dataDir, platform);
+    const entry = { signature, result, normalized: null };
+    this.platformCache.set(key, entry);
+    return entry;
+  }
+
   async getActiveSnapshot() {
     const pointer = await this.readActivePointer();
     if (!pointer) return null;
@@ -162,7 +187,7 @@ class DataStore {
     const active = await this.getActiveSnapshot();
     const platforms = {};
     for (const platform of ALL_PLATFORMS) {
-      const result = active ? readPlatformRecords(this.snapshotDataDir(active.snapshotId), platform) : { records: [], sourceFile: null, error: null };
+      const result = active ? this.readCachedPlatform(active.snapshotId, platform).result : { records: [], sourceFile: null, error: null };
       platforms[platform] = {
         ...PLATFORM_CONFIGS[platform],
         count: result.records.length,
@@ -188,8 +213,10 @@ class DataStore {
     const options = parseQueryOptions(queryOrOptions);
     const active = await this.getActiveSnapshot();
     if (!active) return { platform, total: 0, records: [], sourceFile: null, page: options.page, pageSize: options.pageSize, availableVersions: [], availableLoaders: [] };
-    const result = readPlatformRecords(this.snapshotDataDir(active.snapshotId), platform);
-    const normalized = result.records.map((record, index) => normaliseRecord(platform, record, index));
+    const cached = this.readCachedPlatform(active.snapshotId, platform);
+    const result = cached.result;
+    if (!cached.normalized) cached.normalized = result.records.map((record, index) => normaliseRecord(platform, record, index));
+    const normalized = cached.normalized;
     const searched = options.query.trim()
       ? normalized.filter((record) => matchesSearchDocument(record.searchDocument, options.query))
       : normalized;
@@ -333,6 +360,7 @@ class DataStore {
     try {
       control.beforePointerCommit?.();
       await writeJsonAtomic(this.activePointer, { schema: SNAPSHOT_SCHEMA, snapshotId, updatedAt: manifest.updatedAt });
+      this.platformCache.clear();
       pointerSwitched = true;
       return { ...manifest, snapshotId };
     } catch (error) {
@@ -380,6 +408,7 @@ class DataStore {
     await writeJsonAtomic(path.join(tempSnapshot, 'manifest.json'), manifest);
     await fsp.rename(tempSnapshot, finalSnapshot);
     await writeJsonAtomic(this.activePointer, { schema: SNAPSHOT_SCHEMA, snapshotId, updatedAt: manifest.updatedAt });
+    this.platformCache.clear();
     await this.cleanupWorkspace(staging.workspace);
     return this.getState();
   }
