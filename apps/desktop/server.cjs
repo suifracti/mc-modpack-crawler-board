@@ -197,6 +197,9 @@ function createBrowserService(options = {}) {
       const platform = decodeURIComponent(personalMatch[1]);
       const sourceId = decodeURIComponent(personalMatch[2]);
       assertPlatform(platform);
+      if (await store.isIndexFallbackSourceId(platform, sourceId)) {
+        throw new Error('该记录仅由数组序号生成来源标识，不能保存个人状态；请使用带稳定来源 ID 的记录');
+      }
       const patch = await readJsonBody(request, 64 * 1024);
       return json(response, 200, await personalLibrary.update(platform, sourceId, patch));
     }

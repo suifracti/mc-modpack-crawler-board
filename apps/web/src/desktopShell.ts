@@ -28,6 +28,7 @@ export interface DesktopRecord {
   title: string;
   author: string;
   url: string;
+  sourceIdOrigin: 'source' | 'index-fallback';
   summary: string;
   versions: string[];
   loaders: string[];
@@ -282,23 +283,56 @@ function personalKey(record: DesktopRecord): string {
   return `${record.platform}:${record.sourceId}`;
 }
 
+function personalStatusForKey(key: string): PersonalStatus {
+  return { ...EMPTY_PERSONAL_STATUS, ...(state.personalLibrary[key] || {}) };
+}
+
 function personalStatus(record: DesktopRecord): PersonalStatus {
-  return { ...EMPTY_PERSONAL_STATUS, ...(state.personalLibrary[personalKey(record)] || {}) };
+  return personalStatusForKey(personalKey(record));
+}
+
+function isPersonalWritable(record: DesktopRecord): boolean {
+  return record.sourceIdOrigin !== 'index-fallback';
+}
+
+function personalUnavailableReason(record: DesktopRecord): string {
+  return record.sourceIdOrigin === 'index-fallback'
+    ? '来源缺少稳定 ID，当前标识由数组序号生成，不能保存个人状态'
+    : '';
+}
+
+function personalTargetAttributes(record: DesktopRecord): string {
+  return `data-personal-platform="${esc(record.platform)}" data-personal-source-id="${esc(record.sourceId)}"`;
 }
 
 function renderPersonalCardActions(record: DesktopRecord, index: number): string {
+  if (!isPersonalWritable(record)) {
+    return `<div class="personal-card-actions personal-unavailable" title="${esc(personalUnavailableReason(record))}"><span>个人标记不可保存：缺少稳定来源 ID</span></div>`;
+  }
   const status = personalStatus(record);
   const labels = [
     status.wantToPlay ? '<span class="personal-state-chip is-want">想玩</span>' : '',
     status.played ? '<span class="personal-state-chip is-played">玩过</span>' : '',
   ].join('');
-  return `<div class="personal-card-actions"><button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${index}" aria-pressed="${status.favorite}" title="${status.favorite ? '取消收藏' : '加入收藏'}">${status.favorite ? '★ 已收藏' : '☆ 收藏'}</button>${status.rating ? `<span class="personal-rating-mini">★ ${status.rating}/5</span>` : ''}${labels}</div>`;
+  const label = record.platform === 'bilibili'
+    ? (status.favorite ? '★ 已收藏当前视频' : '☆ 收藏当前视频')
+    : (status.favorite ? '★ 已收藏' : '☆ 收藏');
+  const title = record.platform === 'bilibili'
+    ? (status.favorite ? '取消当前视频收藏' : '收藏当前视频')
+    : (status.favorite ? '取消收藏' : '加入收藏');
+  return `<div class="personal-card-actions"><button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${index}" ${personalTargetAttributes(record)} aria-pressed="${status.favorite}" title="${title}">${label}</button>${status.rating ? `<span class="personal-rating-mini">★ ${status.rating}/5</span>` : ''}${labels}</div>`;
 }
 
 function renderPersonalDetail(record: DesktopRecord): string {
+  if (!isPersonalWritable(record)) {
+    return `<div class="detail-section personal-detail-section personal-unavailable"><h3>我的整合包库</h3><p>${esc(personalUnavailableReason(record))}。请等待来源提供稳定 ID 后再保存。</p></div>`;
+  }
   const status = personalStatus(record);
   const ratingButtons = [1, 2, 3, 4, 5].map((rating) => `<button type="button" class="personal-rating-button ${status.rating === rating ? 'is-active' : ''}" data-action="set-personal-rating" data-rating="${rating}" aria-label="${rating} 分">★</button>`).join('');
-  return `<div class="detail-section personal-detail-section"><div class="personal-detail-heading"><div><h3>我的整合包库</h3><span class="detail-submeta">仅保存在本机，不会写入平台采集数据</span></div><button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${state.records.indexOf(record)}" aria-pressed="${status.favorite}">${status.favorite ? '★ 已收藏' : '☆ 收藏'}</button></div><div class="personal-flag-row"><button type="button" class="personal-flag-button ${status.wantToPlay ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="wantToPlay" aria-pressed="${status.wantToPlay}">🎯 想玩</button><button type="button" class="personal-flag-button ${status.played ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="played" aria-pressed="${status.played}">✓ 玩过</button></div><div class="personal-rating-row"><span>个人评分</span><div class="personal-rating-buttons">${ratingButtons}<button type="button" class="personal-rating-clear" data-action="set-personal-rating" data-rating="0">清除</button></div></div><label class="personal-note-label" for="personal-note">个人备注</label><textarea id="personal-note" class="personal-note-input" data-personal-note data-personal-platform="${esc(record.platform)}" data-personal-source-id="${esc(record.sourceId)}" maxlength="20000" placeholder="写下安装、游玩或更新备注…">${esc(status.note)}</textarea><span class="personal-note-hint">停止输入后自动保存</span></div>`;
+  const currentVideoLabels = record.platform === 'bilibili'
+    ? { favorite: status.favorite ? '★ 已收藏当前视频' : '☆ 收藏当前视频', wantToPlay: status.wantToPlay ? '取消想玩当前视频' : '加入想玩（保存视频线索）' }
+    : { favorite: status.favorite ? '★ 已收藏' : '☆ 收藏', wantToPlay: '🎯 想玩' };
+  return `<div class="detail-section personal-detail-section"><div class="personal-detail-heading"><div><h3>我的整合包库</h3><span class="detail-submeta">仅保存在本机，不会写入平台采集数据</span></div><button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${state.records.indexOf(record)}" ${personalTargetAttributes(record)} aria-pressed="${status.favorite}">${currentVideoLabels.favorite}</button></div><div class="personal-flag-row"><button type="button" class="personal-flag-button ${status.wantToPlay ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="wantToPlay" ${personalTargetAttributes(record)} aria-pressed="${status.wantToPlay}">${currentVideoLabels.wantToPlay}</button><button type="button" class="personal-flag-button ${status.played ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="played" ${personalTargetAttributes(record)} aria-pressed="${status.played}">✓ 玩过</button></div><div class="personal-rating-row"><span>个人评分</span><div class="personal-rating-buttons">${ratingButtons.replaceAll('data-action="set-personal-rating"', `data-action="set-personal-rating" ${personalTargetAttributes(record)}`)}<button type="button" class="personal-rating-clear" data-action="set-personal-rating" data-rating="0" ${personalTargetAttributes(record)}>清除</button></div></div><label class="personal-note-label" for="personal-note">个人备注</label><textarea id="personal-note" class="personal-note-input" data-personal-note ${personalTargetAttributes(record)} maxlength="20000" placeholder="写下安装、游玩或更新备注…">${esc(status.note)}</textarea><span class="personal-note-hint">停止输入后自动保存</span></div>`;
 }
 
 function existingSearchText(record: DesktopRecord): string {
@@ -425,7 +459,7 @@ function toBilibiliPack(record: DesktopRecord): BilibiliPack {
   } as BilibiliPack;
 }
 
-function buildBilibiliGroups(records: DesktopRecord[]): BiliGroup[] {
+export function buildBilibiliGroups(records: DesktopRecord[]): BiliGroup[] {
   const packs = records.map(toBilibiliPack);
   const decisions = groupBilibiliPacks(packs.map((pack) => ({ bvid: pack.bvid, title: pack.title, author: pack.author })));
   const groups = new Map<string, BiliGroup>();
@@ -492,6 +526,67 @@ function buildBilibiliGroups(records: DesktopRecord[]): BiliGroup[] {
     group.items.sort((left, right) => timestampOf(right) - timestampOf(left));
   }
   return [...groups.values()];
+}
+
+function statusFromLibrary(personalLibrary: Record<string, PersonalStatus>, platform: Platform, sourceId: string): PersonalStatus {
+  return { ...EMPTY_PERSONAL_STATUS, ...(personalLibrary[`${platform}:${sourceId}`] || {}) };
+}
+
+function matchesPersonalStatus(status: PersonalStatus, filter: PersonalFilter): boolean {
+  if (filter === 'favorite') return status.favorite;
+  if (filter === 'want_to_play') return status.wantToPlay;
+  if (filter === 'played') return status.played;
+  return true;
+}
+
+export function filterBilibiliGroupsByPersonalStatus(
+  groups: BiliGroup[],
+  personalLibrary: Record<string, PersonalStatus>,
+  filter: PersonalFilter,
+): BiliGroup[] {
+  if (!filter) return groups;
+  return groups.filter((group) => group.items.some((item) => matchesPersonalStatus(statusFromLibrary(personalLibrary, 'bilibili', item.bvid), filter)));
+}
+
+function hasAnyPersonalStatus(status: PersonalStatus): boolean {
+  return status.favorite || status.wantToPlay || status.played || status.rating !== null || Boolean(status.note);
+}
+
+function recordForBilibiliPack(pack: BilibiliPack): DesktopRecord | null {
+  return state.records.find((record) => record.platform === 'bilibili' && record.sourceId === pack.bvid) || null;
+}
+
+function renderBilibiliGroupPersonalActions(group: BiliGroup): string {
+  const latest = group.items[0];
+  const record = latest ? recordForBilibiliPack(latest) : null;
+  if (!record || !latest) return '';
+  const status = personalStatus(record);
+  const target = personalTargetAttributes(record);
+  const targetLabel = `<span class="bili-personal-target">当前视频：${esc(record.title)} · BVID ${esc(record.sourceId)}</span>`;
+  if (!isPersonalWritable(record)) {
+    return `<div class="bili-personal-actions personal-unavailable">${targetLabel}<span>${esc(personalUnavailableReason(record))}</span></div>`;
+  }
+  return `<div class="bili-personal-actions">${targetLabel}<button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" ${target} aria-pressed="${status.favorite}">${status.favorite ? '★ 取消收藏当前视频' : '☆ 收藏当前视频'}</button><button type="button" class="personal-flag-button ${status.wantToPlay ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="wantToPlay" ${target} aria-pressed="${status.wantToPlay}">${status.wantToPlay ? '取消想玩当前视频' : '加入想玩（保存视频线索）'}</button></div>`;
+}
+
+function renderBilibiliGroupPersonalSummary(group: BiliGroup): string {
+  const marked = group.items
+    .map((pack) => ({ pack, status: statusFromLibrary(state.personalLibrary, 'bilibili', pack.bvid) }))
+    .filter((item) => hasAnyPersonalStatus(item.status));
+  const scope = `本次查询的 ${group.items.length} 个视频成员`;
+  const memberButtons = marked.map(({ pack, status }) => {
+    const record = recordForBilibiliPack(pack);
+    if (!record) return '';
+    const labels = [
+      status.favorite ? '收藏' : '',
+      status.wantToPlay ? '想玩' : '',
+      status.played ? '玩过' : '',
+      status.rating !== null ? `评分 ${status.rating}/5` : '',
+      status.note ? '有备注' : '',
+    ].filter(Boolean).join(' · ');
+    return `<button type="button" class="bili-personal-member" data-action="select-bili-member" data-bili-bvid="${esc(pack.bvid)}" ${personalTargetAttributes(record)} title="打开该视频详情并编辑状态"><span>${esc(pack.title || record.title)}</span><small>${esc(pack.bvid)} · ${esc(labels)}</small></button>`;
+  }).filter(Boolean).join('');
+  return `<div class="bili-personal-summary"><div class="bili-personal-summary-head"><strong>个人状态摘要</strong><span>${marked.length ? `已标记 ${marked.length}/${group.items.length} 个成员` : `暂无成员标记`} · 范围：${scope}</span></div>${memberButtons ? `<div class="bili-personal-members">${memberButtons}</div>` : '<span class="bili-personal-summary-empty">组状态按视频保存；评分和备注不会折叠为组值。</span>'}</div>`;
 }
 
 function biliSortValue(group: BiliGroup, sort: string): number {
@@ -819,8 +914,7 @@ function renderBilibiliGroupedWorkspace(): string {
   const cards = groups.map((group) => {
     const latest = group.items[0];
     const index = latest ? state.records.findIndex((record) => record.sourceId === latest.bvid) : -1;
-    const record = index >= 0 ? state.records[index] : null;
-    return `<article class="desktop-rich-card" data-action="select-record" data-index="${index}" data-bili-group-key="${esc(group.key)}">${record ? renderPersonalCardActions(record, index) : ''}${renderBiliGroupedCard(group)}</article>`;
+    return `<article class="desktop-rich-card" data-action="select-record" data-index="${index}" data-bili-group-key="${esc(group.key)}">${renderBilibiliGroupPersonalActions(group)}${renderBilibiliGroupPersonalSummary(group)}${renderBiliGroupedCard(group)}</article>`;
   }).join('');
   return `<div class="bili-legacy-mode-note"><strong>✨ 同名整合包智能聚合</strong><span>${formatCount(groups.length)} 款独立整合包 · 关联视频、统计、网盘与历史版本均保留</span></div><div class="bili-cards-grid desktop-bili-grid">${cards}</div>`;
 }
@@ -1120,9 +1214,11 @@ function bindEvents(): void {
   });
   root.querySelector<HTMLTextAreaElement>('[data-personal-note]')?.addEventListener('input', (event) => {
     const textarea = event.target as HTMLTextAreaElement;
+    const targetRecord = state.selected;
+    if (!targetRecord || !isPersonalWritable(targetRecord)) return;
     window.clearTimeout(personalNoteTimer);
     personalNoteTimer = window.setTimeout(() => {
-      if (state.selected) void savePersonalPatch(state.selected, { note: textarea.value }, false);
+      void savePersonalPatch(targetRecord, { note: textarea.value }, false);
     }, 350);
   });
 }
@@ -1155,7 +1251,21 @@ function recordAtIndex(index: number): DesktopRecord | null {
   return state.records[index] || null;
 }
 
+function recordForPersonalTarget(element: HTMLElement): DesktopRecord | null {
+  const platform = element.dataset.personalPlatform as Platform | undefined;
+  const sourceId = element.dataset.personalSourceId;
+  if (platform && sourceId !== undefined && ALL_PLATFORMS.includes(platform)) {
+    return state.records.find((record) => record.platform === platform && record.sourceId === sourceId) || null;
+  }
+  return recordAtIndex(Number(element.dataset.index || '-1'));
+}
+
 async function savePersonalPatch(record: DesktopRecord, patch: PersonalPatch, rerender = true): Promise<void> {
+  if (!isPersonalWritable(record)) {
+    state.message = personalUnavailableReason(record);
+    if (rerender) render();
+    return;
+  }
   const key = personalKey(record);
   const previous = personalStatus(record);
   state.personalLibrary[key] = { ...previous, ...patch, updatedAt: new Date().toISOString() };
@@ -1301,22 +1411,33 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     await window.desktopApi.cancelUpdate();
   } else if (action === 'load-more') {
     await loadRecords(false);
+  } else if (action === 'select-bili-member') {
+    event?.stopPropagation();
+    const record = recordForPersonalTarget(element);
+    if (!record || record.platform !== 'bilibili') return;
+    state.selected = record;
+    state.imagePreview = null;
+    state.comments = { sourceId: record.sourceId, loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
+    render();
+    await loadComments(record);
   } else if (action === 'toggle-personal') {
     event?.stopPropagation();
-    const record = recordAtIndex(Number(element.dataset.index || '-1'));
-    if (!record || element.dataset.personalField !== 'favorite') return;
-    await savePersonalPatch(record, { favorite: !personalStatus(record).favorite });
+    const record = recordForPersonalTarget(element);
+    const field = element.dataset.personalField;
+    if (!record || (field !== 'favorite' && field !== 'wantToPlay')) return;
+    await savePersonalPatch(record, { [field]: !personalStatus(record)[field] } as PersonalPatch);
   } else if (action === 'set-personal-flag') {
     event?.stopPropagation();
-    const record = state.selected;
+    const record = recordForPersonalTarget(element) || state.selected;
     const field = element.dataset.personalField;
     if (!record || (field !== 'wantToPlay' && field !== 'played')) return;
     await savePersonalPatch(record, { [field]: !personalStatus(record)[field] } as PersonalPatch);
   } else if (action === 'set-personal-rating') {
     event?.stopPropagation();
-    if (!state.selected) return;
+    const record = recordForPersonalTarget(element) || state.selected;
+    if (!record) return;
     const rating = Number(element.dataset.rating || '0');
-    await savePersonalPatch(state.selected, { rating: rating >= 1 && rating <= 5 ? rating : null });
+    await savePersonalPatch(record, { rating: rating >= 1 && rating <= 5 ? rating : null });
   } else if (action === 'select-record') {
     const target = event?.target instanceof Element ? event.target : null;
     if (target && target !== element && target.closest('a,button,details,summary')) return;
@@ -1394,6 +1515,7 @@ async function loadRecords(reset = true): Promise<void> {
   if (reset) {
     state.page = 1;
     state.records = [];
+    state.biliGroups = [];
   } else {
     state.page += 1;
   }
@@ -1411,7 +1533,10 @@ async function loadRecords(reset = true): Promise<void> {
       pan: state.pan,
       dateRange: state.dateRange,
       serverOnly: state.serverOnly,
-      personalStatus: state.personalFilter,
+      // Grouped Bilibili mode must receive the complete non-personal result set.
+      // Personal matching happens after all members have been grouped so an old
+      // marked video cannot disappear behind a newer unmarked representative.
+      personalStatus: groupedBili ? '' : state.personalFilter,
       sort: state.sort,
       page,
       pageSize: requestPageSize,
@@ -1430,7 +1555,10 @@ async function loadRecords(reset = true): Promise<void> {
     const nextRecords = results.flatMap((result) => result.records);
     state.records = reset ? nextRecords : [...state.records, ...nextRecords];
     for (const record of nextRecords) state.compareRecords[record.id] = record;
-    state.biliGroups = groupedBili ? buildBilibiliGroups(state.records) : [];
+    const groupedResults = groupedBili ? buildBilibiliGroups(state.records) : [];
+    state.biliGroups = groupedBili
+      ? filterBilibiliGroupsByPersonalStatus(groupedResults, state.personalLibrary, state.personalFilter)
+      : [];
     state.total = results.reduce((sum, result) => sum + result.total, 0);
     state.availableVersions = [...new Set(results.flatMap((result) => result.availableVersions || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availableLoaders = [...new Set(results.flatMap((result) => result.availableLoaders || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));

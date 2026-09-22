@@ -181,11 +181,13 @@ function normaliseRecord(platform, record, index) {
   const title = asText(firstValue(record, ['title', 'name', 'preferred_title', 'chinese_name', 'project_title'])) || '未命名整合包';
   const author = asText(firstValue(record, ['author', 'uploader', 'creator', 'owner'])) || '未知作者';
   const url = asText(firstValue(record, ['url', 'source_url', 'link', 'homepage']));
-  const sourceId = asText(firstValue(record, platform === 'mcmod'
+  const sourceIdValue = asText(firstValue(record, platform === 'mcmod'
     ? ['mid', 'source_id', 'id', 'project_id']
     : platform === 'bilibili'
       ? ['bvid', 'source_id', 'id']
-      : ['project_id', 'source_id', 'id', 'slug', 'bvid', 'mid'])) || `${platform}-${index + 1}`;
+      : ['project_id', 'source_id', 'id', 'slug', 'bvid', 'mid']));
+  const sourceIdOrigin = sourceIdValue ? 'source' : 'index-fallback';
+  const sourceId = sourceIdValue || `${platform}-${index + 1}`;
   const versions = platform === 'mcmod'
     ? fieldList(record, ['mcVersions', 'mc_versions', 'all_versions', 'versions'])
     : fieldList(record, ['all_versions', 'mc_versions', 'versions'])
@@ -217,6 +219,7 @@ function normaliseRecord(platform, record, index) {
     id: `${platform}:${sourceId}`,
     platform,
     sourceId,
+    sourceIdOrigin,
     title,
     author,
     url,

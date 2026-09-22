@@ -20,7 +20,7 @@ function defaultPersonalStatus() {
 
 function personalKey(platform, sourceId) {
   assertPlatform(platform);
-  const value = String(sourceId || '').trim();
+  const value = String(sourceId ?? '').trim();
   if (!value || value.length > 256 || value.includes('/') || value.includes('\\') || value.includes('\0')) {
     throw new Error('来源记录标识无效');
   }
@@ -103,17 +103,28 @@ class PersonalLibrary {
   async update(platform, sourceId, patch) {
     const key = personalKey(platform, sourceId);
     validatePatch(patch);
-    const current = this.get(platform, sourceId);
-    const next = normaliseStatus({ ...current, ...patch, updatedAt: new Date().toISOString() });
-    if (!next.favorite && !next.wantToPlay && !next.played && next.rating === null && !next.note) {
-      this.entries.delete(key);
-    } else {
-      this.entries.set(key, next);
-    }
-    const payload = await this.list();
-    this.writeQueue = this.writeQueue.then(() => writeJsonAtomic(this.filePath, payload));
-    await this.writeQueue;
-    return { key, status: this.get(platform, sourceId) };
+    const operation = this.writeQueue.then(async () => {
+      const hadPrevious = this.entries.has(key);
+      const previous = this.entries.get(key);
+      const current = this.get(platform, sourceId);
+      const next = normaliseStatus({ ...current, ...patch, updatedAt: new Date().toISOString() });
+      try {
+        if (!next.favorite && !next.wantToPlay && !next.played && next.rating === null && !next.note) {
+          this.entries.delete(key);
+        } else {
+          this.entries.set(key, next);
+        }
+        const payload = await this.list();
+        await writeJsonAtomic(this.filePath, payload);
+        return { key, status: this.get(platform, sourceId) };
+      } catch (error) {
+        if (hadPrevious) this.entries.set(key, previous);
+        else this.entries.delete(key);
+        throw error;
+      }
+    });
+    this.writeQueue = operation.catch(() => {});
+    return operation;
   }
 }
 

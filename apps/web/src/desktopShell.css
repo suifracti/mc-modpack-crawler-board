@@ -376,6 +376,18 @@ dd, .evidence-item strong { margin: 0; text-align: right; font-weight: 560; }
 .personal-state-chip.is-want { color: #a15c00; border-color: rgba(217, 119, 6, .3); background: rgba(245, 158, 11, .1); }
 .personal-state-chip.is-played { color: #16704e; border-color: rgba(22, 163, 74, .3); background: rgba(34, 197, 94, .1); }
 .personal-rating-mini { color: #a15c00; border-color: rgba(217, 119, 6, .3); background: rgba(245, 158, 11, .1); }
+.personal-unavailable { color: var(--text-muted, var(--muted)); font-size: 11px; line-height: 1.45; }
+.bili-personal-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 10px 13px 0; padding: 8px 9px; border: 1px solid rgba(251, 114, 153, .24); border-radius: 9px; background: rgba(251, 114, 153, .06); }
+.bili-personal-target { color: var(--text-secondary, var(--muted)); font-size: 11px; font-weight: 600; }
+.bili-personal-summary { display: grid; gap: 7px; margin: 8px 13px 0; padding: 8px 9px; border: 1px solid var(--border-subtle, var(--line)); border-radius: 9px; background: var(--bg-surface-elevated, var(--bg-soft)); }
+.bili-personal-summary-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.bili-personal-summary-head strong { color: var(--text-primary, var(--text)); font-size: 12px; }
+.bili-personal-summary-head span, .bili-personal-summary-empty { color: var(--text-muted, var(--muted)); font-size: 10px; }
+.bili-personal-members { display: flex; flex-wrap: wrap; gap: 5px; }
+.bili-personal-member { display: grid; gap: 2px; max-width: 100%; padding: 5px 7px; color: var(--text-primary, var(--text)); border: 1px solid var(--border-subtle, var(--line)); border-radius: 7px; background: var(--bg-surface, var(--panel)); text-align: left; cursor: pointer; }
+.bili-personal-member:hover { border-color: #fb7299; }
+.bili-personal-member span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.bili-personal-member small { color: var(--text-muted, var(--muted)); font-size: 10px; }
 .personal-detail-section { display: grid; gap: 11px; }
 .personal-detail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .personal-detail-heading h3 { margin: 0 0 3px; }

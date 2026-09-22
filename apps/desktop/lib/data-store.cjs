@@ -390,6 +390,16 @@ class DataStore {
     };
   }
 
+  async isIndexFallbackSourceId(platform, sourceId) {
+    assertPlatform(platform);
+    const active = await this.getActiveSnapshot();
+    if (!active) return false;
+    const cached = this.readCachedPlatform(active.snapshotId, platform);
+    if (!cached.normalized) cached.normalized = cached.result.records.map((record, index) => normaliseRecord(platform, record, index));
+    const target = String(sourceId ?? '').trim();
+    return cached.normalized.some((record) => record.sourceId === target && record.sourceIdOrigin === 'index-fallback');
+  }
+
   async getPlatformComments(platform, sourceId) {
     assertPlatform(platform);
     const active = await this.getActiveSnapshot();
