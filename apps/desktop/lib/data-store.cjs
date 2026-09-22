@@ -115,7 +115,7 @@ function matchesPan(record, selectedPan) {
 
 function recordTimestamp(record) {
   const raw = record?.raw || {};
-  const numeric = [raw.pub_timestamp, raw.modified_timestamp, raw.created_timestamp, raw.date_modified_timestamp]
+  const numeric = [raw.pub_timestamp, raw.modified_timestamp, raw.date_modified_timestamp]
     .map((value) => Number(value))
     .find((value) => Number.isFinite(value) && value > 0);
   if (numeric) return numeric > 10_000_000_000 ? numeric : numeric * 1000;
@@ -135,8 +135,11 @@ function matchesDateRange(record, dateRange, referenceTime) {
 }
 
 function hasServerSupport(record) {
-  if (record?.raw?.has_server === true) return true;
-  return ['required', 'optional', 'supported'].includes(record?.environment?.status);
+  const environment = record?.environment || {};
+  if (environment.sourceField && environment.sourceField !== 'has_server') {
+    return ['required', 'optional', 'supported'].includes(String(environment.status || '').toLowerCase());
+  }
+  return record?.raw?.has_server === true;
 }
 
 function metricValue(record, keys) {

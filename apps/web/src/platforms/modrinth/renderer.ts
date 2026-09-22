@@ -25,7 +25,7 @@ export function renderModrinthCard(p: ModrinthPack): string {
     const isBoth = p.env_display.includes('服务端');
     tagsHtml += '<span class="modrinth-badge-env ' + (isBoth ? 'env-both' : 'env-client') + '" title="运行环境: ' + escHtml(p.env_display) + '">🖵 ' + escHtml(p.env_display) + '</span>';
   } else if (p.has_server) {
-    tagsHtml += '<span class="badge-env badge-env-server" title="含服务端">🖳 含服务端</span>';
+    tagsHtml += '<span class="badge-env badge-env-server" title="有服务端运行线索">🖳 有服务端运行线索</span>';
   }
   if (p.mc_version && p.mc_version !== '未知') {
     tagsHtml += '<span class="modrinth-badge-ver">🎮 ' + escHtml(p.mc_version) + '</span>';

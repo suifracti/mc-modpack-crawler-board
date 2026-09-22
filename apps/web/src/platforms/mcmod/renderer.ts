@@ -208,8 +208,8 @@ export function renderEnvironmentBadge(pack: McmodStructuredItem): string {
   const claims = pack.environmentClaims || [];
   const server = claims.find((c) => c.side === 'server');
   if (!server) return '';
-  if (server.status === 'supported' || server.status === 'required') {
-    return `<span class="modpack-env-badge badge-server-supported" title="${escAttrJs(server.evidenceText || '支持服务端')}">✔ 含服务端</span>`;
+  if (server.status === 'supported' || server.status === 'required' || server.status === 'optional') {
+    return `<span class="modpack-env-badge badge-server-supported" title="${escAttrJs(server.evidenceText || '有服务端运行线索')}">✔ 有服务端运行线索</span>`;
   }
   return '';
 }

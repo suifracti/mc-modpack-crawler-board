@@ -67,7 +67,7 @@ describe('Version Modal Subsystem', () => {
       expect(vm.title).toBe('测试整合包');
       const ovHtml = renderOverviewPane(vm);
       expect(ovHtml).toContain('active-server');
-      expect(ovHtml).toContain('支持联机开服');
+      expect(ovHtml).toContain('有服务端运行线索');
 
       const dlHtml = renderDownloadsPane(vm);
       expect(dlHtml).toContain('百度网盘');

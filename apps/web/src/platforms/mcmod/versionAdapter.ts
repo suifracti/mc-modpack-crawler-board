@@ -32,7 +32,7 @@ export function adaptMcmodToVersionModal(
     targetUrl: (extra?.versionUrl as string) || (extra?.version_url as string) || raw.versionUrl || raw.version_url || `https://www.mcmod.cn/modpack/version/${mid}.html`,
     hasServer: Boolean(p.has_server || extra?.has_server),
     serverStatus: (p.has_server || extra?.has_server) ? 'supported' : 'unknown',
-    envDisplay: (p.has_server || extra?.has_server) ? '支持联机开服 / 提供专用服务端' : '未声明服务端支持 / 无法确认',
+    envDisplay: (p.has_server || extra?.has_server) ? '有服务端运行线索' : '未知（本地数据未提供）',
     formerTitles: former,
     releases: (extra?.releases as any[]) || raw.releases || raw.versions_data || raw.version_history || [],
   };

@@ -125,6 +125,11 @@ function asText(value) {
   return String(value).trim();
 }
 
+function asDateText(value) {
+  const text = asText(value);
+  return /^0+(?:\.0+)?$/.test(text) ? '' : text;
+}
+
 function asList(value) {
   if (Array.isArray(value)) return value.filter(Boolean).map(String);
   if (typeof value === 'string' && value.trim()) return value.split(/[,，|/]/).map((item) => item.trim()).filter(Boolean);
@@ -147,16 +152,34 @@ function buildSearchContractText(platform, record) {
 function environmentInfo(record) {
   const claims = Array.isArray(record?.environmentClaims) ? record.environmentClaims : [];
   const serverClaim = claims.find((claim) => claim && claim.side === 'server');
-  if (serverClaim && serverClaim.status && serverClaim.status !== 'unknown') {
+  if (serverClaim) {
+    const status = String(serverClaim.status).toLowerCase();
+    if (!['required', 'optional', 'supported', 'unsupported'].includes(status)) {
+      return {
+        status: 'unknown',
+        certainty: String(serverClaim.certainty || 'unknown'),
+        label: String(serverClaim.evidenceText || '结构化来源未说明服务端运行线索'),
+        sourceField: serverClaim.sourceField || 'environmentClaims',
+      };
+    }
     return {
-      status: String(serverClaim.status),
+      status,
       certainty: String(serverClaim.certainty || 'unknown'),
       label: String(serverClaim.evidenceText || serverClaim.status),
-      sourceField: serverClaim.sourceField || null,
+      sourceField: serverClaim.sourceField || 'environmentClaims',
     };
   }
-  const serverSide = asText(firstValue(record, ['server_side', 'serverSide'])).toLowerCase();
-  if (['required', 'optional', 'supported', 'unsupported'].includes(serverSide)) {
+  const serverSideValue = firstValue(record, ['server_side', 'serverSide']);
+  const serverSide = asText(serverSideValue).toLowerCase();
+  if (serverSideValue !== null && serverSideValue !== undefined && serverSide !== '') {
+    if (!['required', 'optional', 'supported', 'unsupported'].includes(serverSide)) {
+      return {
+        status: 'unknown',
+        certainty: 'unknown',
+        label: `来源字段 server_side=${serverSide}`,
+        sourceField: 'server_side',
+      };
+    }
     return {
       status: serverSide,
       certainty: 'confirmed',
@@ -198,9 +221,9 @@ function normaliseRecord(platform, record, index) {
   const summary = asText(firstValue(record, platform === 'bilibili'
     ? ['desc', 'description', 'summary', 'subtitle_summary', 'pinned_comment']
     : ['description', 'summary', 'intro', 'desc', 'pinned_comment']));
-  const updatedAt = asText(firstValue(record, platform === 'bilibili'
+  const updatedAt = asDateText(firstValue(record, platform === 'bilibili'
     ? ['update_notice_at', 'published_at', 'pub_time', 'date', 'pubdate']
-    : ['modifiedAt', 'date_modified', 'modified_at', 'updated_at', 'publishedAt', 'published_at', 'pubdate', 'date_created']));
+    : ['modifiedAt', 'date_modified', 'modified_at', 'updated_at', 'publishedAt', 'published_at', 'pubdate']));
   const environment = environmentInfo(record);
   const evidence = [];
   if (url) evidence.push({ label: '原始来源', value: url });

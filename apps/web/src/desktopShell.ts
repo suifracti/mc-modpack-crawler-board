@@ -161,6 +161,14 @@ type DropdownId = 'version' | 'loader' | 'category' | 'pan' | 'date' | 'sort' | 
 type ViewMode = 'cards' | 'compact' | 'table';
 type BiliViewMode = 'grouped' | 'flat';
 
+const UNKNOWN_LOCAL_TEXT = '未知（本地数据未提供）';
+
+export function getDesktopSearchPlaceholder(platform: FilterPlatform): string {
+  if (platform === 'all') return '输入名称、版本、作者或平台已有字段…';
+  if (platform === 'mcmod') return '输入名称、模组名、版本、作者或当前平台已有字段…';
+  return '输入名称、版本、作者或当前平台已有字段…';
+}
+
 const PLATFORM_SITE_ICONS: Record<Platform, string> = {
   mcmod: 'https://www.mcmod.cn/favicon.ico',
   bilibili: 'https://www.bilibili.com/favicon.ico',
@@ -257,13 +265,13 @@ function esc(value: unknown): string {
 }
 
 function textOrUnknown(value: string | null | undefined): string {
-  return value && value.trim() ? esc(value) : '<span class="unknown">未知</span>';
+  return value && value.trim() ? esc(value) : `<span class="unknown">${UNKNOWN_LOCAL_TEXT}</span>`;
 }
 
 function formatTime(value: string | null | undefined): string {
-  if (!value) return '未提供更新时间';
+  if (!value || /^0+(?:\.0+)?$/.test(String(value).trim())) return UNKNOWN_LOCAL_TEXT;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
+  return Number.isNaN(date.getTime()) ? UNKNOWN_LOCAL_TEXT : date.toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function currentRecords(): DesktopRecord[] {
@@ -303,6 +311,18 @@ function personalUnavailableReason(record: DesktopRecord): string {
 
 function personalTargetAttributes(record: DesktopRecord): string {
   return `data-personal-platform="${esc(record.platform)}" data-personal-source-id="${esc(record.sourceId)}"`;
+}
+
+function hasServerRuntimeClue(record: DesktopRecord): boolean {
+  if (['required', 'optional', 'supported'].includes(record.environment.status)) return true;
+  if (record.environment.status === 'unsupported' || record.environment.status === 'unknown') return false;
+  return record.raw?.has_server === true;
+}
+
+function environmentDisplay(record: DesktopRecord): string {
+  if (record.environment.status === 'unknown') return UNKNOWN_LOCAL_TEXT;
+  if (record.environment.status === 'unsupported') return '明确不支持服务端运行线索';
+  return `有服务端运行线索（${record.environment.label}）`;
 }
 
 function renderPersonalCardActions(record: DesktopRecord, index: number): string {
@@ -447,7 +467,7 @@ function toBilibiliPack(record: DesktopRecord): BilibiliPack {
     favorites: asNumber(raw.favorites),
     reply: asNumber(raw.reply),
     share: asNumber(raw.share),
-    has_server: Boolean(raw.has_server),
+    has_server: hasServerRuntimeClue(record),
     pic: String(raw.pic || raw.cover || ''),
     pub_time: String(raw.pub_time || raw.published_at || raw.date || record.updatedAt || ''),
     pub_timestamp: asNumber(raw.pub_timestamp),
@@ -620,7 +640,7 @@ function legacyPackBase(record: DesktopRecord): Record<string, unknown> {
     followers: asNumber(raw.followers),
     views: asNumber(raw.views),
     replies: asNumber(raw.replies ?? raw.comments),
-    has_server: Boolean(raw.has_server || record.environment.status === 'required' || record.environment.status === 'supported'),
+    has_server: hasServerRuntimeClue(record),
     categories: valueList(raw.categories ?? record.categories),
     mc_versions: valueList(raw.mc_versions ?? raw.mcVersions ?? record.versions),
     mc_version: String(raw.mc_version || valueList(raw.mcVersions)[0] || record.versions[0] || ''),
@@ -636,7 +656,7 @@ function legacyPackBase(record: DesktopRecord): Record<string, unknown> {
     created_date: String(raw.created_date || raw.date_created || raw.createdAt || ''),
     client_side: String(raw.client_side || raw.clientSide || ''),
     server_side: String(raw.server_side || raw.serverSide || ''),
-    env_display: record.environment.label,
+    env_display: environmentDisplay(record),
   };
 }
 
@@ -758,8 +778,6 @@ function renderDateDropdown(): string {
     { value: '7d', label: '近 7 天' },
     { value: '30d', label: '近 30 天' },
     { value: '90d', label: '近 90 天' },
-    { value: '2026', label: '2026 年' },
-    { value: '2026-09', label: '2026 年 9 月' },
   ]);
 }
 
@@ -789,13 +807,14 @@ function renderActiveFilters(): string {
   if (state.category) filters.push({ key: 'category', label: `分类：${state.category}` });
   if (state.pan) filters.push({ key: 'pan', label: `渠道：${panLabel(state.pan)}` });
   if (state.dateRange) filters.push({ key: 'dateRange', label: `时间：${state.dateRange}` });
-  if (state.serverOnly) filters.push({ key: 'serverOnly', label: '仅含服务端' });
+  if (state.serverOnly) filters.push({ key: 'serverOnly', label: '有服务端运行线索' });
   if (state.personalFilter) filters.push({ key: 'personalStatus', label: state.personalFilter === 'favorite' ? '个人：已收藏' : state.personalFilter === 'want_to_play' ? '个人：想玩' : '个人：玩过' });
   if (!filters.length) return '';
   return `<div class="desktop-active-filters" aria-label="当前筛选条件">${filters.map((filter) => `<button type="button" class="desktop-active-filter" data-action="clear-filter" data-filter="${esc(filter.key)}">${esc(filter.label)} <span aria-hidden="true">×</span></button>`).join('')}<button type="button" class="desktop-active-clear" data-action="clear-filters">清空全部</button></div>`;
 }
 
 function renderFilterControls(includeDataButton = false): string {
+  const isAllPlatform = state.platform === 'all';
   const viewButtons = state.platform === 'bilibili'
     ? `<button type="button" class="desktop-view-button ${state.biliViewMode === 'grouped' ? 'is-active' : ''}" data-action="set-bili-view-mode" data-bili-view-mode="grouped">同包聚合</button><button type="button" class="desktop-view-button ${state.biliViewMode === 'flat' ? 'is-active' : ''}" data-action="set-bili-view-mode" data-bili-view-mode="flat">视频平铺</button>`
     : `<button type="button" class="desktop-view-button ${state.viewMode === 'cards' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="cards">卡片</button><button type="button" class="desktop-view-button ${state.viewMode === 'compact' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="compact">紧凑</button>${state.platform === 'mcmod' ? `<button type="button" class="desktop-view-button ${state.viewMode === 'table' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="table">表格</button>` : ''}`;
@@ -806,9 +825,8 @@ function renderFilterControls(includeDataButton = false): string {
     <span class="filter-label">渠道</span>${renderFilterDropdown('pan', state.availablePans, state.pan, '全部渠道')}
     <span class="filter-label">时间</span>${renderDateDropdown()}
     <span class="filter-label">个人库</span>${renderPersonalDropdown()}
-    <span class="filter-label">排序</span>${renderSortDropdown()}
-    <span class="filter-label">每页</span>${renderDropdown('page-size', String(state.pageSize), [{ value: '24', label: '24 条' }, { value: '48', label: '48 条' }, { value: '100', label: '100 条' }])}
-    <label class="desktop-check"><input id="server-only-toggle" type="checkbox" ${state.serverOnly ? 'checked' : ''}> <span>仅含服务端</span></label>
+    ${isAllPlatform ? '' : `<span class="filter-label">排序</span>${renderSortDropdown()}<span class="filter-label">每页</span>${renderDropdown('page-size', String(state.pageSize), [{ value: '24', label: '24 条' }, { value: '48', label: '48 条' }, { value: '100', label: '100 条' }])}`}
+    <label class="desktop-check"><input id="server-only-toggle" type="checkbox" ${state.serverOnly ? 'checked' : ''}> <span>有服务端运行线索</span></label>
     <div class="desktop-view-toggle" role="group" aria-label="结果视图">${viewButtons}</div>
     <button type="button" class="hub-reset-btn" data-action="clear-filters">重置筛选</button>${includeDataButton ? `<button type="button" class="top-action-btn" data-action="choose-data">${state.data?.hasData ? '更换数据目录' : '选择已有数据'}</button>` : ''}
   </div>${renderActiveFilters()}`;
@@ -869,7 +887,7 @@ function renderRecord(record: DesktopRecord, index: number): string {
   const metrics = recordMetricItems(record);
   return `<article class="pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
     <button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面"><img src="${esc(coverUrl)}" alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${esc(fallbackUrl)}'"></button>
-    <div class="card-top"><span class="platform-badge">${platformIcon(record.platform)} ${config.name}</span><span class="card-time">${esc(record.updatedAt || '更新时间未知')}</span></div>
+    <div class="card-top"><span class="platform-badge">${platformIcon(record.platform)} ${config.name}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>
     ${renderPersonalCardActions(record, index)}
     <h3>${esc(record.title)}</h3><p class="author">${esc(record.author)}</p>
     <p class="summary">${textOrUnknown(record.summary)}</p>
@@ -884,7 +902,7 @@ function renderCompactRecord(record: DesktopRecord, index: number): string {
   const coverUrl = recordCoverUrl(record);
   const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
   const metrics = recordMetricItems(record);
-  return `<article class="compact-record" data-action="select-record" data-index="${index}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面"><img src="${esc(coverUrl)}" alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${esc(fallbackUrl)}'"></button><div class="compact-record-main"><div class="compact-record-head"><span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span><span class="card-time">${esc(record.updatedAt || '更新时间未知')}</span></div>${renderPersonalCardActions(record, index)}<h3>${esc(record.title)}</h3><p>${esc(record.author)} · ${textOrUnknown(record.summary)}</p><div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div></div><div class="compact-record-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}<button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div></article>`;
+  return `<article class="compact-record" data-action="select-record" data-index="${index}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面"><img src="${esc(coverUrl)}" alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${esc(fallbackUrl)}'"></button><div class="compact-record-main"><div class="compact-record-head"><span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>${renderPersonalCardActions(record, index)}<h3>${esc(record.title)}</h3><p>${esc(record.author)} · ${textOrUnknown(record.summary)}</p><div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div></div><div class="compact-record-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}<button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div></article>`;
 }
 
 function renderMcmodTable(records: DesktopRecord[]): string {
@@ -941,7 +959,7 @@ function renderLegacyShowcaseCard(platform: Platform): string {
   const records = state.records.filter((record) => record.platform === platform);
   const samples = records.slice(0, 3);
   const count = platformState?.count ?? 0;
-  const updateTime = platformState?.available && state.data?.updatedAt ? formatTime(state.data.updatedAt) : '等待本地快照';
+  const updateTime = platformState?.available && state.data?.updatedAt ? `快照更新时间：${formatTime(state.data.updatedAt)}` : '等待本地快照';
   const tags = [...new Set(samples.flatMap((record) => [...record.versions, ...record.loaders, ...record.categories]).filter(Boolean))].slice(0, 5);
   const sampleHtml = samples.length
     ? samples.map((record, index) => {
@@ -967,9 +985,9 @@ function renderCrossSearch(): string {
   const versionChips = ['1.20.1', '1.16.5', '1.12.2', '1.7.10', '1.21', '1.19.2'].map((value) => `<button type="button" class="hot-chip chip-ver" data-action="quick-search" data-query="${value}">${value}</button>`).join('');
   const themeChips = ['机械动力', '拔刀剑', '宝可梦', '科技', '魔法', 'Fabulously Optimized', '空岛', 'RLCraft'].map((value) => `<button type="button" class="hot-chip chip-theme" data-action="quick-search" data-query="${esc(value)}">${esc(value)}</button>`).join('');
   return `<section class="cross-search-section" aria-labelledby="cross-search-title">
-    <div class="csearch-top-row"><div><h2 id="cross-search-title" class="csearch-heading">全域整合包联合搜索</h2><p class="csearch-sub">沿用旧看板的跨平台入口，查询实际作用于完整本地数据，再按页展示结果。</p></div><div class="csearch-platforms-hint">${platformPills}</div></div>
-    <div class="cross-search-input-wrap"><span class="cross-search-icon">🔍</span><input id="pack-search" class="cross-search-input" value="${esc(state.query)}" placeholder="输入名称、游戏版本、模组名、玩法或作者进行跨平台检索…" autocomplete="off"><div class="cross-search-kbd"><kbd>Ctrl</kbd><kbd>K</kbd></div></div>
-    <div class="cross-chips-deck"><div class="chip-deck-row"><span class="deck-row-lbl">🎮 核心版本：</span><div class="deck-chips-group">${versionChips}</div></div><div class="chip-deck-row"><span class="deck-row-lbl">🔥 热门流派：</span><div class="deck-chips-group">${themeChips}</div></div></div>
+    <div class="csearch-top-row"><div><h2 id="cross-search-title" class="csearch-heading">跨平台检索总览</h2><p class="csearch-sub">每个平台独立在完整本地数据上搜索、筛选并按平台内规则排序；每轮每个平台最多 12 条。字段覆盖因平台而异，MC百科额外支持模组名检索。</p></div><div class="csearch-platforms-hint">${platformPills}</div></div>
+    <div class="cross-search-input-wrap"><span class="cross-search-icon">🔍</span><input id="pack-search" class="cross-search-input" value="${esc(state.query)}" placeholder="${esc(getDesktopSearchPlaceholder('all'))}" autocomplete="off"><div class="cross-search-kbd"><kbd>Ctrl</kbd><kbd>K</kbd></div></div>
+    <div class="cross-chips-deck"><div class="chip-deck-row"><span class="deck-row-lbl">🎮 核心版本：</span><div class="deck-chips-group">${versionChips}</div></div><div class="chip-deck-row"><span class="deck-row-lbl">🔥 常用关键词：</span><div class="deck-chips-group">${themeChips}</div></div></div>
     ${renderFilterControls(true)}
     ${renderCrossResults()}
   </section>`;
@@ -982,7 +1000,7 @@ function renderCrossResults(): string {
     if (!records.length) return '';
     return `<section class="cross-result-column"><div class="cross-result-column-head"><span>${platformIcon(platform)} ${esc(PLATFORM_CONFIGS[platform].name)}</span><strong>${records.length} 条当前页结果</strong></div>${records.map((record) => { const index = state.records.indexOf(record); return `<button type="button" class="cross-result-item" data-action="select-record" data-index="${index}"><span>${esc(record.title)}</span><small>${esc(record.author || '未知作者')}</small></button>`; }).join('')}</section>`;
   }).filter(Boolean).join('');
-  return groups ? `<div class="cross-results-wrap"><div class="cross-results-heading"><strong>跨平台匹配结果</strong><span>按当前筛选条件展示各平台首批结果</span></div><div class="cross-results-grid">${groups}</div></div>` : '<div class="cross-results-wrap cross-results-empty">当前关键词在已载入平台中没有匹配结果。</div>';
+  return groups ? `<div class="cross-results-wrap"><div class="cross-results-heading"><strong>各平台匹配结果</strong><span>按当前筛选条件展示各平台首批结果（每个平台最多 12 条）</span></div><div class="cross-results-grid">${groups}</div></div>` : '<div class="cross-results-wrap cross-results-empty">当前关键词在已载入平台中没有匹配结果。</div>';
 }
 
 function auditCount(audit: DesktopAuditResult | null): number {
@@ -1021,20 +1039,21 @@ function renderCompareTray(): string {
 function renderComparePanel(): string {
   if (!state.compareOpen) return '';
   const entries = compareEntries();
-  return `<div class="compare-backdrop" data-action="close-compare"><section class="compare-panel"><button type="button" class="icon-button compare-close" data-action="close-compare" aria-label="关闭比较">×</button><div class="eyebrow">MODPACK COMPARISON</div><h2>整合包全面对比</h2>${entries.length < 2 ? '<div class="empty-evidence">至少选择两个当前已载入的整合包。</div>' : `<div class="compare-table"><div class="compare-row compare-row-head"><span>字段</span>${entries.map((record) => `<strong>${esc(record.title)}</strong>`).join('')}</div><div class="compare-row"><span>平台</span>${entries.map((record) => `<span>${esc(PLATFORM_CONFIGS[record.platform].name)}</span>`).join('')}</div><div class="compare-row"><span>作者</span>${entries.map((record) => `<span>${esc(record.author)}</span>`).join('')}</div><div class="compare-row"><span>Minecraft</span>${entries.map((record) => `<span>${esc(record.versions.join('、') || '未知')}</span>`).join('')}</div><div class="compare-row"><span>Loader</span>${entries.map((record) => `<span>${esc(record.loaders.join('、') || '未知')}</span>`).join('')}</div><div class="compare-row"><span>分类</span>${entries.map((record) => `<span>${esc(record.categories.join('、') || '未知')}</span>`).join('')}</div><div class="compare-row"><span>服务端</span>${entries.map((record) => `<span>${esc(record.environment.label)}</span>`).join('')}</div><div class="compare-row"><span>平台指标</span>${entries.map((record) => `<span>${esc(recordMetricItems(record).join(' · ') || '未知')}</span>`).join('')}</div></div>`}</section></div>`;
+  return `<div class="compare-backdrop" data-action="close-compare"><section class="compare-panel"><button type="button" class="icon-button compare-close" data-action="close-compare" aria-label="关闭比较">×</button><div class="eyebrow">MODPACK COMPARISON</div><h2>整合包全面对比</h2>${entries.length < 2 ? '<div class="empty-evidence">至少选择两个当前已载入的整合包。</div>' : `<div class="compare-table"><div class="compare-row compare-row-head"><span>字段</span>${entries.map((record) => `<strong>${esc(record.title)}</strong>`).join('')}</div><div class="compare-row"><span>平台</span>${entries.map((record) => `<span>${esc(PLATFORM_CONFIGS[record.platform].name)}</span>`).join('')}</div><div class="compare-row"><span>作者</span>${entries.map((record) => `<span>${esc(record.author)}</span>`).join('')}</div><div class="compare-row"><span>Minecraft</span>${entries.map((record) => `<span>${esc(record.versions.join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div><div class="compare-row"><span>Loader</span>${entries.map((record) => `<span>${esc(record.loaders.join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div><div class="compare-row"><span>分类</span>${entries.map((record) => `<span>${esc(record.categories.join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div><div class="compare-row"><span>服务端</span>${entries.map((record) => `<span>${esc(environmentDisplay(record))}</span>`).join('')}</div><div class="compare-row"><span>平台指标</span>${entries.map((record) => `<span>${esc(recordMetricItems(record).join(' · ') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div></div>`}</section></div>`;
 }
 
 function renderPlatformHero(platform: Platform): string {
   const config = PLATFORM_CONFIGS[platform];
   const count = state.data?.platforms[platform]?.count ?? 0;
   return `<section class="channel-hero ${platform}-channel-hero"><div class="channel-hero-left"><span class="channel-badge-tag">${platformIcon(platform)} ${esc(config.name)}</span><div class="channel-title">${esc(config.name)}资料看板</div><div class="channel-desc">${esc(PLATFORM_TAGLINES[platform])}。详情页保留版本、模组、评论和原始来源入口。</div></div><div class="channel-quick-stats"><div class="cstat-item"><span class="cs-num">${formatCount(count)}</span><span class="cs-lbl">当前快照记录</span></div><div class="cstat-item"><span class="cs-num">${state.loading ? '…' : formatCount(state.total)}</span><span class="cs-lbl">当前结果总数</span></div></div></section>
-  <section class="central-hub"><div class="hub-tier-search"><div class="hub-stat-badge">当前平台 <strong>${esc(config.name)}</strong></div><div class="hub-search-box"><span class="hub-search-icon">🔍</span><input id="pack-search" class="hub-search-input" value="${esc(state.query)}" placeholder="输入名称、模组、版本或作者实时速搜…" autocomplete="off"></div></div>${renderFilterControls()}</section>`;
+   <section class="central-hub"><div class="hub-tier-search"><div class="hub-stat-badge">当前平台 <strong>${esc(config.name)}</strong></div><div class="hub-search-box"><span class="hub-search-icon">🔍</span><input id="pack-search" class="hub-search-input" value="${esc(state.query)}" placeholder="${esc(getDesktopSearchPlaceholder(platform))}" autocomplete="off"></div></div>${renderFilterControls()}</section>`;
 }
 
 function renderResultsWorkspace(selectedName: string): string {
   const records = currentRecords();
   const data = state.data;
   const hasFilter = state.query || state.version || state.loader || state.category || state.pan || state.dateRange || state.serverOnly || state.personalFilter;
+  const isAllPlatform = state.platform === 'all';
   const isBili = state.platform === 'bilibili';
   const resultBody = isBili
     ? state.biliViewMode === 'grouped' ? renderBilibiliGroupedWorkspace() : renderBilibiliFlatWorkspace(records)
@@ -1049,7 +1068,10 @@ function renderResultsWorkspace(selectedName: string): string {
       : `<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>`;
   const displayedCount = isBili && state.biliViewMode === 'grouped' ? state.biliGroups.length : records.length;
   const totalLabel = isBili && state.biliViewMode === 'grouped' ? displayedCount : state.total;
-  return `<div class="content-grid"><section class="results-column"><div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : hasFilter ? '筛选结果' : '最近可用数据'}</h2></div><span class="result-count">${state.loading ? '' : `${formatCount(displayedCount)} / ${formatCount(totalLabel)}`}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${!data?.hasData ? `<div class="empty-state"><div class="empty-icon">◌</div><h3>还没有本地数据快照</h3><p>选择现有的 <code>converted_output</code>、<code>build/frontend_preview</code> 或其 <code>data</code> 目录。应用不会把空数据伪装成成功。</p><button class="button primary" data-action="choose-data">选择数据目录</button></div>` : state.loading ? '<div class="loading-state">正在读取当前快照…</div>' : `${resultBody}${state.hasMore ? `<div class="load-more"><button class="button secondary" data-action="load-more">加载更多（已显示 ${formatCount(records.length)} / ${formatCount(state.total)}）</button></div>` : ''}`}</section>${updatePanel()}</div>`;
+  const resultHeading = isAllPlatform ? '分平台结果' : state.loading ? '正在读取数据…' : hasFilter ? '筛选结果' : '最近可用数据';
+  const resultCount = isAllPlatform ? `${formatCount(displayedCount)} 条已加载 · 每个平台最多 12 条/轮` : `${formatCount(displayedCount)} / ${formatCount(totalLabel)}`;
+  const loadMoreLabel = isAllPlatform ? `各平台继续加载（当前第 ${state.page} 轮）` : `加载更多（已显示 ${formatCount(records.length)} / ${formatCount(state.total)}）`;
+  return `<div class="content-grid"><section class="results-column"><div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : resultHeading}</h2></div><span class="result-count">${state.loading ? '' : resultCount}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${!data?.hasData ? `<div class="empty-state"><div class="empty-icon">◌</div><h3>还没有本地数据快照</h3><p>选择现有的 <code>converted_output</code>、<code>build/frontend_preview</code> 或其 <code>data</code> 目录。应用不会把空数据伪装成成功。</p><button class="button primary" data-action="choose-data">选择数据目录</button></div>` : state.loading ? '<div class="loading-state">正在读取当前快照…</div>' : `${resultBody}${state.hasMore ? `<div class="load-more"><button class="button secondary" data-action="load-more">${loadMoreLabel}</button></div>` : ''}`}</section>${updatePanel()}</div>`;
 }
 
 function renderRelease(release: Record<string, unknown>): string {
@@ -1062,7 +1084,8 @@ function renderRelease(release: Record<string, unknown>): string {
   const versions = valueList(release.gameVersions ?? release.game_versions ?? release.mc_versions).join('、');
   const loaders = valueList(release.loaders ?? release.loader).join('、');
   const notes = String(release.changelogMd || release.changelog || '').trim();
-  return `<article class="release-item"><div class="release-head"><strong>${textOrUnknown(String(release.versionName || release.version_number || ''))}</strong><span>${esc(String(release.date || release.release_date || ''))}</span></div><div class="release-meta">${versions ? `Minecraft：${esc(versions)}` : ''}${loaders ? ` · Loader：${esc(loaders)}` : ''}</div>${notes ? `<p>${esc(notes)}</p>` : ''}${links ? `<div class="release-links">${links}</div>` : ''}</article>`;
+  const releaseDate = String(release.date || release.release_date || '').trim();
+  return `<article class="release-item"><div class="release-head"><strong>${textOrUnknown(String(release.versionName || release.version_number || ''))}</strong><span>${esc(releaseDate || UNKNOWN_LOCAL_TEXT)}</span></div><div class="release-meta">${versions ? `Minecraft：${esc(versions)}` : ''}${loaders ? ` · Loader：${esc(loaders)}` : ''}</div>${notes ? `<p>${esc(notes)}</p>` : ''}${links ? `<div class="release-links">${links}</div>` : ''}</article>`;
 }
 
 function renderCommentSection(record: DesktopRecord): string {
@@ -1077,7 +1100,7 @@ function renderCommentSection(record: DesktopRecord): string {
 
 function renderMediaSection(record: DesktopRecord): string {
   const urls = recordImageUrls(record);
-  if (!urls.length) return '<div class="detail-section"><h3>图片</h3><div class="empty-evidence">当前现代数据契约没有提供封面或图片地址。</div></div>';
+  if (!urls.length) return `<div class="detail-section"><h3>图片</h3><div class="empty-evidence">${UNKNOWN_LOCAL_TEXT}；列表继续使用现有封面占位图。</div></div>`;
   return `<div class="detail-section"><h3>图片 <span class="detail-submeta">${urls.length} 张 · 点击放大</span></h3><div class="detail-image-gallery">${urls.map((url, index) => renderImageButton(url, `${record.title}图片${index + 1}`, 'detail-image')).join('')}</div></div>`;
 }
 
@@ -1095,7 +1118,11 @@ function renderDetailFacts(record: DesktopRecord): string {
 
 function renderDetailDownloadLinks(record: DesktopRecord): string {
   const links = rawRecords(record, ['download_links']).filter((item) => safeExternalUrl(item.url));
-  if (!links.length) return '';
+  if (!links.length) {
+    return record.platform === 'mcmod'
+      ? `<div class="detail-section"><h3>下载入口</h3><div class="empty-evidence">${UNKNOWN_LOCAL_TEXT}；可打开 MC百科原站继续判断。</div></div>`
+      : '';
+  }
   return `<div class="detail-section"><h3>下载与渠道 <span class="detail-submeta">${links.length} 个入口</span></h3><div class="release-links">${links.map((link) => `<a class="detail-link" href="${esc(safeExternalUrl(link.url))}" target="_blank" rel="noreferrer">${esc(String(link.name || link.type || '下载入口'))} ↗</a>`).join('')}</div></div>`;
 }
 
@@ -1120,7 +1147,7 @@ function detailPanel(): string {
     <button class="icon-button close-detail" data-action="close-detail" aria-label="关闭详情">×</button>
     <span class="eyebrow">${esc(PLATFORM_CONFIGS[record.platform].name)} · 原始来源</span><h2>${esc(record.title)}</h2><p class="detail-author">${esc(record.author)}</p>
     ${renderMediaSection(record)}
-    <div class="detail-section"><h3>适配摘要</h3><dl><div><dt>Minecraft</dt><dd>${vm.mcVersionsList.length ? esc(vm.mcVersionsList.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>Loader</dt><dd>${record.loaders.length ? esc(record.loaders.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>更新时间</dt><dd>${esc(formatTime(record.updatedAt))}</dd></div><div><dt>服务端</dt><dd>${esc(vm.envDisplay || `${record.environment.label}（${record.environment.certainty}）`)}</dd></div></dl></div>
+    <div class="detail-section"><h3>适配摘要</h3><dl><div><dt>Minecraft</dt><dd>${textOrUnknown(vm.mcVersionsList.join('、'))}</dd></div><div><dt>Loader</dt><dd>${textOrUnknown(record.loaders.join('、'))}</dd></div><div><dt>更新时间</dt><dd>${esc(formatTime(record.updatedAt))}</dd></div><div><dt>服务端</dt><dd>${esc(environmentDisplay(record))}</dd></div></dl></div>
     <div class="detail-section"><h3>来源证据</h3><div class="evidence-list">${record.evidence.length ? record.evidence.map((item) => `<div class="evidence-item"><span>${esc(item.label)}</span><strong>${textOrUnknown(item.value)}</strong></div>`).join('') : '<div class="empty-evidence">当前数据没有提供可核对的来源字段。</div>'}</div></div>
     ${renderDetailFacts(record)}
     ${renderPersonalDetail(record)}
@@ -1333,6 +1360,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   } else if (action === 'set-platform') {
     state.platform = (element.dataset.platform || 'all') as FilterPlatform;
     if (state.platform !== 'all') state.updatePlatform = state.platform;
+    if (state.platform === 'all') state.sort = 'updated_desc';
     if (state.platform === 'bilibili' && !['updated_desc', 'views_desc', 'likes_desc', 'favs_desc', 'coins_desc', 'share_desc', 'reply_desc', 'danmaku_desc'].includes(state.sort)) state.sort = 'updated_desc';
     if (state.platform !== 'mcmod' && state.viewMode === 'table') state.viewMode = 'cards';
     state.selected = null;
@@ -1380,10 +1408,10 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     } else if (dropdown === 'date') {
       state.dateRange = value;
       await loadRecords(true);
-    } else if (dropdown === 'sort') {
+    } else if (dropdown === 'sort' && state.platform !== 'all') {
       state.sort = value;
       await loadRecords(true);
-    } else if (dropdown === 'page-size') {
+    } else if (dropdown === 'page-size' && state.platform !== 'all') {
       const pageSize = Number(value);
       if ([24, 48, 100].includes(pageSize)) {
         state.pageSize = pageSize;
@@ -1537,7 +1565,7 @@ async function loadRecords(reset = true): Promise<void> {
       // Personal matching happens after all members have been grouped so an old
       // marked video cannot disappear behind a newer unmarked representative.
       personalStatus: groupedBili ? '' : state.personalFilter,
-      sort: state.sort,
+      sort: state.platform === 'all' ? 'updated_desc' : state.sort,
       page,
       pageSize: requestPageSize,
     });

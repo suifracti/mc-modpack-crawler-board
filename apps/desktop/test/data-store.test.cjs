@@ -99,3 +99,49 @@ test('filters the complete dataset before pagination and preserves modern fields
   assert.equal(comments.pageCount, 2);
   assert.equal(comments.comments[0].text, '独立评论正文');
 });
+
+test('server filter uses structured runtime evidence and excludes unknown dates', async () => {
+  const root = await tempDir();
+  const source = path.join(root, 'source', 'data');
+  const recent = new Date(Date.now() - 2 * 86_400_000).toISOString();
+  const thirtyOneDaysAgo = new Date(Date.now() - 31 * 86_400_000).toISOString();
+  const ninetyOneDaysAgo = new Date(Date.now() - 91 * 86_400_000).toISOString();
+  const old = new Date(Date.now() - 120 * 86_400_000).toISOString();
+  const serverClaim = (status) => ({ side: 'server', status, certainty: 'confirmed', evidenceText: `fixture:${status}`, sourceField: 'fixture', rawValue: status });
+  const records = [
+    { bvid: 'BV-required', title: 'required', pub_time: recent, environmentClaims: [serverClaim('required')] },
+    { bvid: 'BV-optional', title: 'optional', pub_time: recent, environmentClaims: [serverClaim('optional')] },
+    { bvid: 'BV-supported', title: 'supported', pub_time: recent, environmentClaims: [serverClaim('supported')] },
+    { bvid: 'BV-unsupported', title: 'unsupported', pub_time: recent, has_server: true, environmentClaims: [serverClaim('unsupported')] },
+    { bvid: 'BV-unknown', title: 'unknown', pub_time: recent, has_server: true, environmentClaims: [serverClaim('unknown')] },
+    { bvid: 'BV-legacy', title: 'legacy', pub_time: recent, has_server: true },
+    { bvid: 'BV-31d', title: '31 days', pub_time: thirtyOneDaysAgo },
+    { bvid: 'BV-91d', title: '91 days', pub_time: ninetyOneDaysAgo },
+    { bvid: 'BV-old', title: 'old', pub_time: old },
+    { bvid: 'BV-no-date', title: 'no date', created_timestamp: Math.floor(Date.now() / 1000) },
+  ];
+  await writeSidecar(source, 'bili_data.js', records, 'biliModpacksData');
+  const store = new DataStore(path.join(root, 'user-data'));
+  await store.init();
+  await store.importDirectory(path.join(root, 'source'));
+
+  const serverOnly = await store.getPlatformRecords('bilibili', { serverOnly: true, page: 1, pageSize: 20 });
+  assert.deepEqual(serverOnly.records.map((record) => record.sourceId).sort(), ['BV-legacy', 'BV-optional', 'BV-required', 'BV-supported']);
+  assert.equal(serverOnly.records.find((record) => record.sourceId === 'BV-unsupported'), undefined);
+  assert.equal(serverOnly.records.find((record) => record.sourceId === 'BV-unknown'), undefined);
+
+  const allRecords = await store.getPlatformRecords('bilibili', { page: 1, pageSize: 20 });
+  assert.equal(allRecords.records.find((record) => record.sourceId === 'BV-no-date')?.updatedAt, '');
+
+  const recentOnly = await store.getPlatformRecords('bilibili', { dateRange: '7d', page: 1, pageSize: 20 });
+  assert.equal(recentOnly.records.some((record) => record.sourceId === 'BV-no-date'), false);
+  assert.equal(recentOnly.records.some((record) => record.sourceId === 'BV-old'), false);
+  assert.equal(recentOnly.records.some((record) => record.sourceId === 'BV-required'), true);
+
+  const thirtyDayOnly = await store.getPlatformRecords('bilibili', { dateRange: '30d', page: 1, pageSize: 20 });
+  assert.equal(thirtyDayOnly.records.some((record) => record.sourceId === 'BV-31d'), false);
+  assert.equal(thirtyDayOnly.records.some((record) => record.sourceId === 'BV-required'), true);
+  const ninetyDayOnly = await store.getPlatformRecords('bilibili', { dateRange: '90d', page: 1, pageSize: 20 });
+  assert.equal(ninetyDayOnly.records.some((record) => record.sourceId === 'BV-31d'), true);
+  assert.equal(ninetyDayOnly.records.some((record) => record.sourceId === 'BV-91d'), false);
+});

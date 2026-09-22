@@ -48,7 +48,7 @@ export function adaptBilibiliToVersionModal(
     targetUrl: `https://www.bilibili.com/video/${bvid}`,
     hasServer: Boolean(p.has_server || extra?.has_server),
     serverStatus: (p.has_server || extra?.has_server) ? 'supported' : 'unknown',
-    envDisplay: (p.has_server || extra?.has_server) ? '支持联机开服 / 提供专用服务端' : '未声明服务端支持 / 无法确认',
+    envDisplay: (p.has_server || extra?.has_server) ? '有服务端运行线索' : '未知（本地数据未提供）',
     hasGroupVersion: Boolean(p.has_group_version || extra?.has_group_version),
     groupVersionNote: p.group_version_note || (extra?.group_version_note as string),
     qqGroup: p.qq_group || (extra?.qq_group as string),
