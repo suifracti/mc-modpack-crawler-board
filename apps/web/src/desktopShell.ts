@@ -44,6 +44,7 @@ export interface DesktopRecord {
 }
 
 export interface PersonalStatus {
+  reference?: { title?: string; sourceUrl?: string; objectType: 'platform-record' | 'bilibili-video' };
   favorite: boolean;
   wantToPlay: boolean;
   played: boolean;
@@ -138,6 +139,8 @@ export interface DesktopUpdateStatus {
 export interface DesktopApi {
   getState: () => Promise<{ data: DesktopDataState; update: DesktopUpdateStatus }>;
   getPersonalLibrary: () => Promise<{ schema: number; entries: Record<string, PersonalStatus> }>;
+  getMissingPersonalSources: () => Promise<{ entries: Record<string, PersonalStatus> }>;
+  restorePersonalLibrary: (payload: unknown) => Promise<{ restored: number; 'skipped-conflict': number; invalid: number }>;
   updatePersonalStatus: (platform: Platform, sourceId: string, patch: Partial<Pick<PersonalStatus, 'favorite' | 'wantToPlay' | 'played' | 'rating' | 'note'>>) => Promise<{ key: string; status: PersonalStatus }>;
   getAuditDiff: () => Promise<DesktopAuditResult>;
   getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availablePans: string[]; error?: string | null }>;
@@ -246,6 +249,7 @@ const state = {
   compareIds: [] as string[],
   compareRecords: {} as Record<string, DesktopRecord>,
   personalLibrary: {} as Record<string, PersonalStatus>,
+  missingPersonalSources: {} as Record<string, PersonalStatus>,
   comments: { sourceId: '', loading: false, available: false, pageCount: 0, comments: [] as DesktopComment[], sourceFile: null as string | null, error: '' },
   loading: true,
   message: '',
@@ -1172,6 +1176,19 @@ function imagePreviewPanel(): string {
   return `<div class="image-lightbox" data-action="close-image" role="dialog" aria-modal="true" aria-label="图片预览"><div class="image-lightbox-panel"><button type="button" class="icon-button image-lightbox-close" data-action="close-image" aria-label="关闭图片预览">×</button><img src="${esc(preview.url)}" alt="${esc(preview.title)}" referrerpolicy="no-referrer"><div class="image-lightbox-title">${esc(preview.title)}</div><a class="button secondary" href="${esc(preview.url)}" target="_blank" rel="noreferrer">在新标签页打开原图 ↗</a></div></div>`;
 }
 
+export function renderPersonalBackup(entries: Record<string, PersonalStatus>): string {
+  return `<details class="detail-section"><summary>个人资料备份与缺源回访（${Object.keys(entries).length} 条缺源）</summary>
+    <a class="detail-link" href="/api/library/export" download="personal-library.json">导出个人资料 JSON</a>
+    <label class="detail-link">恢复个人资料 JSON <input id="personal-restore-file" type="file" accept="application/json,.json"></label>
+    <p>恢复前完整校验；已有 key 保留当前资料，备份冲突项跳过。仅备份个人状态和保存时记录的来源信息，不包含快照。</p>
+    ${Object.entries(entries).map(([key, status]) => {
+      const url = safeExternalUrl(status.reference?.sourceUrl);
+      return `<article class="detail-section"><h3>${esc(status.reference?.title || '标题未知（本地数据未提供）')}</h3><p>当前数据未包含此来源</p><p>保存时记录的来源信息（非实时源站数据） · ${esc(key)} · ${status.reference?.objectType === 'bilibili-video' ? 'B站视频' : status.reference?.objectType === 'platform-record' ? '平台来源记录' : '对象类型未知'}</p>
+        <p>收藏：${status.favorite ? '是' : '否'} · 想玩：${status.wantToPlay ? '是' : '否'} · 玩过：${status.played ? '是' : '否'} · 评分：${status.rating ?? '未评分'}</p><pre>${esc(status.note || '无备注')}</pre>
+        ${url ? `<a class="detail-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">打开保存时的来源链接 ↗</a>` : '<p>来源 URL 未知（本地数据未提供）</p>'}</article>`;
+    }).join('') || '<p>暂无缺源个人记录。</p>'}</details>`;
+}
+
 function render(): void {
   const data = state.data;
   const availableCount = data ? Object.values(data.platforms).filter((item) => item.available).length : 0;
@@ -1184,9 +1201,9 @@ function render(): void {
     return `<button type="button" class="top-plat-btn ${state.platform === item.id ? 'active' : ''}" data-tab="${item.id}" data-action="set-platform" data-platform="${item.id}" aria-current="${state.platform === item.id ? 'page' : 'false'}"><span class="platform-nav-icon">${icon}</span><span class="platform-nav-label">${esc(item.name)}</span><span class="pnav-badge">${count ? formatCount(count) : '—'}</span></button>`;
   }).join('');
   const themeButtons = [['dark', '🌙'], ['light', '☀️'], ['eye', '🌿'], ['warm', '☕'], ['pink', '🌸']].map(([id, icon]) => `<button type="button" class="top-tdot ${theme === id ? 'active' : ''}" data-action="set-theme" data-theme="${id}" title="切换${id}主题">${icon}</button>`).join('');
-  const body = state.platform === 'all'
+  const body = renderPersonalBackup(state.missingPersonalSources) + (state.platform === 'all'
     ? `${renderCrossSearch()}<section class="all-platforms-grid" aria-label="六平台数据看板">${ALL_PLATFORMS.map(renderLegacyShowcaseCard).join('')}</section><div class="desktop-section-heading"><span class="eyebrow">LIVE SNAPSHOT</span><h2>当前快照浏览</h2><p>卡片、版本筛选与详情入口均来自本地快照；需要更多结果时可继续加载。</p></div>${renderResultsWorkspace(selectedName)}`
-    : `${renderPlatformHero(state.platform)}${renderResultsWorkspace(selectedName)}`;
+    : `${renderPlatformHero(state.platform)}${renderResultsWorkspace(selectedName)}`);
   root.innerHTML = `<div class="desktop-app legacy-shell"><div class="bg-layer" aria-hidden="true"></div>
     <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button><span class="data-status ${data?.hasData ? 'ready' : 'empty'}"><i></i>${data?.hasData ? `快照 ${esc(data.snapshotId || '已载入')}` : '等待数据'}</span><button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button><div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
     <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${auditPanel()}${renderComparePanel()}</div>`;
@@ -1194,6 +1211,18 @@ function render(): void {
 }
 
 function bindEvents(): void {
+  root.querySelector<HTMLInputElement>('#personal-restore-file')?.addEventListener('change', async (event) => {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    try {
+      if (file.size > 16 * 1024 * 1024) throw new Error('备份不能超过 16 MiB');
+      const result = await window.desktopApi.restorePersonalLibrary(JSON.parse(await file.text()));
+      await loadPersonalLibrary();
+      await loadRecords(true);
+      state.message = `恢复结果：restored=${result.restored}，skipped-conflict=${result['skipped-conflict']}，invalid=${result.invalid}`;
+    } catch (error) { state.message = `恢复未确认成功，请核对当前资料：${error instanceof Error ? error.message : String(error)}`; }
+    render();
+  });
   root.querySelectorAll<HTMLElement>('[data-action]').forEach((element) => element.addEventListener('click', (event) => void handleAction(element, event)));
   root.querySelectorAll<HTMLElement>('.js-copy-btn').forEach((element) => element.addEventListener('click', (event) => {
     event.preventDefault();
@@ -1320,6 +1349,7 @@ async function loadPersonalLibrary(): Promise<void> {
   try {
     const result = await window.desktopApi.getPersonalLibrary();
     state.personalLibrary = result.entries || {};
+    state.missingPersonalSources = (await window.desktopApi.getMissingPersonalSources()).entries;
   } catch (error) {
     state.personalLibrary = {};
     state.message = error instanceof Error ? error.message : String(error);
@@ -1654,7 +1684,7 @@ export async function initDesktopShell(): Promise<void> {
     state.logs = update.logs || state.logs;
     render();
     if (update.state === 'success') {
-      void window.desktopApi.getState().then(async (next) => { state.data = next.data; await loadRecords(true); });
+      void window.desktopApi.getState().then(async (next) => { state.data = next.data; await loadPersonalLibrary(); await loadRecords(true); });
     }
   });
   window.desktopApi.onUpdateLog((line) => {
@@ -1663,6 +1693,6 @@ export async function initDesktopShell(): Promise<void> {
   });
   window.desktopApi.onDataChanged((data) => {
     state.data = data;
-    void loadRecords(true);
+    void loadPersonalLibrary().then(() => loadRecords(true));
   });
 }

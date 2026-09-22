@@ -191,17 +191,34 @@ function createBrowserService(options = {}) {
     }
 
     if (pathname === '/api/library' && request.method === 'GET') return json(response, 200, await personalLibrary.list());
+    if (pathname === '/api/library/export' && request.method === 'GET') {
+      response.setHeader('Content-Disposition', 'attachment; filename="personal-library.json"');
+      return json(response, 200, await personalLibrary.list());
+    }
+    if (pathname === '/api/library/restore' && request.method === 'POST') {
+      const result = await personalLibrary.restore(await readJsonBody(request, 16 * 1024 * 1024));
+      return json(response, result.invalid ? 400 : 200, result);
+    }
+    if (pathname === '/api/library/missing' && request.method === 'GET') {
+      const missing = {};
+      for (const [key, status] of Object.entries((await personalLibrary.list()).entries)) {
+        const split = key.indexOf(':');
+        if (!await store.findSourceRecord(key.slice(0, split), key.slice(split + 1))) missing[key] = status;
+      }
+      return json(response, 200, { entries: missing });
+    }
 
     const personalMatch = pathname.match(/^\/api\/library\/([^/]+)\/([^/]+)$/);
     if (personalMatch && request.method === 'PATCH') {
       const platform = decodeURIComponent(personalMatch[1]);
       const sourceId = decodeURIComponent(personalMatch[2]);
       assertPlatform(platform);
-      if (await store.isIndexFallbackSourceId(platform, sourceId)) {
+      const patch = await readJsonBody(request, 64 * 1024);
+      const record = await store.findSourceRecord(platform, sourceId);
+      if (record?.sourceIdOrigin === 'index-fallback') {
         throw new Error('该记录仅由数组序号生成来源标识，不能保存个人状态；请使用带稳定来源 ID 的记录');
       }
-      const patch = await readJsonBody(request, 64 * 1024);
-      return json(response, 200, await personalLibrary.update(platform, sourceId, patch));
+      return json(response, 200, await personalLibrary.update(platform, sourceId, patch, record));
     }
 
     const commentsMatch = pathname.match(/^\/api\/platforms\/([^/]+)\/comments\/([^/]+)$/);

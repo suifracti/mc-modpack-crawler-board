@@ -3,7 +3,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { assertPlatform } = require('./platforms.cjs');
 
-const PERSONAL_LIBRARY_SCHEMA = 1;
+const PERSONAL_LIBRARY_SCHEMA = 2;
 const PERSONAL_LIBRARY_FILE = 'personal-library.json';
 const MAX_NOTE_LENGTH = 20_000;
 
@@ -37,7 +37,39 @@ function normaliseStatus(value) {
     rating: Number.isInteger(rating) && rating >= 1 && rating <= 5 ? rating : null,
     note: typeof input.note === 'string' ? input.note.slice(0, MAX_NOTE_LENGTH) : '',
     updatedAt: typeof input.updatedAt === 'string' ? input.updatedAt : null,
+    ...(input.reference ? { reference: { ...input.reference } } : {}),
   };
+}
+
+function validateBackup(payload) {
+  const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+  if (!object(payload) || ![1, 2].includes(payload.schema) || Object.keys(payload).some((key) => !['schema', 'entries'].includes(key)) || !object(payload.entries)) throw new Error('个人资料 schema 或结构无效');
+  const entries = new Map();
+  for (const [key, value] of Object.entries(payload.entries)) {
+    const split = key.indexOf(':');
+    const platform = key.slice(0, split);
+    const sourceId = key.slice(split + 1);
+    if (split < 1 || personalKey(platform, sourceId) !== key) throw new Error('来源 key 无效');
+    if (!object(value) || Object.keys(value).some((field) => !['favorite', 'wantToPlay', 'played', 'rating', 'note', 'updatedAt', ...(payload.schema === 2 ? ['reference'] : [])].includes(field))) throw new Error('个人资料包含非法字段');
+    for (const field of ['favorite', 'wantToPlay', 'played']) if (typeof value[field] !== 'boolean') throw new Error(`${field} 类型无效`);
+    if (value.rating !== null && (!Number.isInteger(value.rating) || value.rating < 1 || value.rating > 5)) throw new Error('rating 无效');
+    if (typeof value.note !== 'string' || value.note.length > MAX_NOTE_LENGTH) throw new Error('note 无效');
+    if (value.updatedAt !== null && (typeof value.updatedAt !== 'string' || !Number.isFinite(Date.parse(value.updatedAt)))) throw new Error('updatedAt 无效');
+    if (value.reference !== undefined) {
+      const ref = value.reference;
+      if (!object(ref) || Object.keys(ref).some((field) => !['title', 'sourceUrl', 'objectType'].includes(field))) throw new Error('引用字段无效');
+      if (ref.title !== undefined && typeof ref.title !== 'string') throw new Error('引用标题无效');
+      if (ref.sourceUrl !== undefined && (typeof ref.sourceUrl !== 'string' || !safeSourceUrl(ref.sourceUrl))) throw new Error('引用 URL 无效');
+      if (ref.objectType !== (platform === 'bilibili' ? 'bilibili-video' : 'platform-record')) throw new Error('引用对象类型无效');
+    }
+    entries.set(key, normaliseStatus(value));
+  }
+  return entries;
+}
+
+function safeSourceUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) return false;
+  try { return ['http:', 'https:'].includes(new URL(value).protocol); } catch { return false; }
 }
 
 function validatePatch(patch) {
@@ -72,10 +104,7 @@ class PersonalLibrary {
     await fsp.mkdir(this.rootDir, { recursive: true });
     try {
       const payload = JSON.parse(await fsp.readFile(this.filePath, 'utf8'));
-      const rawEntries = payload && typeof payload === 'object' && payload.entries && typeof payload.entries === 'object' ? payload.entries : {};
-      for (const [key, value] of Object.entries(rawEntries)) {
-        if (typeof key === 'string' && key.length <= 300) this.entries.set(key, normaliseStatus(value));
-      }
+      this.entries = validateBackup(payload);
     } catch (error) {
       if (error?.code !== 'ENOENT') throw new Error(`个人库读取失败：${error instanceof Error ? error.message : String(error)}`);
     }
@@ -96,32 +125,53 @@ class PersonalLibrary {
 
   async list() {
     const entries = {};
-    for (const [key, value] of this.entries) entries[key] = { ...value };
+    for (const [key, value] of this.entries) entries[key] = normaliseStatus(value);
     return { schema: PERSONAL_LIBRARY_SCHEMA, entries };
   }
 
-  async update(platform, sourceId, patch) {
+  async restore(payload) {
+    let incoming;
+    try { incoming = validateBackup(payload); } catch (error) {
+      return { restored: 0, 'skipped-conflict': 0, invalid: 1, error: error.message };
+    }
+    const operation = this.writeQueue.then(async () => {
+      const merged = new Map(this.entries);
+      let restored = 0;
+      let skipped = 0;
+      for (const [key, value] of incoming) {
+        if (merged.has(key)) skipped++;
+        else { merged.set(key, value); restored++; }
+      }
+      if (restored) {
+        await writeJsonAtomic(this.filePath, { schema: PERSONAL_LIBRARY_SCHEMA, entries: Object.fromEntries(merged) });
+        this.entries = merged;
+      }
+      return { restored, 'skipped-conflict': skipped, invalid: 0 };
+    });
+    this.writeQueue = operation.catch(() => {});
+    return operation;
+  }
+
+  async update(platform, sourceId, patch, record) {
     const key = personalKey(platform, sourceId);
     validatePatch(patch);
     const operation = this.writeQueue.then(async () => {
-      const hadPrevious = this.entries.has(key);
-      const previous = this.entries.get(key);
+      const merged = new Map(this.entries);
       const current = this.get(platform, sourceId);
       const next = normaliseStatus({ ...current, ...patch, updatedAt: new Date().toISOString() });
-      try {
-        if (!next.favorite && !next.wantToPlay && !next.played && next.rating === null && !next.note) {
-          this.entries.delete(key);
-        } else {
-          this.entries.set(key, next);
-        }
-        const payload = await this.list();
-        await writeJsonAtomic(this.filePath, payload);
-        return { key, status: this.get(platform, sourceId) };
-      } catch (error) {
-        if (hadPrevious) this.entries.set(key, previous);
-        else this.entries.delete(key);
-        throw error;
+      if (record) next.reference = {
+        ...(typeof record.title === 'string' && record.title.trim() ? { title: record.title } : {}),
+        ...(safeSourceUrl(record.url) ? { sourceUrl: record.url } : {}),
+        objectType: platform === 'bilibili' ? 'bilibili-video' : 'platform-record',
+      };
+      if (!next.favorite && !next.wantToPlay && !next.played && next.rating === null && !next.note) {
+        merged.delete(key);
+      } else {
+        merged.set(key, next);
       }
+      await writeJsonAtomic(this.filePath, { schema: PERSONAL_LIBRARY_SCHEMA, entries: Object.fromEntries(merged) });
+      this.entries = merged;
+      return { key, status: this.get(platform, sourceId) };
     });
     this.writeQueue = operation.catch(() => {});
     return operation;

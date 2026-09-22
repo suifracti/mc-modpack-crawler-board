@@ -46,6 +46,8 @@ export function installBrowserApi(): void {
   const api: DesktopApi = {
     getState: () => request<{ data: DesktopDataState; update: DesktopUpdateStatus }>('/api/state'),
     getPersonalLibrary: () => request<{ schema: number; entries: Record<string, PersonalStatus> }>('/api/library'),
+    getMissingPersonalSources: () => request<{ entries: Record<string, PersonalStatus> }>('/api/library/missing'),
+    restorePersonalLibrary: (payload) => request<{ restored: number; 'skipped-conflict': number; invalid: number }>('/api/library/restore', { method: 'POST', body: JSON.stringify(payload) }),
     updatePersonalStatus: (platform, sourceId, patch) => request<{ key: string; status: PersonalStatus }>(`/api/library/${encodeURIComponent(platform)}/${encodeURIComponent(sourceId)}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),

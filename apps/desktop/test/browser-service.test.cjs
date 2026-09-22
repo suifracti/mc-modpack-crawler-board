@@ -30,6 +30,77 @@ function request(url, options = {}) {
   });
 }
 
+test('personal backup migrates on write, preserves missing sources and restores atomically without overwriting', async () => {
+  const root = await tempDir();
+  const dataRoot = path.join(root, 'old');
+  await fs.mkdir(dataRoot);
+  const old = { favorite: true, wantToPlay: true, played: true, rating: 4, note: '旧备注', updatedAt: null };
+  const file = path.join(dataRoot, 'personal-library.json');
+  await fs.writeFile(file, JSON.stringify({ schema: 1, entries: { 'mcmod:123': old } }));
+  let service = createBrowserService({ host: '127.0.0.1', port: 0, dataRoot });
+  let started = await service.start();
+  const api = async (route, body, method = 'POST') => {
+    const response = await request(`${started.url}api/${route}`, body === undefined ? {} : { method, body });
+    return { status: response.status, data: JSON.parse(response.body) };
+  };
+  try {
+    assert.deepEqual((await api('library')).data.entries['mcmod:123'], old);
+    assert.equal(JSON.parse(await fs.readFile(file, 'utf8')).schema, 1);
+    assert.deepEqual((await api('library/missing')).data.entries['mcmod:123'], old);
+    await api('library/mcmod/123', { note: '旧备注更新' }, 'PATCH');
+    assert.equal(JSON.parse(await fs.readFile(file, 'utf8')).schema, 2);
+    const source = path.join(root, 'source', 'data');
+    await fs.mkdir(source, { recursive: true });
+    await fs.writeFile(path.join(source, 'bili_data.js'), 'window.biliModpacksData = [{"bvid":"BV-A","title":"历史标题 A","url":"https://example.com/A"}];');
+    await api('data/import', { path: path.dirname(source) });
+    assert.equal((await api('library/bilibili/BV-A', { favorite: true }, 'PATCH')).status, 200);
+    await api('library/bilibili/BV-A', { rating: 5, note: 'A 备注' }, 'PATCH');
+    const saved = JSON.parse(await fs.readFile(file, 'utf8')).entries['bilibili:BV-A'];
+    assert.deepEqual(saved.reference, { title: '历史标题 A', sourceUrl: 'https://example.com/A', objectType: 'bilibili-video' });
+    assert.equal(saved.rating, 5);
+    const next = path.join(root, 'next', 'data');
+    await fs.mkdir(next, { recursive: true });
+    await fs.writeFile(path.join(next, 'bili_data.js'), 'window.biliModpacksData = [{"bvid":"BV-B","title":"B"}];');
+    await api('data/import', { path: path.dirname(next) });
+    assert.deepEqual((await api('library/missing')).data.entries['bilibili:BV-A'], saved);
+    const beforeExport = await fs.readFile(file, 'utf8');
+    const backup = (await api('library/export')).data;
+    assert.deepEqual(Object.keys(backup).sort(), ['entries', 'schema']);
+    assert.equal(backup.schema, 2);
+    assert.deepEqual(backup.entries['bilibili:BV-A'], saved);
+    assert.equal(await fs.readFile(file, 'utf8'), beforeExport);
+    await service.stop();
+    const fresh = path.join(root, 'fresh');
+    service = createBrowserService({ host: '127.0.0.1', port: 0, dataRoot: fresh });
+    started = await service.start();
+    assert.deepEqual((await api('library/restore', backup)).data, { restored: 2, 'skipped-conflict': 0, invalid: 0 });
+    await api('library/bilibili/BV-A', { note: '当前值保留' }, 'PATCH');
+    assert.deepEqual((await api('library/restore', backup)).data, { restored: 0, 'skipped-conflict': 2, invalid: 0 });
+    const freshFile = path.join(fresh, 'personal-library.json');
+    const preserved = await fs.readFile(freshFile, 'utf8');
+    const invalidBackups = [
+      { ...backup, schema: 99 },
+      { schema: 2, entries: { 'bad:123': old } },
+      ...[{ rating: 6 }, { rating: '5' }, { note: 'x'.repeat(20001) }, { reference: { objectType: 'bilibili-video', sourceUrl: 'javascript:alert(1)' } }, { reference: { objectType: 'bilibili-video', title: 42 } }, { favorite: 'yes' }, { unexpected: true }].map((patch) => ({ schema: 2, entries: { 'mcmod:456': old, 'bilibili:invalid': { ...saved, ...patch } } })),
+    ];
+    for (const bad of invalidBackups) {
+      const result = await api('library/restore', bad);
+      assert.equal(result.status, 400);
+      assert.equal(result.data.invalid, 1);
+      assert.equal(result.data.restored, 0);
+      assert.equal(await fs.readFile(freshFile, 'utf8'), preserved);
+      assert.equal((await api('library')).data.entries['mcmod:456'], undefined);
+    }
+    await service.stop();
+    service = createBrowserService({ host: '127.0.0.1', port: 0, dataRoot: fresh });
+    started = await service.start();
+    const restored = (await api('library/missing')).data.entries;
+    assert.equal(restored['bilibili:BV-A'].note, '当前值保留');
+    assert.deepEqual(restored['bilibili:BV-A'].reference, saved.reference);
+    assert.equal(restored['mcmod:123'].played, true);
+  } finally { await service.stop(); }
+});
+
 test('serves same-origin health, state and imported records over HTTP', async () => {
   const root = await tempDir();
   const source = path.join(root, 'source', 'data');

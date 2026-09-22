@@ -1,6 +1,18 @@
 # 当前实施状态
 
-更新：2026-09-22。本页记录 PR #7 合并收口；历史项目状态仍见 [PROJECT_STATUS.md](PROJECT_STATUS.md)。
+更新：2026-09-22。本页记录 Phase 2 个人资料导出 / 恢复与缺源回访的待审交付；历史项目状态仍见 [PROJECT_STATUS.md](PROJECT_STATUS.md)。
+
+## 当前唯一任务：Phase 2
+
+- branch：`codex/personal-backup-revisit`；base：`master@392679b24c87821560aa1cd1e0aff0f1ae55748e`。状态：IMPLEMENTED / READY_FOR_REVIEW / NOT_MERGED。
+- 本轮范围以用户转发的 Phase 2 任务合同为准；仓库 [Master Plan](../MC_PROJECT_MASTER_PLAN.md) 仍是历史 PR #5 摘录，不据此重开旧任务。本仓库没有 AGENTS.md，不增建规则体系。
+- schema 2 向后读取 schema 1；读和导出不迁移文件，下一次正常写入使用 schema 2。key 仍为 `platform:sourceId`，B站仍为具体 BVID。
+- 可选 `reference` 仅包含 `title`、`sourceUrl`、`objectType`（`platform-record` / `bilibili-video`）；来自保存时对应来源，缺失不猜测，旧条目无引用仍可显示。不是实时源站事实。
+- `GET /api/library/export` 下载个人 JSON；`POST /api/library/restore` 接收 JSON（最多 16 MiB）。完整结构/白名单/类型/URL/状态校验后，写队列内合并并同目录原子写入；写入成功才提交内存。
+- 恢复只加入不存在的 key；冲突保留当前，结果为 `restored` / `skipped-conflict` / `invalid`。任一非法条目拒绝整份备份，原文件不变。不含快照、raw、sidecar、账号或设置。
+- 浏览页“个人资料备份与缺源回访”提供文件导出/恢复及缺源列表；`GET /api/library/missing` 返回当前 snapshot 缺少的个人条目，显示历史标题、状态、备注、安全原链接及“当前数据未包含此来源”。不建立独立管理中心，不删缺源状态，不联网追溯。
+- 最小验证：browser-service 3/3（旧 schema、引用、切换缺源 snapshot、导出不写、全新 dataRoot 恢复/冲突、9 类非法备份零部分写、重启）；Web renderer 9/9；typecheck + desktop build；一次临时 dataRoot 无头浏览器文件恢复、缺源提示、安全链接、下载和非法恢复验证通过。
+- 未验证真实联网、完整采集、发布环境完整 GUI；未迁移真实个人文件、未改 active pointer。blocker：无。等待本 PR 审阅，不自动合并、不进入 Phase 3。
 
 ## 当前交付
 

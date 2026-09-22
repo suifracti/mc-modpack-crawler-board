@@ -4,7 +4,7 @@ import { renderBbsmcCard } from '../src/platforms/bbsmc/renderer';
 import { renderXyebbsCard } from '../src/platforms/xyebbs/renderer';
 import { renderModrinthCard } from '../src/platforms/modrinth/renderer';
 import { renderCurseforgeCard } from '../src/platforms/curseforge/renderer';
-import { filterBilibiliGroupsByPersonalStatus, getDesktopSearchPlaceholder, renderPackVersionDetail } from '../src/desktopShell';
+import { filterBilibiliGroupsByPersonalStatus, getDesktopSearchPlaceholder, renderPackVersionDetail, renderPersonalBackup } from '../src/desktopShell';
 import type { BiliGroup } from '../src/platforms/bilibili/renderer';
 import type { BilibiliPack } from '../src/types/legacy/bilibili';
 import type { BbsmcPack } from '../src/types/legacy/bbsmc';
@@ -13,6 +13,24 @@ import type { ModrinthPack } from '../src/types/legacy/modrinth';
 import type { CurseforgePack } from '../src/types/legacy/curseforge';
 
 describe('Platform Card Renderers', () => {
+  it('shows missing personal sources as historical references with safe links and backup controls', () => {
+    const status = { favorite: true, wantToPlay: true, played: false, rating: 4, note: '<script>备注</script>', updatedAt: null };
+    const html = renderPersonalBackup({
+      'bilibili:BV-A': { ...status, reference: { title: '历史 A', sourceUrl: 'https://example.com/A', objectType: 'bilibili-video' } },
+      'mcmod:123': status,
+      'mcmod:456': { ...status, reference: { sourceUrl: 'javascript:alert(1)', objectType: 'platform-record' } },
+    });
+    expect(html).toContain('当前数据未包含此来源');
+    expect(html).toContain('保存时记录的来源信息（非实时源站数据）');
+    expect(html).toContain('历史 A');
+    expect(html).toContain('评分：4');
+    expect(html).toContain('&lt;script&gt;备注&lt;/script&gt;');
+    expect(html).toContain('href="https://example.com/A"');
+    expect(html).not.toContain('javascript:');
+    expect(html).toContain('标题未知（本地数据未提供）');
+    expect(html).toContain('/api/library/export');
+    expect(html).toContain('type="file"');
+  });
   it('renders the MCMod pack version separately and accepts old missing-field records', () => {
     expect(renderPackVersionDetail({ platform: 'mcmod', packVersion: '1.2.3' }))
       .toContain('<dt>整合包版本名</dt><dd>1.2.3</dd>');
