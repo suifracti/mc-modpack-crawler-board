@@ -109,7 +109,10 @@ h2 { margin: 7px 0 0; font-size: 22px; letter-spacing: -.02em; }
 .log-details { margin-top: 16px; color: var(--muted); font-size: 11px; }
 .log-details summary { cursor: pointer; }
 .log-details pre { max-height: 180px; margin: 9px 0 0; padding: 10px; overflow: auto; color: var(--text); border-radius: 8px; background: var(--bg-soft); white-space: pre-wrap; word-break: break-word; font: 10px/1.5 ui-monospace, Consolas, monospace; }
-.empty-state, .loading-state, .notice { padding: 44px 24px; border: 1px dashed var(--line); border-radius: 15px; text-align: center; background: var(--bg-soft); }
+.empty-state, .loading-state, .notice, .error-state { padding: 44px 24px; border: 1px dashed var(--line); border-radius: 15px; text-align: center; background: var(--bg-soft); }
+.error-state { border-color: color-mix(in srgb, #dc2626 42%, var(--line)); background: color-mix(in srgb, #dc2626 6%, var(--bg-soft)); }
+.error-state h3 { margin: 10px 0 7px; color: #b91c1c; }
+.error-state p { max-width: 720px; margin: 0 auto 18px; color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .empty-state.compact-empty { padding: 32px; }
 .empty-icon { color: var(--primary); font-size: 30px; }
 .empty-state h3 { margin: 10px 0 7px; }

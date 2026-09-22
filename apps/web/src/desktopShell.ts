@@ -245,6 +245,8 @@ const state = {
   imagePreview: null as { url: string; title: string } | null,
   audit: null as DesktopAuditResult | null,
   auditOpen: false,
+  auditLoading: false,
+  auditError: '',
   compareOpen: false,
   compareIds: [] as string[],
   compareRecords: {} as Record<string, DesktopRecord>,
@@ -252,6 +254,7 @@ const state = {
   missingPersonalSources: {} as Record<string, PersonalStatus>,
   comments: { sourceId: '', loading: false, available: false, pageCount: 0, comments: [] as DesktopComment[], sourceFile: null as string | null, error: '' },
   loading: true,
+  recordsError: '',
   message: '',
   logs: [] as string[],
 };
@@ -1028,7 +1031,14 @@ function auditPanel(): string {
   if (!state.auditOpen) return '';
   const audit = state.audit;
   const stats = audit?.stats || {};
-  return `<div class="audit-backdrop" data-action="close-audit" role="dialog" aria-modal="true" aria-label="变动审计"><section class="audit-panel"><button type="button" class="icon-button audit-close" data-action="close-audit" aria-label="关闭审计">×</button><div class="eyebrow">SNAPSHOT AUDIT</div><h2>抓取变动审计</h2>${audit ? `<p class="audit-meta">${esc(audit.generated_at || '当前快照')} · ${audit.available ? '可用历史对比' : '没有可用历史基线'}</p>${audit.message ? `<div class="notice">${esc(audit.message)}</div>` : ''}<div class="audit-kpis"><div><strong>${formatCount(Number(stats.total_current || 0))}</strong><span>当前范围</span></div><div><strong>${formatCount(Number(stats.added_count || 0))}</strong><span>新增</span></div><div><strong>${formatCount(Number(stats.updated_count || 0))}</strong><span>更新</span></div><div><strong>${formatCount(Number(stats.removed_count || 0))}</strong><span>移除</span></div></div><div class="audit-list">${auditRows(audit)}</div>` : '<div class="loading-state">正在读取当前快照的审计文件…</div>'}</section></div>`;
+  const body = state.auditLoading
+    ? '<div class="loading-state">正在读取当前快照的审计文件…</div>'
+    : state.auditError
+      ? `<div class="error-state"><div class="empty-icon">!</div><h3>审计请求失败</h3><p>${esc(state.auditError)}</p><button type="button" class="button secondary" data-action="retry-audit">重试审计请求</button></div>`
+      : audit
+        ? `<p class="audit-meta">${esc(audit.generated_at || '当前快照')} · ${audit.available ? '可用历史对比' : '没有可用历史基线'}</p>${audit.message ? `<div class="notice">${esc(audit.message)}</div>` : ''}<div class="audit-kpis"><div><strong>${formatCount(Number(stats.total_current || 0))}</strong><span>当前范围</span></div><div><strong>${formatCount(Number(stats.added_count || 0))}</strong><span>新增</span></div><div><strong>${formatCount(Number(stats.updated_count || 0))}</strong><span>更新</span></div><div><strong>${formatCount(Number(stats.removed_count || 0))}</strong><span>移除</span></div></div><div class="audit-list">${auditRows(audit)}</div>`
+        : '<div class="empty-evidence">当前快照没有可读取的审计信息。</div>';
+  return `<div class="audit-backdrop" data-action="close-audit" role="dialog" aria-modal="true" aria-label="变动审计"><section class="audit-panel"><button type="button" class="icon-button audit-close" data-action="close-audit" aria-label="关闭审计">×</button><div class="eyebrow">SNAPSHOT AUDIT</div><h2>抓取变动审计</h2>${body}</section></div>`;
 }
 
 function compareEntries(): DesktopRecord[] {
@@ -1076,7 +1086,15 @@ function renderResultsWorkspace(selectedName: string): string {
   const resultHeading = isAllPlatform ? '分平台结果' : state.loading ? '正在读取数据…' : hasFilter ? '筛选结果' : '最近可用数据';
   const resultCount = isAllPlatform ? `${formatCount(displayedCount)} 条已加载 · 每个平台最多 12 条/轮` : `${formatCount(displayedCount)} / ${formatCount(totalLabel)}`;
   const loadMoreLabel = isAllPlatform ? `各平台继续加载（当前第 ${state.page} 轮）` : `加载更多（已显示 ${formatCount(records.length)} / ${formatCount(state.total)}）`;
-  return `<div class="content-grid"><section class="results-column"><div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : resultHeading}</h2></div><span class="result-count">${state.loading ? '' : resultCount}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${!data?.hasData ? `<div class="empty-state"><div class="empty-icon">◌</div><h3>还没有本地数据快照</h3><p>选择现有的 <code>converted_output</code>、<code>build/frontend_preview</code> 或其 <code>data</code> 目录。应用不会把空数据伪装成成功。</p><button class="button primary" data-action="choose-data">选择数据目录</button></div>` : state.loading ? '<div class="loading-state">正在读取当前快照…</div>' : `${resultBody}${state.hasMore ? `<div class="load-more"><button class="button secondary" data-action="load-more">${loadMoreLabel}</button></div>` : ''}`}</section>${updatePanel()}</div>`;
+  const recordsFailure = `<div class="error-state"><div class="empty-icon">!</div><h3>整合包记录加载失败</h3><p>${esc(state.recordsError)}</p><button type="button" class="button secondary" data-action="retry-records">重试加载</button></div>`;
+  const recordsBody = !data?.hasData
+    ? `<div class="empty-state"><div class="empty-icon">◌</div><h3>还没有本地数据快照</h3><p>选择现有的 <code>converted_output</code>、<code>build/frontend_preview</code> 或其 <code>data</code> 目录。应用不会把空数据伪装成成功。</p><button class="button primary" data-action="choose-data">选择数据目录</button></div>`
+    : state.loading
+      ? '<div class="loading-state">正在读取当前快照…</div>'
+      : state.recordsError && !records.length
+        ? recordsFailure
+        : `${state.recordsError ? recordsFailure : ''}${resultBody}${state.hasMore ? `<div class="load-more"><button class="button secondary" data-action="load-more">${loadMoreLabel}</button></div>` : ''}`;
+  return `<div class="content-grid"><section class="results-column"><div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : state.recordsError && !records.length ? '加载失败' : resultHeading}</h2></div><span class="result-count">${state.loading || (state.recordsError && !records.length) ? '' : resultCount}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${recordsBody}</section>${updatePanel()}</div>`;
 }
 
 function renderRelease(release: Record<string, unknown>): string {
@@ -1356,19 +1374,29 @@ async function loadPersonalLibrary(): Promise<void> {
   }
 }
 
+async function loadAudit(): Promise<void> {
+  state.auditLoading = true;
+  state.auditError = '';
+  render();
+  try {
+    state.audit = await window.desktopApi.getAuditDiff();
+  } catch (error) {
+    state.audit = null;
+    state.auditError = error instanceof Error ? error.message : String(error);
+  } finally {
+    state.auditLoading = false;
+    render();
+  }
+}
+
 async function handleAction(element: HTMLElement, event?: Event): Promise<void> {
   const action = element.dataset.action;
   if (action === 'toggle-audit') {
     state.auditOpen = !state.auditOpen;
-    if (state.auditOpen && !state.audit) {
-      render();
-      try {
-        state.audit = await window.desktopApi.getAuditDiff();
-      } catch (error) {
-        state.audit = { available: false, message: error instanceof Error ? error.message : String(error), generated_at: null, stats: null, added: [], updated: [], removed: [], version_gained: [] };
-      }
-    }
-    render();
+    if (state.auditOpen && !state.audit) await loadAudit();
+    else render();
+  } else if (action === 'retry-audit') {
+    await loadAudit();
   } else if (action === 'close-audit') {
     if (element.classList.contains('audit-backdrop') && event && event.target !== element) return;
     state.auditOpen = false;
@@ -1386,6 +1414,8 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     state.compareIds = [];
     state.compareOpen = false;
     render();
+  } else if (action === 'retry-records') {
+    await loadRecords(true);
   } else if (action === 'toggle-compare') {
     event?.stopPropagation();
     const index = Number(element.dataset.index || '-1');
@@ -1585,6 +1615,7 @@ async function loadRecords(reset = true): Promise<void> {
     state.page += 1;
   }
   state.loading = true;
+  state.recordsError = '';
   render();
   const platforms = state.platform === 'all' ? ALL_PLATFORMS : [state.platform];
   const groupedBili = state.platform === 'bilibili' && state.biliViewMode === 'grouped';
@@ -1606,16 +1637,27 @@ async function loadRecords(reset = true): Promise<void> {
       page,
       pageSize: requestPageSize,
     });
+    const requestPlatform = async (platform: Platform, page: number) => {
+      const result = await window.desktopApi.getPlatformRecords(platform, getOptions(page));
+      if (result.error) throw new Error(result.error);
+      return result;
+    };
     let results: Awaited<ReturnType<typeof window.desktopApi.getPlatformRecords>>[];
     if (groupedBili) {
-      const first = await window.desktopApi.getPlatformRecords('bilibili', getOptions(1));
+      const first = await requestPlatform('bilibili', 1);
       results = [first];
       const pageCount = Math.ceil(first.total / Math.max(first.pageSize, 1));
       for (let page = 2; page <= pageCount; page += 1) {
-        results.push(await window.desktopApi.getPlatformRecords('bilibili', getOptions(page)));
+        results.push(await requestPlatform('bilibili', page));
       }
     } else {
-      results = await Promise.all(platforms.map((platform) => window.desktopApi.getPlatformRecords(platform, getOptions(state.page))));
+      const settled = await Promise.allSettled(platforms.map((platform) => requestPlatform(platform, state.page)));
+      const failures = settled.flatMap((result, index) => result.status === 'rejected'
+        ? [`${PLATFORM_CONFIGS[platforms[index]].name}：${result.reason instanceof Error ? result.reason.message : String(result.reason)}`]
+        : []);
+      results = settled.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
+      if (!results.length) throw new Error(failures.join('；') || '所有平台请求均失败');
+      if (failures.length) state.recordsError = `部分平台加载失败；已保留其他平台结果。${failures.join('；')}`;
     }
     const nextRecords = results.flatMap((result) => result.records);
     state.records = reset ? nextRecords : [...state.records, ...nextRecords];
@@ -1634,7 +1676,8 @@ async function loadRecords(reset = true): Promise<void> {
     render();
   } catch (error) {
     state.loading = false;
-    state.message = error instanceof Error ? error.message : String(error);
+    state.hasMore = false;
+    state.recordsError = error instanceof Error ? error.message : String(error);
     render();
   }
 }
