@@ -4,7 +4,7 @@ import { renderBbsmcCard } from '../src/platforms/bbsmc/renderer';
 import { renderXyebbsCard } from '../src/platforms/xyebbs/renderer';
 import { renderModrinthCard } from '../src/platforms/modrinth/renderer';
 import { renderCurseforgeCard } from '../src/platforms/curseforge/renderer';
-import { filterBilibiliGroupsByPersonalStatus, getDesktopSearchPlaceholder } from '../src/desktopShell';
+import { filterBilibiliGroupsByPersonalStatus, getDesktopSearchPlaceholder, renderPackVersionDetail } from '../src/desktopShell';
 import type { BiliGroup } from '../src/platforms/bilibili/renderer';
 import type { BilibiliPack } from '../src/types/legacy/bilibili';
 import type { BbsmcPack } from '../src/types/legacy/bbsmc';
@@ -13,6 +13,13 @@ import type { ModrinthPack } from '../src/types/legacy/modrinth';
 import type { CurseforgePack } from '../src/types/legacy/curseforge';
 
 describe('Platform Card Renderers', () => {
+  it('renders the MCMod pack version separately and accepts old missing-field records', () => {
+    expect(renderPackVersionDetail({ platform: 'mcmod', packVersion: '1.2.3' }))
+      .toContain('<dt>整合包版本名</dt><dd>1.2.3</dd>');
+    expect(renderPackVersionDetail({ platform: 'mcmod' })).toContain('未知（本地数据未提供）');
+    expect(renderPackVersionDetail({ platform: 'mcmod', packVersion: '<img>' })).toContain('&lt;img&gt;');
+    expect(renderPackVersionDetail({ platform: 'bilibili', packVersion: '1.2.3' })).toBe('');
+  });
   it('renders Bilibili cards (grouped and flat)', () => {
     const p: BilibiliPack = {
       bvid: 'BV1test',

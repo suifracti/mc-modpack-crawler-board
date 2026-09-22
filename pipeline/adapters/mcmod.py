@@ -89,6 +89,9 @@ class MCModAdapter(BaseAdapter):
         mod_at = clean_date_str(raw_item.get("last_update_date"))
         intro_images = cached_info.get("images") or cached_info.get("intro_images") or []
         extra_dict = {
+            # Preserve explicit raw provenance; release names may contain defaults.
+            **({"packVersion": raw_item["latest_version"].strip()}
+               if isinstance(raw_item.get("latest_version"), str) and raw_item["latest_version"].strip() else {}),
             "type_name": raw_item.get("type_name"),
             "mold_id": raw_item.get("mold_id"),
             "trend_dates": raw_item.get("trend_dates"),

@@ -22,6 +22,7 @@ import type { ModrinthPack } from './types/legacy/modrinth';
 import type { XyebbsPack } from './types/legacy/xyebbs';
 
 export interface DesktopRecord {
+  packVersion?: string;
   id: string;
   platform: Platform;
   sourceId: string;
@@ -1126,6 +1127,11 @@ function renderDetailDownloadLinks(record: DesktopRecord): string {
   return `<div class="detail-section"><h3>下载与渠道 <span class="detail-submeta">${links.length} 个入口</span></h3><div class="release-links">${links.map((link) => `<a class="detail-link" href="${esc(safeExternalUrl(link.url))}" target="_blank" rel="noreferrer">${esc(String(link.name || link.type || '下载入口'))} ↗</a>`).join('')}</div></div>`;
 }
 
+export function renderPackVersionDetail(record: Pick<DesktopRecord, 'platform' | 'packVersion'>): string {
+  if (record.platform !== 'mcmod') return '';
+  return `<div class="detail-section"><dl><div><dt>整合包版本名</dt><dd>${textOrUnknown(record.packVersion)}</dd></div></dl></div>`;
+}
+
 function detailPanel(): string {
   const record = state.selected;
   if (!record) return '';
@@ -1147,6 +1153,7 @@ function detailPanel(): string {
     <button class="icon-button close-detail" data-action="close-detail" aria-label="关闭详情">×</button>
     <span class="eyebrow">${esc(PLATFORM_CONFIGS[record.platform].name)} · 原始来源</span><h2>${esc(record.title)}</h2><p class="detail-author">${esc(record.author)}</p>
     ${renderMediaSection(record)}
+    ${renderPackVersionDetail(record)}
     <div class="detail-section"><h3>适配摘要</h3><dl><div><dt>Minecraft</dt><dd>${textOrUnknown(vm.mcVersionsList.join('、'))}</dd></div><div><dt>Loader</dt><dd>${textOrUnknown(record.loaders.join('、'))}</dd></div><div><dt>更新时间</dt><dd>${esc(formatTime(record.updatedAt))}</dd></div><div><dt>服务端</dt><dd>${esc(environmentDisplay(record))}</dd></div></dl></div>
     <div class="detail-section"><h3>来源证据</h3><div class="evidence-list">${record.evidence.length ? record.evidence.map((item) => `<div class="evidence-item"><span>${esc(item.label)}</span><strong>${textOrUnknown(item.value)}</strong></div>`).join('') : '<div class="empty-evidence">当前数据没有提供可核对的来源字段。</div>'}</div></div>
     ${renderDetailFacts(record)}
