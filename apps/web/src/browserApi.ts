@@ -2,8 +2,22 @@ import type { Platform } from './domain/types';
 import type { DesktopApi, DesktopDataState, DesktopCommentsResult, DesktopUpdateStatus, DesktopAuditResult, PersonalStatus } from './desktopShell';
 
 async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers || {}) } });
-  const text = await response.text();
+  const method = init?.method || 'GET';
+  const target = String(input);
+  let response: Response;
+  try {
+    response = await fetch(input, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers || {}) } });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`无法连接本地浏览服务（${method} ${target}）：${detail}`);
+  }
+  let text: string;
+  try {
+    text = await response.text();
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`读取本地浏览服务响应失败（${method} ${target}）：${detail}`);
+  }
   let payload: unknown = null;
   try { payload = text ? JSON.parse(text) : null; } catch { payload = text; }
   if (!response.ok) {
