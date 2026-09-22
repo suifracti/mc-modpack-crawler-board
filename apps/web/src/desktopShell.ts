@@ -28,6 +28,7 @@ export interface DesktopRecord {
   title: string;
   author: string;
   url: string;
+  sourceIdOrigin: 'source' | 'index-fallback';
   summary: string;
   versions: string[];
   loaders: string[];
@@ -40,6 +41,17 @@ export interface DesktopRecord {
   searchText: string;
   evidence: Array<{ label: string; value: string }>;
 }
+
+export interface PersonalStatus {
+  favorite: boolean;
+  wantToPlay: boolean;
+  played: boolean;
+  rating: number | null;
+  note: string;
+  updatedAt: string | null;
+}
+
+export type PersonalFilter = '' | 'favorite' | 'want_to_play' | 'played';
 
 export interface DesktopComment {
   author?: string;
@@ -101,6 +113,7 @@ export interface DesktopRecordQuery {
   pan?: string;
   dateRange?: string;
   serverOnly?: boolean;
+  personalStatus?: PersonalFilter;
   sort?: string;
   page?: number;
   pageSize?: number;
@@ -123,6 +136,8 @@ export interface DesktopUpdateStatus {
 
 export interface DesktopApi {
   getState: () => Promise<{ data: DesktopDataState; update: DesktopUpdateStatus }>;
+  getPersonalLibrary: () => Promise<{ schema: number; entries: Record<string, PersonalStatus> }>;
+  updatePersonalStatus: (platform: Platform, sourceId: string, patch: Partial<Pick<PersonalStatus, 'favorite' | 'wantToPlay' | 'played' | 'rating' | 'note'>>) => Promise<{ key: string; status: PersonalStatus }>;
   getAuditDiff: () => Promise<DesktopAuditResult>;
   getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availablePans: string[]; error?: string | null }>;
   getPlatformComments: (platform: Platform, sourceId: string) => Promise<DesktopCommentsResult>;
@@ -142,7 +157,7 @@ declare global {
 }
 
 type FilterPlatform = 'all' | Platform;
-type DropdownId = 'version' | 'loader' | 'category' | 'pan' | 'date' | 'sort' | 'page-size' | 'update-platform';
+type DropdownId = 'version' | 'loader' | 'category' | 'pan' | 'date' | 'sort' | 'page-size' | 'personal' | 'update-platform';
 type ViewMode = 'cards' | 'compact' | 'table';
 type BiliViewMode = 'grouped' | 'flat';
 
@@ -198,6 +213,7 @@ const state = {
   pan: '',
   dateRange: '',
   serverOnly: false,
+  personalFilter: '' as PersonalFilter,
   sort: 'updated_desc',
   viewMode: 'cards' as ViewMode,
   biliViewMode: 'grouped' as BiliViewMode,
@@ -220,6 +236,7 @@ const state = {
   compareOpen: false,
   compareIds: [] as string[],
   compareRecords: {} as Record<string, DesktopRecord>,
+  personalLibrary: {} as Record<string, PersonalStatus>,
   comments: { sourceId: '', loading: false, available: false, pageCount: 0, comments: [] as DesktopComment[], sourceFile: null as string | null, error: '' },
   loading: true,
   message: '',
@@ -228,6 +245,7 @@ const state = {
 
 let root: HTMLElement;
 let searchTimer: number | undefined;
+let personalNoteTimer: number | undefined;
 
 function esc(value: unknown): string {
   return String(value ?? '')
@@ -250,6 +268,71 @@ function formatTime(value: string | null | undefined): string {
 
 function currentRecords(): DesktopRecord[] {
   return state.records;
+}
+
+const EMPTY_PERSONAL_STATUS: PersonalStatus = {
+  favorite: false,
+  wantToPlay: false,
+  played: false,
+  rating: null,
+  note: '',
+  updatedAt: null,
+};
+
+function personalKey(record: DesktopRecord): string {
+  return `${record.platform}:${record.sourceId}`;
+}
+
+function personalStatusForKey(key: string): PersonalStatus {
+  return { ...EMPTY_PERSONAL_STATUS, ...(state.personalLibrary[key] || {}) };
+}
+
+function personalStatus(record: DesktopRecord): PersonalStatus {
+  return personalStatusForKey(personalKey(record));
+}
+
+function isPersonalWritable(record: DesktopRecord): boolean {
+  return record.sourceIdOrigin !== 'index-fallback';
+}
+
+function personalUnavailableReason(record: DesktopRecord): string {
+  return record.sourceIdOrigin === 'index-fallback'
+    ? '来源缺少稳定 ID，当前标识由数组序号生成，不能保存个人状态'
+    : '';
+}
+
+function personalTargetAttributes(record: DesktopRecord): string {
+  return `data-personal-platform="${esc(record.platform)}" data-personal-source-id="${esc(record.sourceId)}"`;
+}
+
+function renderPersonalCardActions(record: DesktopRecord, index: number): string {
+  if (!isPersonalWritable(record)) {
+    return `<div class="personal-card-actions personal-unavailable" title="${esc(personalUnavailableReason(record))}"><span>个人标记不可保存：缺少稳定来源 ID</span></div>`;
+  }
+  const status = personalStatus(record);
+  const labels = [
+    status.wantToPlay ? '<span class="personal-state-chip is-want">想玩</span>' : '',
+    status.played ? '<span class="personal-state-chip is-played">玩过</span>' : '',
+  ].join('');
+  const label = record.platform === 'bilibili'
+    ? (status.favorite ? '★ 已收藏当前视频' : '☆ 收藏当前视频')
+    : (status.favorite ? '★ 已收藏' : '☆ 收藏');
+  const title = record.platform === 'bilibili'
+    ? (status.favorite ? '取消当前视频收藏' : '收藏当前视频')
+    : (status.favorite ? '取消收藏' : '加入收藏');
+  return `<div class="personal-card-actions"><button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${index}" ${personalTargetAttributes(record)} aria-pressed="${status.favorite}" title="${title}">${label}</button>${status.rating ? `<span class="personal-rating-mini">★ ${status.rating}/5</span>` : ''}${labels}</div>`;
+}
+
+function renderPersonalDetail(record: DesktopRecord): string {
+  if (!isPersonalWritable(record)) {
+    return `<div class="detail-section personal-detail-section personal-unavailable"><h3>我的整合包库</h3><p>${esc(personalUnavailableReason(record))}。请等待来源提供稳定 ID 后再保存。</p></div>`;
+  }
+  const status = personalStatus(record);
+  const ratingButtons = [1, 2, 3, 4, 5].map((rating) => `<button type="button" class="personal-rating-button ${status.rating === rating ? 'is-active' : ''}" data-action="set-personal-rating" data-rating="${rating}" aria-label="${rating} 分">★</button>`).join('');
+  const currentVideoLabels = record.platform === 'bilibili'
+    ? { favorite: status.favorite ? '★ 已收藏当前视频' : '☆ 收藏当前视频', wantToPlay: status.wantToPlay ? '取消想玩当前视频' : '加入想玩（保存视频线索）' }
+    : { favorite: status.favorite ? '★ 已收藏' : '☆ 收藏', wantToPlay: '🎯 想玩' };
+  return `<div class="detail-section personal-detail-section"><div class="personal-detail-heading"><div><h3>我的整合包库</h3><span class="detail-submeta">仅保存在本机，不会写入平台采集数据</span></div><button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${state.records.indexOf(record)}" ${personalTargetAttributes(record)} aria-pressed="${status.favorite}">${currentVideoLabels.favorite}</button></div><div class="personal-flag-row"><button type="button" class="personal-flag-button ${status.wantToPlay ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="wantToPlay" ${personalTargetAttributes(record)} aria-pressed="${status.wantToPlay}">${currentVideoLabels.wantToPlay}</button><button type="button" class="personal-flag-button ${status.played ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="played" ${personalTargetAttributes(record)} aria-pressed="${status.played}">✓ 玩过</button></div><div class="personal-rating-row"><span>个人评分</span><div class="personal-rating-buttons">${ratingButtons.replaceAll('data-action="set-personal-rating"', `data-action="set-personal-rating" ${personalTargetAttributes(record)}`)}<button type="button" class="personal-rating-clear" data-action="set-personal-rating" data-rating="0" ${personalTargetAttributes(record)}>清除</button></div></div><label class="personal-note-label" for="personal-note">个人备注</label><textarea id="personal-note" class="personal-note-input" data-personal-note ${personalTargetAttributes(record)} maxlength="20000" placeholder="写下安装、游玩或更新备注…">${esc(status.note)}</textarea><span class="personal-note-hint">停止输入后自动保存</span></div>`;
 }
 
 function existingSearchText(record: DesktopRecord): string {
@@ -376,7 +459,7 @@ function toBilibiliPack(record: DesktopRecord): BilibiliPack {
   } as BilibiliPack;
 }
 
-function buildBilibiliGroups(records: DesktopRecord[]): BiliGroup[] {
+export function buildBilibiliGroups(records: DesktopRecord[]): BiliGroup[] {
   const packs = records.map(toBilibiliPack);
   const decisions = groupBilibiliPacks(packs.map((pack) => ({ bvid: pack.bvid, title: pack.title, author: pack.author })));
   const groups = new Map<string, BiliGroup>();
@@ -443,6 +526,67 @@ function buildBilibiliGroups(records: DesktopRecord[]): BiliGroup[] {
     group.items.sort((left, right) => timestampOf(right) - timestampOf(left));
   }
   return [...groups.values()];
+}
+
+function statusFromLibrary(personalLibrary: Record<string, PersonalStatus>, platform: Platform, sourceId: string): PersonalStatus {
+  return { ...EMPTY_PERSONAL_STATUS, ...(personalLibrary[`${platform}:${sourceId}`] || {}) };
+}
+
+function matchesPersonalStatus(status: PersonalStatus, filter: PersonalFilter): boolean {
+  if (filter === 'favorite') return status.favorite;
+  if (filter === 'want_to_play') return status.wantToPlay;
+  if (filter === 'played') return status.played;
+  return true;
+}
+
+export function filterBilibiliGroupsByPersonalStatus(
+  groups: BiliGroup[],
+  personalLibrary: Record<string, PersonalStatus>,
+  filter: PersonalFilter,
+): BiliGroup[] {
+  if (!filter) return groups;
+  return groups.filter((group) => group.items.some((item) => matchesPersonalStatus(statusFromLibrary(personalLibrary, 'bilibili', item.bvid), filter)));
+}
+
+function hasAnyPersonalStatus(status: PersonalStatus): boolean {
+  return status.favorite || status.wantToPlay || status.played || status.rating !== null || Boolean(status.note);
+}
+
+function recordForBilibiliPack(pack: BilibiliPack): DesktopRecord | null {
+  return state.records.find((record) => record.platform === 'bilibili' && record.sourceId === pack.bvid) || null;
+}
+
+function renderBilibiliGroupPersonalActions(group: BiliGroup): string {
+  const latest = group.items[0];
+  const record = latest ? recordForBilibiliPack(latest) : null;
+  if (!record || !latest) return '';
+  const status = personalStatus(record);
+  const target = personalTargetAttributes(record);
+  const targetLabel = `<span class="bili-personal-target">当前视频：${esc(record.title)} · BVID ${esc(record.sourceId)}</span>`;
+  if (!isPersonalWritable(record)) {
+    return `<div class="bili-personal-actions personal-unavailable">${targetLabel}<span>${esc(personalUnavailableReason(record))}</span></div>`;
+  }
+  return `<div class="bili-personal-actions">${targetLabel}<button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" ${target} aria-pressed="${status.favorite}">${status.favorite ? '★ 取消收藏当前视频' : '☆ 收藏当前视频'}</button><button type="button" class="personal-flag-button ${status.wantToPlay ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="wantToPlay" ${target} aria-pressed="${status.wantToPlay}">${status.wantToPlay ? '取消想玩当前视频' : '加入想玩（保存视频线索）'}</button></div>`;
+}
+
+function renderBilibiliGroupPersonalSummary(group: BiliGroup): string {
+  const marked = group.items
+    .map((pack) => ({ pack, status: statusFromLibrary(state.personalLibrary, 'bilibili', pack.bvid) }))
+    .filter((item) => hasAnyPersonalStatus(item.status));
+  const scope = `本次查询的 ${group.items.length} 个视频成员`;
+  const memberButtons = marked.map(({ pack, status }) => {
+    const record = recordForBilibiliPack(pack);
+    if (!record) return '';
+    const labels = [
+      status.favorite ? '收藏' : '',
+      status.wantToPlay ? '想玩' : '',
+      status.played ? '玩过' : '',
+      status.rating !== null ? `评分 ${status.rating}/5` : '',
+      status.note ? '有备注' : '',
+    ].filter(Boolean).join(' · ');
+    return `<button type="button" class="bili-personal-member" data-action="select-bili-member" data-bili-bvid="${esc(pack.bvid)}" ${personalTargetAttributes(record)} title="打开该视频详情并编辑状态"><span>${esc(pack.title || record.title)}</span><small>${esc(pack.bvid)} · ${esc(labels)}</small></button>`;
+  }).filter(Boolean).join('');
+  return `<div class="bili-personal-summary"><div class="bili-personal-summary-head"><strong>个人状态摘要</strong><span>${marked.length ? `已标记 ${marked.length}/${group.items.length} 个成员` : `暂无成员标记`} · 范围：${scope}</span></div>${memberButtons ? `<div class="bili-personal-members">${memberButtons}</div>` : '<span class="bili-personal-summary-empty">组状态按视频保存；评分和备注不会折叠为组值。</span>'}</div>`;
 }
 
 function biliSortValue(group: BiliGroup, sort: string): number {
@@ -619,6 +763,15 @@ function renderDateDropdown(): string {
   ]);
 }
 
+function renderPersonalDropdown(): string {
+  return renderDropdown('personal', state.personalFilter, [
+    { value: '', label: '全部个人状态' },
+    { value: 'favorite', label: '已收藏' },
+    { value: 'want_to_play', label: '想玩' },
+    { value: 'played', label: '玩过' },
+  ]);
+}
+
 function panLabel(value: string): string {
   const labels: Record<string, string> = {
     official: '官方原站',
@@ -637,6 +790,7 @@ function renderActiveFilters(): string {
   if (state.pan) filters.push({ key: 'pan', label: `渠道：${panLabel(state.pan)}` });
   if (state.dateRange) filters.push({ key: 'dateRange', label: `时间：${state.dateRange}` });
   if (state.serverOnly) filters.push({ key: 'serverOnly', label: '仅含服务端' });
+  if (state.personalFilter) filters.push({ key: 'personalStatus', label: state.personalFilter === 'favorite' ? '个人：已收藏' : state.personalFilter === 'want_to_play' ? '个人：想玩' : '个人：玩过' });
   if (!filters.length) return '';
   return `<div class="desktop-active-filters" aria-label="当前筛选条件">${filters.map((filter) => `<button type="button" class="desktop-active-filter" data-action="clear-filter" data-filter="${esc(filter.key)}">${esc(filter.label)} <span aria-hidden="true">×</span></button>`).join('')}<button type="button" class="desktop-active-clear" data-action="clear-filters">清空全部</button></div>`;
 }
@@ -651,6 +805,7 @@ function renderFilterControls(includeDataButton = false): string {
     <span class="filter-label">分类</span>${renderFilterDropdown('category', state.availableCategories, state.category, '全部分类')}
     <span class="filter-label">渠道</span>${renderFilterDropdown('pan', state.availablePans, state.pan, '全部渠道')}
     <span class="filter-label">时间</span>${renderDateDropdown()}
+    <span class="filter-label">个人库</span>${renderPersonalDropdown()}
     <span class="filter-label">排序</span>${renderSortDropdown()}
     <span class="filter-label">每页</span>${renderDropdown('page-size', String(state.pageSize), [{ value: '24', label: '24 条' }, { value: '48', label: '48 条' }, { value: '100', label: '100 条' }])}
     <label class="desktop-check"><input id="server-only-toggle" type="checkbox" ${state.serverOnly ? 'checked' : ''}> <span>仅含服务端</span></label>
@@ -715,6 +870,7 @@ function renderRecord(record: DesktopRecord, index: number): string {
   return `<article class="pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
     <button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面"><img src="${esc(coverUrl)}" alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${esc(fallbackUrl)}'"></button>
     <div class="card-top"><span class="platform-badge">${platformIcon(record.platform)} ${config.name}</span><span class="card-time">${esc(record.updatedAt || '更新时间未知')}</span></div>
+    ${renderPersonalCardActions(record, index)}
     <h3>${esc(record.title)}</h3><p class="author">${esc(record.author)}</p>
     <p class="summary">${textOrUnknown(record.summary)}</p>
     <div class="chips">${record.versions.slice(0, 4).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${!record.versions.length && !record.loaders.length ? '<span class="muted-chip">兼容信息未知</span>' : ''}</div>
@@ -728,7 +884,7 @@ function renderCompactRecord(record: DesktopRecord, index: number): string {
   const coverUrl = recordCoverUrl(record);
   const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
   const metrics = recordMetricItems(record);
-  return `<article class="compact-record" data-action="select-record" data-index="${index}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面"><img src="${esc(coverUrl)}" alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${esc(fallbackUrl)}'"></button><div class="compact-record-main"><div class="compact-record-head"><span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span><span class="card-time">${esc(record.updatedAt || '更新时间未知')}</span></div><h3>${esc(record.title)}</h3><p>${esc(record.author)} · ${textOrUnknown(record.summary)}</p><div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div></div><div class="compact-record-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}<button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div></article>`;
+  return `<article class="compact-record" data-action="select-record" data-index="${index}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面"><img src="${esc(coverUrl)}" alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${esc(fallbackUrl)}'"></button><div class="compact-record-main"><div class="compact-record-head"><span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span><span class="card-time">${esc(record.updatedAt || '更新时间未知')}</span></div>${renderPersonalCardActions(record, index)}<h3>${esc(record.title)}</h3><p>${esc(record.author)} · ${textOrUnknown(record.summary)}</p><div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div></div><div class="compact-record-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}<button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div></article>`;
 }
 
 function renderMcmodTable(records: DesktopRecord[]): string {
@@ -745,11 +901,11 @@ function renderMcmodTable(records: DesktopRecord[]): string {
       <td><span class="trend-number ${asNumber(trend.t7) >= 0 ? 'is-up' : 'is-down'}">${esc(formatMetric(trend.t7))}</span><small>7日 · 30日 ${esc(formatMetric(trend.t30))}</small></td>
       <td><span class="vote-positive">${esc(formatMetric(votes.redVotes))}</span> / <span class="vote-negative">${esc(formatMetric(votes.blackVotes))}</span><small>红 / 黑</small></td>
       <td>${esc(formatMetric(raw.commentsCount))}<small>推荐 ${esc(formatMetric(raw.recommendations))} · 收藏 ${esc(formatMetric(raw.favorites))}</small></td>
-      <td class="mcmod-mod-cell">${mods.slice(0, 3).map((item) => `<span>${esc(item)}</span>`).join('')}${mods.length > 3 ? `<small>另有 ${mods.length - 3} 款模组</small>` : ''}</td>
+      <td class="mcmod-mod-cell">${mods.slice(0, 3).map((item) => `<span>${esc(item)}</span>`).join('')}${mods.length > 3 ? `<small>另有 ${mods.length - 3} 款模组</small>` : ''}</td><td class="mcmod-personal-cell">${renderPersonalCardActions(record, index)}</td>
     </tr>`;
   }).join('');
   if (!rows) return '<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>';
-  return `<div class="mcmod-table-wrap"><table class="mcmod-table"><thead><tr><th>整合包</th><th>浏览</th><th>热度 / 推荐</th><th>趋势</th><th>投票</th><th>评论 / 收藏</th><th>包含模组</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="mcmod-table-wrap"><table class="mcmod-table"><thead><tr><th>整合包</th><th>浏览</th><th>热度 / 推荐</th><th>趋势</th><th>投票</th><th>评论 / 收藏</th><th>包含模组</th><th>个人库</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function renderBilibiliGroupedWorkspace(): string {
@@ -758,14 +914,14 @@ function renderBilibiliGroupedWorkspace(): string {
   const cards = groups.map((group) => {
     const latest = group.items[0];
     const index = latest ? state.records.findIndex((record) => record.sourceId === latest.bvid) : -1;
-    return `<article class="desktop-rich-card" data-action="select-record" data-index="${index}" data-bili-group-key="${esc(group.key)}">${renderBiliGroupedCard(group)}</article>`;
+    return `<article class="desktop-rich-card" data-action="select-record" data-index="${index}" data-bili-group-key="${esc(group.key)}">${renderBilibiliGroupPersonalActions(group)}${renderBilibiliGroupPersonalSummary(group)}${renderBiliGroupedCard(group)}</article>`;
   }).join('');
   return `<div class="bili-legacy-mode-note"><strong>✨ 同名整合包智能聚合</strong><span>${formatCount(groups.length)} 款独立整合包 · 关联视频、统计、网盘与历史版本均保留</span></div><div class="bili-cards-grid desktop-bili-grid">${cards}</div>`;
 }
 
 function renderBilibiliFlatWorkspace(records: DesktopRecord[]): string {
   if (!records.length) return '<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的视频</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>';
-  const cards = records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderBiliFlatCard(toBilibiliPack(record))}</article>`).join('');
+  const cards = records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderPersonalCardActions(record, index)}${renderBiliFlatCard(toBilibiliPack(record))}</article>`).join('');
   return `<div class="bili-legacy-mode-note"><strong>视频平铺</strong><span>当前展示 ${formatCount(records.length)} / ${formatCount(state.total)} 条视频，可继续加载</span></div><div class="bili-cards-grid desktop-bili-grid">${cards}</div>`;
 }
 
@@ -878,7 +1034,7 @@ function renderPlatformHero(platform: Platform): string {
 function renderResultsWorkspace(selectedName: string): string {
   const records = currentRecords();
   const data = state.data;
-  const hasFilter = state.query || state.version || state.loader || state.category || state.pan || state.dateRange || state.serverOnly;
+  const hasFilter = state.query || state.version || state.loader || state.category || state.pan || state.dateRange || state.serverOnly || state.personalFilter;
   const isBili = state.platform === 'bilibili';
   const resultBody = isBili
     ? state.biliViewMode === 'grouped' ? renderBilibiliGroupedWorkspace() : renderBilibiliFlatWorkspace(records)
@@ -888,7 +1044,7 @@ function renderResultsWorkspace(selectedName: string): string {
         : state.viewMode === 'table' && state.platform === 'mcmod'
           ? renderMcmodTable(records)
           : state.platform !== 'all' && state.platform !== 'mcmod'
-            ? `<div class="pack-grid legacy-rich-grid">${records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderPlatformRichCard(record)}</article>`).join('')}</div>`
+            ? `<div class="pack-grid legacy-rich-grid">${records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderPersonalCardActions(record, index)}${renderPlatformRichCard(record)}</article>`).join('')}</div>`
           : `<div class="pack-grid">${records.map(renderRecord).join('')}</div>`
       : `<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>`;
   const displayedCount = isBili && state.biliViewMode === 'grouped' ? state.biliGroups.length : records.length;
@@ -967,6 +1123,7 @@ function detailPanel(): string {
     <div class="detail-section"><h3>适配摘要</h3><dl><div><dt>Minecraft</dt><dd>${vm.mcVersionsList.length ? esc(vm.mcVersionsList.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>Loader</dt><dd>${record.loaders.length ? esc(record.loaders.join('、')) : '<span class="unknown">未知</span>'}</dd></div><div><dt>更新时间</dt><dd>${esc(formatTime(record.updatedAt))}</dd></div><div><dt>服务端</dt><dd>${esc(vm.envDisplay || `${record.environment.label}（${record.environment.certainty}）`)}</dd></div></dl></div>
     <div class="detail-section"><h3>来源证据</h3><div class="evidence-list">${record.evidence.length ? record.evidence.map((item) => `<div class="evidence-item"><span>${esc(item.label)}</span><strong>${textOrUnknown(item.value)}</strong></div>`).join('') : '<div class="empty-evidence">当前数据没有提供可核对的来源字段。</div>'}</div></div>
     ${renderDetailFacts(record)}
+    ${renderPersonalDetail(record)}
     ${renderDetailDownloadLinks(record)}
     ${renderCommentSection(record)}
     <div class="detail-section"><h3>版本详情 <span class="detail-submeta">${releases.length ? `记录数：${releases.length}` : ''}</span></h3><div class="release-list">${releaseHtml}</div></div>
@@ -1055,6 +1212,15 @@ function bindEvents(): void {
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => void loadRecords(), 180);
   });
+  root.querySelector<HTMLTextAreaElement>('[data-personal-note]')?.addEventListener('input', (event) => {
+    const textarea = event.target as HTMLTextAreaElement;
+    const targetRecord = state.selected;
+    if (!targetRecord || !isPersonalWritable(targetRecord)) return;
+    window.clearTimeout(personalNoteTimer);
+    personalNoteTimer = window.setTimeout(() => {
+      void savePersonalPatch(targetRecord, { note: textarea.value }, false);
+    }, 350);
+  });
 }
 
 async function loadComments(record: DesktopRecord): Promise<void> {
@@ -1077,6 +1243,53 @@ async function loadComments(record: DesktopRecord): Promise<void> {
     state.comments = { sourceId: record.sourceId, loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: error instanceof Error ? error.message : String(error) };
   }
   render();
+}
+
+type PersonalPatch = Partial<Pick<PersonalStatus, 'favorite' | 'wantToPlay' | 'played' | 'rating' | 'note'>>;
+
+function recordAtIndex(index: number): DesktopRecord | null {
+  return state.records[index] || null;
+}
+
+function recordForPersonalTarget(element: HTMLElement): DesktopRecord | null {
+  const platform = element.dataset.personalPlatform as Platform | undefined;
+  const sourceId = element.dataset.personalSourceId;
+  if (platform && sourceId !== undefined && ALL_PLATFORMS.includes(platform)) {
+    return state.records.find((record) => record.platform === platform && record.sourceId === sourceId) || null;
+  }
+  return recordAtIndex(Number(element.dataset.index || '-1'));
+}
+
+async function savePersonalPatch(record: DesktopRecord, patch: PersonalPatch, rerender = true): Promise<void> {
+  if (!isPersonalWritable(record)) {
+    state.message = personalUnavailableReason(record);
+    if (rerender) render();
+    return;
+  }
+  const key = personalKey(record);
+  const previous = personalStatus(record);
+  state.personalLibrary[key] = { ...previous, ...patch, updatedAt: new Date().toISOString() };
+  if (rerender) render();
+  try {
+    const result = await window.desktopApi.updatePersonalStatus(record.platform, record.sourceId, patch);
+    state.personalLibrary[key] = result.status;
+    if (state.personalFilter) await loadRecords(true);
+    else if (rerender) render();
+  } catch (error) {
+    state.personalLibrary[key] = previous;
+    state.message = error instanceof Error ? error.message : String(error);
+    render();
+  }
+}
+
+async function loadPersonalLibrary(): Promise<void> {
+  try {
+    const result = await window.desktopApi.getPersonalLibrary();
+    state.personalLibrary = result.entries || {};
+  } catch (error) {
+    state.personalLibrary = {};
+    state.message = error instanceof Error ? error.message : String(error);
+  }
 }
 
 async function handleAction(element: HTMLElement, event?: Event): Promise<void> {
@@ -1176,6 +1389,9 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
         state.pageSize = pageSize;
         await loadRecords(true);
       }
+    } else if (dropdown === 'personal') {
+      state.personalFilter = value as PersonalFilter;
+      await loadRecords(true);
     } else if (dropdown === 'update-platform' && ALL_PLATFORMS.includes(value as Platform)) {
       state.updatePlatform = value as Platform;
       render();
@@ -1195,6 +1411,33 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     await window.desktopApi.cancelUpdate();
   } else if (action === 'load-more') {
     await loadRecords(false);
+  } else if (action === 'select-bili-member') {
+    event?.stopPropagation();
+    const record = recordForPersonalTarget(element);
+    if (!record || record.platform !== 'bilibili') return;
+    state.selected = record;
+    state.imagePreview = null;
+    state.comments = { sourceId: record.sourceId, loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
+    render();
+    await loadComments(record);
+  } else if (action === 'toggle-personal') {
+    event?.stopPropagation();
+    const record = recordForPersonalTarget(element);
+    const field = element.dataset.personalField;
+    if (!record || (field !== 'favorite' && field !== 'wantToPlay')) return;
+    await savePersonalPatch(record, { [field]: !personalStatus(record)[field] } as PersonalPatch);
+  } else if (action === 'set-personal-flag') {
+    event?.stopPropagation();
+    const record = recordForPersonalTarget(element) || state.selected;
+    const field = element.dataset.personalField;
+    if (!record || (field !== 'wantToPlay' && field !== 'played')) return;
+    await savePersonalPatch(record, { [field]: !personalStatus(record)[field] } as PersonalPatch);
+  } else if (action === 'set-personal-rating') {
+    event?.stopPropagation();
+    const record = recordForPersonalTarget(element) || state.selected;
+    if (!record) return;
+    const rating = Number(element.dataset.rating || '0');
+    await savePersonalPatch(record, { rating: rating >= 1 && rating <= 5 ? rating : null });
   } else if (action === 'select-record') {
     const target = event?.target instanceof Element ? event.target : null;
     if (target && target !== element && target.closest('a,button,details,summary')) return;
@@ -1241,7 +1484,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     localStorage.setItem('mcmod-desktop-theme', next);
     render();
   } else if (action === 'clear-filters') {
-    state.query = ''; state.version = ''; state.loader = ''; state.category = ''; state.pan = ''; state.dateRange = ''; state.serverOnly = false; state.sort = 'updated_desc'; await loadRecords(true);
+    state.query = ''; state.version = ''; state.loader = ''; state.category = ''; state.pan = ''; state.dateRange = ''; state.serverOnly = false; state.personalFilter = ''; state.sort = 'updated_desc'; await loadRecords(true);
   } else if (action === 'clear-filter') {
     const filter = element.dataset.filter;
     if (filter === 'query') state.query = '';
@@ -1251,6 +1494,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     if (filter === 'pan') state.pan = '';
     if (filter === 'dateRange') state.dateRange = '';
     if (filter === 'serverOnly') state.serverOnly = false;
+    if (filter === 'personalStatus') state.personalFilter = '';
     await loadRecords(true);
   } else if (action === 'set-view-mode') {
     const viewMode = element.dataset.viewMode;
@@ -1271,6 +1515,7 @@ async function loadRecords(reset = true): Promise<void> {
   if (reset) {
     state.page = 1;
     state.records = [];
+    state.biliGroups = [];
   } else {
     state.page += 1;
   }
@@ -1288,6 +1533,10 @@ async function loadRecords(reset = true): Promise<void> {
       pan: state.pan,
       dateRange: state.dateRange,
       serverOnly: state.serverOnly,
+      // Grouped Bilibili mode must receive the complete non-personal result set.
+      // Personal matching happens after all members have been grouped so an old
+      // marked video cannot disappear behind a newer unmarked representative.
+      personalStatus: groupedBili ? '' : state.personalFilter,
       sort: state.sort,
       page,
       pageSize: requestPageSize,
@@ -1306,7 +1555,10 @@ async function loadRecords(reset = true): Promise<void> {
     const nextRecords = results.flatMap((result) => result.records);
     state.records = reset ? nextRecords : [...state.records, ...nextRecords];
     for (const record of nextRecords) state.compareRecords[record.id] = record;
-    state.biliGroups = groupedBili ? buildBilibiliGroups(state.records) : [];
+    const groupedResults = groupedBili ? buildBilibiliGroups(state.records) : [];
+    state.biliGroups = groupedBili
+      ? filterBilibiliGroupsByPersonalStatus(groupedResults, state.personalLibrary, state.personalFilter)
+      : [];
     state.total = results.reduce((sum, result) => sum + result.total, 0);
     state.availableVersions = [...new Set(results.flatMap((result) => result.availableVersions || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availableLoaders = [...new Set(results.flatMap((result) => result.availableLoaders || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
@@ -1354,6 +1606,7 @@ export async function initDesktopShell(): Promise<void> {
     const initial = await window.desktopApi.getState();
     state.data = initial.data;
     state.update = initial.update;
+    await loadPersonalLibrary();
     await loadRecords();
   } catch (error) {
     state.loading = false;

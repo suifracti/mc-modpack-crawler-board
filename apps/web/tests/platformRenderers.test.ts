@@ -4,6 +4,8 @@ import { renderBbsmcCard } from '../src/platforms/bbsmc/renderer';
 import { renderXyebbsCard } from '../src/platforms/xyebbs/renderer';
 import { renderModrinthCard } from '../src/platforms/modrinth/renderer';
 import { renderCurseforgeCard } from '../src/platforms/curseforge/renderer';
+import { filterBilibiliGroupsByPersonalStatus } from '../src/desktopShell';
+import type { BiliGroup } from '../src/platforms/bilibili/renderer';
 import type { BilibiliPack } from '../src/types/legacy/bilibili';
 import type { BbsmcPack } from '../src/types/legacy/bbsmc';
 import type { XyebbsPack } from '../src/types/legacy/xyebbs';
@@ -62,6 +64,19 @@ describe('Platform Card Renderers', () => {
     });
     expect(groupedHtml).toContain('bili-pack-card');
     expect(groupedHtml).toContain('data-key="test-key"');
+  });
+
+  it('keeps every queried Bilibili member when a personal filter matches an older video', () => {
+    const group = {
+      key: '测试作者::测试整合包',
+      items: [{ bvid: 'A', title: '测试整合包 A' }, { bvid: 'B', title: '测试整合包 B' }],
+    } as unknown as BiliGroup;
+    const personalLibrary = {
+      'bilibili:A': { favorite: true, wantToPlay: false, played: false, rating: 4, note: '保留 A', updatedAt: null },
+    };
+    const filtered = filterBilibiliGroupsByPersonalStatus([group], personalLibrary, 'favorite');
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].items.map((item) => item.bvid)).toEqual(['A', 'B']);
   });
 
   it('renders BBSMC card', () => {

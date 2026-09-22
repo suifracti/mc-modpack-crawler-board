@@ -1,5 +1,5 @@
 import type { Platform } from './domain/types';
-import type { DesktopApi, DesktopDataState, DesktopCommentsResult, DesktopUpdateStatus, DesktopAuditResult } from './desktopShell';
+import type { DesktopApi, DesktopDataState, DesktopCommentsResult, DesktopUpdateStatus, DesktopAuditResult, PersonalStatus } from './desktopShell';
 
 async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers || {}) } });
@@ -45,6 +45,11 @@ export function installBrowserApi(): void {
   if (window.desktopApi) return;
   const api: DesktopApi = {
     getState: () => request<{ data: DesktopDataState; update: DesktopUpdateStatus }>('/api/state'),
+    getPersonalLibrary: () => request<{ schema: number; entries: Record<string, PersonalStatus> }>('/api/library'),
+    updatePersonalStatus: (platform, sourceId, patch) => request<{ key: string; status: PersonalStatus }>(`/api/library/${encodeURIComponent(platform)}/${encodeURIComponent(sourceId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
     getAuditDiff: () => request<DesktopAuditResult>('/api/audit'),
     getPlatformRecords: (platform, options = {}) => {
       const params = new URLSearchParams({
@@ -55,6 +60,7 @@ export function installBrowserApi(): void {
         pan: options.pan || '',
         dateRange: options.dateRange || '',
         serverOnly: options.serverOnly ? 'true' : 'false',
+        personalStatus: options.personalStatus || '',
         sort: options.sort || '',
         page: String(options.page || 1),
         pageSize: String(options.pageSize || 48),

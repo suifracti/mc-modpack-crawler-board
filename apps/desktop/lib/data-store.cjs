@@ -56,6 +56,7 @@ function parseQueryOptions(queryOrOptions) {
       pan: '',
       dateRange: '',
       serverOnly: false,
+      personalStatus: '',
       sort: '',
       page: 1,
       pageSize: 48,
@@ -72,6 +73,7 @@ function parseQueryOptions(queryOrOptions) {
     pan: String(options.pan || ''),
     dateRange: String(options.dateRange || ''),
     serverOnly: options.serverOnly === true || options.serverOnly === 1 || String(options.serverOnly || '').toLowerCase() === 'true',
+    personalStatus: ['favorite', 'want_to_play', 'played'].includes(String(options.personalStatus || '')) ? String(options.personalStatus) : '',
     sort: String(options.sort || ''),
     page,
     pageSize,
@@ -238,7 +240,7 @@ async function copyDirectoryContents(sourceDir, destinationDir, predicate = () =
 }
 
 class DataStore {
-  constructor(rootDir) {
+  constructor(rootDir, options = {}) {
     this.rootDir = path.resolve(rootDir);
     this.snapshotsDir = path.join(this.rootDir, 'snapshots');
     this.incomingDir = path.join(this.rootDir, 'incoming');
@@ -247,6 +249,7 @@ class DataStore {
     // parsed sidecars so every browser request does not repeat the same
     // multi-megabyte parse and normalisation work.
     this.platformCache = new Map();
+    this.personalLibrary = options.personalLibrary || null;
   }
 
   async init() {
@@ -367,7 +370,8 @@ class DataStore {
       const panMatch = matchesPan(record, options.pan);
       const serverMatch = !options.serverOnly || hasServerSupport(record);
       const dateMatch = matchesDateRange(record, options.dateRange, referenceTime);
-      return versionMatch && loaderMatch && categoryMatch && panMatch && serverMatch && dateMatch;
+      const personalMatch = !options.personalStatus || Boolean(this.personalLibrary?.matches(platform, record.sourceId, options.personalStatus));
+      return versionMatch && loaderMatch && categoryMatch && panMatch && serverMatch && dateMatch && personalMatch;
     });
     const sorted = sortRecords(filtered, options.sort);
     const offset = (options.page - 1) * options.pageSize;
@@ -384,6 +388,16 @@ class DataStore {
       sourceFile: result.sourceFile,
       error: result.error,
     };
+  }
+
+  async isIndexFallbackSourceId(platform, sourceId) {
+    assertPlatform(platform);
+    const active = await this.getActiveSnapshot();
+    if (!active) return false;
+    const cached = this.readCachedPlatform(active.snapshotId, platform);
+    if (!cached.normalized) cached.normalized = cached.result.records.map((record, index) => normaliseRecord(platform, record, index));
+    const target = String(sourceId ?? '').trim();
+    return cached.normalized.some((record) => record.sourceId === target && record.sourceIdOrigin === 'index-fallback');
   }
 
   async getPlatformComments(platform, sourceId) {

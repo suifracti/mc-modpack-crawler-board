@@ -36,8 +36,9 @@ test('serves same-origin health, state and imported records over HTTP', async ()
   await fs.mkdir(source, { recursive: true });
   await fs.writeFile(path.join(source, 'bili_data.js'), 'window.biliModpacksData = [{"bvid":"BV-browser","title":"浏览器服务测试包","url":"https://example.com/browser"}];\n', 'utf8');
 
-  const service = createBrowserService({ host: '127.0.0.1', port: 0, dataRoot: path.join(root, 'user-data') });
-  const started = await service.start();
+  const dataRoot = path.join(root, 'user-data');
+  let service = createBrowserService({ host: '127.0.0.1', port: 0, dataRoot });
+  let started = await service.start();
   try {
     const health = await request(`${started.url}api/health`);
     assert.equal(health.status, 200);
@@ -56,6 +57,110 @@ test('serves same-origin health, state and imported records over HTTP', async ()
     const payload = JSON.parse(records.body);
     assert.equal(payload.total, 1);
     assert.equal(payload.records[0].title, '浏览器服务测试包');
+
+    const initialLibrary = await request(`${started.url}api/library`);
+    assert.equal(initialLibrary.status, 200);
+    assert.deepEqual(JSON.parse(initialLibrary.body).entries, {});
+
+    const saved = await request(`${started.url}api/library/bilibili/BV-browser`, {
+      method: 'PATCH',
+      body: { favorite: true, wantToPlay: true, played: true, rating: 4, note: '先测试备注' },
+    });
+    assert.equal(saved.status, 200);
+    assert.equal(JSON.parse(saved.body).status.rating, 4);
+
+    const personalRecords = await request(`${started.url}api/platforms/bilibili/records?personalStatus=favorite`);
+    assert.equal(personalRecords.status, 200);
+    assert.equal(JSON.parse(personalRecords.body).total, 1);
+
+    const nextSource = path.join(root, 'source-next', 'data');
+    await fs.mkdir(nextSource, { recursive: true });
+    await fs.writeFile(path.join(nextSource, 'bili_data.js'), 'window.biliModpacksData = [{"bvid":"BV-browser","title":"浏览器服务测试包（新快照）","url":"https://example.com/browser"},{"bvid":"BV-browser-new","title":"浏览器服务测试包 2.0","author":"测试作者","url":"https://example.com/browser-new"}];\n', 'utf8');
+    const switched = await request(`${started.url}api/data/import`, { method: 'POST', body: { path: path.join(root, 'source-next') } });
+    assert.equal(switched.status, 200);
+    const allNextRecords = await request(`${started.url}api/platforms/bilibili/records`);
+    assert.equal(JSON.parse(allNextRecords.body).total, 2);
+    const switchedRecords = await request(`${started.url}api/platforms/bilibili/records?personalStatus=favorite`);
+    assert.equal(switchedRecords.status, 200);
+    const switchedPayload = JSON.parse(switchedRecords.body);
+    assert.equal(switchedPayload.total, 1);
+    assert.equal(switchedPayload.records[0].sourceId, 'BV-browser');
+    assert.equal(switchedPayload.records[0].title, '浏览器服务测试包（新快照）');
+
+    const savedNewVideo = await request(`${started.url}api/library/bilibili/BV-browser-new`, {
+      method: 'PATCH',
+      body: { favorite: true },
+    });
+    assert.equal(savedNewVideo.status, 200);
+    const cancelledNewVideo = await request(`${started.url}api/library/bilibili/BV-browser-new`, {
+      method: 'PATCH',
+      body: { favorite: false },
+    });
+    assert.equal(cancelledNewVideo.status, 200);
+    const afterNewVideoCancel = JSON.parse((await request(`${started.url}api/library`)).body).entries;
+    assert.equal(afterNewVideoCancel['bilibili:BV-browser'].favorite, true);
+    assert.equal(afterNewVideoCancel['bilibili:BV-browser-new'], undefined);
+
+    await service.stop();
+    service = createBrowserService({ host: '127.0.0.1', port: 0, dataRoot });
+    started = await service.start();
+    const restartedLibrary = await request(`${started.url}api/library`);
+    const restartedStatus = JSON.parse(restartedLibrary.body).entries['bilibili:BV-browser'];
+    assert.equal(restartedStatus.wantToPlay, true);
+    assert.equal(restartedStatus.played, true);
+    assert.equal(restartedStatus.note, '先测试备注');
+
+    const edited = await request(`${started.url}api/library/bilibili/BV-browser`, {
+      method: 'PATCH',
+      body: { favorite: false, note: '已修改备注' },
+    });
+    assert.equal(edited.status, 200);
+    const editedStatus = JSON.parse(edited.body).status;
+    assert.equal(editedStatus.favorite, false);
+    assert.equal(editedStatus.note, '已修改备注');
+  } finally {
+    await service.stop();
+  }
+});
+
+test('does not persist index fallback identities and accepts a numeric source ID', async () => {
+  const root = await tempDir();
+  const fallbackSource = path.join(root, 'fallback-source', 'data');
+  await fs.mkdir(fallbackSource, { recursive: true });
+  await fs.writeFile(path.join(fallbackSource, 'bili_data.js'), 'window.biliModpacksData = [{"title":"没有稳定来源 ID","url":"https://example.com/fallback"}];\n', 'utf8');
+
+  const dataRoot = path.join(root, 'user-data');
+  const service = createBrowserService({ host: '127.0.0.1', port: 0, dataRoot });
+  const started = await service.start();
+  try {
+    const imported = await request(`${started.url}api/data/import`, { method: 'POST', body: { path: path.join(root, 'fallback-source') } });
+    assert.equal(imported.status, 200);
+    const fallbackRecords = JSON.parse((await request(`${started.url}api/platforms/bilibili/records`)).body);
+    assert.equal(fallbackRecords.records[0].sourceId, 'bilibili-1');
+    assert.equal(fallbackRecords.records[0].sourceIdOrigin, 'index-fallback');
+
+    const rejected = await request(`${started.url}api/library/bilibili/bilibili-1`, {
+      method: 'PATCH',
+      body: { favorite: true },
+    });
+    assert.equal(rejected.status, 400);
+    assert.match(rejected.body, /数组序号生成/);
+    assert.deepEqual(JSON.parse((await request(`${started.url}api/library`)).body).entries, {});
+
+    const numericSource = path.join(root, 'numeric-source', 'data');
+    await fs.mkdir(numericSource, { recursive: true });
+    await fs.writeFile(path.join(numericSource, 'bili_data.js'), 'window.biliModpacksData = [{"bvid":123,"title":"合法数字来源 ID","url":"https://example.com/numeric"}];\n', 'utf8');
+    const switched = await request(`${started.url}api/data/import`, { method: 'POST', body: { path: path.join(root, 'numeric-source') } });
+    assert.equal(switched.status, 200);
+    const numericRecords = JSON.parse((await request(`${started.url}api/platforms/bilibili/records`)).body);
+    assert.equal(numericRecords.records[0].sourceId, '123');
+    assert.equal(numericRecords.records[0].sourceIdOrigin, 'source');
+    const savedNumeric = await request(`${started.url}api/library/bilibili/123`, {
+      method: 'PATCH',
+      body: { favorite: true },
+    });
+    assert.equal(savedNumeric.status, 200);
+    assert.equal(JSON.parse((await request(`${started.url}api/library`)).body).entries['bilibili:123'].favorite, true);
   } finally {
     await service.stop();
   }
