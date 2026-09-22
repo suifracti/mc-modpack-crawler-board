@@ -834,7 +834,10 @@ def build_modern_mcmod_entry(r, app_info):
         ]
     mc_versions = app_info.get("mc_versions") or raw.get("mc_versions") or []
     categories = app_info.get("categories") or raw.get("categories") or []
+    pack_version = raw.get("latest_version")
+    pack_version = pack_version.strip() if isinstance(pack_version, str) else ""
     return {
+        **({"packVersion": pack_version} if pack_version else {}),
         "mid": mid,
         "title": raw.get("title", ""),
         "chineseName": app_info.get("title_cn") or raw.get("title_cn", ""),

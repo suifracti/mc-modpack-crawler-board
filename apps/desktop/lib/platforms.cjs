@@ -243,6 +243,8 @@ function normaliseRecord(platform, record, index) {
     platform,
     sourceId,
     sourceIdOrigin,
+    ...(platform === 'mcmod' && typeof raw.packVersion === 'string' && raw.packVersion.trim()
+      ? { packVersion: raw.packVersion.trim() } : {}),
     title,
     author,
     url,

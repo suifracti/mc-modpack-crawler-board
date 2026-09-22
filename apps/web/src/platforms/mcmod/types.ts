@@ -28,6 +28,8 @@ export interface McmodPreviewModItem {
 }
 
 export interface McmodStructuredItem {
+  /** Source-provided modpack version name, not a Minecraft version. */
+  packVersion?: string;
   mid: number;
   title: string;
   chineseName: string;

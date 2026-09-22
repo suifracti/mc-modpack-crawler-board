@@ -251,6 +251,8 @@ class StructuredMCModExporter:
                 ])
 
                 structured_pack = {
+                    **({"packVersion": extra["packVersion"].strip()}
+                       if isinstance(extra.get("packVersion"), str) and extra["packVersion"].strip() else {}),
                     "mid": mid,
                     "title": full_title,
                     "chineseName": title_cn,
