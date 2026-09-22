@@ -3,7 +3,7 @@ import { renderBiliGroupedCard, renderBiliFlatCard } from '../src/platforms/bili
 import { renderBbsmcCard } from '../src/platforms/bbsmc/renderer';
 import { renderXyebbsCard } from '../src/platforms/xyebbs/renderer';
 import { renderModrinthCard } from '../src/platforms/modrinth/renderer';
-import { renderCurseforgeCard } from '../src/platforms/curseforge/renderer';
+import { CURSEFORGE_COVER_FALLBACK, renderCurseforgeCard } from '../src/platforms/curseforge/renderer';
 import { filterBilibiliGroupsByPersonalStatus, getDesktopSearchPlaceholder, renderPackVersionDetail, renderPersonalBackup } from '../src/desktopShell';
 import type { BiliGroup } from '../src/platforms/bilibili/renderer';
 import type { BilibiliPack } from '../src/types/legacy/bilibili';
@@ -11,6 +11,7 @@ import type { BbsmcPack } from '../src/types/legacy/bbsmc';
 import type { XyebbsPack } from '../src/types/legacy/xyebbs';
 import type { ModrinthPack } from '../src/types/legacy/modrinth';
 import type { CurseforgePack } from '../src/types/legacy/curseforge';
+import { rememberFailedImage } from '../src/utils/imageFallback';
 
 describe('Platform Card Renderers', () => {
   it('shows missing personal sources as historical references with safe links and backup controls', () => {
@@ -199,5 +200,25 @@ describe('Platform Card Renderers', () => {
     expect(html).toContain('Awesome CF Pack');
     expect(html).toContain('5.0万');
     expect(html).toContain('科技');
+  });
+
+  it('keeps a failed CurseForge cover on the local fallback across redraws', () => {
+    const failedUrl = 'https://invalid.example.test/curseforge-cover.png';
+    const p = {
+      project_id: 1000,
+      title: 'Broken Cover Pack',
+      author: 'AuthorCF',
+      url: 'https://curseforge.com/minecraft/modpacks/broken-cover',
+      icon_url: failedUrl,
+      downloads: 0,
+      has_server: false,
+    } as CurseforgePack;
+
+    expect(renderCurseforgeCard(p)).toContain(`src="${failedUrl}"`);
+    rememberFailedImage(failedUrl);
+    const redrawn = renderCurseforgeCard(p);
+    expect(redrawn).toContain(`src="${CURSEFORGE_COVER_FALLBACK}"`);
+    expect(redrawn).toContain(`data-original-src="${failedUrl}"`);
+    expect(redrawn).not.toContain('window.CURSEFORGE_COVER_FALLBACK');
   });
 });

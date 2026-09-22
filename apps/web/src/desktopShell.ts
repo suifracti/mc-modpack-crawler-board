@@ -20,6 +20,7 @@ import type { BbsmcPack } from './types/legacy/bbsmc';
 import type { CurseforgePack } from './types/legacy/curseforge';
 import type { ModrinthPack } from './types/legacy/modrinth';
 import type { XyebbsPack } from './types/legacy/xyebbs';
+import { rememberFailedImage, stableImageSource } from './utils/imageFallback';
 
 export interface DesktopRecord {
   packVersion?: string;
@@ -173,13 +174,12 @@ export function getDesktopSearchPlaceholder(platform: FilterPlatform): string {
   return '输入名称、版本、作者或当前平台已有字段…';
 }
 
-const PLATFORM_SITE_ICONS: Record<Platform, string> = {
+const PLATFORM_SITE_ICONS: Partial<Record<Platform, string>> = {
   mcmod: 'https://www.mcmod.cn/favicon.ico',
   bilibili: 'https://www.bilibili.com/favicon.ico',
   bbsmc: 'https://bbsmc.net/favicon.ico',
   xyebbs: 'https://www.xyebbs.com/favicon.ico',
   modrinth: 'https://modrinth.com/favicon.ico',
-  curseforge: 'https://www.curseforge.com/favicon.ico',
 };
 
 const platformItems: Array<{ id: FilterPlatform; name: string }> = [
@@ -439,7 +439,7 @@ function recordRealCoverUrl(record: DesktopRecord): string {
 }
 
 function recordCoverUrl(record: DesktopRecord): string {
-  return recordRealCoverUrl(record) || PLATFORM_COVER_FALLBACKS[record.platform];
+  return stableImageSource(recordRealCoverUrl(record), PLATFORM_COVER_FALLBACKS[record.platform]);
 }
 
 function recordImageUrls(record: DesktopRecord): string[] {
@@ -677,10 +677,12 @@ function renderPlatformRichCard(record: DesktopRecord): string {
   return renderRecord(record, state.records.indexOf(record));
 }
 
-function renderImageButton(url: string, title: string, className = ''): string {
+function renderImageButton(url: string, title: string, className = '', fallback = ''): string {
   const safeUrl = safeImageUrl(url);
   if (!safeUrl) return '';
-  return `<button type="button" class="image-preview-trigger ${className}" data-action="open-image" data-image-url="${esc(safeUrl)}" data-image-title="${esc(title)}" title="点击查看${esc(title)}"><img src="${esc(safeUrl)}" alt="${esc(title)}" loading="lazy" referrerpolicy="no-referrer"></button>`;
+  const source = fallback ? stableImageSource(safeUrl, fallback) : safeUrl;
+  const fallbackData = fallback ? ` data-original-src="${esc(safeUrl)}" data-fallback-src="${esc(fallback)}"` : '';
+  return `<button type="button" class="image-preview-trigger ${className}" data-action="open-image" data-image-url="${esc(source)}" data-image-title="${esc(title)}" title="点击查看${esc(title)}"><img src="${esc(source)}"${fallbackData} alt="${esc(title)}" loading="lazy" referrerpolicy="no-referrer"></button>`;
 }
 
 function renderCommentImages(comment: DesktopComment, title: string): string {
@@ -891,10 +893,12 @@ function renderRecord(record: DesktopRecord, index: number): string {
   const config = PLATFORM_CONFIGS[record.platform];
   const searchContractText = existingSearchText(record).slice(0, 240);
   const coverUrl = recordCoverUrl(record);
+  const originalCoverUrl = recordRealCoverUrl(record);
   const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
+  const fallbackData = originalCoverUrl ? ` data-original-src="${esc(originalCoverUrl)}" data-fallback-src="${esc(fallbackUrl)}"` : '';
   const metrics = recordMetricItems(record);
   return `<article class="pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
-    <button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面"><img src="${esc(coverUrl)}" alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${esc(fallbackUrl)}'"></button>
+    <button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面"><img src="${esc(coverUrl)}"${fallbackData} alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer"></button>
     <div class="card-top"><span class="platform-badge">${platformIcon(record.platform)} ${config.name}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>
     ${renderPersonalCardActions(record, index)}
     <h3>${esc(record.title)}</h3><p class="author">${esc(record.author)}</p>
@@ -908,9 +912,11 @@ function renderRecord(record: DesktopRecord, index: number): string {
 
 function renderCompactRecord(record: DesktopRecord, index: number): string {
   const coverUrl = recordCoverUrl(record);
+  const originalCoverUrl = recordRealCoverUrl(record);
   const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
+  const fallbackData = originalCoverUrl ? ` data-original-src="${esc(originalCoverUrl)}" data-fallback-src="${esc(fallbackUrl)}"` : '';
   const metrics = recordMetricItems(record);
-  return `<article class="compact-record" data-action="select-record" data-index="${index}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面"><img src="${esc(coverUrl)}" alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${esc(fallbackUrl)}'"></button><div class="compact-record-main"><div class="compact-record-head"><span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>${renderPersonalCardActions(record, index)}<h3>${esc(record.title)}</h3><p>${esc(record.author)} · ${textOrUnknown(record.summary)}</p><div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div></div><div class="compact-record-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}<button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div></article>`;
+  return `<article class="compact-record" data-action="select-record" data-index="${index}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面"><img src="${esc(coverUrl)}"${fallbackData} alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer"></button><div class="compact-record-main"><div class="compact-record-head"><span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>${renderPersonalCardActions(record, index)}<h3>${esc(record.title)}</h3><p>${esc(record.author)} · ${textOrUnknown(record.summary)}</p><div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div></div><div class="compact-record-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}<button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div></article>`;
 }
 
 function renderMcmodTable(records: DesktopRecord[]): string {
@@ -954,6 +960,7 @@ function renderBilibiliFlatWorkspace(records: DesktopRecord[]): string {
 function platformIcon(platform: Platform): string {
   const src = PLATFORM_SITE_ICONS[platform];
   const short = platform === 'mcmod' ? 'MC' : platform === 'bilibili' ? 'B' : platform === 'bbsmc' ? 'BBS' : platform === 'xyebbs' ? 'XYE' : platform === 'modrinth' ? 'MR' : 'CF';
+  if (!src) return `<span class="platform-icon-wrap"><span class="platform-icon-fallback">${short}</span></span>`;
   return `<span class="platform-icon-wrap"><img class="platform-site-icon" src="${esc(src)}" alt="${esc(PLATFORM_CONFIGS[platform].name)}图标" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true;this.nextElementSibling.hidden=false;"><span class="platform-icon-fallback" hidden>${short}</span></span>`;
 }
 
@@ -1124,7 +1131,7 @@ function renderCommentSection(record: DesktopRecord): string {
 function renderMediaSection(record: DesktopRecord): string {
   const urls = recordImageUrls(record);
   if (!urls.length) return `<div class="detail-section"><h3>图片</h3><div class="empty-evidence">${UNKNOWN_LOCAL_TEXT}；列表继续使用现有封面占位图。</div></div>`;
-  return `<div class="detail-section"><h3>图片 <span class="detail-submeta">${urls.length} 张 · 点击放大</span></h3><div class="detail-image-gallery">${urls.map((url, index) => renderImageButton(url, `${record.title}图片${index + 1}`, 'detail-image')).join('')}</div></div>`;
+  return `<div class="detail-section"><h3>图片 <span class="detail-submeta">${urls.length} 张 · 点击放大</span></h3><div class="detail-image-gallery">${urls.map((url, index) => renderImageButton(url, `${record.title}图片${index + 1}`, 'detail-image', PLATFORM_COVER_FALLBACKS[record.platform])).join('')}</div></div>`;
 }
 
 function renderDetailFacts(record: DesktopRecord): string {
@@ -1687,6 +1694,17 @@ let documentEventsBound = false;
 function bindDocumentEvents(): void {
   if (documentEventsBound) return;
   documentEventsBound = true;
+  document.addEventListener('error', (event) => {
+    const image = event.target instanceof HTMLImageElement ? event.target : null;
+    if (!image) return;
+    const original = safeImageUrl(image.dataset.originalSrc);
+    const fallback = safeImageUrl(image.dataset.fallbackSrc);
+    if (!original || !fallback) return;
+    rememberFailedImage(original);
+    if (image.getAttribute('src') === fallback) return;
+    image.setAttribute('src', fallback);
+    image.closest<HTMLElement>('.image-preview-trigger')?.setAttribute('data-image-url', fallback);
+  }, true);
   document.addEventListener('click', (event) => {
     if (!state.openDropdown) return;
     const target = event.target instanceof Element ? event.target : null;
