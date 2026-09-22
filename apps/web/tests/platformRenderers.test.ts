@@ -4,7 +4,7 @@ import { renderBbsmcCard } from '../src/platforms/bbsmc/renderer';
 import { renderXyebbsCard } from '../src/platforms/xyebbs/renderer';
 import { renderModrinthCard } from '../src/platforms/modrinth/renderer';
 import { renderCurseforgeCard } from '../src/platforms/curseforge/renderer';
-import { filterBilibiliGroupsByPersonalStatus } from '../src/desktopShell';
+import { filterBilibiliGroupsByPersonalStatus, getDesktopSearchPlaceholder } from '../src/desktopShell';
 import type { BiliGroup } from '../src/platforms/bilibili/renderer';
 import type { BilibiliPack } from '../src/types/legacy/bilibili';
 import type { BbsmcPack } from '../src/types/legacy/bbsmc';
@@ -40,7 +40,7 @@ describe('Platform Card Renderers', () => {
     const flatHtml = renderBiliFlatCard(p);
     expect(flatHtml).toContain('bili-pack-card');
     expect(flatHtml).toContain('B站测试包');
-    expect(flatHtml).toContain('含服务端');
+    expect(flatHtml).toContain('有服务端运行线索');
     expect(flatHtml).toContain('1.2万');
 
     const groupedHtml = renderBiliGroupedCard({
@@ -79,6 +79,13 @@ describe('Platform Card Renderers', () => {
     expect(filtered[0].items.map((item) => item.bvid)).toEqual(['A', 'B']);
   });
 
+  it('describes search coverage by platform instead of promising MCMod fields everywhere', () => {
+    expect(getDesktopSearchPlaceholder('all')).not.toContain('模组名');
+    expect(getDesktopSearchPlaceholder('all')).toContain('平台已有字段');
+    expect(getDesktopSearchPlaceholder('mcmod')).toContain('模组名');
+    expect(getDesktopSearchPlaceholder('bilibili')).not.toContain('模组名');
+  });
+
   it('renders BBSMC card', () => {
     const p: BbsmcPack = {
       project_id: 10,
@@ -100,7 +107,7 @@ describe('Platform Card Renderers', () => {
     expect(html).toContain('bbsmc-pack-card');
     expect(html).toContain('BBSMC 示范包');
     expect(html).toContain('MC大师');
-    expect(html).toContain('含服务端');
+    expect(html).toContain('有服务端运行线索');
   });
 
   it('renders XYEBBS card', () => {

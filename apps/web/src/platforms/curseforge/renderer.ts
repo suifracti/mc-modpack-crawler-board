@@ -22,7 +22,7 @@ export function renderCurseforgeCard(p: CurseforgePack): string {
 
   let tagsHtml = '';
   if (p.has_server) {
-    tagsHtml += '<span class="badge-env badge-env-server" title="该整合包提供专用服务端下载/支持联机开服">🖳 含服务端</span>';
+    tagsHtml += '<span class="badge-env badge-env-server" title="有服务端运行线索">🖳 有服务端运行线索</span>';
   }
   if (p.mc_version && p.mc_version !== '未知') {
     tagsHtml += '<span class="curseforge-badge-ver">🎮 ' + escHtml(p.mc_version) + '</span>';

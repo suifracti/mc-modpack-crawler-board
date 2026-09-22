@@ -59,8 +59,8 @@ export function adaptModrinthToVersionModal(
     hasServer: Boolean(p.has_server || extra?.has_server || (p as any).server_side === 'required' || (p as any).server_side === 'optional'),
     serverStatus: ((p as any).server_side === 'required' || (p as any).server_side === 'optional' || (p as any).server_side === 'unsupported' ? (p as any).server_side : (p.has_server || extra?.has_server ? 'supported' : 'unknown')),
     envDisplay: ((p as any).server_side === 'required' || (p as any).server_side === 'optional' || p.has_server || extra?.has_server)
-      ? '支持联机开服 / 提供专用服务端'
-      : ((p as any).server_side === 'unsupported' ? '明确不支持开服 / 仅客户端运行' : '未声明服务端支持 / 无法确认'),
+      ? '有服务端运行线索'
+      : ((p as any).server_side === 'unsupported' ? '明确不支持服务端运行线索' : '未知（本地数据未提供）'),
     releases,
   };
 }

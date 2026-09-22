@@ -304,6 +304,6 @@ describe('MCMod TypeScript Cell Renderers', () => {
 
   it('renderEnvironmentBadge produces server badge if supported', () => {
     const html = renderEnvironmentBadge(sampleDto);
-    expect(html).toContain('✔ 含服务端');
+    expect(html).toContain('✔ 有服务端运行线索');
   });
 });

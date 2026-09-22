@@ -44,7 +44,7 @@ export function renderBiliGroupedCard(g: BiliGroup): string {
 
   let tagsHtml = '';
   if (g.has_server || latest.has_server) {
-    tagsHtml += '<span class="badge-env badge-env-server" title="该整合包提供专用服务端下载/支持联机开服">🖳 含服务端</span>';
+    tagsHtml += '<span class="badge-env badge-env-server" title="有服务端运行线索">🖳 有服务端运行线索</span>';
   }
   if (g.pack_version || latest.pack_version) {
     tagsHtml += '<span class="bili-pack-ver-tag">📦 v' + escHtml(g.pack_version || latest.pack_version) + '</span>';
@@ -170,7 +170,7 @@ export function renderBiliFlatCard(p: BilibiliPack): string {
   }
   let tagsHtml = '';
   if (p.has_server) {
-    tagsHtml += '<span class="badge-env badge-env-server" title="该整合包提供专用服务端下载/支持联机开服">🖳 含服务端</span>';
+    tagsHtml += '<span class="badge-env badge-env-server" title="有服务端运行线索">🖳 有服务端运行线索</span>';
   }
   if (p.pack_version) {
     tagsHtml += '<span class="bili-pack-ver-tag">📦 v' + escHtml(p.pack_version) + '</span>';
