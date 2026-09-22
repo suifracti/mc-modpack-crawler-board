@@ -1,6 +1,6 @@
 # 当前实施状态
 
-更新：2026-09-22。本页记录 PR #6 合并收口；历史项目状态仍见 [PROJECT_STATUS.md](PROJECT_STATUS.md)。
+更新：2026-09-22。本页记录 PR #7 合并收口；历史项目状态仍见 [PROJECT_STATUS.md](PROJECT_STATUS.md)。
 
 ## 当前交付
 
@@ -8,7 +8,17 @@
 | --- | --- | --- |
 | PR #5 `feature/personal-library` | merge SHA `f0c9f9f0699693b713af334ba80ed6ce397b335e` | MERGED |
 | PR #6 `codex/discovery-rules` | head `241d33dcdd3e34319870538b29491f595f996a3c`；base `f0c9f9f0699693b713af334ba80ed6ce397b335e` | MERGED |
-| PR #6 合并提交 | `3b55b2a1e59cb2eabb98657ac851f8d4114be5cb`，已进入远端 master；其后仅追加本状态文档提交 | IMPLEMENTED / MERGED |
+| PR #6 合并提交 | `3b55b2a1e59cb2eabb98657ac851f8d4114be5cb`，已进入远端 master；其后追加状态文档提交 `4b283f744ca6fb7ecf4f26a559e68d64df35097a` | IMPLEMENTED / MERGED |
+| PR #7 `codex/mcmod-pack-version` | head `10e9c56cc2a6e200f7ce73683a8cf08ab5c35891`；base `4b283f744ca6fb7ecf4f26a559e68d64df35097a` | MERGED |
+| PR #7 合并提交 | `0197c8278f09c39fc7af83ac2e61a5deb4f28cfd`，已进入远端 master；其后仅追加本状态文档提交 | IMPLEMENTED / MERGED |
+
+## PR #7 收口
+
+- 规划方验收：`REPORT_BASED_REVIEW_PASS`。合并前远端 head 与指定提交一致，`MERGEABLE / CLEAN`，GitHub checks 列表为空，无新失败。
+- raw `latest_version` 经 desktop modern sidecar 和离线 exporter 保留为可选 `packVersion`，DataStore / DTO 透传，MC百科详情显示“整合包版本名”；不进入 Minecraft 版本、筛选或搜索。
+- 复用 head `10e9c56cc2a6e200f7ce73683a8cf08ab5c35891` 的验证：Python 生产/消费 fixture 1/1、Web renderer 8/8、typecheck、desktop build 通过。本次仅合并和状态更新，未重跑验证。
+- 未验证真实联网、完整采集、发布环境 GUI 或合并后 master 运行态；旧 sidecar 兼容，但用户旧 snapshot 未回填。
+- blocker：无。未修改用户真实 active snapshot；未启动下一任务；Master Plan 不变。
 
 ## PR #6 收口
 
@@ -37,7 +47,7 @@
 ## 未验证与边界
 
 - 未做真实用户数据或发布环境的 GUI/桌面验收；限定浏览器点击仅使用临时 fixture，不代表完整 GUI 矩阵通过。
-- 实施验证未启动全网抓取、未依赖 active snapshot、未修改真实用户数据。PR #5、PR #6 现已合并；Obsidian Handoff 在收口时同步，未进行发布。
+- 实施验证未启动全网抓取、未依赖 active snapshot、未修改真实用户数据。PR #5、PR #6、PR #7 现已合并；Obsidian Handoff 在收口时同步，未进行发布。
 - 归组规则本身不在本轮重写；组卡摘要范围仅承诺当前查询已完成加载的成员集合。
 
 ## 交接入口
@@ -46,3 +56,4 @@
 - [历史项目状态](PROJECT_STATUS.md)
 - PR：[suifracti/mc-modpack-crawler-board#5](https://github.com/suifracti/mc-modpack-crawler-board/pull/5)
 - PR：[suifracti/mc-modpack-crawler-board#6](https://github.com/suifracti/mc-modpack-crawler-board/pull/6)
+- PR：[suifracti/mc-modpack-crawler-board#7](https://github.com/suifracti/mc-modpack-crawler-board/pull/7)
