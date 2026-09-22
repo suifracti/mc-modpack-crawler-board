@@ -1671,7 +1671,7 @@ async function loadRecords(reset = true): Promise<void> {
     state.availableLoaders = [...new Set(results.flatMap((result) => result.availableLoaders || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availableCategories = [...new Set(results.flatMap((result) => result.availableCategories || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availablePans = [...new Set(results.flatMap((result) => result.availablePans || []))];
-    state.hasMore = groupedBili ? false : state.records.length < state.total;
+    state.hasMore = !state.recordsError && !groupedBili && state.records.length < state.total;
     state.loading = false;
     render();
   } catch (error) {
