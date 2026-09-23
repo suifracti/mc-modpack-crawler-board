@@ -238,6 +238,22 @@ function normaliseRecord(platform, record, index) {
       }
     }
   }
+  const fileIndexInput = platform === 'curseforge' ? firstValue(raw, ['file_indexes', 'fileIndexes']) : null;
+  const fileIndexes = Array.isArray(fileIndexInput)
+    ? fileIndexInput.filter((item) => item && typeof item === 'object' && !Array.isArray(item)).map((item) => ({
+      fileId: item.file_id ?? item.fileId ?? null,
+      filename: typeof item.filename === 'string' ? item.filename : '',
+      releaseType: typeof (item.release_type ?? item.releaseType) === 'number' || typeof (item.release_type ?? item.releaseType) === 'string'
+        ? (item.release_type ?? item.releaseType) : null,
+      gameVersion: typeof (item.game_version ?? item.gameVersion) === 'string' ? (item.game_version ?? item.gameVersion) : '',
+      modLoader: typeof (item.mod_loader ?? item.modLoader) === 'number' || typeof (item.mod_loader ?? item.modLoader) === 'string'
+        ? (item.mod_loader ?? item.modLoader) : null,
+    }))
+    : undefined;
+  const explicitMainFileId = firstValue(raw, ['main_file_id', 'mainFileId']);
+  const mainFileId = platform === 'curseforge'
+    ? explicitMainFileId ?? firstValue(sourceMeta, ['main_file_id', 'mainFileId'])
+    : null;
   return {
     id: `${platform}:${sourceId}`,
     platform,
@@ -256,6 +272,8 @@ function normaliseRecord(platform, record, index) {
     coverUrl: asText(firstValue(record, ['coverUrl', 'cover', 'icon_url', 'logo_url', 'cover_url'])),
     environment,
     releases: Array.isArray(record?.releases) ? record.releases : Array.isArray(record?.versions_data) ? record.versions_data : Array.isArray(record?.versions) ? record.versions : [],
+    ...(fileIndexes === undefined ? {} : { fileIndexes }),
+    ...(mainFileId === null ? {} : { mainFileId }),
     raw,
     searchText: searchDocument.allTextLower,
     searchDocument,

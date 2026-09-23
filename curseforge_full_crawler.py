@@ -183,7 +183,7 @@ def standardize_pack(item):
                 if l_name not in loaders:
                     loaders.append(l_name)
                     
-    if not loaders:
+    if not loaders and not file_indexes:
         loaders = ["Forge"]
         
     latest_ver = all_versions[0] if all_versions else "未知"
@@ -217,9 +217,21 @@ def standardize_pack(item):
         "downloads": downloads,
         "followers": thumbs_up,
         "mc_version": latest_ver,
-        "all_versions": all_versions[:12],
+        "all_versions": all_versions,
         "loaders": loaders,
-        "categories": categories[:8],
+        "categories": categories,
+        "main_file_id": item.get("mainFileId"),
+        "file_indexes": [
+            {
+                "file_id": fi.get("fileId"),
+                "filename": fi.get("filename"),
+                "release_type": fi.get("releaseType"),
+                "game_version": fi.get("gameVersion"),
+                "mod_loader": fi.get("modLoader"),
+            }
+            for fi in file_indexes
+            if isinstance(fi, dict)
+        ],
         "icon_url": icon_url,
         "gallery": gallery[:6],
         "date_created": date_created,

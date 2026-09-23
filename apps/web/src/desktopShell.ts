@@ -24,6 +24,8 @@ import { rememberFailedImage, stableImageSource } from './utils/imageFallback';
 
 export interface DesktopRecord {
   packVersion?: string;
+  fileIndexes?: DesktopCurseforgeFileIndex[];
+  mainFileId?: string | number;
   id: string;
   platform: Platform;
   sourceId: string;
@@ -42,6 +44,14 @@ export interface DesktopRecord {
   raw: Record<string, unknown>;
   searchText: string;
   evidence: Array<{ label: string; value: string }>;
+}
+
+export interface DesktopCurseforgeFileIndex {
+  fileId: string | number | null;
+  filename: string;
+  releaseType: string | number | null;
+  gameVersion: string;
+  modLoader: string | number | null;
 }
 
 export interface PersonalStatus {
@@ -1196,6 +1206,59 @@ export function renderPackVersionDetail(record: Pick<DesktopRecord, 'platform' |
   return `<div class="detail-section"><dl><div><dt>整合包版本名</dt><dd>${textOrUnknown(record.packVersion)}</dd></div></dl></div>`;
 }
 
+export function renderCurseforgeFileIndexDetail(record: Pick<DesktopRecord, 'platform' | 'fileIndexes' | 'mainFileId'>): string {
+  if (record.platform !== 'curseforge') return '';
+  const indexes = record.fileIndexes;
+  const mainFileId = record.mainFileId;
+  const mainFileIdProvided = mainFileId !== undefined && mainFileId !== null && String(mainFileId) !== '';
+  const hasMainFile = mainFileIdProvided && Array.isArray(indexes)
+    && indexes.some((index) => index.fileId !== null && String(index.fileId) === String(mainFileId));
+  const mainFileNote = mainFileIdProvided && !hasMainFile
+    ? `<p class="empty-evidence">主文件 ID ${esc(mainFileId)} 未出现在当前文件索引中。</p>`
+    : '';
+  let indexBody = `<div class="empty-evidence">当前数据未提供文件索引。</div>`;
+
+  if (Array.isArray(indexes)) {
+    if (!indexes.length) {
+      indexBody = '<div class="empty-evidence">当前来源数据没有文件索引项。</div>';
+    } else {
+      const groups = new Map<string, { fileId: string | number | null; indexes: DesktopCurseforgeFileIndex[] }>();
+      indexes.forEach((index, indexPosition) => {
+        const hasId = index.fileId !== null && String(index.fileId) !== '';
+        const key = hasId ? `file:${String(index.fileId)}` : `missing:${indexPosition}`;
+        const group = groups.get(key) || { fileId: index.fileId, indexes: [] };
+        group.indexes.push(index);
+        groups.set(key, group);
+      });
+      const releaseTypeLabel = (value: string | number | null): string => {
+        const known: Record<string, string> = { '1': '正式版', '2': 'Beta', '3': 'Alpha' };
+        if (value === null || String(value) === '') return UNKNOWN_LOCAL_TEXT;
+        return known[String(value)] || `未知发布类型（${String(value)}）`;
+      };
+      const loaderValueLabel = (value: string | number | null): string => {
+        const known: Record<string, string> = {
+          '0': '任意 Loader',
+          '1': 'Forge',
+          '2': 'Cauldron',
+          '3': 'LiteLoader',
+          '4': 'Fabric',
+          '5': 'Quilt',
+          '6': 'NeoForge',
+        };
+        if (value === null || String(value) === '') return UNKNOWN_LOCAL_TEXT;
+        return known[String(value)] || `未知 Loader（${String(value)}）`;
+      };
+      indexBody = `<div class="curseforge-file-index-list">${[...groups.values()].map((group) => {
+        const groupHasMain = mainFileIdProvided && group.fileId !== null && String(group.fileId) === String(mainFileId);
+        const entries = group.indexes.map((index) => `<li class="curseforge-file-index-entry"><strong>${esc(index.filename || UNKNOWN_LOCAL_TEXT)}</strong><span>类型：${esc(releaseTypeLabel(index.releaseType))} · Minecraft：${esc(index.gameVersion || UNKNOWN_LOCAL_TEXT)} · Loader：${esc(loaderValueLabel(index.modLoader))}</span></li>`).join('');
+        return `<section class="curseforge-file-index-group"><h4>文件 ID：${group.fileId === null ? UNKNOWN_LOCAL_TEXT : esc(group.fileId)}${groupHasMain ? '<span class="detail-submeta">主文件</span>' : ''}</h4><ul>${entries}</ul></section>`;
+      }).join('')}</div><p class="detail-submeta">${groups.size} 个文件 ID · ${indexes.length} 条索引项</p>`;
+    }
+  }
+
+  return `<div class="detail-section"><h3>来源提供的文件索引 <span class="detail-submeta">非完整历史</span></h3><p class="detail-summary">这些是来源响应提供的有限索引，不代表完整文件或发布历史。</p>${mainFileNote}${indexBody}</div>`;
+}
+
 function detailPanel(): string {
   const record = state.selected;
   if (!record) return '';
@@ -1209,7 +1272,9 @@ function detailPanel(): string {
   for (const name of modNames) if (!modsByName.has(name)) modsByName.set(name, { name });
   const mods = [...modsByName.values()];
   const releases = vm.releases?.length ? vm.releases : rawRecords(record, ['releases', 'versions_data', 'version_history']);
-  const releaseHtml = releases.length ? releases.map((release) => renderRelease(release as unknown as Record<string, unknown>)).join('') : '<div class="empty-evidence">当前数据没有版本发布明细；可从下方版本详情入口查看原站记录。</div>';
+  const releaseHtml = releases.length ? releases.map((release) => renderRelease(release as unknown as Record<string, unknown>)).join('') : record.platform === 'curseforge'
+    ? '<div class="empty-evidence">当前快照没有完整发布记录；来源文件索引在上方单独列出。</div>'
+    : '<div class="empty-evidence">当前数据没有版本发布明细；可从下方版本详情入口查看原站记录。</div>';
   const versionUrl = safeExternalUrl(vm.targetUrl);
   const sourceUrl = safeExternalUrl(record.url);
   const modHtml = mods.length ? `<details class="detail-expand" open><summary>共 ${mods.length} 款</summary><div class="mod-list">${mods.map((mod) => { const url = safeExternalUrl(mod.url); return url ? `<a class="mod-chip" href="${esc(url)}" target="_blank" rel="noreferrer">${esc(String(mod.title || mod.name || '未知模组'))} ↗</a>` : `<span class="mod-chip">${esc(String(mod.title || mod.name || '未知模组'))}</span>`; }).join('')}</div></details>` : '<div class="empty-evidence">当前数据没有模组清单。</div>';
@@ -1218,6 +1283,7 @@ function detailPanel(): string {
     <span class="eyebrow">${esc(PLATFORM_CONFIGS[record.platform].name)} · 原始来源</span><h2>${esc(record.title)}</h2><p class="detail-author">${esc(record.author)}</p>
     ${renderMediaSection(record)}
     ${renderPackVersionDetail(record)}
+    ${renderCurseforgeFileIndexDetail(record)}
     <div class="detail-section"><h3>适配摘要</h3><dl><div><dt>Minecraft</dt><dd>${textOrUnknown(vm.mcVersionsList.join('、'))}</dd></div><div><dt>Loader</dt><dd>${textOrUnknown(record.loaders.join('、'))}</dd></div><div><dt>更新时间</dt><dd>${esc(formatTime(record.updatedAt))}</dd></div><div><dt>服务端</dt><dd>${esc(environmentDisplay(record))}</dd></div></dl></div>
     <div class="detail-section"><h3>来源证据</h3><div class="evidence-list">${record.evidence.length ? record.evidence.map((item) => `<div class="evidence-item"><span>${esc(item.label)}</span><strong>${textOrUnknown(item.value)}</strong></div>`).join('') : '<div class="empty-evidence">当前数据没有提供可核对的来源字段。</div>'}</div></div>
     ${renderDetailFacts(record)}
