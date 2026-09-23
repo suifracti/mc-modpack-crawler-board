@@ -20,7 +20,15 @@ import type { BbsmcPack } from './types/legacy/bbsmc';
 import type { CurseforgePack } from './types/legacy/curseforge';
 import type { ModrinthPack } from './types/legacy/modrinth';
 import type { XyebbsPack } from './types/legacy/xyebbs';
-import { rememberFailedImage, stableImageSource } from './utils/imageFallback';
+import { renderCoverImage, type CoverImageState } from './utils/coverImage';
+import {
+  beginImageRetry,
+  COVER_IMAGE_TIMEOUT_MS,
+  finishImageLoad,
+  imageRetryDelay,
+  rememberFailedImage,
+  stableImageSource,
+} from './utils/imageFallback';
 
 export interface DesktopRecord {
   packVersion?: string;
@@ -449,10 +457,6 @@ function recordRealCoverUrl(record: DesktopRecord): string {
     if (c0) return c0;
   }
   return '';
-}
-
-function recordCoverUrl(record: DesktopRecord): string {
-  return stableImageSource(recordRealCoverUrl(record), PLATFORM_COVER_FALLBACKS[record.platform]);
 }
 
 function recordImageUrls(record: DesktopRecord): string[] {
@@ -937,13 +941,16 @@ function renderQuickDownloadLinks(record: DesktopRecord): string {
 function renderRecord(record: DesktopRecord, index: number): string {
   const config = PLATFORM_CONFIGS[record.platform];
   const searchContractText = existingSearchText(record).slice(0, 240);
-  const coverUrl = recordCoverUrl(record);
   const originalCoverUrl = recordRealCoverUrl(record);
   const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
-  const fallbackData = originalCoverUrl ? ` data-original-src="${esc(originalCoverUrl)}" data-fallback-src="${esc(fallbackUrl)}"` : '';
+  const cover = record.platform === 'bilibili' ? null : renderCoverImage({ url: originalCoverUrl, fallback: fallbackUrl, alt: `${record.title}封面`, key: record.id, className: 'pack-card-cover-image' });
+  const coverUrl = cover?.source || stableImageSource(originalCoverUrl, fallbackUrl);
+  const coverMarkup = cover
+    ? `<div class="cover-media cover-media-record" data-cover-frame data-cover-state="${cover.state}"><button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面">${cover.image}${cover.status}</button>${cover.retryButton}</div>`
+    : `<button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面"><img src="${esc(coverUrl)}"${originalCoverUrl ? ` data-original-src="${esc(originalCoverUrl)}" data-fallback-src="${esc(fallbackUrl)}"` : ''} alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer"></button>`;
   const metrics = recordMetricItems(record);
   return `<article class="pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
-    <button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面"><img src="${esc(coverUrl)}"${fallbackData} alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer"></button>
+    ${coverMarkup}
     <div class="card-top"><span class="platform-badge">${platformIcon(record.platform)} ${config.name}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>
     ${renderPersonalCardActions(record, index)}
     <h3>${esc(record.title)}</h3><p class="author">${esc(record.author)}</p>
@@ -956,12 +963,15 @@ function renderRecord(record: DesktopRecord, index: number): string {
 }
 
 function renderCompactRecord(record: DesktopRecord, index: number): string {
-  const coverUrl = recordCoverUrl(record);
   const originalCoverUrl = recordRealCoverUrl(record);
   const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
-  const fallbackData = originalCoverUrl ? ` data-original-src="${esc(originalCoverUrl)}" data-fallback-src="${esc(fallbackUrl)}"` : '';
+  const cover = record.platform === 'bilibili' ? null : renderCoverImage({ url: originalCoverUrl, fallback: fallbackUrl, alt: `${record.title}封面`, key: record.id, className: 'compact-record-cover-image' });
+  const coverUrl = cover?.source || stableImageSource(originalCoverUrl, fallbackUrl);
+  const coverMarkup = cover
+    ? `<div class="cover-media cover-media-compact" data-cover-frame data-cover-state="${cover.state}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面">${cover.image}${cover.status}</button>${cover.retryButton}</div>`
+    : `<button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面"><img src="${esc(coverUrl)}"${originalCoverUrl ? ` data-original-src="${esc(originalCoverUrl)}" data-fallback-src="${esc(fallbackUrl)}"` : ''} alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer"></button>`;
   const metrics = recordMetricItems(record);
-  return `<article class="compact-record" data-action="select-record" data-index="${index}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面"><img src="${esc(coverUrl)}"${fallbackData} alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer"></button><div class="compact-record-main"><div class="compact-record-head"><span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>${renderPersonalCardActions(record, index)}<h3>${esc(record.title)}</h3><p>${esc(record.author)} · ${textOrUnknown(record.summary)}</p><div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div></div><div class="compact-record-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}<button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div></article>`;
+  return `<article class="compact-record" data-action="select-record" data-index="${index}">${coverMarkup}<div class="compact-record-main"><div class="compact-record-head"><span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>${renderPersonalCardActions(record, index)}<h3>${esc(record.title)}</h3><p>${esc(record.author)} · ${textOrUnknown(record.summary)}</p><div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div></div><div class="compact-record-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}<button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div></article>`;
 }
 
 function renderMcmodTable(records: DesktopRecord[]): string {
@@ -1340,6 +1350,169 @@ function renderPersonalProfilePanel(): string {
   </div>`;
 }
 
+function replaceRootHtmlPreservingCoverImages(markup: string): void {
+  const previousImages = new Map<string, HTMLImageElement[]>();
+  root.querySelectorAll<HTMLImageElement>('img[data-cover-image]').forEach((image) => {
+    const key = `${image.dataset.coverKey || ''}\u0000${image.dataset.originalSrc || ''}`;
+    const matching = previousImages.get(key) || [];
+    matching.push(image);
+    previousImages.set(key, matching);
+  });
+
+  const template = document.createElement('template');
+  template.innerHTML = markup;
+  template.content.querySelectorAll<HTMLImageElement>('img[data-cover-image]').forEach((nextImage) => {
+    const key = `${nextImage.dataset.coverKey || ''}\u0000${nextImage.dataset.originalSrc || ''}`;
+    const previous = previousImages.get(key)?.shift();
+    if (!previous) return;
+    Array.from(nextImage.attributes).forEach((attribute) => {
+      if (attribute.name !== 'src' && attribute.name !== 'data-cover-state') previous.setAttribute(attribute.name, attribute.value);
+    });
+    nextImage.replaceWith(previous);
+  });
+  root.replaceChildren(template.content);
+  initializeCoverImages();
+}
+
+function coverStatusText(state: CoverImageState): string {
+  if (state === 'loading') return '封面加载中…';
+  if (state === 'error') return '封面加载失败';
+  if (state === 'timeout') return '封面加载超时';
+  if (state === 'missing') return '来源未提供封面';
+  return '';
+}
+
+function setCoverPresentation(image: HTMLImageElement, state: CoverImageState): void {
+  image.dataset.coverState = state;
+  const frame = image.closest<HTMLElement>('[data-cover-frame]');
+  if (!frame) return;
+  frame.dataset.coverState = state;
+  const status = frame.querySelector<HTMLElement>('.cover-image-status');
+  if (status) status.textContent = coverStatusText(state);
+  const retry = frame.querySelector<HTMLButtonElement>('[data-action="retry-cover"]');
+  if (retry) {
+    const canRetry = (state === 'error' || state === 'timeout') && imageRetryDelay(image.dataset.originalSrc || '') === 0;
+    retry.hidden = state !== 'error' && state !== 'timeout';
+    retry.disabled = !canRetry;
+    retry.textContent = canRetry ? '重试封面' : '稍后可重试';
+  }
+  const trigger = frame.querySelector<HTMLElement>('.image-preview-trigger');
+  if (trigger) {
+    trigger.dataset.imageUrl = state === 'error' || state === 'timeout' || state === 'missing'
+      ? image.dataset.fallbackSrc || ''
+      : image.dataset.originalSrc || image.dataset.fallbackSrc || '';
+  }
+}
+
+const coverLoadTimers = new WeakMap<HTMLImageElement, number>();
+const coverRetryTimers = new WeakMap<HTMLImageElement, number>();
+const observedCoverImages = new WeakSet<HTMLImageElement>();
+let coverObserver: IntersectionObserver | null = null;
+
+function clearCoverTimer(image: HTMLImageElement): void {
+  const timer = coverLoadTimers.get(image);
+  if (timer !== undefined) window.clearTimeout(timer);
+  coverLoadTimers.delete(image);
+}
+
+function startCoverLoadTimer(image: HTMLImageElement): void {
+  clearCoverTimer(image);
+  if (!image.isConnected || image.dataset.coverState !== 'loading') return;
+  coverLoadTimers.set(image, window.setTimeout(() => {
+    if (!image.isConnected || image.dataset.coverState !== 'loading') return;
+    const original = safeImageUrl(image.dataset.originalSrc);
+    const fallback = safeImageUrl(image.dataset.fallbackSrc);
+    if (!original || !fallback) return;
+    rememberFailedImage(original, 'timeout');
+    image.src = fallback;
+    setCoverPresentation(image, 'timeout');
+    scheduleCoverRetry(image);
+  }, COVER_IMAGE_TIMEOUT_MS));
+}
+
+function scheduleCoverRetry(image: HTMLImageElement): void {
+  const previousTimer = coverRetryTimers.get(image);
+  if (previousTimer !== undefined) window.clearTimeout(previousTimer);
+  const delay = imageRetryDelay(image.dataset.originalSrc || '');
+  if (!delay) return;
+  coverRetryTimers.set(image, window.setTimeout(() => {
+    coverRetryTimers.delete(image);
+    if (!image.isConnected) return;
+    const state = image.dataset.coverState;
+    if (state === 'error' || state === 'timeout') setCoverPresentation(image, state);
+  }, delay + 5));
+}
+
+function initializeCoverImages(): void {
+  root.querySelectorAll<HTMLImageElement>('img[data-cover-image]').forEach((image) => {
+    const currentState = (image.dataset.coverState || 'loading') as CoverImageState;
+    setCoverPresentation(image, currentState);
+    if (currentState !== 'loading' || !image.dataset.originalSrc) {
+      scheduleCoverRetry(image);
+      return;
+    }
+    if (typeof IntersectionObserver === 'undefined') {
+      startCoverLoadTimer(image);
+      return;
+    }
+    if (!coverObserver) {
+      coverObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const target = entry.target as HTMLImageElement;
+          coverObserver?.unobserve(target);
+          startCoverLoadTimer(target);
+        });
+      }, { rootMargin: '240px' });
+    }
+    if (!observedCoverImages.has(image)) {
+      observedCoverImages.add(image);
+      coverObserver.observe(image);
+    }
+  });
+}
+
+function handleCoverImageLoad(image: HTMLImageElement): void {
+  if (image.dataset.coverState !== 'loading') return;
+  clearCoverTimer(image);
+  const original = safeImageUrl(image.dataset.originalSrc);
+  finishImageLoad(original);
+  setCoverPresentation(image, 'loaded');
+}
+
+function handleCoverImageFailure(image: HTMLImageElement, kind: 'error' | 'timeout'): void {
+  if (image.dataset.coverState !== 'loading') return;
+  clearCoverTimer(image);
+  const original = safeImageUrl(image.dataset.originalSrc);
+  const fallback = safeImageUrl(image.dataset.fallbackSrc);
+  if (!original || !fallback) {
+    setCoverPresentation(image, 'missing');
+    return;
+  }
+  rememberFailedImage(original, kind);
+  image.src = fallback;
+  setCoverPresentation(image, kind);
+  scheduleCoverRetry(image);
+}
+
+function retryCoverImage(button: HTMLButtonElement): void {
+  const image = button.closest<HTMLElement>('[data-cover-frame]')?.querySelector<HTMLImageElement>('img[data-cover-image]');
+  if (!image) return;
+  const original = safeImageUrl(image.dataset.originalSrc);
+  if (!original || !beginImageRetry(original)) {
+    setCoverPresentation(image, image.dataset.coverState as CoverImageState);
+    scheduleCoverRetry(image);
+    return;
+  }
+  const retryTimer = coverRetryTimers.get(image);
+  if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+  coverRetryTimers.delete(image);
+  image.loading = 'eager';
+  image.src = original;
+  setCoverPresentation(image, 'loading');
+  startCoverLoadTimer(image);
+}
+
 function render(): void {
   const data = state.data;
   const availableCount = data ? Object.values(data.platforms).filter((item) => item.available).length : 0;
@@ -1357,9 +1530,9 @@ function render(): void {
   const body = (state.platform === 'all'
     ? `${renderCrossSearch()}<section class="all-platforms-grid" aria-label="六平台数据看板">${ALL_PLATFORMS.map(renderLegacyShowcaseCard).join('')}</section><div class="desktop-section-heading"><span class="eyebrow">LIVE SNAPSHOT</span><h2>当前快照浏览</h2><p>卡片、版本筛选与详情入口均来自本地快照；需要更多结果时可继续加载。</p></div>${renderResultsWorkspace(selectedName)}`
     : `${renderPlatformHero(state.platform)}${renderResultsWorkspace(selectedName)}`);
-  root.innerHTML = `<div class="desktop-app legacy-shell"><div class="bg-layer" aria-hidden="true"></div>
+  replaceRootHtmlPreservingCoverImages(`<div class="desktop-app legacy-shell"><div class="bg-layer" aria-hidden="true"></div>
     <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button><span class="data-status ${data?.hasData ? 'ready' : 'empty'}"><i></i>${data?.hasData ? `快照 ${esc(data.snapshotId || '已载入')}` : '等待数据'}</span><button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button>${personalProfileAction}<div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
-    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}</div>`;
+    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}</div>`);
   bindEvents();
   const focusTarget = profileFocusAfterRender;
   profileFocusAfterRender = '';
@@ -1533,7 +1706,11 @@ async function loadAudit(): Promise<void> {
 
 async function handleAction(element: HTMLElement, event?: Event): Promise<void> {
   const action = element.dataset.action;
-  if (action === 'open-personal-profile') {
+  if (action === 'retry-cover') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    retryCoverImage(element as HTMLButtonElement);
+  } else if (action === 'open-personal-profile') {
     state.personalProfileOpen = true;
     profileFocusAfterRender = 'close';
     render();
@@ -1838,9 +2015,18 @@ let documentEventsBound = false;
 function bindDocumentEvents(): void {
   if (documentEventsBound) return;
   documentEventsBound = true;
+  document.addEventListener('load', (event) => {
+    const image = event.target instanceof HTMLImageElement ? event.target : null;
+    if (!image || image.dataset.coverImage !== 'true') return;
+    handleCoverImageLoad(image);
+  }, true);
   document.addEventListener('error', (event) => {
     const image = event.target instanceof HTMLImageElement ? event.target : null;
     if (!image) return;
+    if (image.dataset.coverImage === 'true') {
+      handleCoverImageFailure(image, 'error');
+      return;
+    }
     const original = safeImageUrl(image.dataset.originalSrc);
     const fallback = safeImageUrl(image.dataset.fallbackSrc);
     if (!original || !fallback) return;

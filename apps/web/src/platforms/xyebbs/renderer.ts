@@ -6,6 +6,7 @@ import { escHtml } from '../../utils/html';
 import { loaderLabel } from '../../domain/minecraft';
 import { BBSMC_COVER_FALLBACK } from '../bbsmc/renderer';
 import { recordRendererDebug } from '../../debug';
+import { renderCoverImage } from '../../utils/coverImage';
 
 export const XYEBBS_COVER_FALLBACK = BBSMC_COVER_FALLBACK;
 
@@ -16,7 +17,9 @@ export function renderXyebbsCard(p: XyebbsPack): string {
   const safeTitle = escHtml(p.title || '');
   const safeAuthor = escHtml(p.author || '未知');
   const safeDesc = escHtml(p.description || '');
-  const coverImg = p.head_url || p.icon_url || XYEBBS_COVER_FALLBACK;
+  const originalCover = p.head_url || p.icon_url || '';
+  const cover = renderCoverImage({ url: originalCover, fallback: XYEBBS_COVER_FALLBACK, alt: (p.title || '') + '封面', key: 'xyebbs:' + String(p.url || p.project_id), className: 'xyebbs-card-img' });
+  const coverImg = cover.source;
   const dlStr = (p.downloads || 0) > 10000 ? ((p.downloads || 0) / 10000).toFixed(1) + '万' : String(p.downloads || 0);
   const viewStr = (p.views || 0) > 10000 ? ((p.views || 0) / 10000).toFixed(1) + '万' : String(p.views || 0);
 
@@ -88,14 +91,15 @@ export function renderXyebbsCard(p: XyebbsPack): string {
     '</div></div>';
 
   return '<div class="xyebbs-pack-card">' +
+    '<div class="cover-media cover-media-rich" data-cover-frame data-cover-state="' + cover.state + '">' +
     '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="xyebbs-card-cover">' +
-    '<img class="xyebbs-card-img" src="' + escHtml(coverImg) + '" alt="' + safeTitle + '" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src=window.XYEBBS_COVER_FALLBACK;">' +
+    cover.image + cover.status +
     '<div class="xyebbs-card-stats">' +
     '<span>📥 ' + dlStr + '</span>' +
     '<span>👁️ ' + viewStr + '</span>' +
     '</div>' +
     (p.mc_version ? '<span class="xyebbs-card-ver-badge">' + escHtml(p.mc_version) + '</span>' : '') +
-    '</a>' +
+    '</a>' + cover.retryButton + '</div>' +
     '<div class="xyebbs-card-body">' +
     '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="xyebbs-card-title js-open-unified-preview" data-platform="xyebbs" data-full-title="' + safeTitle + '" data-desc="' + safeDesc + '" data-cover="' + escHtml(coverImg) + '" data-author="' + safeAuthor + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.created_date || '') + '" title="' + safeTitle + '">' + safeTitle + '</a>' +
     '<div class="xyebbs-card-meta">' +

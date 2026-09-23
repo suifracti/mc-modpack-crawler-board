@@ -5,6 +5,7 @@ import type { BbsmcPack } from '../../types/legacy/bbsmc';
 import { escHtml } from '../../utils/html';
 import { loaderLabel } from '../../domain/minecraft';
 import { recordRendererDebug } from '../../debug';
+import { renderCoverImage } from '../../utils/coverImage';
 
 export const BBSMC_COVER_FALLBACK = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D"http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg" width%3D"400" height%3D"225" viewBox%3D"0 0 400 225"%3E%3Crect width%3D"400" height%3D"225" fill%3D"%231e293b"%2F%3E%3Ctext x%3D"50%25" y%3D"50%25" dominant-baseline%3D"middle" text-anchor%3D"middle" fill%3D"%23475569" font-family%3D"sans-serif" font-size%3D"14"%3EBBSMC 暂无封面%3C%2Ftext%3E%3C%2Fsvg%3E';
 
@@ -31,7 +32,9 @@ export function renderBbsmcCard(p: BbsmcPack): string {
   const safeTitle = escHtml(p.title || '');
   const safeAuthor = escHtml(p.author || '未知');
   const safeDesc = escHtml(p.description || '');
-  const coverImg = p.featured_gallery || (p.gallery && p.gallery[0]) || p.icon_url || BBSMC_COVER_FALLBACK;
+  const originalCover = p.featured_gallery || (p.gallery && p.gallery[0]) || p.icon_url || '';
+  const cover = renderCoverImage({ url: originalCover, fallback: BBSMC_COVER_FALLBACK, alt: safeTitle + '封面', key: 'bbsmc:' + String(p.url || p.project_id), className: 'bbsmc-card-img' });
+  const coverImg = cover.source;
   const dlStr = (p.downloads || 0) > 10000 ? ((p.downloads || 0) / 10000).toFixed(1) + '万' : String(p.downloads || 0);
   const flStr = (p.followers || 0) > 10000 ? ((p.followers || 0) / 10000).toFixed(1) + '万' : String(p.followers || 0);
 
@@ -118,14 +121,15 @@ export function renderBbsmcCard(p: BbsmcPack): string {
     '</div></div>';
 
   return '<div class="bbsmc-pack-card">' +
+    '<div class="cover-media cover-media-rich" data-cover-frame data-cover-state="' + cover.state + '">' +
     '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="bbsmc-card-cover">' +
-    '<img class="bbsmc-card-img" src="' + escHtml(coverImg) + '" alt="' + safeTitle + '" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src=window.BBSMC_COVER_FALLBACK;">' +
+    cover.image + cover.status +
     '<div class="bbsmc-card-stats">' +
     '<span>📥 ' + dlStr + '</span>' +
     '<span>⭐ ' + flStr + '</span>' +
     '</div>' +
     (p.mc_version ? '<span class="bbsmc-card-ver-badge">' + escHtml(p.mc_version) + '</span>' : '') +
-    '</a>' +
+    '</a>' + cover.retryButton + '</div>' +
     '<div class="bbsmc-card-body">' +
     '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="bbsmc-card-title js-open-unified-preview" data-platform="bbsmc" data-full-title="' + safeTitle + '" data-desc="' + safeDesc + '" data-cover="' + escHtml(coverImg) + '" data-author="' + safeAuthor + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" title="' + safeTitle + '">' + safeTitle + '</a>' +
     '<div class="bbsmc-card-meta">' +

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderBiliGroupedCard, renderBiliFlatCard } from '../src/platforms/bilibili/renderer';
 import { renderBbsmcCard } from '../src/platforms/bbsmc/renderer';
 import { renderXyebbsCard } from '../src/platforms/xyebbs/renderer';
@@ -11,7 +11,7 @@ import type { BbsmcPack } from '../src/types/legacy/bbsmc';
 import type { XyebbsPack } from '../src/types/legacy/xyebbs';
 import type { ModrinthPack } from '../src/types/legacy/modrinth';
 import type { CurseforgePack } from '../src/types/legacy/curseforge';
-import { rememberFailedImage } from '../src/utils/imageFallback';
+import { beginImageRetry, clearFailedImage, COVER_IMAGE_RETRY_COOLDOWN_MS, rememberFailedImage } from '../src/utils/imageFallback';
 
 describe('Platform Card Renderers', () => {
   it('shows missing personal sources as historical references with safe links and backup controls', () => {
@@ -163,6 +163,9 @@ describe('Platform Card Renderers', () => {
     expect(html).toContain('BBSMC 示范包');
     expect(html).toContain('MC大师');
     expect(html).toContain('有服务端运行线索');
+    expect(html).toContain('data-cover-state="missing"');
+    expect(html).toContain('来源未提供封面');
+    expect(html).not.toContain('window.BBSMC_COVER_FALLBACK');
   });
 
   it('renders XYEBBS card', () => {
@@ -184,6 +187,8 @@ describe('Platform Card Renderers', () => {
     expect(html).toContain('xyebbs-pack-card');
     expect(html).toContain('XYEBBS 模组包');
     expect(html).toContain('创作者X');
+    expect(html).toContain('来源未提供封面');
+    expect(html).not.toContain('window.XYEBBS_COVER_FALLBACK');
   });
 
   it('renders Modrinth card', () => {
@@ -229,9 +234,11 @@ describe('Platform Card Renderers', () => {
     expect(html).toContain('Awesome CF Pack');
     expect(html).toContain('5.0万');
     expect(html).toContain('科技');
+    expect(html).toContain('来源未提供封面');
+    expect(html).not.toContain('window.MODRINTH_COVER_FALLBACK');
   });
 
-  it('keeps a failed CurseForge cover on the local fallback across redraws', () => {
+  it('keeps a failed CurseForge cover stable and allows bounded manual recovery', () => {
     const failedUrl = 'https://invalid.example.test/curseforge-cover.png';
     const p = {
       project_id: 1000,
@@ -243,11 +250,31 @@ describe('Platform Card Renderers', () => {
       has_server: false,
     } as CurseforgePack;
 
-    expect(renderCurseforgeCard(p)).toContain(`src="${failedUrl}"`);
-    rememberFailedImage(failedUrl);
-    const redrawn = renderCurseforgeCard(p);
-    expect(redrawn).toContain(`src="${CURSEFORGE_COVER_FALLBACK}"`);
-    expect(redrawn).toContain(`data-original-src="${failedUrl}"`);
-    expect(redrawn).not.toContain('window.CURSEFORGE_COVER_FALLBACK');
+    vi.useFakeTimers();
+    try {
+      clearFailedImage(failedUrl);
+      expect(renderCurseforgeCard(p)).toContain(`data-cover-state="loading"`);
+      expect(renderCurseforgeCard(p)).toContain(`src="${failedUrl}"`);
+      rememberFailedImage(failedUrl, 'timeout');
+      const timedOut = renderCurseforgeCard(p);
+      expect(timedOut).toContain(`src="${CURSEFORGE_COVER_FALLBACK}"`);
+      expect(timedOut).toContain('封面加载超时');
+      expect(timedOut).toContain('data-original-src="' + failedUrl + '"');
+      expect(timedOut).toContain('data-action="retry-cover"');
+
+      expect(beginImageRetry(failedUrl)).toBe(true);
+      expect(renderCurseforgeCard(p)).toContain(`src="${failedUrl}"`);
+      expect(renderCurseforgeCard(p)).toContain(`data-cover-state="loading"`);
+
+      rememberFailedImage(failedUrl, 'error');
+      expect(renderCurseforgeCard(p)).toContain('封面加载失败');
+      expect(beginImageRetry(failedUrl)).toBe(false);
+      vi.advanceTimersByTime(COVER_IMAGE_RETRY_COOLDOWN_MS);
+      expect(beginImageRetry(failedUrl)).toBe(true);
+      expect(renderCurseforgeCard(p)).toContain(`src="${failedUrl}"`);
+    } finally {
+      clearFailedImage(failedUrl);
+      vi.useRealTimers();
+    }
   });
 });
