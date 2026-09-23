@@ -11,7 +11,8 @@ import type { BbsmcPack } from '../src/types/legacy/bbsmc';
 import type { XyebbsPack } from '../src/types/legacy/xyebbs';
 import type { ModrinthPack } from '../src/types/legacy/modrinth';
 import type { CurseforgePack } from '../src/types/legacy/curseforge';
-import { beginImageRetry, clearFailedImage, COVER_IMAGE_RETRY_COOLDOWN_MS, rememberFailedImage } from '../src/utils/imageFallback';
+import { clearFailedImage, COVER_IMAGE_RETRY_COOLDOWN_MS, finishImageLoad, getImageFailure, imageRetryDelay, rememberFailedImage } from '../src/utils/imageFallback';
+import { cancelDetachedCoverImageRequest, renderCoverImage, startCoverImageRetry, type CoverImageRequestTarget } from '../src/utils/coverImage';
 
 describe('Platform Card Renderers', () => {
   it('shows missing personal sources as historical references with safe links and backup controls', () => {
@@ -238,8 +239,27 @@ describe('Platform Card Renderers', () => {
     expect(html).not.toContain('window.MODRINTH_COVER_FALLBACK');
   });
 
-  it('keeps a failed CurseForge cover stable and allows bounded manual recovery', () => {
+  it('cancels a detached hanging retry without affecting same-URL images and permits manual recovery after redisplay', () => {
     const failedUrl = 'https://invalid.example.test/curseforge-cover.png';
+    const makeTarget = (isConnected: boolean, state: string, initialSource: string) => {
+      let source = initialSource;
+      const assignments: string[] = [];
+      const target: CoverImageRequestTarget = {
+        isConnected,
+        loading: 'lazy',
+        dataset: {
+          originalSrc: failedUrl,
+          fallbackSrc: CURSEFORGE_COVER_FALLBACK,
+          coverState: state,
+        },
+        get src() { return source; },
+        set src(value: string) {
+          source = value;
+          assignments.push(value);
+        },
+      };
+      return { target, assignments, source: () => source };
+    };
     const p = {
       project_id: 1000,
       title: 'Broken Cover Pack',
@@ -262,16 +282,52 @@ describe('Platform Card Renderers', () => {
       expect(timedOut).toContain('data-original-src="' + failedUrl + '"');
       expect(timedOut).toContain('data-action="retry-cover"');
 
-      expect(beginImageRetry(failedUrl)).toBe(true);
-      expect(renderCurseforgeCard(p)).toContain(`src="${failedUrl}"`);
-      expect(renderCurseforgeCard(p)).toContain(`data-cover-state="loading"`);
+      const retrying = makeTarget(true, 'timeout', CURSEFORGE_COVER_FALLBACK);
+      const ticket = startCoverImageRetry(retrying.target);
+      expect(ticket).not.toBeNull();
+      expect(retrying.target.dataset.coverState).toBe('loading');
+      expect(retrying.source()).toBe(failedUrl);
+      expect(retrying.assignments).toEqual([failedUrl]);
+      expect(imageRetryDelay(failedUrl)).toBe(COVER_IMAGE_RETRY_COOLDOWN_MS);
+      // No load/error event: the manually triggered request remains pending.
 
-      rememberFailedImage(failedUrl, 'error');
-      expect(renderCurseforgeCard(p)).toContain('封面加载失败');
-      expect(beginImageRetry(failedUrl)).toBe(false);
-      vi.advanceTimersByTime(COVER_IMAGE_RETRY_COOLDOWN_MS);
-      expect(beginImageRetry(failedUrl)).toBe(true);
-      expect(renderCurseforgeCard(p)).toContain(`src="${failedUrl}"`);
+      const sameUrlSibling = makeTarget(true, 'loading', failedUrl);
+      expect(startCoverImageRetry(sameUrlSibling.target)).toBeNull();
+      expect(sameUrlSibling.assignments).toEqual([]);
+      expect(cancelDetachedCoverImageRequest(retrying.target, ticket!)).toBe(false);
+      retrying.target.isConnected = false;
+      expect(cancelDetachedCoverImageRequest(retrying.target, ticket!)).toBe(true);
+      expect(retrying.target.dataset.coverState).toBe('cancelled');
+      expect(retrying.source()).toBe(CURSEFORGE_COVER_FALLBACK);
+      expect(retrying.assignments).toEqual([failedUrl, CURSEFORGE_COVER_FALLBACK]);
+      expect(sameUrlSibling.target.isConnected).toBe(true);
+      expect(sameUrlSibling.target.dataset.coverState).toBe('loading');
+      expect(sameUrlSibling.source()).toBe(failedUrl);
+      expect(sameUrlSibling.assignments).toEqual([]);
+      expect(imageRetryDelay(failedUrl)).toBe(0);
+
+      const redisplayed = renderCoverImage({
+        url: failedUrl,
+        fallback: CURSEFORGE_COVER_FALLBACK,
+        alt: 'Broken Cover Pack',
+        key: 'curseforge:1000',
+      });
+      expect(redisplayed.state).toBe('cancelled');
+      expect(redisplayed.source).toBe(CURSEFORGE_COVER_FALLBACK);
+      const visibleAgain = makeTarget(true, redisplayed.state, redisplayed.source);
+      expect(visibleAgain.assignments).toEqual([]);
+      const recoveryTicket = startCoverImageRetry(visibleAgain.target);
+      expect(recoveryTicket).not.toBeNull();
+      expect(visibleAgain.target.dataset.coverState).toBe('loading');
+      expect(visibleAgain.source()).toBe(failedUrl);
+      expect(visibleAgain.assignments).toEqual([failedUrl]);
+
+      // A successful same-URL sibling must not be overwritten by a later detach callback.
+      sameUrlSibling.target.dataset.coverState = 'loaded';
+      finishImageLoad(failedUrl);
+      visibleAgain.target.isConnected = false;
+      expect(cancelDetachedCoverImageRequest(visibleAgain.target, recoveryTicket!)).toBe(true);
+      expect(getImageFailure(failedUrl)).toBeNull();
     } finally {
       clearFailedImage(failedUrl);
       vi.useRealTimers();

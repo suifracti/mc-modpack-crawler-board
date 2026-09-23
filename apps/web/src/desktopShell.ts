@@ -20,14 +20,19 @@ import type { BbsmcPack } from './types/legacy/bbsmc';
 import type { CurseforgePack } from './types/legacy/curseforge';
 import type { ModrinthPack } from './types/legacy/modrinth';
 import type { XyebbsPack } from './types/legacy/xyebbs';
-import { renderCoverImage, type CoverImageState } from './utils/coverImage';
 import {
-  beginImageRetry,
+  cancelDetachedCoverImageRequest,
+  renderCoverImage,
+  startCoverImageRetry,
+  type CoverImageState,
+} from './utils/coverImage';
+import {
   COVER_IMAGE_TIMEOUT_MS,
   finishImageLoad,
   imageRetryDelay,
   rememberFailedImage,
   stableImageSource,
+  type ImageRetryTicket,
 } from './utils/imageFallback';
 
 export interface DesktopRecord {
@@ -1370,7 +1375,9 @@ function replaceRootHtmlPreservingCoverImages(markup: string): void {
     });
     nextImage.replaceWith(previous);
   });
+  const removedImages = [...previousImages.values()].flat();
   root.replaceChildren(template.content);
+  removedImages.forEach((image) => cancelDetachedCoverImage(image));
   initializeCoverImages();
 }
 
@@ -1378,6 +1385,7 @@ function coverStatusText(state: CoverImageState): string {
   if (state === 'loading') return '封面加载中…';
   if (state === 'error') return '封面加载失败';
   if (state === 'timeout') return '封面加载超时';
+  if (state === 'cancelled') return '封面加载已取消';
   if (state === 'missing') return '来源未提供封面';
   return '';
 }
@@ -1391,14 +1399,14 @@ function setCoverPresentation(image: HTMLImageElement, state: CoverImageState): 
   if (status) status.textContent = coverStatusText(state);
   const retry = frame.querySelector<HTMLButtonElement>('[data-action="retry-cover"]');
   if (retry) {
-    const canRetry = (state === 'error' || state === 'timeout') && imageRetryDelay(image.dataset.originalSrc || '') === 0;
-    retry.hidden = state !== 'error' && state !== 'timeout';
+    const canRetry = (state === 'error' || state === 'timeout' || state === 'cancelled') && imageRetryDelay(image.dataset.originalSrc || '') === 0;
+    retry.hidden = state !== 'error' && state !== 'timeout' && state !== 'cancelled';
     retry.disabled = !canRetry;
     retry.textContent = canRetry ? '重试封面' : '稍后可重试';
   }
   const trigger = frame.querySelector<HTMLElement>('.image-preview-trigger');
   if (trigger) {
-    trigger.dataset.imageUrl = state === 'error' || state === 'timeout' || state === 'missing'
+    trigger.dataset.imageUrl = state === 'error' || state === 'timeout' || state === 'cancelled' || state === 'missing'
       ? image.dataset.fallbackSrc || ''
       : image.dataset.originalSrc || image.dataset.fallbackSrc || '';
   }
@@ -1406,6 +1414,7 @@ function setCoverPresentation(image: HTMLImageElement, state: CoverImageState): 
 
 const coverLoadTimers = new WeakMap<HTMLImageElement, number>();
 const coverRetryTimers = new WeakMap<HTMLImageElement, number>();
+const coverRetryTickets = new WeakMap<HTMLImageElement, ImageRetryTicket>();
 const observedCoverImages = new WeakSet<HTMLImageElement>();
 let coverObserver: IntersectionObserver | null = null;
 
@@ -1415,14 +1424,34 @@ function clearCoverTimer(image: HTMLImageElement): void {
   coverLoadTimers.delete(image);
 }
 
+function cancelDetachedCoverImage(image: HTMLImageElement): void {
+  if (image.isConnected) return;
+  clearCoverTimer(image);
+  const retryTimer = coverRetryTimers.get(image);
+  if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+  coverRetryTimers.delete(image);
+  coverObserver?.unobserve(image);
+  observedCoverImages.delete(image);
+  const ticket = coverRetryTickets.get(image);
+  if (cancelDetachedCoverImageRequest(image, ticket)) {
+    setCoverPresentation(image, image.dataset.coverState as CoverImageState);
+  }
+  coverRetryTickets.delete(image);
+}
+
 function startCoverLoadTimer(image: HTMLImageElement): void {
   clearCoverTimer(image);
   if (!image.isConnected || image.dataset.coverState !== 'loading') return;
   coverLoadTimers.set(image, window.setTimeout(() => {
-    if (!image.isConnected || image.dataset.coverState !== 'loading') return;
+    if (!image.isConnected) {
+      cancelDetachedCoverImage(image);
+      return;
+    }
+    if (image.dataset.coverState !== 'loading') return;
     const original = safeImageUrl(image.dataset.originalSrc);
     const fallback = safeImageUrl(image.dataset.fallbackSrc);
     if (!original || !fallback) return;
+    coverRetryTickets.delete(image);
     rememberFailedImage(original, 'timeout');
     image.src = fallback;
     setCoverPresentation(image, 'timeout');
@@ -1475,6 +1504,7 @@ function initializeCoverImages(): void {
 function handleCoverImageLoad(image: HTMLImageElement): void {
   if (image.dataset.coverState !== 'loading') return;
   clearCoverTimer(image);
+  coverRetryTickets.delete(image);
   const original = safeImageUrl(image.dataset.originalSrc);
   finishImageLoad(original);
   setCoverPresentation(image, 'loaded');
@@ -1483,6 +1513,7 @@ function handleCoverImageLoad(image: HTMLImageElement): void {
 function handleCoverImageFailure(image: HTMLImageElement, kind: 'error' | 'timeout'): void {
   if (image.dataset.coverState !== 'loading') return;
   clearCoverTimer(image);
+  coverRetryTickets.delete(image);
   const original = safeImageUrl(image.dataset.originalSrc);
   const fallback = safeImageUrl(image.dataset.fallbackSrc);
   if (!original || !fallback) {
@@ -1498,17 +1529,16 @@ function handleCoverImageFailure(image: HTMLImageElement, kind: 'error' | 'timeo
 function retryCoverImage(button: HTMLButtonElement): void {
   const image = button.closest<HTMLElement>('[data-cover-frame]')?.querySelector<HTMLImageElement>('img[data-cover-image]');
   if (!image) return;
-  const original = safeImageUrl(image.dataset.originalSrc);
-  if (!original || !beginImageRetry(original)) {
+  const ticket = startCoverImageRetry(image);
+  if (!ticket) {
     setCoverPresentation(image, image.dataset.coverState as CoverImageState);
     scheduleCoverRetry(image);
     return;
   }
+  coverRetryTickets.set(image, ticket);
   const retryTimer = coverRetryTimers.get(image);
   if (retryTimer !== undefined) window.clearTimeout(retryTimer);
   coverRetryTimers.delete(image);
-  image.loading = 'eager';
-  image.src = original;
   setCoverPresentation(image, 'loading');
   startCoverLoadTimer(image);
 }
