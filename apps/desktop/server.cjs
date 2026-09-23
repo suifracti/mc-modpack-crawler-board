@@ -8,6 +8,7 @@ const { spawn } = require('node:child_process');
 const { URL } = require('node:url');
 const { DataStore, defaultUserDataRoot } = require('./lib/data-store.cjs');
 const { PersonalLibrary } = require('./lib/personal-library.cjs');
+const { FavoriteUpdateTracker } = require('./lib/favorite-updates.cjs');
 const { assertPlatform, redactLogLine } = require('./lib/platforms.cjs');
 const { UpdateManager } = require('./lib/update-manager.cjs');
 const { createProcessRunner } = require('./lib/process-runner.cjs');
@@ -106,6 +107,7 @@ function createBrowserService(options = {}) {
   const sourceRoot = options.sourceRoot || repoRoot;
   const dataRoot = path.resolve(options.dataRoot || process.env.MC_DESKTOP_DATA_ROOT || defaultUserDataRoot());
   const personalLibrary = options.personalLibrary || new PersonalLibrary(dataRoot);
+  const favoriteUpdates = options.favoriteUpdates || new FavoriteUpdateTracker(dataRoot);
   const store = options.store || new DataStore(dataRoot, { personalLibrary });
   if (store && !store.personalLibrary) store.personalLibrary = personalLibrary;
   const subscribers = new Set();
@@ -121,6 +123,14 @@ function createBrowserService(options = {}) {
     store,
     runnerFactory: (runnerOptions) => makeRunner({ ...runnerOptions, sourceRoot, python: options.python }),
     logger: (line) => { void logger(line).catch(() => {}); },
+    onSnapshotActivated: async ({ platform }) => {
+      const result = await favoriteUpdates.processSuccessfulRefresh(
+        platform,
+        (await personalLibrary.list()).entries,
+        (sourcePlatform, sourceId) => store.findSourceRecord(sourcePlatform, sourceId),
+      );
+      if (result.eventsAdded) await logger(`收藏更新提醒：${result.eventsAdded} 条新变化已记录。`);
+    },
   });
 
   function sendEvent(event, payload) {
@@ -137,6 +147,11 @@ function createBrowserService(options = {}) {
     if (!initialized) {
       await personalLibrary.init();
       await store.init();
+      await favoriteUpdates.init();
+      await favoriteUpdates.seedMissingFavorites(
+        (await personalLibrary.list()).entries,
+        (platform, sourceId) => store.findSourceRecord(platform, sourceId),
+      );
       initialized = true;
     }
   }
@@ -195,12 +210,25 @@ function createBrowserService(options = {}) {
     }
 
     if (pathname === '/api/library' && request.method === 'GET') return json(response, 200, await personalLibrary.list());
+    if (pathname === '/api/favorite-updates' && request.method === 'GET') {
+      return json(response, 200, favoriteUpdates.list((await personalLibrary.list()).entries));
+    }
+    const favoriteUpdateReadMatch = pathname.match(/^\/api\/favorite-updates\/([a-f0-9]{64})\/read$/);
+    if (favoriteUpdateReadMatch && request.method === 'POST') {
+      const marked = await favoriteUpdates.markRead(favoriteUpdateReadMatch[1]);
+      if (!marked) return errorJson(response, 404, '收藏更新提醒不存在');
+      return json(response, 200, favoriteUpdates.list((await personalLibrary.list()).entries));
+    }
     if (pathname === '/api/library/export' && request.method === 'GET') {
       response.setHeader('Content-Disposition', 'attachment; filename="personal-library.json"');
       return json(response, 200, await personalLibrary.list());
     }
     if (pathname === '/api/library/restore' && request.method === 'POST') {
       const result = await personalLibrary.restore(await readJsonBody(request, 16 * 1024 * 1024));
+      if (!result.invalid && result.restored) await favoriteUpdates.seedMissingFavorites(
+        (await personalLibrary.list()).entries,
+        (platform, sourceId) => store.findSourceRecord(platform, sourceId),
+      );
       return json(response, result.invalid ? 400 : 200, result);
     }
     if (pathname === '/api/library/missing' && request.method === 'GET') {
@@ -222,7 +250,17 @@ function createBrowserService(options = {}) {
       if (record?.sourceIdOrigin === 'index-fallback') {
         throw new Error('该记录仅由数组序号生成来源标识，不能保存个人状态；请使用带稳定来源 ID 的记录');
       }
-      return json(response, 200, await personalLibrary.update(platform, sourceId, patch, record));
+      const wasFavorite = personalLibrary.get(platform, sourceId).favorite;
+      const result = await personalLibrary.update(platform, sourceId, patch, record);
+      if (typeof patch.favorite === 'boolean' && patch.favorite !== wasFavorite) {
+        try {
+          const activeRecord = patch.favorite ? await store.findSourceRecord(platform, sourceId) : null;
+          await favoriteUpdates.setFavorite(platform, sourceId, patch.favorite, activeRecord);
+        } catch (error) {
+          await logger(`收藏更新基线暂未同步：${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      return json(response, 200, result);
     }
 
     const commentsMatch = pathname.match(/^\/api\/platforms\/([^/]+)\/comments\/([^/]+)$/);
@@ -236,6 +274,10 @@ function createBrowserService(options = {}) {
       const body = await readJsonBody(request);
       if (!body.path || typeof body.path !== 'string') throw new Error('需要提供本地数据目录路径');
       const data = await store.importDirectory(body.path);
+      await favoriteUpdates.resetFavoriteBaselines(
+        (await personalLibrary.list()).entries,
+        (platform, sourceId) => store.findSourceRecord(platform, sourceId),
+      );
       sendEvent('data', data);
       return json(response, 200, { cancelled: false, data });
     }

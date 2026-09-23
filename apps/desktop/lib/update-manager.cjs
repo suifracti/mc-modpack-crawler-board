@@ -16,12 +16,13 @@ class CancelledBeforeCommit extends Error {
 }
 
 class UpdateManager extends EventEmitter {
-  constructor({ store, runnerFactory, logger = () => {}, now = () => new Date().toISOString() }) {
+  constructor({ store, runnerFactory, logger = () => {}, now = () => new Date().toISOString(), onSnapshotActivated = async () => {} }) {
     super();
     this.store = store;
     this.runnerFactory = runnerFactory;
     this.logger = logger;
     this.now = now;
+    this.onSnapshotActivated = onSnapshotActivated;
     this.active = null;
     this.taskPromise = null;
     this.status = { state: 'idle', taskId: null, platform: null, phase: 'idle', processed: 0, total: null, logs: [] };
@@ -123,6 +124,16 @@ class UpdateManager extends EventEmitter {
         },
       );
       active.committed = true;
+      try {
+        await this.onSnapshotActivated({
+          platform: active.platform,
+          snapshotId: manifest.snapshotId,
+          outcome: validation.outcome,
+          count: validation.count,
+        });
+      } catch (error) {
+        this.appendLog(`快照已切换；收藏更新提醒暂未处理：${error instanceof Error ? error.message : String(error)}`);
+      }
       this.setStatus({
         state: 'success',
         phase: '已完成并切换数据快照',

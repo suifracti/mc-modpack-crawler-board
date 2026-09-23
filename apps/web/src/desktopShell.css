@@ -547,6 +547,20 @@ dd, .evidence-item strong { margin: 0; text-align: right; font-weight: 560; }
 .missing-source-entry p { margin: 5px 0; color: var(--text-secondary, var(--muted)); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
 .missing-source-entry pre { max-width: 100%; margin: 7px 0; overflow: auto; color: var(--text-secondary, var(--muted)); font: inherit; font-size: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .personal-profile-empty { margin: 10px 0 0; padding: 10px; color: var(--text-muted, var(--muted)); border: 1px dashed var(--border-subtle, var(--line)); border-radius: 8px; font-size: 11px; }
+.favorite-update-list { display: grid; gap: 8px; }
+.favorite-update-unknown-heading { margin: 12px 0 8px; padding-top: 10px; border-top: 1px solid var(--border-subtle, var(--line)); }
+.favorite-update-unknown-heading h3 { margin: 0 0 4px; color: var(--text-primary, var(--text)); font-size: 11px; }
+.favorite-update-unknown-heading p { margin: 0; color: var(--text-muted, var(--muted)); font-size: 10px; line-height: 1.5; }
+.favorite-update-entry { min-width: 0; padding: 11px; border: 1px solid var(--border-subtle, var(--line)); border-radius: 9px; background: var(--bg-surface, var(--panel)); }
+.favorite-update-entry.is-unread { border-color: color-mix(in srgb, var(--accent-primary, var(--primary)) 42%, var(--border-subtle, var(--line))); }
+.favorite-update-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+.favorite-update-heading strong { color: var(--text-primary, var(--text)); font-size: 12px; }
+.favorite-update-heading span, .favorite-update-entry small, .favorite-update-read-state, .favorite-update-note { color: var(--text-muted, var(--muted)); font-size: 10px; }
+.favorite-update-entry p { margin: 7px 0; color: var(--text-secondary, var(--muted)); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.favorite-update-actions, .favorite-update-links { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 8px; }
+.favorite-update-mark-read { padding: 5px 9px; color: var(--text-primary, var(--text)); border: 1px solid var(--border-subtle, var(--line)); border-radius: 7px; background: var(--bg-surface-elevated, var(--bg-soft)); cursor: pointer; }
+.favorite-update-mark-read:hover { border-color: var(--accent-primary, var(--primary)); }
+.favorite-update-note { margin: 0; line-height: 1.5; }
 .trend-number.is-up { color: var(--accent-primary, var(--primary)); }
 .trend-number.is-down { color: var(--danger); }
 .vote-positive { color: var(--accent-primary); }

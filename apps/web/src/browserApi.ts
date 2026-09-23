@@ -1,5 +1,5 @@
 import type { Platform } from './domain/types';
-import type { DesktopApi, DesktopDataState, DesktopCommentsResult, DesktopUpdateStatus, DesktopAuditResult, PersonalStatus } from './desktopShell';
+import type { DesktopApi, DesktopDataState, DesktopCommentsResult, DesktopUpdateStatus, DesktopAuditResult, FavoriteUpdatesResult, PersonalStatus } from './desktopShell';
 
 async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const method = init?.method || 'GET';
@@ -60,6 +60,8 @@ export function installBrowserApi(): void {
   const api: DesktopApi = {
     getState: () => request<{ data: DesktopDataState; update: DesktopUpdateStatus }>('/api/state'),
     getPersonalLibrary: () => request<{ schema: number; entries: Record<string, PersonalStatus> }>('/api/library'),
+    getFavoriteUpdates: () => request<FavoriteUpdatesResult>('/api/favorite-updates'),
+    markFavoriteUpdateRead: (id) => request<FavoriteUpdatesResult>(`/api/favorite-updates/${encodeURIComponent(id)}/read`, { method: 'POST', body: '{}' }),
     getMissingPersonalSources: () => request<{ entries: Record<string, PersonalStatus> }>('/api/library/missing'),
     restorePersonalLibrary: (payload) => request<{ restored: number; 'skipped-conflict': number; invalid: number }>('/api/library/restore', { method: 'POST', body: JSON.stringify(payload) }),
     updatePersonalStatus: (platform, sourceId, patch) => request<{ key: string; status: PersonalStatus }>(`/api/library/${encodeURIComponent(platform)}/${encodeURIComponent(sourceId)}`, {
