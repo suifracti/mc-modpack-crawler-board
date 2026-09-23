@@ -6,7 +6,7 @@ import { escHtml } from '../../utils/html';
 import { loaderLabel } from '../../domain/minecraft';
 import { getCategoryLabel } from '../../filters/platformFilters';
 import { recordRendererDebug } from '../../debug';
-import { stableImageSource } from '../../utils/imageFallback';
+import { renderCoverImage } from '../../utils/coverImage';
 
 export const CURSEFORGE_COVER_FALLBACK = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%231c1917%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%23f16436%22 font-family%3D%22sans-serif%22 font-size%3D%2214%22%3ECurseForge%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E';
 
@@ -18,10 +18,8 @@ export function renderCurseforgeCard(p: CurseforgePack): string {
   const safeAuthor = escHtml(p.author || '未知');
   const safeDesc = escHtml(p.description || '');
   const originalCover = p.icon_url || '';
-  const coverImg = stableImageSource(originalCover, CURSEFORGE_COVER_FALLBACK);
-  const fallbackData = originalCover
-    ? ' data-original-src="' + escHtml(originalCover) + '" data-fallback-src="' + CURSEFORGE_COVER_FALLBACK + '"'
-    : '';
+  const cover = renderCoverImage({ url: originalCover, fallback: CURSEFORGE_COVER_FALLBACK, alt: (p.title || '') + '封面', key: 'curseforge:' + String(p.url || p.project_id), className: 'xyebbs-card-img' });
+  const coverImg = cover.source;
   const dlStr = (p.downloads || 0) > 10000 ? ((p.downloads || 0) / 10000).toFixed(1) + '万' : String(p.downloads || 0);
   const flStr = (p.followers || 0) > 10000 ? ((p.followers || 0) / 10000).toFixed(1) + '万' : String(p.followers || 0);
 
@@ -53,14 +51,15 @@ export function renderCurseforgeCard(p: CurseforgePack): string {
   dlZoneHtml += '</div>';
 
   return '<div class="curseforge-pack-card">' +
+    '<div class="cover-media cover-media-rich" data-cover-frame data-cover-state="' + cover.state + '">' +
     '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="xyebbs-card-cover">' +
-    '<img class="xyebbs-card-img" src="' + escHtml(coverImg) + '"' + fallbackData + ' alt="' + safeTitle + '" loading="lazy" referrerpolicy="no-referrer">' +
+    cover.image + cover.status +
     '<div class="xyebbs-card-stats">' +
     '<span>📥 ' + dlStr + '</span>' +
     '<span>👍 ' + flStr + '</span>' +
     '</div>' +
     (p.mc_version ? '<span class="xyebbs-card-ver-badge" style="background:color-mix(in srgb,var(--plat-curse) 78%,var(--text-primary)); color:var(--text-inverse);">' + escHtml(p.mc_version) + '</span>' : '') +
-    '</a>' +
+    '</a>' + cover.retryButton + '</div>' +
     '<div class="xyebbs-card-body">' +
     '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="xyebbs-card-title js-open-unified-preview" data-platform="curseforge" data-full-title="' + safeTitle + '" data-desc="' + safeDesc + '" data-cover="' + escHtml(coverImg) + '" data-author="' + safeAuthor + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" title="' + safeTitle + '">' + safeTitle + '</a>' +
     '<div class="xyebbs-card-meta">' +
