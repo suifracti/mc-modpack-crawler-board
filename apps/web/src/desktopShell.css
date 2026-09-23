@@ -148,6 +148,13 @@ dd, .evidence-item strong { margin: 0; text-align: right; font-weight: 560; }
 .release-head span, .release-meta { color: var(--muted); font-size: 11px; }
 .release-meta { margin-top: 5px; }
 .release-item p { margin: 8px 0 0; color: var(--muted); line-height: 1.55; white-space: pre-wrap; }
+.curseforge-file-index-list { display: grid; gap: 8px; }
+.curseforge-file-index-group { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.curseforge-file-index-group h4 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 12px; }
+.curseforge-file-index-group ul { display: grid; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.curseforge-file-index-entry { display: grid; gap: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
+.curseforge-file-index-entry strong { overflow-wrap: anywhere; font-size: 12px; font-weight: 560; }
+.curseforge-file-index-entry span { color: var(--muted); font-size: 11px; line-height: 1.5; }
 .release-links, .mod-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .detail-link, .mod-chip { display: inline-flex; align-items: center; gap: 3px; padding: 4px 8px; color: var(--accent); border: 1px solid var(--line); border-radius: 999px; background: var(--panel); font-size: 11px; text-decoration: none; }
 .mod-chip { color: var(--muted); }

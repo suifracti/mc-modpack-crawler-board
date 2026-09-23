@@ -4,7 +4,7 @@ import { renderBbsmcCard } from '../src/platforms/bbsmc/renderer';
 import { renderXyebbsCard } from '../src/platforms/xyebbs/renderer';
 import { renderModrinthCard } from '../src/platforms/modrinth/renderer';
 import { CURSEFORGE_COVER_FALLBACK, renderCurseforgeCard } from '../src/platforms/curseforge/renderer';
-import { filterBilibiliGroupsByPersonalStatus, getDesktopSearchPlaceholder, renderPackVersionDetail, renderPersonalBackup } from '../src/desktopShell';
+import { filterBilibiliGroupsByPersonalStatus, getDesktopSearchPlaceholder, renderCurseforgeFileIndexDetail, renderPackVersionDetail, renderPersonalBackup } from '../src/desktopShell';
 import type { BiliGroup } from '../src/platforms/bilibili/renderer';
 import type { BilibiliPack } from '../src/types/legacy/bilibili';
 import type { BbsmcPack } from '../src/types/legacy/bbsmc';
@@ -38,6 +38,35 @@ describe('Platform Card Renderers', () => {
     expect(renderPackVersionDetail({ platform: 'mcmod' })).toContain('未知（本地数据未提供）');
     expect(renderPackVersionDetail({ platform: 'mcmod', packVersion: '<img>' })).toContain('&lt;img&gt;');
     expect(renderPackVersionDetail({ platform: 'bilibili', packVersion: '1.2.3' })).toBe('');
+  });
+  it('renders CurseForge file indexes without presenting them as release history', () => {
+    const html = renderCurseforgeFileIndexDetail({
+      platform: 'curseforge',
+      mainFileId: 9999,
+      fileIndexes: [
+        { fileId: 7101, filename: 'Arcadia 3.2.1.zip', releaseType: 1, gameVersion: '1.20.1', modLoader: 4 },
+        { fileId: 7101, filename: 'Arcadia 3.2.1.zip', releaseType: 1, gameVersion: '1.20.2', modLoader: 6 },
+        { fileId: 7102, filename: 'Arcadia unknown.zip', releaseType: 87, gameVersion: '1.20.3', modLoader: 77 },
+      ],
+    });
+    expect(html).toContain('来源提供的文件索引');
+    expect(html).toContain('非完整历史');
+    expect(html).toContain('Arcadia 3.2.1.zip');
+    expect(html).toContain('Minecraft：1.20.1 · Loader：Fabric');
+    expect(html).toContain('Minecraft：1.20.2 · Loader：NeoForge');
+    expect(html).toContain('未知发布类型（87）');
+    expect(html).toContain('未知 Loader（77）');
+    expect(html).toContain('主文件 ID 9999 未出现在当前文件索引中');
+    expect(html).toContain('2 个文件 ID · 3 条索引项');
+    expect(html).not.toContain('<span class="detail-submeta">主文件</span>');
+    expect(html).not.toContain('整合包版本名');
+    expect(html).not.toContain('发布日期');
+    expect(html).not.toContain('release-item');
+
+    const oldSidecar = renderCurseforgeFileIndexDetail({ platform: 'curseforge', mainFileId: 8888 });
+    expect(oldSidecar).toContain('当前数据未提供文件索引');
+    expect(oldSidecar).toContain('主文件 ID 8888 未出现在当前文件索引中');
+    expect(renderCurseforgeFileIndexDetail({ platform: 'modrinth' })).toBe('');
   });
   it('renders Bilibili cards (grouped and flat)', () => {
     const p: BilibiliPack = {

@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -13,8 +14,11 @@ DESKTOP_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = DESKTOP_ROOT.parents[1]
 if str(DESKTOP_ROOT) not in sys.path:
     sys.path.insert(0, str(DESKTOP_ROOT))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from collector_worker import PLATFORMS, collect_output_contract, file_state, run_selected_collector  # noqa: E402
+import curseforge_full_crawler  # noqa: E402
 
 
 class StubResponse:
@@ -141,6 +145,111 @@ def write_sidecar(path: Path, global_name: str, value) -> None:
 
 
 class CollectorWorkerIntegrationTest(unittest.TestCase):
+    def test_curseforge_file_indexes_flow_from_producer_sidecar_to_desktop_api(self):
+        expected_categories = [f"Fixture category {index}" for index in range(10)]
+        expected_versions = [f"1.20.{minor}" for minor in range(1, 16)]
+        source_indexes = [
+            {"fileId": 7101, "filename": "Arcadia 3.2.1.zip", "releaseType": 1, "gameVersion": "1.20.1", "modLoader": 4},
+            {"fileId": 7101, "filename": "Arcadia 3.2.1.zip", "releaseType": 1, "gameVersion": "1.20.2", "modLoader": 6},
+            {"fileId": 7102, "filename": "Arcadia unknown.zip", "releaseType": 87, "gameVersion": "1.20.3", "modLoader": 77},
+        ]
+        source_indexes.extend(
+            {"fileId": 7103 + offset, "filename": f"Arcadia {version}.zip", "releaseType": 2, "gameVersion": version, "modLoader": 1}
+            for offset, version in enumerate(expected_versions[3:])
+        )
+        expected_sidecar_first_indexes = [
+            {"file_id": 7101, "filename": "Arcadia 3.2.1.zip", "release_type": 1, "game_version": "1.20.1", "mod_loader": 4},
+            {"file_id": 7101, "filename": "Arcadia 3.2.1.zip", "release_type": 1, "game_version": "1.20.2", "mod_loader": 6},
+            {"file_id": 7102, "filename": "Arcadia unknown.zip", "release_type": 87, "game_version": "1.20.3", "mod_loader": 77},
+        ]
+        expected_api_first_indexes = [
+            {"fileId": 7101, "filename": "Arcadia 3.2.1.zip", "releaseType": 1, "gameVersion": "1.20.1", "modLoader": 4},
+            {"fileId": 7101, "filename": "Arcadia 3.2.1.zip", "releaseType": 1, "gameVersion": "1.20.2", "modLoader": 6},
+            {"fileId": 7102, "filename": "Arcadia unknown.zip", "releaseType": 87, "gameVersion": "1.20.3", "modLoader": 77},
+        ]
+        source = {
+            "id": 7001,
+            "slug": "fixture-curseforge-pack",
+            "name": "CurseForge file index fixture",
+            "summary": "offline producer-consumer fixture",
+            "downloadCount": 30,
+            "authors": [{"name": "fixture"}],
+            "categories": [{"name": "Minecraft"}, {"name": "Modpacks"}] + [{"name": value} for value in expected_categories],
+            "latestFilesIndexes": source_indexes,
+            "mainFileId": 9999,
+        }
+        unknown_loader_only = curseforge_full_crawler.standardize_pack({
+            "id": 7002,
+            "latestFilesIndexes": [{"fileId": 7201, "filename": "Unknown loader.zip", "releaseType": 42, "gameVersion": "1.20.16", "modLoader": 77}],
+        })
+        self.assertEqual(unknown_loader_only["loaders"], [])
+        legacy_record = {
+            "project_id": "legacy-fixture",
+            "title": "Old sidecar fixture",
+            "author": "fixture",
+            "source_meta": {"main_file_id": 8888},
+        }
+
+        with tempfile.TemporaryDirectory(prefix="curseforge-index-flow-") as temp:
+            root = Path(temp)
+            raw_path = root / "crawler_output" / "curseforge_modpacks.json"
+            sidecar_path = root / "converted_output" / "data" / "curseforge_data.js"
+            raw_path.parent.mkdir(parents=True)
+            sidecar_path.parent.mkdir(parents=True)
+            produced = curseforge_full_crawler.standardize_pack(source)
+            with patch.object(curseforge_full_crawler, "OUTPUT_JSON", str(raw_path)), \
+                 patch.object(curseforge_full_crawler, "OUTPUT_JS", str(sidecar_path)):
+                curseforge_full_crawler.save_current_state({
+                    produced["project_id"]: produced,
+                    "legacy-fixture": legacy_record,
+                })
+
+            sidecar_text = sidecar_path.read_text(encoding="utf-8")
+            self.assertTrue(sidecar_text.startswith("window.curseforgeModpacksData = "))
+            sidecar = json.loads(sidecar_text.split("=", 1)[1].strip().rstrip(";"))
+            source_record = next(record for record in sidecar if record["project_id"] == "7001")
+            self.assertEqual(source_record["categories"], expected_categories)
+            self.assertEqual(source_record["all_versions"], expected_versions)
+            self.assertEqual(source_record["main_file_id"], 9999)
+            self.assertEqual(len(source_record["file_indexes"]), 15)
+            self.assertEqual(source_record["file_indexes"][:3], expected_sidecar_first_indexes)
+            self.assertEqual([row["game_version"] for row in source_record["file_indexes"]], expected_versions)
+
+            node_script = r"""
+const [storeModule, userData, sourceDirectory] = process.argv.slice(1);
+const { DataStore } = require(storeModule);
+(async () => {
+  const store = new DataStore(userData);
+  await store.init();
+  await store.importDirectory(sourceDirectory);
+  const all = await store.getPlatformRecords('curseforge', { page: 1, pageSize: 20 });
+  const lastCategory = await store.getPlatformRecords('curseforge', { category: 'Fixture category 9', page: 1, pageSize: 20 });
+  const lastVersion = await store.getPlatformRecords('curseforge', { version: '1.20.15', page: 1, pageSize: 20 });
+  process.stdout.write(JSON.stringify({ all, lastCategory: lastCategory.total, lastVersion: lastVersion.total }));
+})().catch((error) => { console.error(error); process.exitCode = 1; });
+"""
+            api_result = subprocess.run(
+                ["node", "-e", node_script, str(DESKTOP_ROOT / "lib" / "data-store.cjs"), str(root / "user-data"), str(root)],
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+            self.assertEqual(api_result.returncode, 0, api_result.stderr)
+            api = json.loads(api_result.stdout)
+            self.assertEqual(api["lastCategory"], 1)
+            self.assertEqual(api["lastVersion"], 1)
+            current = next(record for record in api["all"]["records"] if record["sourceId"] == "7001")
+            self.assertEqual(current["categories"], expected_categories)
+            self.assertEqual(current["versions"], expected_versions)
+            self.assertEqual(current["mainFileId"], 9999)
+            self.assertEqual(len(current["fileIndexes"]), 15)
+            self.assertEqual(current["fileIndexes"][:3], expected_api_first_indexes)
+            self.assertEqual([row["gameVersion"] for row in current["fileIndexes"]], expected_versions)
+            legacy = next(record for record in api["all"]["records"] if record["sourceId"] == "legacy-fixture")
+            self.assertNotIn("fileIndexes", legacy)
+            self.assertEqual(legacy["mainFileId"], 8888)
+
     def test_explicit_no_change_can_reuse_untouched_cache(self):
         with tempfile.TemporaryDirectory(prefix="desktop-collector-no-change-") as temp:
             workspace = Path(temp)
