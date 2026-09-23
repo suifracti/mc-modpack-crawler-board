@@ -1,6 +1,7 @@
 import { ALL_PLATFORMS, PLATFORM_CONFIGS } from './data/platformRegistry';
 import { groupBilibiliPacks } from './domain/bilibiliGrouping';
 import type { Platform } from './domain/types';
+import { getCategoryLabel } from './filters/platformFilters';
 import { buildVersionModalViewModel } from './modals/version/buildViewModel';
 import { renderBbsmcCard } from './platforms/bbsmc/renderer';
 import { renderBiliFlatCard, renderBiliGroupedCard, type BiliGroup } from './platforms/bilibili/renderer';
@@ -136,6 +137,10 @@ export interface DesktopRecordQuery {
   version?: string;
   loader?: string;
   category?: string;
+  includedMods?: string[];
+  includedModsExclude?: boolean;
+  gameplayCategories?: string[];
+  gameplayCategoriesExclude?: boolean;
   pan?: string;
   dateRange?: string;
   serverOnly?: boolean;
@@ -143,6 +148,11 @@ export interface DesktopRecordQuery {
   sort?: string;
   page?: number;
   pageSize?: number;
+}
+
+export interface DesktopFilterOption {
+  value: string;
+  count: number;
 }
 
 export interface DesktopUpdateStatus {
@@ -167,7 +177,7 @@ export interface DesktopApi {
   restorePersonalLibrary: (payload: unknown) => Promise<{ restored: number; 'skipped-conflict': number; invalid: number }>;
   updatePersonalStatus: (platform: Platform, sourceId: string, patch: Partial<Pick<PersonalStatus, 'favorite' | 'wantToPlay' | 'played' | 'rating' | 'note'>>) => Promise<{ key: string; status: PersonalStatus }>;
   getAuditDiff: () => Promise<DesktopAuditResult>;
-  getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availablePans: string[]; error?: string | null }>;
+  getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availableIncludedMods: DesktopFilterOption[]; availableGameplayCategories: DesktopFilterOption[]; availablePans: string[]; error?: string | null }>;
   getPlatformComments: (platform: Platform, sourceId: string) => Promise<DesktopCommentsResult>;
   chooseDataDirectory: () => Promise<{ cancelled: boolean; data?: DesktopDataState }>;
   startUpdate: (platform: Platform, options?: { limit?: number; pages?: number; until?: string }) => Promise<DesktopUpdateStatus>;
@@ -245,6 +255,12 @@ const state = {
   version: '',
   loader: '',
   category: '',
+  includedMods: [] as string[],
+  includedModsExclude: false,
+  includedModSearch: '',
+  gameplayCategories: [] as string[],
+  gameplayCategoriesExclude: false,
+  gameplayCategoriesExpanded: false,
   pan: '',
   dateRange: '',
   serverOnly: false,
@@ -259,6 +275,8 @@ const state = {
   availableVersions: [] as string[],
   availableLoaders: [] as string[],
   availableCategories: [] as string[],
+  availableIncludedMods: [] as DesktopFilterOption[],
+  availableGameplayCategories: [] as DesktopFilterOption[],
   availablePans: [] as string[],
   page: 1,
   pageSize: 24,
@@ -288,6 +306,7 @@ let root: HTMLElement;
 let searchTimer: number | undefined;
 let personalNoteTimer: number | undefined;
 let profileFocusAfterRender: 'close' | 'trigger' | '' = '';
+let platformFilterFocusAfterRender: 'included-mod-search' | '' = '';
 
 function esc(value: unknown): string {
   return String(value ?? '')
@@ -841,12 +860,55 @@ function panLabel(value: string): string {
   return labels[value] || value;
 }
 
+function selectedFacetOptions(options: DesktopFilterOption[], selected: string[], limit: number, search = ''): DesktopFilterOption[] {
+  const term = search.trim().toLowerCase();
+  const matches = term ? options.filter((option) => option.value.toLowerCase().includes(term)) : options;
+  const visible = matches.slice(0, limit);
+  const seen = new Set(visible.map((option) => option.value));
+  for (const value of selected) {
+    if (seen.has(value)) continue;
+    const option = options.find((item) => item.value === value);
+    if (option) visible.push(option);
+  }
+  return visible;
+}
+
+function renderFacetButton(action: 'toggle-included-mod' | 'toggle-gameplay-category', option: DesktopFilterOption, selected: boolean, label = option.value): string {
+  return `<button type="button" class="platform-facet-chip ${selected ? 'is-active' : ''}" data-action="${action}" data-value="${esc(option.value)}" aria-pressed="${selected}" title="${esc(option.value)}：${option.count} 个整合包"><span>${esc(label)}</span><small>${formatCount(option.count)}</small></button>`;
+}
+
+function renderPlatformSpecificFilters(): string {
+  if (state.platform === 'mcmod') {
+    const options = selectedFacetOptions(state.availableIncludedMods, state.includedMods, 40, state.includedModSearch);
+    const emptyText = state.includedModSearch ? '没有匹配的模组名称。' : '当前快照没有可用的模组名称。';
+    return `<section class="platform-facet-panel" aria-labelledby="included-mod-filter-title">
+      <div class="platform-facet-head"><div><h3 id="included-mod-filter-title">包含模组</h3><p>从当前快照全部 MC百科记录统计；多选包含时须全部命中。</p></div><label class="platform-facet-exclude"><input id="included-mod-exclude" type="checkbox" ${state.includedModsExclude ? 'checked' : ''}> <span>排除同时包含全部所选模组的记录</span></label></div>
+      <div class="platform-facet-search"><input id="included-mod-search" type="search" value="${esc(state.includedModSearch)}" placeholder="搜索模组名称（不区分大小写）" aria-label="搜索包含模组候选"><span>${formatCount(state.availableIncludedMods.length)} 个候选</span></div>
+      <div class="platform-facet-options" aria-label="包含模组多选">${options.length ? options.map((option) => renderFacetButton('toggle-included-mod', option, state.includedMods.includes(option.value))).join('') : `<span class="platform-facet-empty">${emptyText}</span>`}</div>
+      <p class="platform-facet-note">模组清单未知的记录不作为“包含”命中；排除模式只移除已确认同时包含全部所选模组的记录。条件仅作用当前平台，切换平台时保留，重置筛选会清空。</p>
+    </section>`;
+  }
+  if (state.platform === 'curseforge') {
+    const limit = state.gameplayCategoriesExpanded ? state.availableGameplayCategories.length : 12;
+    const options = selectedFacetOptions(state.availableGameplayCategories, state.gameplayCategories, limit);
+    return `<section class="platform-facet-panel" aria-labelledby="gameplay-category-filter-title">
+      <div class="platform-facet-head"><div><h3 id="gameplay-category-filter-title">玩法分类</h3><p>从当前快照全部 CurseForge 记录统计；多选包含时命中任一分类。</p></div><label class="platform-facet-exclude"><input id="gameplay-category-exclude" type="checkbox" ${state.gameplayCategoriesExclude ? 'checked' : ''}> <span>排除命中任一所选分类的记录</span></label></div>
+      <div class="platform-facet-options" aria-label="玩法分类多选">${options.map((option) => renderFacetButton('toggle-gameplay-category', option, state.gameplayCategories.includes(option.value), getCategoryLabel(option.value))).join('') || '<span class="platform-facet-empty">当前快照没有玩法分类。</span>'}</div>
+      ${state.availableGameplayCategories.length > 12 ? `<button type="button" class="platform-facet-expand" data-action="toggle-gameplay-expanded" aria-expanded="${state.gameplayCategoriesExpanded}">${state.gameplayCategoriesExpanded ? '收起' : `展开全部（${state.availableGameplayCategories.length} 项）`}</button>` : ''}
+      <p class="platform-facet-note">分类缺失的记录不作为命中；排除模式只移除已确认命中任一所选分类的记录。条件仅作用当前平台，切换平台时保留，重置筛选会清空。</p>
+    </section>`;
+  }
+  return '';
+}
+
 function renderActiveFilters(): string {
   const filters: Array<{ key: string; label: string }> = [];
   if (state.query) filters.push({ key: 'query', label: `关键词：${state.query}` });
   if (state.version) filters.push({ key: 'version', label: `版本：${state.version}` });
   if (state.loader) filters.push({ key: 'loader', label: `Loader：${state.loader}` });
-  if (state.category) filters.push({ key: 'category', label: `分类：${state.category}` });
+  if (state.category && state.platform !== 'curseforge') filters.push({ key: 'category', label: `分类：${state.category}` });
+  if (state.platform === 'mcmod') state.includedMods.forEach((value) => filters.push({ key: `includedMod:${value}`, label: `${state.includedModsExclude ? '排除组合' : '包含模组'}：${value}` }));
+  if (state.platform === 'curseforge') state.gameplayCategories.forEach((value) => filters.push({ key: `gameplayCategory:${value}`, label: `${state.gameplayCategoriesExclude ? '排除玩法' : '玩法分类'}：${getCategoryLabel(value)}` }));
   if (state.pan) filters.push({ key: 'pan', label: `渠道：${panLabel(state.pan)}` });
   if (state.dateRange) filters.push({ key: 'dateRange', label: `时间：${state.dateRange}` });
   if (state.serverOnly) filters.push({ key: 'serverOnly', label: '有服务端运行线索' });
@@ -866,13 +928,14 @@ function renderFilterControls(): string {
     <div class="desktop-filter-primary">
       <div class="desktop-filter-control"><span class="filter-label">版本</span>${renderFilterDropdown('version', state.availableVersions, state.version, '全部版本')}</div>
       <div class="desktop-filter-control"><span class="filter-label">Loader</span>${renderFilterDropdown('loader', state.availableLoaders, state.loader, '全部 Loader')}</div>
-      <div class="desktop-filter-control"><span class="filter-label">分类</span>${renderFilterDropdown('category', state.availableCategories, state.category, '全部分类')}</div>
+      ${state.platform === 'curseforge' ? '' : `<div class="desktop-filter-control"><span class="filter-label">分类</span>${renderFilterDropdown('category', state.availableCategories, state.category, '全部分类')}</div>`}
       <div class="desktop-filter-control desktop-personal-filter"><span class="filter-label">回访状态</span>${renderPersonalDropdown()}</div>
       <div class="desktop-filter-primary-actions">
         <div class="desktop-filter-tool"><span class="filter-label">视图</span><div class="desktop-view-toggle" role="group" aria-label="结果视图">${viewButtons}</div></div>
         <button type="button" class="hub-reset-btn" data-action="clear-filters">重置筛选</button>
       </div>
     </div>
+    ${renderPlatformSpecificFilters()}
     <details class="desktop-more-filters" data-more-filters ${state.moreFiltersOpen ? 'open' : ''}>
       <summary class="desktop-more-summary"><span class="desktop-more-title">更多筛选</span><span class="desktop-more-state">${moreFilterSummary}</span><span class="desktop-more-chevron" aria-hidden="true">⌄</span></summary>
       <div class="desktop-more-filter-groups">
@@ -1128,7 +1191,8 @@ function renderPlatformHero(platform: Platform): string {
 function renderResultsWorkspace(selectedName: string): string {
   const records = currentRecords();
   const data = state.data;
-  const hasFilter = state.query || state.version || state.loader || state.category || state.pan || state.dateRange || state.serverOnly || state.personalFilter;
+  const hasPlatformFilter = state.platform === 'mcmod' ? state.includedMods.length > 0 : state.platform === 'curseforge' ? state.gameplayCategories.length > 0 : false;
+  const hasFilter = state.query || state.version || state.loader || (state.platform !== 'curseforge' && state.category) || state.pan || state.dateRange || state.serverOnly || state.personalFilter || hasPlatformFilter;
   const isAllPlatform = state.platform === 'all';
   const isBili = state.platform === 'bilibili';
   const resultBody = isBili
@@ -1559,6 +1623,12 @@ function render(): void {
   profileFocusAfterRender = '';
   if (focusTarget === 'close') root.querySelector<HTMLButtonElement>('.personal-profile-close')?.focus();
   if (focusTarget === 'trigger') root.querySelector<HTMLButtonElement>('.personal-profile-trigger')?.focus();
+  if (platformFilterFocusAfterRender === 'included-mod-search') {
+    const search = root.querySelector<HTMLInputElement>('#included-mod-search');
+    search?.focus();
+    search?.setSelectionRange(search.value.length, search.value.length);
+  }
+  platformFilterFocusAfterRender = '';
 }
 
 function bindEvents(): void {
@@ -1623,6 +1693,19 @@ function bindEvents(): void {
   root.querySelector<HTMLInputElement>('#server-only-toggle')?.addEventListener('change', (event) => {
     state.serverOnly = (event.target as HTMLInputElement).checked;
     void loadRecords(true);
+  });
+  root.querySelector<HTMLInputElement>('#included-mod-exclude')?.addEventListener('change', (event) => {
+    state.includedModsExclude = (event.target as HTMLInputElement).checked;
+    void loadRecords(true);
+  });
+  root.querySelector<HTMLInputElement>('#gameplay-category-exclude')?.addEventListener('change', (event) => {
+    state.gameplayCategoriesExclude = (event.target as HTMLInputElement).checked;
+    void loadRecords(true);
+  });
+  root.querySelector<HTMLInputElement>('#included-mod-search')?.addEventListener('input', (event) => {
+    state.includedModSearch = (event.target as HTMLInputElement).value;
+    platformFilterFocusAfterRender = 'included-mod-search';
+    render();
   });
   root.querySelector<HTMLInputElement>('#pack-search')?.addEventListener('input', (event) => {
     state.query = (event.target as HTMLInputElement).value;
@@ -1765,6 +1848,21 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     render();
   } else if (action === 'retry-records') {
     await loadRecords(true);
+  } else if (action === 'toggle-included-mod' && state.platform === 'mcmod') {
+    const value = element.dataset.value || '';
+    if (!value) return;
+    state.includedMods = state.includedMods.includes(value) ? state.includedMods.filter((item) => item !== value) : [...state.includedMods, value];
+    if (!state.includedMods.length) state.includedModsExclude = false;
+    await loadRecords(true);
+  } else if (action === 'toggle-gameplay-category' && state.platform === 'curseforge') {
+    const value = element.dataset.value || '';
+    if (!value) return;
+    state.gameplayCategories = state.gameplayCategories.includes(value) ? state.gameplayCategories.filter((item) => item !== value) : [...state.gameplayCategories, value];
+    if (!state.gameplayCategories.length) state.gameplayCategoriesExclude = false;
+    await loadRecords(true);
+  } else if (action === 'toggle-gameplay-expanded' && state.platform === 'curseforge') {
+    state.gameplayCategoriesExpanded = !state.gameplayCategoriesExpanded;
+    render();
   } else if (action === 'toggle-compare') {
     event?.stopPropagation();
     const index = Number(element.dataset.index || '-1');
@@ -1775,6 +1873,8 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     render();
   } else if (action === 'set-platform') {
     state.platform = (element.dataset.platform || 'all') as FilterPlatform;
+    state.availableIncludedMods = [];
+    state.availableGameplayCategories = [];
     if (state.platform !== 'all') state.updatePlatform = state.platform;
     if (state.platform === 'all') state.sort = 'updated_desc';
     if (state.platform === 'bilibili' && !['updated_desc', 'views_desc', 'likes_desc', 'favs_desc', 'coins_desc', 'share_desc', 'reply_desc', 'danmaku_desc'].includes(state.sort)) state.sort = 'updated_desc';
@@ -1928,7 +2028,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     localStorage.setItem('mcmod-desktop-theme', next);
     render();
   } else if (action === 'clear-filters') {
-    state.query = ''; state.version = ''; state.loader = ''; state.category = ''; state.pan = ''; state.dateRange = ''; state.serverOnly = false; state.personalFilter = ''; state.sort = 'updated_desc'; await loadRecords(true);
+    state.query = ''; state.version = ''; state.loader = ''; state.category = ''; state.includedMods = []; state.includedModsExclude = false; state.includedModSearch = ''; state.gameplayCategories = []; state.gameplayCategoriesExclude = false; state.gameplayCategoriesExpanded = false; state.pan = ''; state.dateRange = ''; state.serverOnly = false; state.personalFilter = ''; state.sort = 'updated_desc'; await loadRecords(true);
   } else if (action === 'clear-filter') {
     const filter = element.dataset.filter;
     if (filter === 'query') state.query = '';
@@ -1939,6 +2039,14 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     if (filter === 'dateRange') state.dateRange = '';
     if (filter === 'serverOnly') state.serverOnly = false;
     if (filter === 'personalStatus') state.personalFilter = '';
+    if (filter?.startsWith('includedMod:')) {
+      state.includedMods = state.includedMods.filter((value) => value !== filter.slice('includedMod:'.length));
+      if (!state.includedMods.length) state.includedModsExclude = false;
+    }
+    if (filter?.startsWith('gameplayCategory:')) {
+      state.gameplayCategories = state.gameplayCategories.filter((value) => value !== filter.slice('gameplayCategory:'.length));
+      if (!state.gameplayCategories.length) state.gameplayCategoriesExclude = false;
+    }
     await loadRecords(true);
   } else if (action === 'set-view-mode') {
     const viewMode = element.dataset.viewMode;
@@ -1974,7 +2082,11 @@ async function loadRecords(reset = true): Promise<void> {
       query: state.query,
       version: state.version,
       loader: state.loader,
-      category: state.category,
+      category: state.platform === 'curseforge' ? '' : state.category,
+      includedMods: state.platform === 'mcmod' ? state.includedMods : [],
+      includedModsExclude: state.platform === 'mcmod' && state.includedModsExclude,
+      gameplayCategories: state.platform === 'curseforge' ? state.gameplayCategories : [],
+      gameplayCategoriesExclude: state.platform === 'curseforge' && state.gameplayCategoriesExclude,
       pan: state.pan,
       dateRange: state.dateRange,
       serverOnly: state.serverOnly,
@@ -2019,6 +2131,8 @@ async function loadRecords(reset = true): Promise<void> {
     state.availableVersions = [...new Set(results.flatMap((result) => result.availableVersions || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availableLoaders = [...new Set(results.flatMap((result) => result.availableLoaders || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availableCategories = [...new Set(results.flatMap((result) => result.availableCategories || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    state.availableIncludedMods = state.platform === 'mcmod' ? (results[0]?.availableIncludedMods || []) : [];
+    state.availableGameplayCategories = state.platform === 'curseforge' ? (results[0]?.availableGameplayCategories || []) : [];
     state.availablePans = [...new Set(results.flatMap((result) => result.availablePans || []))];
     state.hasMore = !state.recordsError && !groupedBili && state.records.length < state.total;
     state.loading = false;

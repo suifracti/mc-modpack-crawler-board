@@ -81,6 +81,10 @@ export function installBrowserApi(): void {
         page: String(options.page || 1),
         pageSize: String(options.pageSize || 48),
       });
+      for (const mod of options.includedMods || []) params.append('includedMod', mod);
+      if (options.includedModsExclude) params.set('includedModsExclude', 'true');
+      for (const category of options.gameplayCategories || []) params.append('gameplayCategory', category);
+      if (options.gameplayCategoriesExclude) params.set('gameplayCategoriesExclude', 'true');
       return request<Awaited<ReturnType<DesktopApi['getPlatformRecords']>>>(`/api/platforms/${encodeURIComponent(platform)}/records?${params.toString()}`);
     },
     getPlatformComments: (platform, sourceId) => request<DesktopCommentsResult>(`/api/platforms/${encodeURIComponent(platform)}/comments/${encodeURIComponent(sourceId)}`),
