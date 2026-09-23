@@ -49,7 +49,7 @@ export function renderCurseforgeCard(p: CurseforgePack): string {
       dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="bili-pan-btn ' + lClass + '" style="font-size:0.8rem;" title="' + escHtml(l.name || '') + '">' + icon + ' ' + escHtml(l.label || '下载') + ' ↗</a>';
     }
   });
-  dlZoneHtml += '<button type="button" class="bili-pan-btn pan-btn-other js-open-plat-version-modal" data-platform="curseforge" data-vkey="' + escHtml(p.url || '') + '" data-title="' + safeTitle + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" data-url="' + escHtml(p.url || '#') + '" data-author="' + safeAuthor + '" data-downloads="' + dlStr + '" style="font-size:0.8rem; background:rgba(241,100,54,0.12); color:#f16436; border-color:rgba(241,100,54,0.3); margin-top:4px;">📜 版本详情 ↗</button>';
+  dlZoneHtml += '<button type="button" class="bili-pan-btn pan-btn-other js-open-plat-version-modal" data-platform="curseforge" data-vkey="' + escHtml(p.url || '') + '" data-title="' + safeTitle + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" data-url="' + escHtml(p.url || '#') + '" data-author="' + safeAuthor + '" data-downloads="' + dlStr + '" style="font-size:0.8rem; background:color-mix(in srgb,var(--plat-curse) 12%,var(--bg-surface)); color:color-mix(in srgb,var(--plat-curse) 72%,var(--text-primary)); border-color:color-mix(in srgb,var(--plat-curse) 32%,transparent); margin-top:4px;">📜 版本详情 ↗</button>';
   dlZoneHtml += '</div>';
 
   return '<div class="curseforge-pack-card">' +
@@ -59,12 +59,12 @@ export function renderCurseforgeCard(p: CurseforgePack): string {
     '<span>📥 ' + dlStr + '</span>' +
     '<span>👍 ' + flStr + '</span>' +
     '</div>' +
-    (p.mc_version ? '<span class="xyebbs-card-ver-badge" style="background:rgba(241,100,54,0.9);">' + escHtml(p.mc_version) + '</span>' : '') +
+    (p.mc_version ? '<span class="xyebbs-card-ver-badge" style="background:color-mix(in srgb,var(--plat-curse) 78%,var(--text-primary)); color:var(--text-inverse);">' + escHtml(p.mc_version) + '</span>' : '') +
     '</a>' +
     '<div class="xyebbs-card-body">' +
     '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="xyebbs-card-title js-open-unified-preview" data-platform="curseforge" data-full-title="' + safeTitle + '" data-desc="' + safeDesc + '" data-cover="' + escHtml(coverImg) + '" data-author="' + safeAuthor + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" title="' + safeTitle + '">' + safeTitle + '</a>' +
     '<div class="xyebbs-card-meta">' +
-    '<span>作者: <b style="color:#f16436;">' + safeAuthor + '</b></span>' +
+    '<span>作者: <b style="color:color-mix(in srgb,var(--plat-curse) 72%,var(--text-primary));">' + safeAuthor + '</b></span>' +
     (p.date_modified ? '<span>· 更新: ' + escHtml(p.date_modified.substring(0, 10)) + '</span>' : '') +
     '</div>' +
     (safeDesc ? '<div class="xyebbs-card-desc" title="' + safeDesc + '">' + safeDesc + '</div>' : '') +

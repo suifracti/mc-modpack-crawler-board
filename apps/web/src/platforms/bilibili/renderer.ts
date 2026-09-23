@@ -104,7 +104,7 @@ export function renderBiliGroupedCard(g: BiliGroup): string {
     dlZoneHtml += '<details class="bili-desc-collapse" style="margin-top:6px;"><summary class="bili-desc-summary" style="color:var(--primary); font-weight:700;">📝 视频字幕与口播速读 (AI/官方)</summary><div class="bili-desc-full" style="max-height:160px; overflow-y:auto; line-height:1.6; font-size:12px;">' + escHtml(subText) + '</div></details>';
   }
 
-  dlZoneHtml += '<button type="button" class="bili-pan-btn pan-btn-other js-open-bili-group-versions" data-group-key="' + g.key + '" style="font-size:0.75rem; background:rgba(251,114,153,0.12); color:#fb7299; border-color:rgba(251,114,153,0.3); margin-top:4px;" title="打开版本详情模态窗">📜 历史发布记录 (' + g.items.length + ') ▾</button>';
+  dlZoneHtml += '<button type="button" class="bili-pan-btn pan-btn-other js-open-bili-group-versions" data-group-key="' + g.key + '" style="font-size:0.75rem; background:color-mix(in srgb,var(--plat-bili) 12%,var(--bg-surface)); color:color-mix(in srgb,var(--plat-bili) 72%,var(--text-primary)); border-color:color-mix(in srgb,var(--plat-bili) 32%,transparent); margin-top:4px;" title="打开版本详情模态窗">📜 历史发布记录 (' + g.items.length + ') ▾</button>';
   dlZoneHtml += '</div>';
 
   let versionsHtml = '';
