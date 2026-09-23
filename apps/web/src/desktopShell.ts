@@ -226,6 +226,7 @@ const state = {
   dateRange: '',
   serverOnly: false,
   personalFilter: '' as PersonalFilter,
+  moreFiltersOpen: false,
   sort: 'updated_desc',
   viewMode: 'cards' as ViewMode,
   biliViewMode: 'grouped' as BiliViewMode,
@@ -252,6 +253,7 @@ const state = {
   compareRecords: {} as Record<string, DesktopRecord>,
   personalLibrary: {} as Record<string, PersonalStatus>,
   missingPersonalSources: {} as Record<string, PersonalStatus>,
+  personalProfileOpen: false,
   comments: { sourceId: '', loading: false, available: false, pageCount: 0, comments: [] as DesktopComment[], sourceFile: null as string | null, error: '' },
   loading: true,
   recordsError: '',
@@ -262,6 +264,7 @@ const state = {
 let root: HTMLElement;
 let searchTimer: number | undefined;
 let personalNoteTimer: number | undefined;
+let profileFocusAfterRender: 'close' | 'trigger' | '' = '';
 
 function esc(value: unknown): string {
   return String(value ?? '')
@@ -793,11 +796,21 @@ function renderDateDropdown(): string {
 
 function renderPersonalDropdown(): string {
   return renderDropdown('personal', state.personalFilter, [
-    { value: '', label: '全部个人状态' },
+    { value: '', label: '全部状态' },
     { value: 'favorite', label: '已收藏' },
     { value: 'want_to_play', label: '想玩' },
     { value: 'played', label: '玩过' },
   ]);
+}
+
+function moreFilterSelectionCount(): number {
+  return [
+    Boolean(state.pan),
+    Boolean(state.dateRange),
+    state.serverOnly,
+    state.platform !== 'all' && state.sort !== 'updated_desc',
+    state.platform !== 'all' && state.pageSize !== 24,
+  ].filter(Boolean).length;
 }
 
 function panLabel(value: string): string {
@@ -823,22 +836,44 @@ function renderActiveFilters(): string {
   return `<div class="desktop-active-filters" aria-label="当前筛选条件">${filters.map((filter) => `<button type="button" class="desktop-active-filter" data-action="clear-filter" data-filter="${esc(filter.key)}">${esc(filter.label)} <span aria-hidden="true">×</span></button>`).join('')}<button type="button" class="desktop-active-clear" data-action="clear-filters">清空全部</button></div>`;
 }
 
-function renderFilterControls(includeDataButton = false): string {
+function renderFilterControls(): string {
   const isAllPlatform = state.platform === 'all';
+  const moreFilterCount = moreFilterSelectionCount();
+  const moreFilterSummary = moreFilterCount ? `${moreFilterCount} 项已设置` : '渠道、时间与结果设置';
   const viewButtons = state.platform === 'bilibili'
     ? `<button type="button" class="desktop-view-button ${state.biliViewMode === 'grouped' ? 'is-active' : ''}" data-action="set-bili-view-mode" data-bili-view-mode="grouped">同包聚合</button><button type="button" class="desktop-view-button ${state.biliViewMode === 'flat' ? 'is-active' : ''}" data-action="set-bili-view-mode" data-bili-view-mode="flat">视频平铺</button>`
     : `<button type="button" class="desktop-view-button ${state.viewMode === 'cards' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="cards">卡片</button><button type="button" class="desktop-view-button ${state.viewMode === 'compact' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="compact">紧凑</button>${state.platform === 'mcmod' ? `<button type="button" class="desktop-view-button ${state.viewMode === 'table' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="table">表格</button>` : ''}`;
   return `<div class="desktop-filter-dock desktop-filter-dock-rich">
-    <span class="filter-label">版本</span>${renderFilterDropdown('version', state.availableVersions, state.version, '全部版本')}
-    <span class="filter-label">Loader</span>${renderFilterDropdown('loader', state.availableLoaders, state.loader, '全部 Loader')}
-    <span class="filter-label">分类</span>${renderFilterDropdown('category', state.availableCategories, state.category, '全部分类')}
-    <span class="filter-label">渠道</span>${renderFilterDropdown('pan', state.availablePans, state.pan, '全部渠道')}
-    <span class="filter-label">时间</span>${renderDateDropdown()}
-    <span class="filter-label">个人库</span>${renderPersonalDropdown()}
-    ${isAllPlatform ? '' : `<span class="filter-label">排序</span>${renderSortDropdown()}<span class="filter-label">每页</span>${renderDropdown('page-size', String(state.pageSize), [{ value: '24', label: '24 条' }, { value: '48', label: '48 条' }, { value: '100', label: '100 条' }])}`}
-    <label class="desktop-check"><input id="server-only-toggle" type="checkbox" ${state.serverOnly ? 'checked' : ''}> <span>有服务端运行线索</span></label>
-    <div class="desktop-view-toggle" role="group" aria-label="结果视图">${viewButtons}</div>
-    <button type="button" class="hub-reset-btn" data-action="clear-filters">重置筛选</button>${includeDataButton ? `<button type="button" class="top-action-btn" data-action="choose-data">${state.data?.hasData ? '更换数据目录' : '选择已有数据'}</button>` : ''}
+    <div class="desktop-filter-primary">
+      <div class="desktop-filter-control"><span class="filter-label">版本</span>${renderFilterDropdown('version', state.availableVersions, state.version, '全部版本')}</div>
+      <div class="desktop-filter-control"><span class="filter-label">Loader</span>${renderFilterDropdown('loader', state.availableLoaders, state.loader, '全部 Loader')}</div>
+      <div class="desktop-filter-control"><span class="filter-label">分类</span>${renderFilterDropdown('category', state.availableCategories, state.category, '全部分类')}</div>
+      <div class="desktop-filter-control desktop-personal-filter"><span class="filter-label">回访状态</span>${renderPersonalDropdown()}</div>
+      <div class="desktop-filter-primary-actions">
+        <div class="desktop-filter-tool"><span class="filter-label">视图</span><div class="desktop-view-toggle" role="group" aria-label="结果视图">${viewButtons}</div></div>
+        <button type="button" class="hub-reset-btn" data-action="clear-filters">重置筛选</button>
+      </div>
+    </div>
+    <details class="desktop-more-filters" data-more-filters ${state.moreFiltersOpen ? 'open' : ''}>
+      <summary class="desktop-more-summary"><span class="desktop-more-title">更多筛选</span><span class="desktop-more-state">${moreFilterSummary}</span><span class="desktop-more-chevron" aria-hidden="true">⌄</span></summary>
+      <div class="desktop-more-filter-groups">
+        <section class="desktop-more-filter-group" aria-labelledby="more-filter-scope-title">
+          <h3 id="more-filter-scope-title">来源与更新时间</h3>
+          <div class="desktop-more-filter-controls">
+            <div class="desktop-filter-control"><span class="filter-label">渠道</span>${renderFilterDropdown('pan', state.availablePans, state.pan, '全部渠道')}</div>
+            <div class="desktop-filter-control"><span class="filter-label">更新时间</span>${renderDateDropdown()}</div>
+            <label class="desktop-check"><input id="server-only-toggle" type="checkbox" ${state.serverOnly ? 'checked' : ''}> <span>有服务端运行线索</span></label>
+          </div>
+        </section>
+        ${isAllPlatform ? '' : `<section class="desktop-more-filter-group" aria-labelledby="more-filter-display-title">
+          <h3 id="more-filter-display-title">排序与条数</h3>
+          <div class="desktop-more-filter-controls">
+            <div class="desktop-filter-control"><span class="filter-label">排序</span>${renderSortDropdown()}</div>
+            <div class="desktop-filter-control"><span class="filter-label">每页</span>${renderDropdown('page-size', String(state.pageSize), [{ value: '24', label: '24 条' }, { value: '48', label: '48 条' }, { value: '100', label: '100 条' }])}</div>
+          </div>
+        </section>`}
+      </div>
+    </details>
   </div>${renderActiveFilters()}`;
 }
 
@@ -1003,7 +1038,7 @@ function renderCrossSearch(): string {
     <div class="csearch-top-row"><div><h2 id="cross-search-title" class="csearch-heading">跨平台检索总览</h2><p class="csearch-sub">每个平台独立在完整本地数据上搜索、筛选并按平台内规则排序；每轮每个平台最多 12 条。字段覆盖因平台而异，MC百科额外支持模组名检索。</p></div><div class="csearch-platforms-hint">${platformPills}</div></div>
     <div class="cross-search-input-wrap"><span class="cross-search-icon">🔍</span><input id="pack-search" class="cross-search-input" value="${esc(state.query)}" placeholder="${esc(getDesktopSearchPlaceholder('all'))}" autocomplete="off"><div class="cross-search-kbd"><kbd>Ctrl</kbd><kbd>K</kbd></div></div>
     <div class="cross-chips-deck"><div class="chip-deck-row"><span class="deck-row-lbl">🎮 核心版本：</span><div class="deck-chips-group">${versionChips}</div></div><div class="chip-deck-row"><span class="deck-row-lbl">🔥 常用关键词：</span><div class="deck-chips-group">${themeChips}</div></div></div>
-    ${renderFilterControls(true)}
+    ${renderFilterControls()}
     ${renderCrossResults()}
   </section>`;
 }
@@ -1202,16 +1237,41 @@ function imagePreviewPanel(): string {
 }
 
 export function renderPersonalBackup(entries: Record<string, PersonalStatus>): string {
-  return `<details class="detail-section"><summary>个人资料备份与缺源回访（${Object.keys(entries).length} 条缺源）</summary>
-    <a class="detail-link" href="/api/library/export" download="personal-library.json">导出个人资料 JSON</a>
-    <label class="detail-link">恢复个人资料 JSON <input id="personal-restore-file" type="file" accept="application/json,.json"></label>
-    <p>恢复前完整校验；已有 key 保留当前资料，备份冲突项跳过。仅备份个人状态和保存时记录的来源信息，不包含快照。</p>
-    ${Object.entries(entries).map(([key, status]) => {
+  const missingSources = Object.entries(entries);
+  return `<div class="personal-profile-content">
+    <section class="personal-profile-section" aria-labelledby="personal-backup-title">
+      <div class="personal-profile-section-heading"><div><h3 id="personal-backup-title">资料备份</h3><p>收藏、想玩、玩过、评分、备注及保存时的来源线索仅保存在本机。</p></div></div>
+      <div class="personal-profile-actions">
+        <a class="detail-link" href="/api/library/export" download="personal-library.json">导出个人资料 JSON</a>
+        <label class="detail-link personal-profile-restore">恢复个人资料 JSON <input id="personal-restore-file" type="file" accept="application/json,.json"></label>
+      </div>
+      <p class="personal-profile-help">恢复前完整校验；已有 key 保留当前资料，备份冲突项跳过。备份不包含平台快照。</p>
+    </section>
+    <section class="personal-profile-section" aria-labelledby="personal-missing-title">
+      <details class="personal-missing-details" ${missingSources.length ? '' : 'open'}>
+        <summary><span id="personal-missing-title">缺源回访</span><span class="personal-profile-count">${missingSources.length} 条</span></summary>
+        <div class="missing-source-list">
+    ${missingSources.map(([key, status]) => {
       const url = safeExternalUrl(status.reference?.sourceUrl);
-      return `<article class="detail-section"><h3>${esc(status.reference?.title || '标题未知（本地数据未提供）')}</h3><p>当前数据未包含此来源</p><p>保存时记录的来源信息（非实时源站数据） · ${esc(key)} · ${status.reference?.objectType === 'bilibili-video' ? 'B站视频' : status.reference?.objectType === 'platform-record' ? '平台来源记录' : '对象类型未知'}</p>
+      return `<article class="missing-source-entry"><h4>${esc(status.reference?.title || '标题未知（本地数据未提供）')}</h4><p>当前数据未包含此来源</p><p>保存时记录的来源信息（非实时源站数据） · ${esc(key)} · ${status.reference?.objectType === 'bilibili-video' ? 'B站视频' : status.reference?.objectType === 'platform-record' ? '平台来源记录' : '对象类型未知'}</p>
         <p>收藏：${status.favorite ? '是' : '否'} · 想玩：${status.wantToPlay ? '是' : '否'} · 玩过：${status.played ? '是' : '否'} · 评分：${status.rating ?? '未评分'}</p><pre>${esc(status.note || '无备注')}</pre>
         ${url ? `<a class="detail-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">打开保存时的来源链接 ↗</a>` : '<p>来源 URL 未知（本地数据未提供）</p>'}</article>`;
-    }).join('') || '<p>暂无缺源个人记录。</p>'}</details>`;
+    }).join('') || '<p class="personal-profile-empty">暂无缺源个人记录。</p>'}
+        </div>
+      </details>
+    </section>
+  </div>`;
+}
+
+function renderPersonalProfilePanel(): string {
+  if (!state.personalProfileOpen) return '';
+  return `<div class="personal-profile-backdrop" data-action="close-personal-profile" role="dialog" aria-modal="true" aria-labelledby="personal-profile-title">
+    <section class="personal-profile-panel" id="personal-profile-dialog">
+      <header class="personal-profile-header"><div><span class="eyebrow">LOCAL PERSONAL DATA</span><h2 id="personal-profile-title">个人资料</h2><p>管理本机个人标记备份，并回访当前快照中缺失的来源。</p></div><button type="button" class="icon-button personal-profile-close" data-action="close-personal-profile" aria-label="关闭个人资料">×</button></header>
+      ${state.message ? `<div class="notice personal-profile-notice" role="status">${esc(state.message)}</div>` : ''}
+      ${renderPersonalBackup(state.missingPersonalSources)}
+    </section>
+  </div>`;
 }
 
 function render(): void {
@@ -1226,16 +1286,25 @@ function render(): void {
     return `<button type="button" class="top-plat-btn ${state.platform === item.id ? 'active' : ''}" data-tab="${item.id}" data-action="set-platform" data-platform="${item.id}" aria-current="${state.platform === item.id ? 'page' : 'false'}"><span class="platform-nav-icon">${icon}</span><span class="platform-nav-label">${esc(item.name)}</span><span class="pnav-badge">${count ? formatCount(count) : '—'}</span></button>`;
   }).join('');
   const themeButtons = [['dark', '🌙'], ['light', '☀️'], ['eye', '🌿'], ['warm', '☕'], ['pink', '🌸']].map(([id, icon]) => `<button type="button" class="top-tdot ${theme === id ? 'active' : ''}" data-action="set-theme" data-theme="${id}" title="切换${id}主题">${icon}</button>`).join('');
-  const body = renderPersonalBackup(state.missingPersonalSources) + (state.platform === 'all'
+  const missingPersonalCount = Object.keys(state.missingPersonalSources).length;
+  const personalProfileAction = `<button type="button" class="top-action-btn personal-profile-trigger" data-action="open-personal-profile" aria-haspopup="dialog" aria-label="打开个人资料${missingPersonalCount ? `，${missingPersonalCount} 条缺源回访` : ''}">个人资料${missingPersonalCount ? `<span class="personal-profile-count">缺源 ${missingPersonalCount}</span>` : ''}</button>`;
+  const body = (state.platform === 'all'
     ? `${renderCrossSearch()}<section class="all-platforms-grid" aria-label="六平台数据看板">${ALL_PLATFORMS.map(renderLegacyShowcaseCard).join('')}</section><div class="desktop-section-heading"><span class="eyebrow">LIVE SNAPSHOT</span><h2>当前快照浏览</h2><p>卡片、版本筛选与详情入口均来自本地快照；需要更多结果时可继续加载。</p></div>${renderResultsWorkspace(selectedName)}`
     : `${renderPlatformHero(state.platform)}${renderResultsWorkspace(selectedName)}`);
   root.innerHTML = `<div class="desktop-app legacy-shell"><div class="bg-layer" aria-hidden="true"></div>
-    <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button><span class="data-status ${data?.hasData ? 'ready' : 'empty'}"><i></i>${data?.hasData ? `快照 ${esc(data.snapshotId || '已载入')}` : '等待数据'}</span><button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button><div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
-    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${auditPanel()}${renderComparePanel()}</div>`;
+    <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button><span class="data-status ${data?.hasData ? 'ready' : 'empty'}"><i></i>${data?.hasData ? `快照 ${esc(data.snapshotId || '已载入')}` : '等待数据'}</span><button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button>${personalProfileAction}<div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
+    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}</div>`;
   bindEvents();
+  const focusTarget = profileFocusAfterRender;
+  profileFocusAfterRender = '';
+  if (focusTarget === 'close') root.querySelector<HTMLButtonElement>('.personal-profile-close')?.focus();
+  if (focusTarget === 'trigger') root.querySelector<HTMLButtonElement>('.personal-profile-trigger')?.focus();
 }
 
 function bindEvents(): void {
+  root.querySelectorAll<HTMLDetailsElement>('[data-more-filters]').forEach((details) => details.addEventListener('toggle', () => {
+    state.moreFiltersOpen = details.open;
+  }));
   root.querySelector<HTMLInputElement>('#personal-restore-file')?.addEventListener('change', async (event) => {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
@@ -1398,7 +1467,16 @@ async function loadAudit(): Promise<void> {
 
 async function handleAction(element: HTMLElement, event?: Event): Promise<void> {
   const action = element.dataset.action;
-  if (action === 'toggle-audit') {
+  if (action === 'open-personal-profile') {
+    state.personalProfileOpen = true;
+    profileFocusAfterRender = 'close';
+    render();
+  } else if (action === 'close-personal-profile') {
+    if (element.classList.contains('personal-profile-backdrop') && event && event.target !== element) return;
+    state.personalProfileOpen = false;
+    profileFocusAfterRender = 'trigger';
+    render();
+  } else if (action === 'toggle-audit') {
     state.auditOpen = !state.auditOpen;
     if (state.auditOpen && !state.audit) await loadAudit();
     else render();
@@ -1714,7 +1792,12 @@ function bindDocumentEvents(): void {
     }
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && state.openDropdown) {
+    if (event.key !== 'Escape') return;
+    if (state.personalProfileOpen) {
+      state.personalProfileOpen = false;
+      profileFocusAfterRender = 'trigger';
+      render();
+    } else if (state.openDropdown) {
       state.openDropdown = '';
       render();
     }
