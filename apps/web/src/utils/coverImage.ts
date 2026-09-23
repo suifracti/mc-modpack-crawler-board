@@ -4,12 +4,11 @@ import {
   canRetryImage,
   cancelImageRetry,
   getImageFailure,
-  rememberFailedImage,
   stableImageSource,
   type ImageRetryTicket,
 } from './imageFallback';
 
-export type CoverImageState = 'loading' | 'loaded' | 'error' | 'timeout' | 'cancelled' | 'missing';
+export type CoverImageState = 'loading' | 'loaded' | 'error' | 'timeout' | 'missing';
 
 export interface CoverImageRequestTarget {
   isConnected: boolean;
@@ -41,7 +40,6 @@ function statusText(state: CoverImageState): string {
   if (state === 'loading') return '封面加载中…';
   if (state === 'error') return '封面加载失败';
   if (state === 'timeout') return '封面加载超时';
-  if (state === 'cancelled') return '封面加载已取消';
   if (state === 'missing') return '来源未提供封面';
   return '';
 }
@@ -77,21 +75,12 @@ export function startCoverImageRetry(target: CoverImageRequestTarget): ImageRetr
   return ticket;
 }
 
-export function cancelDetachedCoverImageRequest(
+export function releaseDetachedCoverImageRequest(
   target: CoverImageRequestTarget,
   ticket?: ImageRetryTicket,
 ): boolean {
   if (target.isConnected || target.dataset.coverState !== 'loading') return false;
   const original = safeCoverUrl(target.dataset.originalSrc);
-  const fallback = safeCoverUrl(target.dataset.fallbackSrc);
-  if (!original) {
-    target.dataset.coverState = 'missing';
-    target.src = '';
-    return true;
-  }
-  const restoredRetry = ticket ? cancelImageRetry(original, ticket) : false;
-  if (!ticket || restoredRetry) rememberFailedImage(original, 'cancelled');
-  target.dataset.coverState = 'cancelled';
-  target.src = fallback;
+  if (ticket && original) cancelImageRetry(original, ticket);
   return true;
 }
