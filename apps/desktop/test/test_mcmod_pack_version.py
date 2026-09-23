@@ -90,6 +90,107 @@ const { DataStore } = require('./apps/desktop/lib/data-store.cjs');
             for item in exported[1:]:
                 self.assertNotIn("packVersion", item)
 
+    def test_sampled_cover_refresh_preserves_unknowns_and_reaches_desktop_reader(self):
+        fixture_dir = ROOT / "tests" / "fixtures"
+        covered_page = (fixture_dir / "mcmod_cover_page_16_excerpt.html").read_text(encoding="utf-8")
+        no_cover_page = (fixture_dir / "mcmod_cover_no_main_excerpt.html").read_text(encoding="utf-8")
+        expected_cover = "https://i.mcmod.cn/modpack/cover/20201007/1602069892_10167_rkTL.jpg@480x300.jpg"
+
+        self.assertEqual(crawler.extract_mcmod_pack_cover("16", covered_page), expected_cover)
+        self.assertEqual(crawler.parse_mcmod_pack("16", covered_page)["cover_url"], expected_cover)
+        self.assertEqual(crawler.extract_mcmod_pack_cover("999999", no_cover_page), "")
+        lazy_cover_page = (
+            '<div class="class-cover-image"><img src="/pages/class/images/none.jpg" '
+            'data-src="/modpack/cover/lazy-cover.webp"></div>'
+        )
+        self.assertEqual(
+            crawler.extract_mcmod_pack_cover("16", lazy_cover_page),
+            "https://i.mcmod.cn/modpack/cover/lazy-cover.webp",
+        )
+
+        with tempfile.TemporaryDirectory(prefix="mcmod-cover-pipeline-") as temp:
+            workspace = Path(temp)
+            raw_dir = workspace / "crawler_output"
+            data_dir = workspace / "converted_output" / "data"
+            raw_dir.mkdir(parents=True)
+            data_dir.mkdir(parents=True)
+            raw_path = raw_dir / "mcmod_modpacks.json"
+            sidecar_path = data_dir / "mcmod_data.js"
+            raw_before = [
+                {
+                    "platform": "mcmod",
+                    "project_id": "16",
+                    "mid": "16",
+                    "url": "https://www.mcmod.cn/modpack/16.html",
+                    "title": "RLCraft",
+                    "cover_url": "",
+                    "categories": ["生存"],
+                    "description": "preserve raw description",
+                },
+                {
+                    "platform": "mcmod",
+                    "project_id": "999999",
+                    "mid": "999999",
+                    "url": "https://www.mcmod.cn/modpack/999999.html",
+                    "title": "No source cover",
+                    "cover_url": "",
+                    "categories": ["冒险"],
+                    "description": "also preserved",
+                },
+            ]
+            sidecar_before = [
+                {"mid": 16, "title": "RLCraft", "coverUrl": "", "categories": ["生存"], "author": "keep"},
+                {"mid": 999999, "title": "No source cover", "coverUrl": "", "categories": ["冒险"], "author": "keep"},
+            ]
+            raw_path.write_text(json.dumps(raw_before, ensure_ascii=False, indent=2), encoding="utf-8")
+            sidecar_path.write_text(
+                "window.mcmodData = " + json.dumps(sidecar_before, ensure_ascii=False, separators=(",", ":")) + ";\n",
+                encoding="utf-8",
+            )
+            pages = {
+                "https://www.mcmod.cn/modpack/16.html": covered_page,
+                "https://www.mcmod.cn/modpack/999999.html": no_cover_page,
+            }
+            with patch.multiple(crawler, RAW_JSON_PATH=str(raw_path), MCMOD_DATA_PATH=str(sidecar_path)):
+                result = crawler.refresh_missing_mcmod_covers(
+                    limit=2, page_fetcher=lambda url: pages[url]
+                )
+
+            self.assertEqual(
+                {key: result[key] for key in ("requests", "updated", "noCover", "failed", "blocked")},
+                {"requests": 2, "updated": 1, "noCover": 1, "failed": 0, "blocked": ""},
+            )
+            raw_after = json.loads(raw_path.read_text(encoding="utf-8"))
+            sidecar_after = read_sidecar(sidecar_path)
+            self.assertEqual(raw_after[0]["cover_url"], expected_cover)
+            self.assertEqual(sidecar_after[0]["coverUrl"], expected_cover)
+            self.assertEqual(raw_after[1]["cover_url"], "")
+            self.assertEqual(sidecar_after[1]["coverUrl"], "")
+            for before, after in zip(raw_before, raw_after):
+                self.assertEqual({k: v for k, v in before.items() if k != "cover_url"},
+                                 {k: v for k, v in after.items() if k != "cover_url"})
+            for before, after in zip(sidecar_before, sidecar_after):
+                self.assertEqual({k: v for k, v in before.items() if k != "coverUrl"},
+                                 {k: v for k, v in after.items() if k != "coverUrl"})
+
+            script = """
+const assert = require('node:assert/strict');
+const { DataStore } = require('./apps/desktop/lib/data-store.cjs');
+(async () => {
+  const store = new DataStore(process.argv[2]);
+  await store.init();
+  await store.importDirectory(process.argv[1]);
+  const result = await store.getPlatformRecords('mcmod');
+  assert.equal(result.records.find(r => r.sourceId === '16').coverUrl, process.argv[3]);
+  assert.equal(result.records.find(r => r.sourceId === '999999').coverUrl, '');
+})().catch(error => { console.error(error); process.exit(1); });
+"""
+            subprocess.run(
+                ["node", "-e", script, str(data_dir), str(workspace / "user-data"), expected_cover],
+                cwd=ROOT,
+                check=True,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
