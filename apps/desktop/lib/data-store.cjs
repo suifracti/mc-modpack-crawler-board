@@ -53,6 +53,10 @@ function parseQueryOptions(queryOrOptions) {
       version: '',
       loader: '',
       category: '',
+      includedMods: [],
+      includedModsExclude: false,
+      gameplayCategories: [],
+      gameplayCategoriesExclude: false,
       pan: '',
       dateRange: '',
       serverOnly: false,
@@ -70,6 +74,10 @@ function parseQueryOptions(queryOrOptions) {
     version: String(options.version || ''),
     loader: String(options.loader || ''),
     category: String(options.category || ''),
+    includedMods: stringListOption(options.includedMods),
+    includedModsExclude: booleanOption(options.includedModsExclude),
+    gameplayCategories: stringListOption(options.gameplayCategories),
+    gameplayCategoriesExclude: booleanOption(options.gameplayCategoriesExclude),
     pan: String(options.pan || ''),
     dateRange: String(options.dateRange || ''),
     serverOnly: options.serverOnly === true || options.serverOnly === 1 || String(options.serverOnly || '').toLowerCase() === 'true',
@@ -80,10 +88,49 @@ function parseQueryOptions(queryOrOptions) {
   };
 }
 
+function stringListOption(value) {
+  const values = Array.isArray(value) ? value : value === undefined || value === null || value === '' ? [] : [value];
+  return [...new Set(values.map((item) => String(item || '').trim()).filter(Boolean))].slice(0, 100);
+}
+
+function booleanOption(value) {
+  return value === true || value === 1 || String(value || '').toLowerCase() === 'true';
+}
+
 function optionValues(records, key) {
   const values = new Set();
   for (const record of records) for (const value of record[key] || []) if (value) values.add(String(value));
   return [...values].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+}
+
+function countedOptions(records, valuesForRecord) {
+  const counts = new Map();
+  for (const record of records) {
+    const uniqueValues = new Set(valuesForRecord(record).map((value) => String(value || '').trim()).filter(Boolean));
+    for (const value of uniqueValues) counts.set(value, (counts.get(value) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((left, right) => right.count - left.count || left.value.localeCompare(right.value, 'zh-CN'));
+}
+
+function includedModNames(record) {
+  const raw = record?.raw || {};
+  const values = raw.includedModNames ?? raw.included_mod_names;
+  return Array.isArray(values) ? values.map((value) => String(value || '').trim()).filter(Boolean) : [];
+}
+
+function matchesIncludedMods(record, selected, exclude) {
+  if (!selected.length) return true;
+  const rowText = includedModNames(record).join(' ').toLowerCase();
+  const matched = selected.every((value) => rowText.includes(value.toLowerCase()));
+  return exclude ? !matched : matched;
+}
+
+function matchesGameplayCategories(record, selected, exclude) {
+  if (!selected.length) return true;
+  const matched = record.categories.some((category) => selected.includes(category));
+  return exclude ? !matched : matched;
 }
 
 const PAN_FILTERS = ['百度', '夸克', '123', '蓝奏', '迅雷', 'Modrinth', 'CurseForge', 'official'];
@@ -299,7 +346,7 @@ class DataStore {
     const cached = this.platformCache.get(key);
     if (cached && cached.signature === signature) return cached;
     const result = readPlatformRecords(dataDir, platform);
-    const entry = { signature, result, normalized: null };
+    const entry = { signature, result, normalized: null, platformFacets: null };
     this.platformCache.set(key, entry);
     return entry;
   }
@@ -354,27 +401,40 @@ class DataStore {
       availableVersions: [],
       availableLoaders: [],
       availableCategories: [],
+      availableIncludedMods: [],
+      availableGameplayCategories: [],
       availablePans: [],
     };
     const cached = this.readCachedPlatform(active.snapshotId, platform);
     const result = cached.result;
     if (!cached.normalized) cached.normalized = result.records.map((record, index) => normaliseRecord(platform, record, index));
     const normalized = cached.normalized;
+    if (!cached.platformFacets) {
+      cached.platformFacets = {
+        includedMods: platform === 'mcmod' ? countedOptions(normalized, includedModNames) : [],
+        gameplayCategories: platform === 'curseforge' ? countedOptions(normalized, (record) => record.categories) : [],
+      };
+    }
     const searched = options.query.trim()
       ? normalized.filter((record) => matchesSearchDocument(record.searchDocument, options.query))
       : normalized;
     const version = options.version.trim().toLocaleLowerCase();
     const loader = options.loader.trim().toLocaleLowerCase();
     const referenceTime = Math.max(Date.now(), ...searched.map(recordTimestamp));
+    const gameplayCategories = platform === 'curseforge'
+      ? options.gameplayCategories.length ? options.gameplayCategories : stringListOption(options.category)
+      : [];
     const filtered = searched.filter((record) => {
       const versionMatch = !version || record.versions.some((item) => item.toLocaleLowerCase() === version);
       const loaderMatch = !loader || record.loaders.some((item) => item.toLocaleLowerCase() === loader);
-      const categoryMatch = !options.category || record.categories.includes(options.category);
+      const categoryMatch = platform === 'curseforge' || !options.category || record.categories.includes(options.category);
+      const includedModsMatch = platform !== 'mcmod' || matchesIncludedMods(record, options.includedMods, options.includedModsExclude);
+      const gameplayCategoryMatch = platform !== 'curseforge' || matchesGameplayCategories(record, gameplayCategories, options.gameplayCategoriesExclude);
       const panMatch = matchesPan(record, options.pan);
       const serverMatch = !options.serverOnly || hasServerSupport(record);
       const dateMatch = matchesDateRange(record, options.dateRange, referenceTime);
       const personalMatch = !options.personalStatus || Boolean(this.personalLibrary?.matches(platform, record.sourceId, options.personalStatus));
-      return versionMatch && loaderMatch && categoryMatch && panMatch && serverMatch && dateMatch && personalMatch;
+      return versionMatch && loaderMatch && categoryMatch && includedModsMatch && gameplayCategoryMatch && panMatch && serverMatch && dateMatch && personalMatch;
     });
     const sorted = sortRecords(filtered, options.sort);
     const offset = (options.page - 1) * options.pageSize;
@@ -387,6 +447,8 @@ class DataStore {
       availableVersions: optionValues(searched, 'versions'),
       availableLoaders: optionValues(searched, 'loaders'),
       availableCategories: optionValues(searched, 'categories'),
+      availableIncludedMods: cached.platformFacets.includedMods,
+      availableGameplayCategories: cached.platformFacets.gameplayCategories,
       availablePans: availablePanValues(searched),
       sourceFile: result.sourceFile,
       error: result.error,

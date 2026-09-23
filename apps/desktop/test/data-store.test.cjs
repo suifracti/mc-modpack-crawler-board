@@ -145,3 +145,62 @@ test('server filter uses structured runtime evidence and excludes unknown dates'
   assert.equal(ninetyDayOnly.records.some((record) => record.sourceId === 'BV-31d'), true);
   assert.equal(ninetyDayOnly.records.some((record) => record.sourceId === 'BV-91d'), false);
 });
+
+test('applies restored MC百科 mod and CurseForge gameplay filters before pagination', async () => {
+  const root = await tempDir();
+  const source = path.join(root, 'source', 'data');
+  const mcmod = [
+    { mid: 1, title: 'MC AB', loaders: ['Forge'], mcVersions: ['1.20.1'], includedModNames: ['Mod A', 'Mod B'] },
+    { mid: 2, title: 'MC A', loaders: ['Fabric'], mcVersions: ['1.20.1'], includedModNames: ['Mod A'] },
+    { mid: 3, title: 'MC B', loaders: ['Forge'], mcVersions: ['1.19.2'], includedModNames: ['Mod B'] },
+    { mid: 4, title: 'MC neither', loaders: ['Forge'], mcVersions: ['1.20.1'], includedModNames: ['Mod C'] },
+    { mid: 5, title: 'MC unknown', loaders: ['Forge'], mcVersions: ['1.20.1'] },
+  ];
+  const curseforge = [
+    { project_id: 11, title: 'CF AB', loaders: ['Forge'], categories: ['Category A', 'Category B'] },
+    { project_id: 12, title: 'CF A', loaders: ['Fabric'], categories: ['Category A'] },
+    { project_id: 13, title: 'CF B', loaders: ['Forge'], categories: ['Category B'] },
+    { project_id: 14, title: 'CF neither', loaders: ['Forge'], categories: ['Category C'] },
+    { project_id: 15, title: 'CF unknown', loaders: ['Forge'] },
+  ];
+  await writeSidecar(source, 'mcmod_data.js', mcmod, 'mcmodData');
+  await writeSidecar(source, 'curseforge_data.js', curseforge, 'curseforgeModpacksData');
+  const store = new DataStore(path.join(root, 'user-data'));
+  await store.init();
+  await store.importDirectory(path.join(root, 'source'));
+
+  const mcmodEmpty = await store.getPlatformRecords('mcmod', { includedMods: [], page: 1, pageSize: 2 });
+  assert.equal(mcmodEmpty.total, 5);
+  const mcmodAnd = await store.getPlatformRecords('mcmod', { includedMods: ['Mod A', 'Mod B'], page: 1, pageSize: 1 });
+  assert.equal(mcmodAnd.total, 1);
+  assert.deepEqual(mcmodAnd.records.map((record) => record.sourceId), ['1']);
+  const mcmodExcludeCombination = await store.getPlatformRecords('mcmod', { includedMods: ['mod a', 'MOD B'], includedModsExclude: true, page: 1, pageSize: 10 });
+  assert.equal(mcmodExcludeCombination.total, 4);
+  assert.deepEqual(mcmodExcludeCombination.records.map((record) => record.sourceId), ['2', '3', '4', '5']);
+  const mcmodCombined = await store.getPlatformRecords('mcmod', { includedMods: ['Mod A'], loader: 'Forge', page: 1, pageSize: 10 });
+  assert.equal(mcmodCombined.total, 1);
+  assert.deepEqual(mcmodCombined.records.map((record) => record.sourceId), ['1']);
+  const mcmodSecondPage = await store.getPlatformRecords('mcmod', { includedMods: ['Mod A'], page: 2, pageSize: 1 });
+  assert.equal(mcmodSecondPage.total, 2);
+  assert.deepEqual(mcmodSecondPage.records.map((record) => record.sourceId), ['2']);
+  assert.deepEqual(Object.fromEntries(mcmodAnd.availableIncludedMods.map((option) => [option.value, option.count])), { 'Mod A': 2, 'Mod B': 2, 'Mod C': 1 });
+  const mcmodSearched = await store.getPlatformRecords('mcmod', { query: 'neither', page: 1, pageSize: 1 });
+  assert.equal(mcmodSearched.total, 1);
+  assert.equal(mcmodSearched.availableIncludedMods.some((option) => option.value === 'Mod A' && option.count === 2), true);
+
+  const cfEmpty = await store.getPlatformRecords('curseforge', { gameplayCategories: [], page: 1, pageSize: 2 });
+  assert.equal(cfEmpty.total, 5);
+  const cfOr = await store.getPlatformRecords('curseforge', { gameplayCategories: ['Category A', 'Category B'], page: 1, pageSize: 2 });
+  assert.equal(cfOr.total, 3);
+  assert.deepEqual(cfOr.records.map((record) => record.sourceId), ['11', '12']);
+  const cfExcludeAny = await store.getPlatformRecords('curseforge', { gameplayCategories: ['Category A', 'Category B'], gameplayCategoriesExclude: true, page: 1, pageSize: 10 });
+  assert.equal(cfExcludeAny.total, 2);
+  assert.deepEqual(cfExcludeAny.records.map((record) => record.sourceId), ['14', '15']);
+  const cfCombined = await store.getPlatformRecords('curseforge', { gameplayCategories: ['Category A', 'Category B'], loader: 'Forge', page: 1, pageSize: 10 });
+  assert.equal(cfCombined.total, 2);
+  assert.deepEqual(cfCombined.records.map((record) => record.sourceId), ['11', '13']);
+  const cfSecondPage = await store.getPlatformRecords('curseforge', { gameplayCategories: ['Category B'], page: 2, pageSize: 1 });
+  assert.equal(cfSecondPage.total, 2);
+  assert.deepEqual(cfSecondPage.records.map((record) => record.sourceId), ['13']);
+  assert.deepEqual(Object.fromEntries(cfOr.availableGameplayCategories.map((option) => [option.value, option.count])), { 'Category A': 2, 'Category B': 2, 'Category C': 1 });
+});
