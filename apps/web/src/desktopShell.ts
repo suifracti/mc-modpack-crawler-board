@@ -3,6 +3,15 @@ import { groupBilibiliPacks } from './domain/bilibiliGrouping';
 import type { Platform } from './domain/types';
 import { getCategoryLabel } from './filters/platformFilters';
 import { buildVersionModalViewModel } from './modals/version/buildViewModel';
+import { generateSparklineSvg } from './platforms/mcmod/sparkline';
+import {
+  parseMcmodTrendSeries,
+  selectMcmodTrendRange,
+  summarizeMcmodTrend,
+  type McmodTrendPoint,
+  type McmodTrendRange,
+  type McmodTrendSeries,
+} from './platforms/mcmod/trendChart';
 import { renderBbsmcCard } from './platforms/bbsmc/renderer';
 import { renderBiliFlatCard, renderBiliGroupedCard, type BiliGroup } from './platforms/bilibili/renderer';
 import { renderCurseforgeCard } from './platforms/curseforge/renderer';
@@ -285,6 +294,7 @@ const state = {
   openDropdown: '' as DropdownId | '',
   updatePlatform: 'bilibili' as Platform,
   selected: null as DesktopRecord | null,
+  trendChart: null as { record: DesktopRecord; range: McmodTrendRange } | null,
   imagePreview: null as { url: string; title: string } | null,
   audit: null as DesktopAuditResult | null,
   auditOpen: false,
@@ -308,6 +318,8 @@ let searchTimer: number | undefined;
 let personalNoteTimer: number | undefined;
 let profileFocusAfterRender: 'close' | 'trigger' | '' = '';
 let platformFilterFocusAfterRender: 'included-mod-search' | '' = '';
+let trendFocusAfterRender: 'close' | 'trigger' | '' = '';
+let trendReturnRecordId = '';
 
 function esc(value: unknown): string {
   return String(value ?? '')
@@ -1037,10 +1049,42 @@ function renderCompactRecord(record: DesktopRecord, index: number): string {
   return `<article class="compact-record" data-action="select-record" data-index="${index}">${coverMarkup}<div class="compact-record-main"><div class="compact-record-head"><span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>${renderPersonalCardActions(record, index)}<h3>${esc(record.title)}</h3><p>${esc(record.author)} · ${textOrUnknown(record.summary)}</p><div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div></div><div class="compact-record-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}<button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div></article>`;
 }
 
+function mcmodTrendSeries(record: DesktopRecord): McmodTrendSeries {
+  if (record.platform !== 'mcmod') return { status: 'missing', points: [], skippedCount: 0 };
+  const raw = record.raw || {};
+  const rawStats = raw.trendStats ?? raw.trend_stats;
+  const trendStats = rawStats && typeof rawStats === 'object' ? rawStats as Record<string, unknown> : {};
+  return parseMcmodTrendSeries(trendStats.trendValsStr, trendStats.trendDatesStr);
+}
+
+function mcmodTrendStatusText(series: McmodTrendSeries): string {
+  if (series.status === 'missing') return '当前数据未提供历史趋势点。';
+  if (series.status === 'mismatch') return '日期与数值数量不一致，无法安全配对。';
+  if (series.status === 'invalid-order') return '历史日期顺序异常，无法绘制。';
+  return `历史数据不足：至少需要两个有效点，当前为 ${series.points.length} 个。`;
+}
+
+function renderMcmodTrendTrigger(record: DesktopRecord, series = mcmodTrendSeries(record), compact = false): string {
+  const sparkline = series.status === 'ready'
+    ? `<span class="mcmod-trend-sparkline" aria-hidden="true">${generateSparklineSvg(series.points.map((point) => point.value), 104, 30)}</span>`
+    : '';
+  const description = series.status === 'ready' ? `${series.points.length} 个历史点` : mcmodTrendStatusText(series);
+  const compactLabel = series.status === 'ready' ? '趋势图' : series.status === 'missing' ? '无历史' : series.status === 'mismatch' ? '数据不匹配' : series.status === 'invalid-order' ? '日期异常' : '数据不足';
+  return `<button type="button" class="mcmod-trend-trigger ${compact ? 'is-compact' : ''}" data-action="open-mcmod-trend" data-record-id="${esc(record.id)}" data-trend-trigger="true" aria-label="查看${esc(record.title)}的趋势图，${esc(description)}" title="${esc(description)}">${sparkline}<span>${compact ? compactLabel : '查看完整走势'}</span></button>`;
+}
+
+function renderMcmodTrendDetail(record: DesktopRecord): string {
+  if (record.platform !== 'mcmod') return '';
+  const series = mcmodTrendSeries(record);
+  const summary = series.status === 'ready' ? `当前快照有 ${series.points.length} 个官方流行指数历史点。` : mcmodTrendStatusText(series);
+  return `<div class="detail-section mcmod-trend-detail"><h3>历史趋势</h3><p class="detail-summary">${esc(summary)}${series.skippedCount ? ` 已跳过 ${series.skippedCount} 个日期或数值异常的点。` : ''}</p>${renderMcmodTrendTrigger(record, series)}</div>`;
+}
+
 function renderMcmodTable(records: DesktopRecord[]): string {
   const rows = records.map((record, index) => {
     const raw = record.raw || {};
     const trend = (raw.trendStats && typeof raw.trendStats === 'object' ? raw.trendStats : {}) as Record<string, unknown>;
+    const trendSeries = mcmodTrendSeries(record);
     const votes = (raw.votes && typeof raw.votes === 'object' ? raw.votes : {}) as Record<string, unknown>;
     const categories = valueList(raw.categories ?? record.categories);
     const mods = valueList(raw.includedModNames ?? raw.included_mod_names);
@@ -1048,7 +1092,7 @@ function renderMcmodTable(records: DesktopRecord[]): string {
       <td class="mcmod-name-cell"><strong>${esc(record.title)}</strong><small>${esc(record.author || '作者未知')}</small><div class="mcmod-table-tags">${categories.slice(0, 4).map((item) => `<span>${esc(item)}</span>`).join('')}${categories.length > 4 ? `<span>+${categories.length - 4}</span>` : ''}</div></td>
       <td>${esc(formatMetric(raw.views))}</td>
       <td><strong>${esc(formatMetric(raw.score))}</strong><small>推荐 ${esc(formatMetric(raw.recommendations))}</small></td>
-      <td><span class="trend-number ${asNumber(trend.t7) >= 0 ? 'is-up' : 'is-down'}">${esc(formatMetric(trend.t7))}</span><small>7日 · 30日 ${esc(formatMetric(trend.t30))}</small></td>
+      <td class="mcmod-trend-cell"><span class="trend-number ${asNumber(trend.t7) >= 0 ? 'is-up' : 'is-down'}">${esc(formatMetric(trend.t7))}</span><small>7日 · 30日 ${esc(formatMetric(trend.t30))}</small>${renderMcmodTrendTrigger(record, trendSeries, true)}</td>
       <td><span class="vote-positive">${esc(formatMetric(votes.redVotes))}</span> / <span class="vote-negative">${esc(formatMetric(votes.blackVotes))}</span><small>红 / 黑</small></td>
       <td>${esc(formatMetric(raw.commentsCount))}<small>推荐 ${esc(formatMetric(raw.recommendations))} · 收藏 ${esc(formatMetric(raw.favorites))}</small></td>
       <td class="mcmod-mod-cell">${mods.slice(0, 3).map((item) => `<span>${esc(item)}</span>`).join('')}${mods.length > 3 ? `<small>另有 ${mods.length - 3} 款模组</small>` : ''}</td><td class="mcmod-personal-cell">${renderPersonalCardActions(record, index)}</td>
@@ -1333,6 +1377,88 @@ export function renderCurseforgeFileIndexDetail(record: Pick<DesktopRecord, 'pla
   return `<div class="detail-section"><h3>来源提供的文件索引 <span class="detail-submeta">非完整历史</span></h3><p class="detail-summary">这些是来源响应提供的有限索引，不代表完整文件或发布历史。</p>${mainFileNote}${indexBody}</div>`;
 }
 
+const MCMOD_TREND_RANGES: Array<{ value: McmodTrendRange; label: string }> = [
+  { value: '7d', label: '近 7 天' },
+  { value: '30d', label: '近 30 天' },
+  { value: '60d', label: '近 60 天' },
+  { value: 'all', label: '全部历史' },
+];
+
+function formatTrendValue(value: number): string {
+  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 }).format(value);
+}
+
+function selectedMcmodTrendPoints(): McmodTrendPoint[] {
+  const chart = state.trendChart;
+  if (!chart) return [];
+  const series = mcmodTrendSeries(chart.record);
+  return series.status === 'ready' ? selectMcmodTrendRange(series.points, chart.range) : series.points;
+}
+
+function renderMcmodTrendSvg(points: McmodTrendPoint[]): string {
+  const width = 760;
+  const height = 300;
+  const paddingLeft = 58;
+  const paddingRight = 22;
+  const paddingTop = 24;
+  const paddingBottom = 42;
+  const chartWidth = width - paddingLeft - paddingRight;
+  const chartHeight = height - paddingTop - paddingBottom;
+  const values = points.map((point) => point.value);
+  const minimum = values.reduce((current, value) => Math.min(current, value), Number.POSITIVE_INFINITY);
+  const maximum = values.reduce((current, value) => Math.max(current, value), Number.NEGATIVE_INFINITY);
+  const valueSpan = maximum - minimum || 1;
+  const coordinates = points.map((point, index) => ({
+    ...point,
+    x: paddingLeft + index / (points.length - 1) * chartWidth,
+    y: paddingTop + (maximum - point.value) / valueSpan * chartHeight,
+  }));
+  const linePath = coordinates.map((point, index) => `${index ? 'L' : 'M'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(' ');
+  const areaPath = `${linePath} L ${coordinates[coordinates.length - 1].x.toFixed(2)} ${height - paddingBottom} L ${coordinates[0].x.toFixed(2)} ${height - paddingBottom} Z`;
+  const last = coordinates[coordinates.length - 1];
+  return `<svg class="mcmod-trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="MC百科官方流行指数历史折线图，${points.length} 个有效点">
+    <line class="mcmod-trend-grid" x1="${paddingLeft}" y1="${paddingTop}" x2="${width - paddingRight}" y2="${paddingTop}" />
+    <line class="mcmod-trend-grid" x1="${paddingLeft}" y1="${height - paddingBottom}" x2="${width - paddingRight}" y2="${height - paddingBottom}" />
+    <text class="mcmod-trend-axis-label" x="4" y="${paddingTop + 4}">${formatTrendValue(maximum)}</text>
+    <text class="mcmod-trend-axis-label" x="4" y="${height - paddingBottom + 4}">${formatTrendValue(minimum)}</text>
+    <path class="mcmod-trend-area" d="${areaPath}" />
+    <path class="mcmod-trend-line" d="${linePath}" />
+    <g aria-hidden="true">${coordinates.map((point) => `<circle class="mcmod-trend-dot" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="2.8" />`).join('')}</g>
+    <line class="mcmod-trend-guide" data-trend-guide x1="${last.x.toFixed(2)}" y1="${paddingTop}" x2="${last.x.toFixed(2)}" y2="${height - paddingBottom}" />
+    <rect class="mcmod-trend-capture" data-trend-capture x="${paddingLeft}" y="${paddingTop}" width="${chartWidth}" height="${chartHeight}" tabindex="0" role="slider" aria-label="浏览历史趋势点，使用左右方向键移动" aria-valuemin="0" aria-valuemax="${points.length - 1}" aria-valuenow="${points.length - 1}" aria-valuetext="${esc(last.date)}，${formatTrendValue(last.value)}" />
+    <text class="mcmod-trend-date-label" x="${paddingLeft}" y="${height - 10}" text-anchor="start">${esc(coordinates[0].date)}</text>
+    <text class="mcmod-trend-date-label" x="${width - paddingRight}" y="${height - 10}" text-anchor="end">${esc(last.date)}</text>
+  </svg>`;
+}
+
+function renderMcmodTrendDialog(): string {
+  const chart = state.trendChart;
+  if (!chart) return '';
+  const series = mcmodTrendSeries(chart.record);
+  const points = series.status === 'ready' ? selectMcmodTrendRange(series.points, chart.range) : series.points;
+  const hasChart = series.status === 'ready' && points.length >= 2;
+  const summary = hasChart ? summarizeMcmodTrend(points) : null;
+  const point = hasChart ? points[points.length - 1] : null;
+  const emptyText = series.status !== 'ready'
+    ? mcmodTrendStatusText(series)
+    : `所选时间范围内只有 ${points.length} 个有效历史点；至少需要两个点才能绘制走势。`;
+  const rangeControls = MCMOD_TREND_RANGES.map((range) => `<button type="button" class="mcmod-trend-range ${chart.range === range.value ? 'is-active' : ''}" data-action="set-mcmod-trend-range" data-range="${range.value}" aria-pressed="${chart.range === range.value}" ${series.status === 'ready' ? '' : 'disabled'}>${range.label}</button>`).join('');
+  return `<div class="mcmod-trend-backdrop" data-action="close-mcmod-trend" role="dialog" aria-modal="true" aria-labelledby="mcmod-trend-title">
+    <section class="mcmod-trend-panel" data-mcmod-trend-panel>
+      <button type="button" class="icon-button mcmod-trend-close" data-action="close-mcmod-trend" aria-label="关闭趋势图">×</button>
+      <span class="eyebrow">MCMOD HISTORY</span><h2 id="mcmod-trend-title">${esc(chart.record.title)} · 趋势</h2>
+      <div class="mcmod-trend-controls"><span class="mcmod-trend-metric">指标：官方流行指数</span><div class="mcmod-trend-ranges" aria-label="趋势时间范围">${rangeControls}</div></div>
+      ${hasChart && summary ? `<p class="mcmod-trend-period">${esc(summary.firstDate)} 至 ${esc(summary.lastDate)} · ${summary.count} 个有效历史点</p>
+        <div class="mcmod-trend-summary" aria-label="当前范围统计"><div><span>最新</span><strong>${formatTrendValue(summary.latest)}</strong></div><div><span>最小</span><strong>${formatTrendValue(summary.minimum)}</strong></div><div><span>最大</span><strong>${formatTrendValue(summary.maximum)}</strong></div><div><span>平均</span><strong>${formatTrendValue(summary.average)}</strong></div></div>
+        <div class="mcmod-trend-chart-wrap">${renderMcmodTrendSvg(points)}</div>
+        <output class="mcmod-trend-readout" data-trend-readout aria-live="polite">最新 · ${esc(point!.date)} · 指数 ${formatTrendValue(point!.value)}</output>
+        ${series.skippedCount ? `<p class="mcmod-trend-note">已跳过 ${series.skippedCount} 个日期或数值异常的配对点；其他日期和值仍按原索引配对。</p>` : ''}
+      ` : `<div class="mcmod-trend-empty" role="status">${esc(emptyText)}</div>`}
+      <p class="mcmod-trend-footnote">当前快照只提供官方流行指数历史序列；7／30／60 天涨幅等汇总不作为独立曲线。图表不以当前值或汇总补造历史。</p>
+    </section>
+  </div>`;
+}
+
 function detailPanel(): string {
   const record = state.selected;
   if (!record) return '';
@@ -1361,6 +1487,7 @@ function detailPanel(): string {
     <div class="detail-section"><h3>适配摘要</h3><dl><div><dt>Minecraft</dt><dd>${textOrUnknown(vm.mcVersionsList.join('、'))}</dd></div><div><dt>Loader</dt><dd>${textOrUnknown(record.loaders.join('、'))}</dd></div><div><dt>更新时间</dt><dd>${esc(formatTime(record.updatedAt))}</dd></div><div><dt>服务端</dt><dd>${esc(environmentDisplay(record))}</dd></div></dl></div>
     <div class="detail-section"><h3>来源证据</h3><div class="evidence-list">${record.evidence.length ? record.evidence.map((item) => `<div class="evidence-item"><span>${esc(item.label)}</span><strong>${textOrUnknown(item.value)}</strong></div>`).join('') : '<div class="empty-evidence">当前数据没有提供可核对的来源字段。</div>'}</div></div>
     ${renderDetailFacts(record)}
+    ${renderMcmodTrendDetail(record)}
     ${renderPersonalDetail(record)}
     ${renderDetailDownloadLinks(record)}
     ${renderCommentSection(record)}
@@ -1618,12 +1745,21 @@ function render(): void {
     : `${renderPlatformHero(state.platform)}${renderResultsWorkspace(selectedName)}`);
   replaceRootHtmlPreservingCoverImages(`<div class="desktop-app legacy-shell"><div class="bg-layer" aria-hidden="true"></div>
     <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button><span class="data-status ${data?.hasData ? 'ready' : 'empty'}"><i></i>${data?.hasData ? `快照 ${esc(data.snapshotId || '已载入')}` : '等待数据'}</span><button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button>${personalProfileAction}<div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
-    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}</div>`);
+    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}${renderMcmodTrendDialog()}</div>`);
   bindEvents();
   const focusTarget = profileFocusAfterRender;
   profileFocusAfterRender = '';
   if (focusTarget === 'close') root.querySelector<HTMLButtonElement>('.personal-profile-close')?.focus();
   if (focusTarget === 'trigger') root.querySelector<HTMLButtonElement>('.personal-profile-trigger')?.focus();
+  const trendFocusTarget = trendFocusAfterRender;
+  trendFocusAfterRender = '';
+  if (trendFocusTarget === 'close') root.querySelector<HTMLButtonElement>('.mcmod-trend-close')?.focus();
+  if (trendFocusTarget === 'trigger') {
+    const trigger = [...root.querySelectorAll<HTMLButtonElement>('[data-trend-trigger]')]
+      .find((element) => element.dataset.recordId === trendReturnRecordId);
+    trigger?.focus();
+    trendReturnRecordId = '';
+  }
   if (platformFilterFocusAfterRender === 'included-mod-search') {
     const search = root.querySelector<HTMLInputElement>('#included-mod-search');
     search?.focus();
@@ -1649,6 +1785,51 @@ function bindEvents(): void {
     render();
   });
   root.querySelectorAll<HTMLElement>('[data-action]').forEach((element) => element.addEventListener('click', (event) => void handleAction(element, event)));
+  const trendPanel = root.querySelector<HTMLElement>('[data-mcmod-trend-panel]');
+  trendPanel?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMcmodTrendChart();
+    }
+  });
+  const trendCapture = root.querySelector<SVGRectElement>('[data-trend-capture]');
+  const currentTrendPoints = selectedMcmodTrendPoints();
+  if (trendCapture && currentTrendPoints.length >= 2) {
+    const svg = trendCapture.ownerSVGElement;
+    const viewBoxWidth = Number(svg?.getAttribute('viewBox')?.split(/\s+/)[2]) || 760;
+    const plotLeft = Number(trendCapture.getAttribute('x')) || 0;
+    const plotWidth = Number(trendCapture.getAttribute('width')) || 1;
+    const guide = svg?.querySelector<SVGLineElement>('[data-trend-guide]');
+    const readout = root.querySelector<HTMLOutputElement>('[data-trend-readout]');
+    const showTrendPoint = (index: number) => {
+      const selectedIndex = Math.max(0, Math.min(currentTrendPoints.length - 1, index));
+      const point = currentTrendPoints[selectedIndex];
+      const x = plotLeft + (selectedIndex / (currentTrendPoints.length - 1)) * plotWidth;
+      guide?.setAttribute('x1', String(x));
+      guide?.setAttribute('x2', String(x));
+      if (readout) readout.textContent = `${selectedIndex === currentTrendPoints.length - 1 ? '最新' : selectedIndex === 0 ? '最早' : '历史点'} · ${point.date} · 指数 ${formatTrendValue(point.value)}`;
+      trendCapture.setAttribute('aria-valuenow', String(selectedIndex));
+      trendCapture.setAttribute('aria-valuetext', `${point.date}，${formatTrendValue(point.value)}`);
+    };
+    const pointIndexFromPointer = (clientX: number): number => {
+      const bounds = svg?.getBoundingClientRect();
+      if (!bounds?.width) return currentTrendPoints.length - 1;
+      const chartX = (clientX - bounds.left) * viewBoxWidth / bounds.width;
+      const ratio = Math.max(0, Math.min(1, (chartX - plotLeft) / plotWidth));
+      return Math.round(ratio * (currentTrendPoints.length - 1));
+    };
+    trendCapture.addEventListener('pointermove', (event) => showTrendPoint(pointIndexFromPointer(event.clientX)));
+    trendCapture.addEventListener('click', (event) => showTrendPoint(pointIndexFromPointer(event.clientX)));
+    trendCapture.addEventListener('keydown', (event) => {
+      const selectedIndex = Number(trendCapture.getAttribute('aria-valuenow') || currentTrendPoints.length - 1);
+      if (event.key === 'ArrowLeft') showTrendPoint(selectedIndex - 1);
+      else if (event.key === 'ArrowRight') showTrendPoint(selectedIndex + 1);
+      else if (event.key === 'Home') showTrendPoint(0);
+      else if (event.key === 'End') showTrendPoint(currentTrendPoints.length - 1);
+      else return;
+      event.preventDefault();
+    });
+  }
   root.querySelectorAll<HTMLElement>('.js-copy-btn').forEach((element) => element.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1813,12 +1994,43 @@ async function loadAudit(): Promise<void> {
   }
 }
 
+function closeMcmodTrendChart(): void {
+  if (!state.trendChart) return;
+  trendReturnRecordId = state.trendChart.record.id;
+  state.trendChart = null;
+  trendFocusAfterRender = 'trigger';
+  render();
+}
+
 async function handleAction(element: HTMLElement, event?: Event): Promise<void> {
   const action = element.dataset.action;
   if (action === 'retry-cover') {
     event?.preventDefault();
     event?.stopPropagation();
     retryCoverImage(element as HTMLButtonElement);
+  } else if (action === 'open-mcmod-trend') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const recordId = element.dataset.recordId || '';
+    const record = state.records.find((item) => item.id === recordId)
+      || (state.selected?.id === recordId ? state.selected : null);
+    if (!record || record.platform !== 'mcmod') return;
+    state.trendChart = { record, range: 'all' };
+    trendFocusAfterRender = 'close';
+    render();
+  } else if (action === 'set-mcmod-trend-range') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const range = element.dataset.range;
+    if (state.trendChart && MCMOD_TREND_RANGES.some((item) => item.value === range)) {
+      state.trendChart.range = range as McmodTrendRange;
+      render();
+    }
+  } else if (action === 'close-mcmod-trend') {
+    if (element.classList.contains('mcmod-trend-backdrop') && event && event.target !== element) return;
+    event?.preventDefault();
+    event?.stopPropagation();
+    closeMcmodTrendChart();
   } else if (action === 'open-personal-profile') {
     state.personalProfileOpen = true;
     profileFocusAfterRender = 'close';
@@ -1885,6 +2097,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     if (state.platform === 'bilibili' && !['updated_desc', 'views_desc', 'likes_desc', 'favs_desc', 'coins_desc', 'share_desc', 'reply_desc', 'danmaku_desc'].includes(state.sort)) state.sort = 'updated_desc';
     if (state.platform !== 'mcmod' && state.viewMode === 'table') state.viewMode = 'cards';
     state.selected = null;
+    state.trendChart = null;
     state.imagePreview = null;
     state.compareOpen = false;
     state.comments = { sourceId: '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
@@ -1992,6 +2205,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     if (target && target !== element && target.closest('a,button,details,summary')) return;
     const index = Number(element.dataset.index || '-1');
     state.selected = state.records[index] || null;
+    state.trendChart = null;
     state.imagePreview = null;
     state.comments = { sourceId: state.selected?.sourceId || '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
     render();
@@ -1999,6 +2213,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   } else if (action === 'close-detail') {
     if (event && event.target !== element) return;
     state.selected = null;
+    state.trendChart = null;
     state.imagePreview = null;
     state.comments = { sourceId: '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
     render();
