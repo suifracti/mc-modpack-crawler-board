@@ -3,6 +3,7 @@ import { deriveLegacyHasServer, EnvironmentClaim } from '../src/domain/types';
 import type { McmodStructuredItem } from '../src/platforms/mcmod/types';
 import { mapStructuredMcmodToPack } from '../src/platforms/mcmod/mappers';
 import { generateSparklineSvg } from '../src/platforms/mcmod/sparkline';
+import { parseMcmodTrendSeries, selectMcmodTrendRange, summarizeMcmodTrend } from '../src/platforms/mcmod/trendChart';
 import { buildMcmodSearchText } from '../src/platforms/mcmod/selectors';
 import {
   renderTitleCell,
@@ -180,6 +181,46 @@ describe('MCMod Sparkline Vector Generator', () => {
     expect(generateSparklineSvg([])).toBe('');
     expect(generateSparklineSvg([100])).toBe('');
     expect(generateSparklineSvg(null)).toBe('');
+  });
+});
+
+describe('MC百科历史趋势数据', () => {
+  it('按原日期索引配对、按所选范围统计，并显式处理零值、缺失和异常数据', () => {
+    const dates = '2026-09-01,2026-09-02,2026-09-03,2026-09-04,2026-09-05,2026-09-06,2026-09-07,2026-09-08';
+    const series = parseMcmodTrendSeries('0,10,30,20,40,0,50,20', dates);
+
+    expect(series.status).toBe('ready');
+    expect(series.points[0]).toEqual({ date: '2026-09-01', value: 0 });
+    expect(series.points[2]).toEqual({ date: '2026-09-03', value: 30 });
+    const recent = selectMcmodTrendRange(series.points, '7d');
+    expect(recent.map((point) => point.date)).toEqual([
+      '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05', '2026-09-06', '2026-09-07', '2026-09-08',
+    ]);
+    expect(summarizeMcmodTrend(recent)).toEqual({
+      count: 7,
+      latest: 20,
+      minimum: 0,
+      maximum: 50,
+      average: 170 / 7,
+      firstDate: '2026-09-02',
+      lastDate: '2026-09-08',
+    });
+
+    const missing = parseMcmodTrendSeries('0,,30', '2026-09-01,2026-09-02,2026-09-03');
+    expect(missing.points).toEqual([{ date: '2026-09-01', value: 0 }, { date: '2026-09-03', value: 30 }]);
+    expect(missing.skippedCount).toBe(1);
+    const malformed = parseMcmodTrendSeries('0,not-a-number,30', '2026-09-01,2026-09-02,2026-09-03');
+    expect(malformed.points).toEqual([{ date: '2026-09-01', value: 0 }, { date: '2026-09-03', value: 30 }]);
+    expect(malformed.skippedCount).toBe(1);
+
+    const lengthMismatch = parseMcmodTrendSeries('0,10', '2026-09-01,2026-09-02,2026-09-03');
+    expect(lengthMismatch.status).toBe('mismatch');
+    expect(lengthMismatch.points).toEqual([]);
+    const onePoint = parseMcmodTrendSeries('0', '2026-09-01');
+    expect(onePoint.status).toBe('insufficient');
+    expect(onePoint.points).toEqual([{ date: '2026-09-01', value: 0 }]);
+    const invalidDate = parseMcmodTrendSeries('0,999,30', '2026-09-01,2026-02-30,2026-09-03');
+    expect(invalidDate.points).toEqual([{ date: '2026-09-01', value: 0 }, { date: '2026-09-03', value: 30 }]);
   });
 });
 
