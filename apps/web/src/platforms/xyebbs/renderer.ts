@@ -4,11 +4,10 @@
 import type { XyebbsPack } from '../../types/legacy/xyebbs';
 import { escHtml } from '../../utils/html';
 import { loaderLabel } from '../../domain/minecraft';
-import { BBSMC_COVER_FALLBACK } from '../bbsmc/renderer';
 import { recordRendererDebug } from '../../debug';
 import { renderCoverImage } from '../../utils/coverImage';
 
-export const XYEBBS_COVER_FALLBACK = BBSMC_COVER_FALLBACK;
+export const XYEBBS_COVER_FALLBACK = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23effcf5%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%23059669%22 font-family%3D%22sans-serif%22 font-size%3D%2214%22%3EXYEBBS%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E';
 
 export function renderXyebbsCard(p: XyebbsPack): string {
   if (typeof window !== 'undefined') {

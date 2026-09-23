@@ -21,7 +21,7 @@ import type { CurseforgePack } from './types/legacy/curseforge';
 import type { ModrinthPack } from './types/legacy/modrinth';
 import type { XyebbsPack } from './types/legacy/xyebbs';
 import {
-  cancelDetachedCoverImageRequest,
+  releaseDetachedCoverImageRequest,
   renderCoverImage,
   startCoverImageRetry,
   type CoverImageState,
@@ -948,11 +948,8 @@ function renderRecord(record: DesktopRecord, index: number): string {
   const searchContractText = existingSearchText(record).slice(0, 240);
   const originalCoverUrl = recordRealCoverUrl(record);
   const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
-  const cover = record.platform === 'bilibili' ? null : renderCoverImage({ url: originalCoverUrl, fallback: fallbackUrl, alt: `${record.title}封面`, key: record.id, className: 'pack-card-cover-image' });
-  const coverUrl = cover?.source || stableImageSource(originalCoverUrl, fallbackUrl);
-  const coverMarkup = cover
-    ? `<div class="cover-media cover-media-record" data-cover-frame data-cover-state="${cover.state}"><button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面">${cover.image}${cover.status}</button>${cover.retryButton}</div>`
-    : `<button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面"><img src="${esc(coverUrl)}"${originalCoverUrl ? ` data-original-src="${esc(originalCoverUrl)}" data-fallback-src="${esc(fallbackUrl)}"` : ''} alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer"></button>`;
+  const cover = renderCoverImage({ url: originalCoverUrl, fallback: fallbackUrl, alt: `${record.title}封面`, key: record.id, className: 'pack-card-cover-image' });
+  const coverMarkup = `<div class="cover-media cover-media-record" data-cover-frame data-cover-state="${cover.state}"><button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面">${cover.image}${cover.status}</button>${cover.retryButton}</div>`;
   const metrics = recordMetricItems(record);
   return `<article class="pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
     ${coverMarkup}
@@ -970,11 +967,8 @@ function renderRecord(record: DesktopRecord, index: number): string {
 function renderCompactRecord(record: DesktopRecord, index: number): string {
   const originalCoverUrl = recordRealCoverUrl(record);
   const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
-  const cover = record.platform === 'bilibili' ? null : renderCoverImage({ url: originalCoverUrl, fallback: fallbackUrl, alt: `${record.title}封面`, key: record.id, className: 'compact-record-cover-image' });
-  const coverUrl = cover?.source || stableImageSource(originalCoverUrl, fallbackUrl);
-  const coverMarkup = cover
-    ? `<div class="cover-media cover-media-compact" data-cover-frame data-cover-state="${cover.state}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面">${cover.image}${cover.status}</button>${cover.retryButton}</div>`
-    : `<button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(coverUrl)}" data-image-title="${esc(record.title)}封面"><img src="${esc(coverUrl)}"${originalCoverUrl ? ` data-original-src="${esc(originalCoverUrl)}" data-fallback-src="${esc(fallbackUrl)}"` : ''} alt="${esc(record.title)}封面" loading="lazy" referrerpolicy="no-referrer"></button>`;
+  const cover = renderCoverImage({ url: originalCoverUrl, fallback: fallbackUrl, alt: `${record.title}封面`, key: record.id, className: 'compact-record-cover-image' });
+  const coverMarkup = `<div class="cover-media cover-media-compact" data-cover-frame data-cover-state="${cover.state}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面">${cover.image}${cover.status}</button>${cover.retryButton}</div>`;
   const metrics = recordMetricItems(record);
   return `<article class="compact-record" data-action="select-record" data-index="${index}">${coverMarkup}<div class="compact-record-main"><div class="compact-record-head"><span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>${renderPersonalCardActions(record, index)}<h3>${esc(record.title)}</h3><p>${esc(record.author)} · ${textOrUnknown(record.summary)}</p><div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div></div><div class="compact-record-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}<button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div></article>`;
 }
@@ -1377,7 +1371,7 @@ function replaceRootHtmlPreservingCoverImages(markup: string): void {
   });
   const removedImages = [...previousImages.values()].flat();
   root.replaceChildren(template.content);
-  removedImages.forEach((image) => cancelDetachedCoverImage(image));
+  removedImages.forEach((image) => releaseDetachedCoverImage(image));
   initializeCoverImages();
 }
 
@@ -1385,7 +1379,6 @@ function coverStatusText(state: CoverImageState): string {
   if (state === 'loading') return '封面加载中…';
   if (state === 'error') return '封面加载失败';
   if (state === 'timeout') return '封面加载超时';
-  if (state === 'cancelled') return '封面加载已取消';
   if (state === 'missing') return '来源未提供封面';
   return '';
 }
@@ -1399,14 +1392,14 @@ function setCoverPresentation(image: HTMLImageElement, state: CoverImageState): 
   if (status) status.textContent = coverStatusText(state);
   const retry = frame.querySelector<HTMLButtonElement>('[data-action="retry-cover"]');
   if (retry) {
-    const canRetry = (state === 'error' || state === 'timeout' || state === 'cancelled') && imageRetryDelay(image.dataset.originalSrc || '') === 0;
-    retry.hidden = state !== 'error' && state !== 'timeout' && state !== 'cancelled';
+    const canRetry = (state === 'error' || state === 'timeout') && imageRetryDelay(image.dataset.originalSrc || '') === 0;
+    retry.hidden = state !== 'error' && state !== 'timeout';
     retry.disabled = !canRetry;
     retry.textContent = canRetry ? '重试封面' : '稍后可重试';
   }
   const trigger = frame.querySelector<HTMLElement>('.image-preview-trigger');
   if (trigger) {
-    trigger.dataset.imageUrl = state === 'error' || state === 'timeout' || state === 'cancelled' || state === 'missing'
+    trigger.dataset.imageUrl = state === 'error' || state === 'timeout' || state === 'missing'
       ? image.dataset.fallbackSrc || ''
       : image.dataset.originalSrc || image.dataset.fallbackSrc || '';
   }
@@ -1424,7 +1417,7 @@ function clearCoverTimer(image: HTMLImageElement): void {
   coverLoadTimers.delete(image);
 }
 
-function cancelDetachedCoverImage(image: HTMLImageElement): void {
+function releaseDetachedCoverImage(image: HTMLImageElement): void {
   if (image.isConnected) return;
   clearCoverTimer(image);
   const retryTimer = coverRetryTimers.get(image);
@@ -1433,9 +1426,7 @@ function cancelDetachedCoverImage(image: HTMLImageElement): void {
   coverObserver?.unobserve(image);
   observedCoverImages.delete(image);
   const ticket = coverRetryTickets.get(image);
-  if (cancelDetachedCoverImageRequest(image, ticket)) {
-    setCoverPresentation(image, image.dataset.coverState as CoverImageState);
-  }
+  releaseDetachedCoverImageRequest(image, ticket);
   coverRetryTickets.delete(image);
 }
 
@@ -1444,7 +1435,7 @@ function startCoverLoadTimer(image: HTMLImageElement): void {
   if (!image.isConnected || image.dataset.coverState !== 'loading') return;
   coverLoadTimers.set(image, window.setTimeout(() => {
     if (!image.isConnected) {
-      cancelDetachedCoverImage(image);
+      releaseDetachedCoverImage(image);
       return;
     }
     if (image.dataset.coverState !== 'loading') return;

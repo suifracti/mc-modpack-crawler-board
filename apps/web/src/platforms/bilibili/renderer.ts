@@ -4,6 +4,14 @@
 import type { BilibiliPack } from '../../types/legacy/bilibili';
 import { escHtml } from '../../utils/html';
 import { recordRendererDebug } from '../../debug';
+import { renderCoverImage } from '../../utils/coverImage';
+
+export const BILIBILI_COVER_FALLBACK = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23fff0f5%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%23fb7299%22 font-family%3D%22sans-serif%22 font-size%3D%2214%22%3EB%E7%AB%99%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E';
+
+function biliCoverUrl(pic?: string): string {
+  const url = pic ? pic.replace('http://', 'https://') : '';
+  return !url || url.includes('@') ? url : url + '@480w_300h_1c.webp';
+}
 
 export interface BiliGroup {
   key: string;
@@ -64,7 +72,9 @@ export function renderBiliGroupedCard(g: BiliGroup): string {
   const replyStr = g.totalReply > 10000 ? (g.totalReply / 10000).toFixed(1) + '万' : String(g.totalReply);
   const shareStr = g.totalShare > 10000 ? (g.totalShare / 10000).toFixed(1) + '万' : String(g.totalShare || 0);
 
-  const coverImg = g.pic ? (g.pic.replace('http://', 'https://') + '@480w_300h_1c.webp') : '';
+  const originalCover = biliCoverUrl(g.pic || latest.pic);
+  const cover = renderCoverImage({ url: originalCover, fallback: BILIBILI_COVER_FALLBACK, alt: latest.title + '封面', key: 'bilibili:' + g.key, className: 'bili-card-img' });
+  const coverImg = cover.source;
 
   let groupVerBannerHtml = '';
   if (g.has_group_version || latest.has_group_version) {
@@ -131,15 +141,16 @@ export function renderBiliGroupedCard(g: BiliGroup): string {
   }
 
   return '<div class="bili-pack-card" data-key="' + g.key + '">' +
+    '<div class="cover-media cover-media-rich" data-cover-frame data-cover-state="' + cover.state + '">' +
     '<a href="' + latest.url + '" target="_blank" rel="noreferrer" class="bili-card-cover">' +
-    '<img class="bili-card-img" src="' + coverImg + '" alt="' + escHtml(latest.title) + '" loading="lazy" referrerpolicy="no-referrer">' +
+    cover.image + cover.status +
     (isMulti ? '<span class="bili-multi-badge">📦 ' + g.items.length + ' 个关联版本</span>' : '') +
     (latest.duration ? '<span class="bili-card-dur">' + escHtml(latest.duration) + '</span>' : '') +
     '<div class="bili-card-stats">' +
     '<span>👁️ ' + viewsStr + '</span>' +
     '<span>📺 ' + danmakuStr + '</span>' +
     '</div>' +
-    '</a>' +
+    '</a>' + cover.retryButton + '</div>' +
     '<div class="bili-card-body">' +
     '<a href="' + latest.url + '" target="_blank" rel="noreferrer" class="bili-card-title js-open-unified-preview" data-platform="bilibili" data-full-title="' + escHtml(latest.title) + '" data-desc="' + escHtml(fullDesc || pinned || latest.title) + '" data-cover="' + coverImg + '" data-author="' + escHtml(latest.author) + '" data-ver="' + escHtml(vers.join(', ')) + '" data-date="' + escHtml(g.latestPubTime) + '" title="' + escHtml(latest.title) + '">' + escHtml(latest.title) + '</a>' +
     '<div class="bili-card-meta">' +
@@ -194,7 +205,8 @@ export function renderBiliFlatCard(p: BilibiliPack): string {
   const replyStr = p.reply > 10000 ? (p.reply / 10000).toFixed(1) + '万' : String(p.reply || 0);
   const shareStr = (p.share || 0) > 10000 ? ((p.share || 0) / 10000).toFixed(1) + '万' : String(p.share || 0);
 
-  const coverImg = p.pic ? (p.pic.replace('http://', 'https://') + '@480w_300h_1c.webp') : '';
+  const originalCover = biliCoverUrl(p.pic);
+  const cover = renderCoverImage({ url: originalCover, fallback: BILIBILI_COVER_FALLBACK, alt: p.title + '封面', key: 'bilibili:' + String(p.bvid || p.id || p.url), className: 'bili-card-img' });
 
   let groupVerBannerHtml = '';
   if (p.has_group_version) {
@@ -235,14 +247,15 @@ export function renderBiliFlatCard(p: BilibiliPack): string {
   dlZoneHtml += '</div>';
 
   return '<div class="bili-pack-card">' +
+    '<div class="cover-media cover-media-rich" data-cover-frame data-cover-state="' + cover.state + '">' +
     '<a href="' + p.url + '" target="_blank" rel="noreferrer" class="bili-card-cover">' +
-    '<img class="bili-card-img" src="' + coverImg + '" alt="' + escHtml(p.title) + '" loading="lazy" referrerpolicy="no-referrer">' +
+    cover.image + cover.status +
     (p.duration ? '<span class="bili-card-dur">' + escHtml(p.duration) + '</span>' : '') +
     '<div class="bili-card-stats">' +
     '<span>👁️ ' + viewsStr + '</span>' +
     '<span>📺 ' + danmakuStr + '</span>' +
     '</div>' +
-    '</a>' +
+    '</a>' + cover.retryButton + '</div>' +
     '<div class="bili-card-body">' +
     '<a href="' + p.url + '" target="_blank" rel="noreferrer" class="bili-card-title" title="' + escHtml(p.title) + '">' + escHtml(p.title) + '</a>' +
     '<div class="bili-card-meta">' +

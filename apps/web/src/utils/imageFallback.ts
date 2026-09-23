@@ -1,4 +1,4 @@
-export type ImageFailureKind = 'error' | 'timeout' | 'cancelled';
+export type ImageFailureKind = 'error' | 'timeout';
 
 export interface ImageFailure {
   kind: ImageFailureKind;
