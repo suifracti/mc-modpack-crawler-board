@@ -35,6 +35,7 @@ import {
   stableImageSource,
   type ImageRetryTicket,
 } from './utils/imageFallback';
+import { bindCompositionAwareSearchInput } from './utils/compositionAwareSearch';
 
 export interface DesktopRecord {
   packVersion?: string;
@@ -1702,11 +1703,15 @@ function bindEvents(): void {
     state.gameplayCategoriesExclude = (event.target as HTMLInputElement).checked;
     void loadRecords(true);
   });
-  root.querySelector<HTMLInputElement>('#included-mod-search')?.addEventListener('input', (event) => {
-    state.includedModSearch = (event.target as HTMLInputElement).value;
-    platformFilterFocusAfterRender = 'included-mod-search';
-    render();
-  });
+  const includedModSearch = root.querySelector<HTMLInputElement>('#included-mod-search');
+  if (includedModSearch) {
+    bindCompositionAwareSearchInput(includedModSearch, (value) => {
+      state.includedModSearch = value;
+    }, () => {
+      platformFilterFocusAfterRender = 'included-mod-search';
+      render();
+    });
+  }
   root.querySelector<HTMLInputElement>('#pack-search')?.addEventListener('input', (event) => {
     state.query = (event.target as HTMLInputElement).value;
     window.clearTimeout(searchTimer);
