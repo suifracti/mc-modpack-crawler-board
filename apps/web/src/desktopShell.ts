@@ -268,6 +268,7 @@ const state = {
   includedMods: [] as string[],
   includedModsExclude: false,
   includedModSearch: '',
+  includedModsExpanded: false,
   gameplayCategories: [] as string[],
   gameplayCategoriesExclude: false,
   gameplayCategoriesExpanded: false,
@@ -407,6 +408,11 @@ function renderPersonalCardActions(record: DesktopRecord, index: number): string
     ? (status.favorite ? '取消当前视频收藏' : '收藏当前视频')
     : (status.favorite ? '取消收藏' : '加入收藏');
   return `<div class="personal-card-actions"><button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${index}" ${personalTargetAttributes(record)} aria-pressed="${status.favorite}" title="${title}">${label}</button>${status.rating ? `<span class="personal-rating-mini">★ ${status.rating}/5</span>` : ''}${labels}</div>`;
+}
+
+function renderPersonalCardZone(content: string, className = ''): string {
+  if (!content) return '';
+  return `<footer class="desktop-card-personal-zone ${className}"><span class="desktop-card-personal-label">我的状态</span>${content}</footer>`;
 }
 
 function renderPersonalDetail(record: DesktopRecord): string {
@@ -886,29 +892,40 @@ function selectedFacetOptions(options: DesktopFilterOption[], selected: string[]
   return visible;
 }
 
+function facetOptionsByValue(options: DesktopFilterOption[], values: string[]): DesktopFilterOption[] {
+  return values.map((value) => options.find((option) => option.value === value)).filter((option): option is DesktopFilterOption => Boolean(option));
+}
+
 function renderFacetButton(action: 'toggle-included-mod' | 'toggle-gameplay-category', option: DesktopFilterOption, selected: boolean, label = option.value): string {
   return `<button type="button" class="platform-facet-chip ${selected ? 'is-active' : ''}" data-action="${action}" data-value="${esc(option.value)}" aria-pressed="${selected}" title="${esc(option.value)}：${option.count} 个整合包"><span>${esc(label)}</span><small>${formatCount(option.count)}</small></button>`;
 }
 
 function renderPlatformSpecificFilters(): string {
   if (state.platform === 'mcmod') {
-    const options = selectedFacetOptions(state.availableIncludedMods, state.includedMods, 40, state.includedModSearch);
+    const selected = facetOptionsByValue(state.availableIncludedMods, state.includedMods);
+    const term = state.includedModSearch.trim();
+    const limit = term ? 32 : state.includedModsExpanded ? state.availableIncludedMods.length : 10;
+    const options = selectedFacetOptions(state.availableIncludedMods.filter((option) => !state.includedMods.includes(option.value)), [], limit, term);
     const emptyText = state.includedModSearch ? '没有匹配的模组名称。' : '当前快照没有可用的模组名称。';
-    return `<section class="platform-facet-panel" aria-labelledby="included-mod-filter-title">
-      <div class="platform-facet-head"><div><h3 id="included-mod-filter-title">包含模组</h3><p>从当前快照全部 MC百科记录统计；多选包含时须全部命中。</p></div><label class="platform-facet-exclude"><input id="included-mod-exclude" type="checkbox" ${state.includedModsExclude ? 'checked' : ''}> <span>排除同时包含全部所选模组的记录</span></label></div>
-      <div class="platform-facet-search"><input id="included-mod-search" type="search" value="${esc(state.includedModSearch)}" placeholder="搜索模组名称（不区分大小写）" aria-label="搜索包含模组候选"><span>${formatCount(state.availableIncludedMods.length)} 个候选</span></div>
-      <div class="platform-facet-options" aria-label="包含模组多选">${options.length ? options.map((option) => renderFacetButton('toggle-included-mod', option, state.includedMods.includes(option.value))).join('') : `<span class="platform-facet-empty">${emptyText}</span>`}</div>
-      <p class="platform-facet-note">模组清单未知的记录不作为“包含”命中；排除模式只移除已确认同时包含全部所选模组的记录。条件仅作用当前平台，切换平台时保留，重置筛选会清空。</p>
+    return `<section class="platform-facet-panel ${state.includedModsExclude ? 'is-excluding' : ''}" aria-labelledby="included-mod-filter-title">
+      <div class="platform-facet-head"><div><h3 id="included-mod-filter-title">包含模组</h3><p>${state.includedMods.length ? `已选 ${state.includedMods.length} 项 · ${state.includedModsExclude ? '排除完整组合' : '需全部包含'}` : '搜索后多选，记录需包含全部所选模组'}</p></div><label class="platform-facet-exclude"><input id="included-mod-exclude" type="checkbox" ${state.includedModsExclude ? 'checked' : ''} ${state.includedMods.length ? '' : 'disabled'}> <span>排除完整组合</span></label></div>
+      <div class="platform-facet-search"><input id="included-mod-search" type="search" value="${esc(state.includedModSearch)}" placeholder="搜索模组名称" aria-label="搜索包含模组候选" autocomplete="off"><span>${formatCount(state.availableIncludedMods.length)} 个候选</span>${state.includedMods.length ? '<button type="button" class="platform-facet-clear" data-action="clear-platform-facet">清空已选</button>' : ''}</div>
+      ${selected.length ? `<div class="platform-facet-selected"><strong>已选</strong><div class="platform-facet-options" aria-label="已选包含模组">${selected.map((option) => renderFacetButton('toggle-included-mod', option, true)).join('')}</div></div>` : ''}
+      <div class="platform-facet-candidates"><span class="platform-facet-candidate-label">${term ? '搜索结果' : '候选模组'}</span><div class="platform-facet-options" aria-label="包含模组候选">${options.length ? options.map((option) => renderFacetButton('toggle-included-mod', option, false)).join('') : `<span class="platform-facet-empty">${emptyText}</span>`}</div></div>
+      ${!term && state.availableIncludedMods.length > 10 ? `<button type="button" class="platform-facet-expand" data-action="toggle-included-mods-expanded" aria-expanded="${state.includedModsExpanded}">${state.includedModsExpanded ? '收起候选' : `展开更多（共 ${state.availableIncludedMods.length} 项）`}</button>` : ''}
+      <details class="platform-facet-help"><summary>筛选规则</summary><p>包含为 AND；排除是否定“同时包含全部所选模组”。清单未知的记录不算命中。候选和计数来自当前快照全部 MC百科记录，不只来自当前页。</p></details>
     </section>`;
   }
   if (state.platform === 'curseforge') {
     const limit = state.gameplayCategoriesExpanded ? state.availableGameplayCategories.length : 12;
-    const options = selectedFacetOptions(state.availableGameplayCategories, state.gameplayCategories, limit);
-    return `<section class="platform-facet-panel" aria-labelledby="gameplay-category-filter-title">
-      <div class="platform-facet-head"><div><h3 id="gameplay-category-filter-title">玩法分类</h3><p>从当前快照全部 CurseForge 记录统计；多选包含时命中任一分类。</p></div><label class="platform-facet-exclude"><input id="gameplay-category-exclude" type="checkbox" ${state.gameplayCategoriesExclude ? 'checked' : ''}> <span>排除命中任一所选分类的记录</span></label></div>
-      <div class="platform-facet-options" aria-label="玩法分类多选">${options.map((option) => renderFacetButton('toggle-gameplay-category', option, state.gameplayCategories.includes(option.value), getCategoryLabel(option.value))).join('') || '<span class="platform-facet-empty">当前快照没有玩法分类。</span>'}</div>
+    const selected = facetOptionsByValue(state.availableGameplayCategories, state.gameplayCategories);
+    const options = selectedFacetOptions(state.availableGameplayCategories.filter((option) => !state.gameplayCategories.includes(option.value)), [], limit);
+    return `<section class="platform-facet-panel ${state.gameplayCategoriesExclude ? 'is-excluding' : ''}" aria-labelledby="gameplay-category-filter-title">
+      <div class="platform-facet-head"><div><h3 id="gameplay-category-filter-title">玩法分类</h3><p>${state.gameplayCategories.length ? `已选 ${state.gameplayCategories.length} 项 · ${state.gameplayCategoriesExclude ? '排除任一命中' : '命中任一即可'}` : '可多选，命中任一分类即可'}</p></div><div class="platform-facet-head-actions"><label class="platform-facet-exclude"><input id="gameplay-category-exclude" type="checkbox" ${state.gameplayCategoriesExclude ? 'checked' : ''} ${state.gameplayCategories.length ? '' : 'disabled'}> <span>排除任一命中</span></label>${state.gameplayCategories.length ? '<button type="button" class="platform-facet-clear" data-action="clear-platform-facet">清空已选</button>' : ''}</div></div>
+      ${selected.length ? `<div class="platform-facet-selected"><strong>已选</strong><div class="platform-facet-options" aria-label="已选玩法分类">${selected.map((option) => renderFacetButton('toggle-gameplay-category', option, true, getCategoryLabel(option.value))).join('')}</div></div>` : ''}
+      <div class="platform-facet-candidates"><span class="platform-facet-candidate-label">分类候选</span><div class="platform-facet-options" aria-label="玩法分类候选">${options.map((option) => renderFacetButton('toggle-gameplay-category', option, false, getCategoryLabel(option.value))).join('') || '<span class="platform-facet-empty">当前快照没有玩法分类。</span>'}</div></div>
       ${state.availableGameplayCategories.length > 12 ? `<button type="button" class="platform-facet-expand" data-action="toggle-gameplay-expanded" aria-expanded="${state.gameplayCategoriesExpanded}">${state.gameplayCategoriesExpanded ? '收起' : `展开全部（${state.availableGameplayCategories.length} 项）`}</button>` : ''}
-      <p class="platform-facet-note">分类缺失的记录不作为命中；排除模式只移除已确认命中任一所选分类的记录。条件仅作用当前平台，切换平台时保留，重置筛选会清空。</p>
+      <details class="platform-facet-help"><summary>筛选规则</summary><p>包含为 OR；排除会移除命中任一所选分类的记录。分类缺失不算命中。候选和计数来自当前快照全部 CurseForge 记录，不只来自当前页。</p></details>
     </section>`;
   }
   return '';
@@ -1030,12 +1047,12 @@ function renderRecord(record: DesktopRecord, index: number): string {
   return `<article class="pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
     ${coverMarkup}
     <div class="card-top"><span class="platform-badge">${platformIcon(record.platform)} ${config.name}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>
-    ${renderPersonalCardActions(record, index)}
     <h3>${esc(record.title)}</h3><p class="author">${esc(record.author)}</p>
     <p class="summary">${textOrUnknown(record.summary)}</p>
     <div class="chips">${record.versions.slice(0, 4).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${!record.versions.length && !record.loaders.length ? '<span class="muted-chip">兼容信息未知</span>' : ''}</div>
     ${metrics.length ? `<div class="card-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}</div>` : ''}
     ${renderQuickDownloadLinks(record)}
+    ${renderPersonalCardZone(renderPersonalCardActions(record, index), 'pack-card-personal-zone')}
     <div class="card-footer"><span>查看详情与来源证据</span><button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div>
   </article>`;
 }
@@ -1069,7 +1086,7 @@ function renderMcmodTrendTrigger(record: DesktopRecord, series = mcmodTrendSerie
     ? `<span class="mcmod-trend-sparkline" aria-hidden="true">${generateSparklineSvg(series.points.map((point) => point.value), 104, 30)}</span>`
     : '';
   const description = series.status === 'ready' ? `${series.points.length} 个历史点` : mcmodTrendStatusText(series);
-  const compactLabel = series.status === 'ready' ? '趋势图' : series.status === 'missing' ? '无历史' : series.status === 'mismatch' ? '数据不匹配' : series.status === 'invalid-order' ? '日期异常' : '数据不足';
+  const compactLabel = series.status === 'ready' ? '完整趋势' : series.status === 'missing' ? '无历史' : series.status === 'mismatch' ? '数据不匹配' : series.status === 'invalid-order' ? '日期异常' : '数据不足';
   return `<button type="button" class="mcmod-trend-trigger ${compact ? 'is-compact' : ''}" data-action="open-mcmod-trend" data-record-id="${esc(record.id)}" data-trend-trigger="true" aria-label="查看${esc(record.title)}的趋势图，${esc(description)}" title="${esc(description)}">${sparkline}<span>${compact ? compactLabel : '查看完整走势'}</span></button>`;
 }
 
@@ -1092,7 +1109,7 @@ function renderMcmodTable(records: DesktopRecord[]): string {
       <td class="mcmod-name-cell"><strong>${esc(record.title)}</strong><small>${esc(record.author || '作者未知')}</small><div class="mcmod-table-tags">${categories.slice(0, 4).map((item) => `<span>${esc(item)}</span>`).join('')}${categories.length > 4 ? `<span>+${categories.length - 4}</span>` : ''}</div></td>
       <td>${esc(formatMetric(raw.views))}</td>
       <td><strong>${esc(formatMetric(raw.score))}</strong><small>推荐 ${esc(formatMetric(raw.recommendations))}</small></td>
-      <td class="mcmod-trend-cell"><span class="trend-number ${asNumber(trend.t7) >= 0 ? 'is-up' : 'is-down'}">${esc(formatMetric(trend.t7))}</span><small>7日 · 30日 ${esc(formatMetric(trend.t30))}</small>${renderMcmodTrendTrigger(record, trendSeries, true)}</td>
+      <td class="mcmod-trend-cell"><div class="mcmod-trend-values"><span><small>7 日</small><strong class="trend-number ${asNumber(trend.t7) >= 0 ? 'is-up' : 'is-down'}">${esc(formatMetric(trend.t7))}</strong></span><span><small>30 日</small><strong class="trend-number ${asNumber(trend.t30) >= 0 ? 'is-up' : 'is-down'}">${esc(formatMetric(trend.t30))}</strong></span></div>${renderMcmodTrendTrigger(record, trendSeries, true)}</td>
       <td><span class="vote-positive">${esc(formatMetric(votes.redVotes))}</span> / <span class="vote-negative">${esc(formatMetric(votes.blackVotes))}</span><small>红 / 黑</small></td>
       <td>${esc(formatMetric(raw.commentsCount))}<small>推荐 ${esc(formatMetric(raw.recommendations))} · 收藏 ${esc(formatMetric(raw.favorites))}</small></td>
       <td class="mcmod-mod-cell">${mods.slice(0, 3).map((item) => `<span>${esc(item)}</span>`).join('')}${mods.length > 3 ? `<small>另有 ${mods.length - 3} 款模组</small>` : ''}</td><td class="mcmod-personal-cell">${renderPersonalCardActions(record, index)}</td>
@@ -1108,14 +1125,15 @@ function renderBilibiliGroupedWorkspace(): string {
   const cards = groups.map((group) => {
     const latest = group.items[0];
     const index = latest ? state.records.findIndex((record) => record.sourceId === latest.bvid) : -1;
-    return `<article class="desktop-rich-card" data-action="select-record" data-index="${index}" data-bili-group-key="${esc(group.key)}">${renderBilibiliGroupPersonalActions(group)}${renderBilibiliGroupPersonalSummary(group)}${renderBiliGroupedCard(group)}</article>`;
+    const personalZone = renderPersonalCardZone(`${renderBilibiliGroupPersonalActions(group)}${renderBilibiliGroupPersonalSummary(group)}`, 'is-bilibili');
+    return `<article class="desktop-rich-card" data-action="select-record" data-index="${index}" data-bili-group-key="${esc(group.key)}">${renderBiliGroupedCard(group)}${personalZone}</article>`;
   }).join('');
   return `<div class="bili-legacy-mode-note"><strong>✨ 同名整合包智能聚合</strong><span>${formatCount(groups.length)} 款独立整合包 · 关联视频、统计、网盘与历史版本均保留</span></div><div class="bili-cards-grid desktop-bili-grid">${cards}</div>`;
 }
 
 function renderBilibiliFlatWorkspace(records: DesktopRecord[]): string {
   if (!records.length) return '<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的视频</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>';
-  const cards = records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderPersonalCardActions(record, index)}${renderBiliFlatCard(toBilibiliPack(record))}</article>`).join('');
+  const cards = records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderBiliFlatCard(toBilibiliPack(record))}${renderPersonalCardZone(renderPersonalCardActions(record, index), 'is-bilibili')}</article>`).join('');
   return `<div class="bili-legacy-mode-note"><strong>视频平铺</strong><span>当前展示 ${formatCount(records.length)} / ${formatCount(state.total)} 条视频，可继续加载</span></div><div class="bili-cards-grid desktop-bili-grid">${cards}</div>`;
 }
 
@@ -1248,7 +1266,7 @@ function renderResultsWorkspace(selectedName: string): string {
         : state.viewMode === 'table' && state.platform === 'mcmod'
           ? renderMcmodTable(records)
           : state.platform !== 'all' && state.platform !== 'mcmod'
-            ? `<div class="pack-grid legacy-rich-grid">${records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderPersonalCardActions(record, index)}${renderPlatformRichCard(record)}</article>`).join('')}</div>`
+            ? `<div class="pack-grid legacy-rich-grid">${records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderPlatformRichCard(record)}${renderPersonalCardZone(renderPersonalCardActions(record, index))}</article>`).join('')}</div>`
           : `<div class="pack-grid">${records.map(renderRecord).join('')}</div>`
       : `<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>`;
   const displayedCount = isBili && state.biliViewMode === 'grouped' ? state.biliGroups.length : records.length;
@@ -1933,17 +1951,25 @@ async function loadComments(record: DesktopRecord): Promise<void> {
 
 type PersonalPatch = Partial<Pick<PersonalStatus, 'favorite' | 'wantToPlay' | 'played' | 'rating' | 'note'>>;
 
-function recordAtIndex(index: number): DesktopRecord | null {
-  return state.records[index] || null;
+export function resolvePersonalTargetRecord(
+  records: DesktopRecord[],
+  platform: Platform | undefined,
+  sourceId: string | undefined,
+  fallbackIndex: number,
+): DesktopRecord | null {
+  if (platform && sourceId !== undefined && ALL_PLATFORMS.includes(platform)) {
+    return records.find((record) => record.platform === platform && record.sourceId === sourceId) || null;
+  }
+  return records[fallbackIndex] || null;
 }
 
 function recordForPersonalTarget(element: HTMLElement): DesktopRecord | null {
-  const platform = element.dataset.personalPlatform as Platform | undefined;
-  const sourceId = element.dataset.personalSourceId;
-  if (platform && sourceId !== undefined && ALL_PLATFORMS.includes(platform)) {
-    return state.records.find((record) => record.platform === platform && record.sourceId === sourceId) || null;
-  }
-  return recordAtIndex(Number(element.dataset.index || '-1'));
+  return resolvePersonalTargetRecord(
+    state.records,
+    element.dataset.personalPlatform as Platform | undefined,
+    element.dataset.personalSourceId,
+    Number(element.dataset.index || '-1'),
+  );
 }
 
 async function savePersonalPatch(record: DesktopRecord, patch: PersonalPatch, rerender = true): Promise<void> {
@@ -2071,6 +2097,9 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     state.includedMods = state.includedMods.includes(value) ? state.includedMods.filter((item) => item !== value) : [...state.includedMods, value];
     if (!state.includedMods.length) state.includedModsExclude = false;
     await loadRecords(true);
+  } else if (action === 'toggle-included-mods-expanded' && state.platform === 'mcmod') {
+    state.includedModsExpanded = !state.includedModsExpanded;
+    render();
   } else if (action === 'toggle-gameplay-category' && state.platform === 'curseforge') {
     const value = element.dataset.value || '';
     if (!value) return;
@@ -2080,6 +2109,15 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   } else if (action === 'toggle-gameplay-expanded' && state.platform === 'curseforge') {
     state.gameplayCategoriesExpanded = !state.gameplayCategoriesExpanded;
     render();
+  } else if (action === 'clear-platform-facet') {
+    if (state.platform === 'mcmod') {
+      state.includedMods = [];
+      state.includedModsExclude = false;
+    } else if (state.platform === 'curseforge') {
+      state.gameplayCategories = [];
+      state.gameplayCategoriesExclude = false;
+    } else return;
+    await loadRecords(true);
   } else if (action === 'toggle-compare') {
     event?.stopPropagation();
     const index = Number(element.dataset.index || '-1');
@@ -2248,7 +2286,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     localStorage.setItem('mcmod-desktop-theme', next);
     render();
   } else if (action === 'clear-filters') {
-    state.query = ''; state.version = ''; state.loader = ''; state.category = ''; state.includedMods = []; state.includedModsExclude = false; state.includedModSearch = ''; state.gameplayCategories = []; state.gameplayCategoriesExclude = false; state.gameplayCategoriesExpanded = false; state.pan = ''; state.dateRange = ''; state.serverOnly = false; state.personalFilter = ''; state.sort = 'updated_desc'; await loadRecords(true);
+    state.query = ''; state.version = ''; state.loader = ''; state.category = ''; state.includedMods = []; state.includedModsExclude = false; state.includedModSearch = ''; state.includedModsExpanded = false; state.gameplayCategories = []; state.gameplayCategoriesExclude = false; state.gameplayCategoriesExpanded = false; state.pan = ''; state.dateRange = ''; state.serverOnly = false; state.personalFilter = ''; state.sort = 'updated_desc'; await loadRecords(true);
   } else if (action === 'clear-filter') {
     const filter = element.dataset.filter;
     if (filter === 'query') state.query = '';
