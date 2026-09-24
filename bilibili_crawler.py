@@ -1085,6 +1085,9 @@ def crawl_bilibili_modpacks(until_date: Optional[str] = None, max_pages_per_kw: 
                 "loaders": ext["loaders"],
                 "categories": ext["categories"],
                 "download_links": ext["download_links"],
+                "desc_observed": isinstance(detail.get('desc'), str),
+                "pinned_comment_observed": isinstance(pinned_res, dict) and pinned_res.get('observed') is True,
+                "subtitle_observed": sub_info.get('observed') is True,
                 "download_links_observed": bool(
                     isinstance(detail.get('desc'), str)
                     and isinstance(pinned_res, dict) and pinned_res.get('observed') is True
@@ -1184,6 +1187,9 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
             "views": 0,
             "pub_timestamp": int(time.time()),
             "download_links": [],
+            "desc_observed": False,
+            "pinned_comment_observed": False,
+            "subtitle_observed": False,
             "download_links_observed": False,
         }
 
@@ -1203,12 +1209,18 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
         orig_pack = pack_map[bvid]
         try:
             detail = crawler.get_video_detail(bvid)
-            if not detail:
+            if not isinstance(detail, dict) or not detail:
+                with lock:
+                    checked_count += 1
+                    orig_pack["desc_observed"] = False
+                    orig_pack["download_links_observed"] = False
                 return
             aid = detail.get("aid", 0)
             cid = detail.get("cid", 0)
             new_title = detail.get("title", orig_pack.get("title", ""))
-            new_desc = detail.get("desc", "")
+            desc_value = detail.get("desc")
+            desc_observed = isinstance(desc_value, str)
+            new_desc = desc_value if desc_observed else ""
             owner = detail.get("owner", {})
             author = owner.get("name", orig_pack.get("author", ""))
             stat = detail.get("stat", {})
@@ -1219,19 +1231,38 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
             pub_time_str = time.strftime('%Y-%m-%d %H:%M', time.localtime(pubdate)) if pubdate else orig_pack.get("pub_time", "")
 
             pinned_res = crawler.get_pinned_comment(aid)
-            pinned_comment = pinned_res.get("message", "")
-            pinned_time = pinned_res.get("time", "")
+            pinned_observed = isinstance(pinned_res, dict) and pinned_res.get("observed") is True
+            pinned_comment = pinned_res.get("message", "") if pinned_observed else ""
+            pinned_time = pinned_res.get("time", "") if isinstance(pinned_res, dict) else ""
+
+            # Old captions may be reused only when their own source read was
+            # confirmed. Legacy records without that provenance are fetched
+            # again; an unknown caption is never treated as an empty one.
+            reused_subtitle = orig_pack.get("subtitle_observed") is True
+            if reused_subtitle:
+                subtitle_observed = True
+                subtitle_text = orig_pack.get("subtitle_text", "") if isinstance(orig_pack.get("subtitle_text", ""), str) else ""
+                sub_info = {
+                    "has_subtitle": orig_pack.get("has_subtitle", False),
+                    "subtitle_text": subtitle_text,
+                    "subtitle_summary": orig_pack.get("subtitle_summary", ""),
+                    "observed": True,
+                }
+            else:
+                sub_info = crawler.get_video_subtitle(aid, cid, bvid)
+                subtitle_observed = isinstance(sub_info, dict) and sub_info.get("observed") is True
+                subtitle_text = sub_info.get("subtitle_text", "") if subtitle_observed else ""
 
             # 实体解析
             ext = crawler.extract_modpack_info(
                 new_title, new_desc, pinned_comment,
-                orig_pack.get("subtitle_text", ""),
+                subtitle_text,
                 author=author
             )
 
             # 比对是否有简介/置顶更新，或者关键元数据变动
-            desc_changed = (new_desc.strip() != orig_pack.get("desc", "").strip())
-            pinned_changed = (pinned_comment.strip() != orig_pack.get("pinned_comment", "").strip())
+            desc_changed = desc_observed and (new_desc.strip() != orig_pack.get("desc", "").strip())
+            pinned_changed = pinned_observed and (pinned_comment.strip() != orig_pack.get("pinned_comment", "").strip())
             is_new_entry = (orig_pack.get("title") == "待同步")
 
             updated_flag = False
@@ -1247,18 +1278,25 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
                 orig_pack["pub_timestamp"] = pubdate
                 orig_pack["views"] = views
                 orig_pack["likes"] = likes
-                orig_pack["desc"] = new_desc
-                orig_pack["pinned_comment"] = pinned_comment
+                if desc_observed:
+                    orig_pack["desc"] = new_desc
+                if pinned_observed:
+                    orig_pack["pinned_comment"] = pinned_comment
+                orig_pack["desc_observed"] = desc_observed
+                orig_pack["pinned_comment_observed"] = pinned_observed
+                orig_pack["subtitle_observed"] = subtitle_observed
+                if subtitle_observed and not reused_subtitle:
+                    orig_pack["has_subtitle"] = sub_info.get("has_subtitle", False)
+                    orig_pack["subtitle_text"] = subtitle_text
+                    orig_pack["subtitle_summary"] = sub_info.get("subtitle_summary", "")
                 orig_pack["mc_version"] = ext["mc_version"]
                 orig_pack["all_versions"] = ext["all_versions"]
                 orig_pack["loaders"] = ext["loaders"]
                 orig_pack["categories"] = ext["categories"]
-                orig_pack["download_links"] = ext["download_links"]
-                orig_pack["download_links_observed"] = bool(
-                    isinstance(detail.get('desc'), str)
-                    and isinstance(pinned_res, dict) and pinned_res.get('observed') is True
-                    and orig_pack.get("download_links_observed") is True
-                )
+                link_sources_observed = desc_observed and pinned_observed and subtitle_observed
+                orig_pack["download_links_observed"] = link_sources_observed
+                if link_sources_observed:
+                    orig_pack["download_links"] = ext["download_links"]
                 orig_pack["extract_code"] = ext["extract_code"]
                 orig_pack["qq_group"] = ext["qq_group"]
                 orig_pack["mod_count"] = ext["mod_count"]
