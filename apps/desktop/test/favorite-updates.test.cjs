@@ -187,3 +187,85 @@ test('favorite notices use post-activation release/link fields, persist read sta
   assert.equal((await restoredLibrary.list()).entries['bilibili:BV-update-test'].favorite, true);
 
 });
+
+test('Bilibili link reminders distinguish confirmed empty, preserve URL fragments, and ignore list order', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'favorite-link-signals-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const tracker = new FavoriteUpdateTracker(root);
+  await tracker.init();
+
+  const baselines = {
+    confirmedEmpty: {
+      bvid: 'BV-confirmed-empty',
+      title: '确认无链接',
+      url: 'https://www.bilibili.com/video/BV-confirmed-empty',
+      download_links: [],
+      download_links_observed: true,
+    },
+    unknownEmpty: {
+      bvid: 'BV-unknown-empty',
+      title: '未确认链接',
+      url: 'https://www.bilibili.com/video/BV-unknown-empty',
+      download_links: [],
+    },
+    fragment: {
+      bvid: 'BV-fragment',
+      title: '片段链接',
+      url: 'https://www.bilibili.com/video/BV-fragment',
+      download_links: [{ url: 'https://pan.example/download#file=old' }],
+      download_links_observed: true,
+    },
+    ordered: {
+      bvid: 'BV-order',
+      title: '排序链接',
+      url: 'https://www.bilibili.com/video/BV-order',
+      download_links: [{ url: 'https://pan.example/a' }, { url: 'https://pan.example/b' }],
+      download_links_observed: true,
+    },
+    unconfirmedRefresh: {
+      bvid: 'BV-unconfirmed-refresh',
+      title: '未确认刷新',
+      url: 'https://www.bilibili.com/video/BV-unconfirmed-refresh',
+      download_links: [{ url: 'https://pan.example/old' }],
+      download_links_observed: true,
+    },
+  };
+  const keys = Object.values(baselines).map((record) => `bilibili:${record.bvid}`);
+  const entries = Object.fromEntries(keys.map((key) => [key, { favorite: true }]));
+  for (const record of Object.values(baselines)) {
+    await tracker.setFavorite('bilibili', record.bvid, true, record);
+  }
+
+  const refreshed = {
+    [baselines.confirmedEmpty.bvid]: {
+      ...baselines.confirmedEmpty,
+      download_links: [{ url: 'https://pan.example/new' }],
+    },
+    [baselines.unknownEmpty.bvid]: {
+      ...baselines.unknownEmpty,
+      download_links: [{ url: 'https://pan.example/new' }],
+      download_links_observed: true,
+    },
+    [baselines.fragment.bvid]: {
+      ...baselines.fragment,
+      download_links: [{ url: 'https://pan.example/download#file=new' }],
+    },
+    [baselines.ordered.bvid]: {
+      ...baselines.ordered,
+      download_links: [...baselines.ordered.download_links].reverse(),
+    },
+    [baselines.unconfirmedRefresh.bvid]: {
+      ...baselines.unconfirmedRefresh,
+      download_links: [{ url: 'https://pan.example/new' }],
+      download_links_observed: false,
+    },
+  };
+
+  const observed = await tracker.processSuccessfulRefresh('bilibili', entries, async (_platform, sourceId) => refreshed[sourceId]);
+  assert.equal(observed.eventsAdded, 2);
+  const events = tracker.list(entries).events;
+  assert.deepEqual(events.map((event) => event.sourceId).sort(), ['BV-confirmed-empty', 'BV-fragment']);
+  assert.deepEqual(events.find((event) => event.sourceId === 'BV-confirmed-empty').previousValues, []);
+  assert.deepEqual(events.find((event) => event.sourceId === 'BV-fragment').previousValues, ['https://pan.example/download#file=old']);
+  assert.deepEqual(events.find((event) => event.sourceId === 'BV-fragment').currentValues, ['https://pan.example/download#file=new']);
+});

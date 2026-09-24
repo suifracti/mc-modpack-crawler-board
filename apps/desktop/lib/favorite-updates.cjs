@@ -28,7 +28,6 @@ function safeHttpUrl(value) {
   try {
     const url = new URL(value.trim());
     if (!['http:', 'https:'].includes(url.protocol)) return '';
-    url.hash = '';
     return url.toString();
   } catch {
     return '';
@@ -101,7 +100,11 @@ function uniqueEntries(entries) {
 function linkSignal(platform, record) {
   if (!['bilibili', 'bbsmc', 'xyebbs'].includes(platform)) return null;
   const raw = sourceRecord(record);
-  if (!Array.isArray(raw.download_links) || !raw.download_links.length) return null;
+  if (!Array.isArray(raw.download_links)) return null;
+  if (!raw.download_links.length) {
+    return platform === 'bilibili' && raw.download_links_observed === true ? [] : null;
+  }
+  if (platform === 'bilibili' && raw.download_links_observed === false) return null;
   const sourceUrl = safeHttpUrl(text(record?.url) || text(raw.url));
   const urls = [];
   for (const item of raw.download_links) {
