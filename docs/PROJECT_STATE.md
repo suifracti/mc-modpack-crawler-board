@@ -1,14 +1,14 @@
 # 当前实施状态
 
-更新：2026-09-22。本页记录 Phase 2 完成后的维护状态；历史项目状态仍见 [PROJECT_STATUS.md](PROJECT_STATUS.md)。
+更新：2026-09-25。本页记录 PR #18 合并后的维护收口状态；历史项目状态仍见 [PROJECT_STATUS.md](PROJECT_STATUS.md)。
 
-## 当前状态：维护观察
+## 当前状态：维护收口
 
-- 状态：`MAINTENANCE / OBSERVE / NO_ACTIVE_IMPLEMENTATION_TASK`。
-- Phase 2 / Mature Personal Product 已完成；PR #8 已进入 master，合并后仅追加本状态文档提交。
-- 当前 master 合并基线：`97914782c0a6c19a9a708961dec3ec1c8e6283ba`；本页更新后会产生新的文档提交。
-- 没有 AGENTS.md，不增建规则体系。Phase 3 不主动启动。
-- 只有真实启动故障、更新故障、snapshot / 磁盘压力、数据损坏或保护问题，或修改更新链时触及 canonical gating，才重新建立实施任务。
+- 状态：`MAINTENANCE / NO_ACTIVE_IMPLEMENTATION_TASK`。
+- PR #18 已合入 master，合并 SHA：`85b95f2c72dd00606b6e5363c49659bf428e4b86`。
+- 当前 master 合并基线：`85b95f2c72dd00606b6e5363c49659bf428e4b86`；本页更新后会产生新的文档提交。
+- blocker：无。GUI smoke 是已知未验证项，不构成 blocker。
+- 项目不主动启动下一开发任务；后续实施需用户明确指定任务。
 
 ## 当前交付
 
@@ -21,6 +21,16 @@
 | PR #7 合并提交 | `0197c8278f09c39fc7af83ac2e61a5deb4f28cfd`，已进入远端 master；其后仅追加本状态文档提交 | IMPLEMENTED / MERGED |
 | PR #8 `codex/personal-backup-revisit` | head `8b08cc5261c49af8d5f93ca0cbb13215f59ad695`；base `392679b24c87821560aa1cd1e0aff0f1ae55748e` | MERGED |
 | PR #8 合并提交 | `97914782c0a6c19a9a708961dec3ec1c8e6283ba`，已进入远端 master；其后仅追加本状态文档提交 | IMPLEMENTED / MERGED |
+| PR #18 `codex/integrate-browser-ui` | head `f2096c93bbc43b554c9255c34967f38909712faa`；base `2242a5e48e7bda4a1879eac6e407196b89f5ef02` | MERGED |
+| PR #18 合并提交 | `85b95f2c72dd00606b6e5363c49659bf428e4b86`，已进入远端 master | MERGED |
+
+## PR #18 收口
+
+- PR #18 `codex/integrate-browser-ui` 已合并；merge SHA：`85b95f2c72dd00606b6e5363c49659bf428e4b86`。最终业务 diff 为 `desktopShell.ts`、`desktopShell.css`、`platformRenderers.test.ts`。
+- 复用合并前 head `f2096c93bbc43b554c9255c34967f38909712faa` 的自动验证：`platformRenderers` 12/12、web typecheck、desktop build 均通过；合并后未机械重跑。
+- GUI smoke 未完成：浏览器自动化连续因 `nodeRepl.fetch request failed` 失败；未记为 GUI PASS，也未继续排查或换工具。
+- blocker：无；GUI smoke 保留为已知未验证项。
+
 
 ## PR #8 收口
 
