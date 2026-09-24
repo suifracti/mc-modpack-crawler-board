@@ -88,6 +88,35 @@ export interface PersonalStatus {
   updatedAt: string | null;
 }
 
+export interface FavoriteUpdateEvent {
+  id: string;
+  platform: Platform;
+  sourceId: string;
+  title: string;
+  sourceUrl: string;
+  kind: 'release' | 'file-index' | 'download-links';
+  summary: string;
+  previousValues: string[];
+  currentValues: string[];
+  createdAt: string;
+  readAt: string | null;
+}
+
+export interface FavoriteUpdateUnknown {
+  key: string;
+  platform: Platform;
+  sourceId: string;
+  title: string;
+  sourceUrl: string;
+  reason: string;
+}
+
+export interface FavoriteUpdatesResult {
+  events: FavoriteUpdateEvent[];
+  unreadCount: number;
+  unknown: FavoriteUpdateUnknown[];
+}
+
 export type PersonalFilter = '' | 'favorite' | 'want_to_play' | 'played';
 
 export interface DesktopComment {
@@ -183,6 +212,8 @@ export interface DesktopUpdateStatus {
 export interface DesktopApi {
   getState: () => Promise<{ data: DesktopDataState; update: DesktopUpdateStatus }>;
   getPersonalLibrary: () => Promise<{ schema: number; entries: Record<string, PersonalStatus> }>;
+  getFavoriteUpdates: () => Promise<FavoriteUpdatesResult>;
+  markFavoriteUpdateRead: (id: string) => Promise<FavoriteUpdatesResult>;
   getMissingPersonalSources: () => Promise<{ entries: Record<string, PersonalStatus> }>;
   restorePersonalLibrary: (payload: unknown) => Promise<{ restored: number; 'skipped-conflict': number; invalid: number }>;
   updatePersonalStatus: (platform: Platform, sourceId: string, patch: Partial<Pick<PersonalStatus, 'favorite' | 'wantToPlay' | 'played' | 'rating' | 'note'>>) => Promise<{ key: string; status: PersonalStatus }>;
@@ -307,6 +338,9 @@ const state = {
   personalLibrary: {} as Record<string, PersonalStatus>,
   missingPersonalSources: {} as Record<string, PersonalStatus>,
   personalProfileOpen: false,
+  favoriteUpdates: null as FavoriteUpdatesResult | null,
+  favoriteUpdatesLoading: false,
+  favoriteUpdatesError: '',
   comments: { sourceId: '', loading: false, available: false, pageCount: 0, comments: [] as DesktopComment[], sourceFile: null as string | null, error: '' },
   loading: true,
   recordsError: '',
@@ -1552,11 +1586,47 @@ function renderPersonalProfilePanel(): string {
   if (!state.personalProfileOpen) return '';
   return `<div class="personal-profile-backdrop" data-action="close-personal-profile" role="dialog" aria-modal="true" aria-labelledby="personal-profile-title">
     <section class="personal-profile-panel" id="personal-profile-dialog">
-      <header class="personal-profile-header"><div><span class="eyebrow">LOCAL PERSONAL DATA</span><h2 id="personal-profile-title">个人资料</h2><p>管理本机个人标记备份，并回访当前快照中缺失的来源。</p></div><button type="button" class="icon-button personal-profile-close" data-action="close-personal-profile" aria-label="关闭个人资料">×</button></header>
+      <header class="personal-profile-header"><div><span class="eyebrow">LOCAL PERSONAL DATA</span><h2 id="personal-profile-title">个人资料</h2><p>查看收藏更新提醒、管理本机个人标记备份，并回访当前快照中缺失的来源。</p></div><button type="button" class="icon-button personal-profile-close" data-action="close-personal-profile" aria-label="关闭个人资料">×</button></header>
       ${state.message ? `<div class="notice personal-profile-notice" role="status">${esc(state.message)}</div>` : ''}
+      ${renderFavoriteUpdatesPanel()}
       ${renderPersonalBackup(state.missingPersonalSources)}
     </section>
   </div>`;
+}
+
+function renderFavoriteUpdatesPanel(): string {
+  const result = state.favoriteUpdates;
+  const events = result?.events || [];
+  const unknown = result?.unknown || [];
+  const eventRows = events.map((item) => {
+    const sourceUrl = safeExternalUrl(item.sourceUrl);
+    const kindName = item.kind === 'file-index' ? '来源文件索引' : item.kind === 'download-links' ? '下载链接' : '发布信息';
+    const changedLinks = item.kind === 'download-links'
+      ? item.currentValues.slice(0, 5).map((url) => {
+        const safeUrl = safeExternalUrl(url);
+        return safeUrl ? `<button type="button" class="detail-link" data-action="open-source" data-url="${esc(safeUrl)}">打开更新后的下载链接 ↗</button>` : '';
+      }).join('')
+      : '';
+    return `<article class="favorite-update-entry ${item.readAt ? 'is-read' : 'is-unread'}">
+      <div class="favorite-update-heading"><strong>${esc(item.title)}</strong><span>${esc(PLATFORM_CONFIGS[item.platform].name)} · ${esc(kindName)}</span></div>
+      <p>${esc(item.summary)}</p><small>检测于 ${esc(formatTime(item.createdAt))} · ${esc(item.sourceId)}</small>
+      ${changedLinks ? `<div class="favorite-update-links">${changedLinks}</div>` : ''}
+      <div class="favorite-update-actions">${sourceUrl ? `<button type="button" class="detail-link" data-action="open-source" data-url="${esc(sourceUrl)}">打开原记录 ↗</button>` : '<span>原记录链接未知（本地数据未提供）</span>'}
+      ${item.readAt ? '<span class="favorite-update-read-state">已读</span>' : `<button type="button" class="favorite-update-mark-read" data-action="mark-favorite-update-read" data-event-id="${esc(item.id)}">标记已读</button>`}</div>
+    </article>`;
+  }).join('') || '<p class="personal-profile-empty">暂无已检测到的收藏更新。</p>';
+  const unknownRows = unknown.map((item) => {
+    const sourceUrl = safeExternalUrl(item.sourceUrl);
+    return `<article class="favorite-update-entry favorite-update-unknown"><div class="favorite-update-heading"><strong>${esc(item.title)}</strong><span>${esc(PLATFORM_CONFIGS[item.platform].name)} · ${esc(item.sourceId)}</span></div><p>暂不可判断：${esc(item.reason)}</p>${sourceUrl ? `<div class="favorite-update-actions"><button type="button" class="detail-link" data-action="open-source" data-url="${esc(sourceUrl)}">打开原记录 ↗</button></div>` : ''}</article>`;
+  }).join('') || '<p class="favorite-update-note">当前收藏均有可比较的来源字段，或尚未积累需要说明的条目。</p>';
+  return `<section class="personal-profile-section favorite-updates-section" aria-labelledby="favorite-updates-title">
+    <div class="personal-profile-section-heading"><div><h3 id="favorite-updates-title">收藏更新 · ${result?.unreadCount || 0} 条未读</h3><p>仅在应用运行期间完成对应平台更新并切换快照后检查；不做后台轮询或实时推送。</p></div></div>
+    ${state.favoriteUpdatesLoading ? '<div class="loading-state">正在读取收藏更新…</div>' : ''}
+    ${state.favoriteUpdatesError ? `<div class="notice" role="alert">${esc(state.favoriteUpdatesError)}</div>` : ''}
+    <div class="favorite-update-list">${eventRows}</div>
+    <div class="favorite-update-unknown-heading"><h3>暂不可判断 · ${unknown.length} 条</h3><p>来源缺少稳定发布字段、当前快照缺少记录或数据不足时，不会生成更新提醒。</p></div>
+    <div class="favorite-update-list">${unknownRows}</div>
+  </section>`;
 }
 
 function replaceRootHtmlPreservingCoverImages(markup: string): void {
@@ -1757,7 +1827,12 @@ function render(): void {
   }).join('');
   const themeButtons = [['dark', '🌙'], ['light', '☀️'], ['eye', '🌿'], ['warm', '☕'], ['pink', '🌸']].map(([id, icon]) => `<button type="button" class="top-tdot ${theme === id ? 'active' : ''}" data-action="set-theme" data-theme="${id}" title="切换${id}主题">${icon}</button>`).join('');
   const missingPersonalCount = Object.keys(state.missingPersonalSources).length;
-  const personalProfileAction = `<button type="button" class="top-action-btn personal-profile-trigger" data-action="open-personal-profile" aria-haspopup="dialog" aria-label="打开个人资料${missingPersonalCount ? `，${missingPersonalCount} 条缺源回访` : ''}">个人资料${missingPersonalCount ? `<span class="personal-profile-count">缺源 ${missingPersonalCount}</span>` : ''}</button>`;
+  const unreadFavoriteUpdates = state.favoriteUpdates?.unreadCount || 0;
+  const personalBadges = [
+    unreadFavoriteUpdates ? `<span class="personal-profile-count">更新 ${unreadFavoriteUpdates}</span>` : '',
+    missingPersonalCount ? `<span class="personal-profile-count">缺源 ${missingPersonalCount}</span>` : '',
+  ].filter(Boolean).join('');
+  const personalProfileAction = `<button type="button" class="top-action-btn personal-profile-trigger" data-action="open-personal-profile" aria-haspopup="dialog" aria-label="打开个人资料${unreadFavoriteUpdates ? `，${unreadFavoriteUpdates} 条收藏更新未读` : ''}${missingPersonalCount ? `，${missingPersonalCount} 条缺源回访` : ''}">个人资料${personalBadges}</button>`;
   const body = (state.platform === 'all'
     ? `${renderCrossSearch()}<section class="all-platforms-grid" aria-label="六平台数据看板">${ALL_PLATFORMS.map(renderLegacyShowcaseCard).join('')}</section><div class="desktop-section-heading"><span class="eyebrow">LIVE SNAPSHOT</span><h2>当前快照浏览</h2><p>卡片、版本筛选与详情入口均来自本地快照；需要更多结果时可继续加载。</p></div>${renderResultsWorkspace(selectedName)}`
     : `${renderPlatformHero(state.platform)}${renderResultsWorkspace(selectedName)}`);
@@ -1985,6 +2060,7 @@ async function savePersonalPatch(record: DesktopRecord, patch: PersonalPatch, re
   try {
     const result = await window.desktopApi.updatePersonalStatus(record.platform, record.sourceId, patch);
     state.personalLibrary[key] = result.status;
+    await loadFavoriteUpdates(false);
     if (state.personalFilter) await loadRecords(true);
     else if (rerender) render();
   } catch (error) {
@@ -2002,6 +2078,19 @@ async function loadPersonalLibrary(): Promise<void> {
   } catch (error) {
     state.personalLibrary = {};
     state.message = error instanceof Error ? error.message : String(error);
+  }
+}
+
+async function loadFavoriteUpdates(renderAfter = false): Promise<void> {
+  state.favoriteUpdatesLoading = true;
+  state.favoriteUpdatesError = '';
+  try {
+    state.favoriteUpdates = await window.desktopApi.getFavoriteUpdates();
+  } catch (error) {
+    state.favoriteUpdatesError = error instanceof Error ? error.message : String(error);
+  } finally {
+    state.favoriteUpdatesLoading = false;
+    if (renderAfter) render();
   }
 }
 
@@ -2060,6 +2149,17 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   } else if (action === 'open-personal-profile') {
     state.personalProfileOpen = true;
     profileFocusAfterRender = 'close';
+    render();
+    await loadFavoriteUpdates(true);
+  } else if (action === 'mark-favorite-update-read') {
+    const id = element.dataset.eventId;
+    if (!id) return;
+    try {
+      state.favoriteUpdates = await window.desktopApi.markFavoriteUpdateRead(id);
+      state.favoriteUpdatesError = '';
+    } catch (error) {
+      state.favoriteUpdatesError = error instanceof Error ? error.message : String(error);
+    }
     render();
   } else if (action === 'close-personal-profile') {
     if (element.classList.contains('personal-profile-backdrop') && event && event.target !== element) return;
@@ -2461,6 +2561,7 @@ export async function initDesktopShell(): Promise<void> {
     state.data = initial.data;
     state.update = initial.update;
     await loadPersonalLibrary();
+    await loadFavoriteUpdates(false);
     await loadRecords();
   } catch (error) {
     state.loading = false;
@@ -2473,7 +2574,7 @@ export async function initDesktopShell(): Promise<void> {
     state.logs = update.logs || state.logs;
     render();
     if (update.state === 'success') {
-      void window.desktopApi.getState().then(async (next) => { state.data = next.data; await loadPersonalLibrary(); await loadRecords(true); });
+      void window.desktopApi.getState().then(async (next) => { state.data = next.data; await loadPersonalLibrary(); await loadFavoriteUpdates(false); await loadRecords(true); });
     }
   });
   window.desktopApi.onUpdateLog((line) => {
@@ -2482,6 +2583,6 @@ export async function initDesktopShell(): Promise<void> {
   });
   window.desktopApi.onDataChanged((data) => {
     state.data = data;
-    void loadPersonalLibrary().then(() => loadRecords(true));
+    void loadPersonalLibrary().then(async () => { await loadFavoriteUpdates(false); await loadRecords(true); });
   });
 }

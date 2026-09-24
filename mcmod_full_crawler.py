@@ -38,9 +38,12 @@ import re
 import ast
 import random
 import argparse
+import tempfile
 import urllib.request
 import urllib.parse
 import http.cookiejar
+from html.parser import HTMLParser
+from html import unescape as html_unescape
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from desktop_collection_contract import write_collection_result
 
@@ -55,6 +58,7 @@ REPO_ROOT = os.path.abspath(
 )
 TABLE_ROWS_PATH = os.path.join(REPO_ROOT, "converted_output", "data", "table_rows.js")
 APP_DATA_PATH = os.path.join(REPO_ROOT, "converted_output", "data", "app_data.js")
+MCMOD_DATA_PATH = os.path.join(REPO_ROOT, "converted_output", "data", "mcmod_data.js")
 RAW_OUTPUT_DIR = os.path.join(REPO_ROOT, "crawler_output")
 RAW_JSON_PATH = os.path.join(RAW_OUTPUT_DIR, "mcmod_modpacks.json")
 
@@ -154,6 +158,49 @@ def fetch_html(url, retries=3, timeout=12):
             else:
                 time.sleep(1.5 * (attempt + 1))
     return None
+
+
+class CoverRefreshBlocked(RuntimeError):
+    """Stop a cover-only batch after an access refusal or rate-limit response."""
+
+
+def fetch_cover_page_once(url, timeout=12):
+    """Fetch one pack detail page without retries for the bounded cover refresh."""
+    req = urllib.request.Request(url, headers=get_headers(referer=url))
+    try:
+        with OPENER.open(req, timeout=timeout) as response:
+            if response.status in (401, 403, 429):
+                raise CoverRefreshBlocked(f"HTTP {response.status}")
+            if response.status != 200:
+                return None
+            final_url = urllib.parse.urlsplit(response.geturl())
+            host = (final_url.hostname or "").lower()
+            if final_url.scheme.lower() != "https" or not (host == "mcmod.cn" or host.endswith(".mcmod.cn")):
+                raise CoverRefreshBlocked("请求被重定向到非 MC 百科 HTTPS 地址")
+            requested_mid = re.search(r"/modpack/(\d+)\.html$", urllib.parse.urlsplit(url).path)
+            final_mid = re.search(r"/modpack/(\d+)\.html$", final_url.path)
+            if requested_mid and (not final_mid or requested_mid.group(1) != final_mid.group(1)):
+                raise CoverRefreshBlocked("响应页面的整合包 ID 与请求不一致")
+            charset = response.headers.get_content_charset() or "utf-8"
+            text = response.read().decode(charset, errors="replace")
+    except urllib.error.HTTPError as error:
+        if error.code in (401, 403, 429):
+            raise CoverRefreshBlocked(f"HTTP {error.code}") from error
+        return None
+    except CoverRefreshBlocked:
+        raise
+    except Exception:
+        return None
+
+    if "已被系统封禁" in text or "banned for security reasons" in text:
+        raise CoverRefreshBlocked("响应为 MC 百科访问限制页面")
+    if (
+        not re.search(r"(?is)<html\b", text)
+        or not re.search(r"(?is)<title\b", text)
+        or "MC百科" not in text
+    ):
+        return None
+    return text
 
 def fetch_trend_data(mid, retries=3, timeout=12):
     """免登录提取官方近 60 天滚动走势数据 (带 CookieJar 与退避重试)"""
@@ -377,6 +424,81 @@ def build_c4(rec_n, fav_n, com_n):
 
 # ═══════════════════════ 页面解析层 ═══════════════════════
 
+class _MCModMainCoverParser(HTMLParser):
+    """Read only the image inside MC百科's dedicated pack-cover container."""
+
+    VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.stack = []
+        self.cover_depth = 0
+        self.cover_url = ""
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        values = {str(key).lower(): value for key, value in attrs if key}
+        classes = set(str(values.get("class") or "").lower().split())
+        is_cover_container = tag == "div" and "class-cover-image" in classes
+        if is_cover_container:
+            self.cover_depth += 1
+
+        if tag == "img" and self.cover_depth and not self.cover_url:
+            for attribute in ("data-src", "src"):
+                candidate = values.get(attribute)
+                if candidate:
+                    normalized = _normalize_mcmod_cover_url(candidate)
+                    if normalized:
+                        self.cover_url = normalized
+                        break
+
+        if tag not in self.VOID_TAGS:
+            self.stack.append((tag, is_cover_container))
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index][0] == tag:
+                popped = self.stack[index:]
+                del self.stack[index:]
+                self.cover_depth -= sum(1 for _, is_cover in popped if is_cover)
+                break
+
+
+def _normalize_mcmod_cover_url(value):
+    raw = html_unescape(str(value or "")).strip()
+    if not raw or raw.lower().startswith(("data:", "blob:", "javascript:")):
+        return ""
+    if raw.startswith("//"):
+        normalized = "https:" + raw
+    elif re.match(r"(?i)^https?://", raw):
+        normalized = raw
+    elif raw.startswith("/"):
+        normalized = urllib.parse.urljoin("https://i.mcmod.cn/", raw)
+    elif "modpack/cover/" in raw.lower():
+        normalized = urllib.parse.urljoin("https://i.mcmod.cn/", raw)
+    else:
+        # A bare filename is meaningful only inside the verified cover container.
+        normalized = urllib.parse.urljoin("https://i.mcmod.cn/modpack/cover/", raw)
+
+    parsed = urllib.parse.urlsplit(normalized)
+    host = (parsed.hostname or "").lower()
+    path = parsed.path.lower()
+    if parsed.scheme.lower() not in ("http", "https") or not (host == "mcmod.cn" or host.endswith(".mcmod.cn")):
+        return ""
+    if "/modpack/cover/" not in path or path.endswith(("/blank.png", "/loading.gif", "/none.jpg")):
+        return ""
+    return normalized
+
+
+def extract_mcmod_pack_cover(mid, page_html):
+    """Extract the main cover; author portraits and post images stay excluded."""
+    parser = _MCModMainCoverParser()
+    parser.feed(str(page_html or ""))
+    parser.close()
+    return parser.cover_url
+
+
 def parse_mcmod_pack(mid, html):
     """完整解析整合包详情页数据"""
     t_m = re.search(r'<title>(.*?)</title>', html)
@@ -387,11 +509,7 @@ def parse_mcmod_pack(mid, html):
         title_cn = p[0].strip()
         title_en = p[1][:-1].strip()
 
-    cover_m = re.search(r'data-src="([^"]*modpack/cover[^"]*)"', html) or re.search(r'src="([^"]*modpack/cover[^"]*)"', html)
-    cover_url = ""
-    if cover_m:
-        raw_cov = cover_m.group(1)
-        cover_url = ('https:' + raw_cov) if raw_cov.startswith('//') else raw_cov
+    cover_url = extract_mcmod_pack_cover(mid, html)
 
     views_m = re.search(r'title="(\d+)"[^>]*class="span"[^>]*>\s*<p class="n">([^<]+)</p>\s*<p class="t">总浏览</p>', html)
     views_n = int(views_m.group(1)) if views_m else 0
@@ -889,6 +1007,145 @@ def build_modern_mcmod_entry(r, app_info):
         "modifiedAt": app_info.get("modified_at") or app_info.get("last_update_date") or "",
     }
 
+
+def _read_jsonp_array(path, variable_name):
+    with open(path, "r", encoding="utf-8") as handle:
+        text = handle.read().strip()
+    prefix = f"window.{variable_name} = "
+    if not text.startswith(prefix):
+        raise ValueError(f"{os.path.basename(path)} 缺少 {prefix.strip()} 前缀")
+    payload = json.loads(text[len(prefix):].rstrip(";\n "))
+    if not isinstance(payload, list):
+        raise ValueError(f"{os.path.basename(path)} 顶层不是数组")
+    return payload
+
+
+def _atomic_write_text(path, text):
+    directory = os.path.dirname(path)
+    os.makedirs(directory, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".mcmod-cover-", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _mcmod_record_id(value):
+    value = str(value or "").strip()
+    return str(int(value)) if value.isdigit() else value
+
+
+def refresh_missing_mcmod_covers(limit, offset=0, page_fetcher=None):
+    """Fill only blank cover_url/coverUrl pairs in the staged raw and sidecar files."""
+    if not isinstance(limit, int) or limit <= 0:
+        raise ValueError("封面刷新必须指定正整数 --limit")
+    if not isinstance(offset, int) or offset < 0:
+        raise ValueError("--cover-offset 必须是非负整数")
+
+    with open(RAW_JSON_PATH, "r", encoding="utf-8") as handle:
+        raw_records = json.load(handle)
+    sidecar_records = _read_jsonp_array(MCMOD_DATA_PATH, "mcmodData")
+    if not isinstance(raw_records, list):
+        raise ValueError("MC 百科原始归档顶层不是数组")
+
+    sidecar_by_id = {}
+    for record in sidecar_records:
+        if not isinstance(record, dict):
+            continue
+        record_id = _mcmod_record_id(record.get("mid") or record.get("projectId"))
+        if record_id:
+            if record_id in sidecar_by_id:
+                raise ValueError(f"mcmod_data.js 中 mid={record_id} 重复")
+            sidecar_by_id[record_id] = record
+
+    candidates = []
+    touched = False
+    unmatched = 0
+    conflicts = 0
+    seen_raw_ids = set()
+    for index, raw_record in enumerate(raw_records):
+        if not isinstance(raw_record, dict):
+            continue
+        record_id = _mcmod_record_id(raw_record.get("mid") or raw_record.get("project_id"))
+        if record_id and record_id in seen_raw_ids:
+            raise ValueError(f"mcmod_modpacks.json 中 mid={record_id} 重复")
+        if record_id:
+            seen_raw_ids.add(record_id)
+        sidecar_record = sidecar_by_id.get(record_id)
+        if not record_id or sidecar_record is None:
+            unmatched += 1
+            continue
+
+        raw_cover = str(raw_record.get("cover_url") or "").strip()
+        sidecar_cover = str(sidecar_record.get("coverUrl") or "").strip()
+        if raw_cover and sidecar_cover and raw_cover != sidecar_cover:
+            conflicts += 1
+            continue
+        if raw_cover or sidecar_cover:
+            if raw_cover and not sidecar_cover:
+                sidecar_record["coverUrl"] = raw_cover
+                touched = True
+            elif sidecar_cover and not raw_cover:
+                raw_record["cover_url"] = sidecar_cover
+                touched = True
+            continue
+        if index >= offset:
+            candidates.append((index, record_id, raw_record, sidecar_record))
+
+    selected = candidates[:limit]
+    fetch_page = page_fetcher or fetch_cover_page_once
+    requests = updated = no_cover = failed = 0
+    blocked = ""
+    last_index = None
+    for index, record_id, raw_record, sidecar_record in selected:
+        last_index = index
+        requests += 1
+        url = f"https://www.mcmod.cn/modpack/{record_id}.html"
+        try:
+            page_html = fetch_page(url)
+        except CoverRefreshBlocked as error:
+            blocked = str(error)
+            break
+        except Exception:
+            failed += 1
+            if page_fetcher is None:
+                time.sleep(0.15)
+            continue
+        if page_fetcher is None:
+            time.sleep(0.15)
+        if not page_html:
+            failed += 1
+            continue
+
+        cover_url = extract_mcmod_pack_cover(record_id, page_html)
+        if not cover_url:
+            no_cover += 1
+            continue
+        raw_record["cover_url"] = cover_url
+        sidecar_record["coverUrl"] = cover_url
+        updated += 1
+        touched = True
+
+    if touched:
+        _atomic_write_text(RAW_JSON_PATH, json.dumps(raw_records, ensure_ascii=False, indent=2) + "\n")
+        sidecar_text = "window.mcmodData = " + json.dumps(sidecar_records, ensure_ascii=False, separators=(",", ":")) + ";\n"
+        _atomic_write_text(MCMOD_DATA_PATH, sidecar_text)
+
+    return {
+        "requests": requests,
+        "updated": updated,
+        "noCover": no_cover,
+        "failed": failed,
+        "unmatched": unmatched,
+        "conflicts": conflicts,
+        "blocked": blocked,
+        "nextOffset": last_index if blocked and last_index is not None else last_index + 1 if last_index is not None else None,
+    }
+
+
 def save_all_outputs(rows, compare_data):
     """保存 legacy inputs, raw archive, and the current structured sidecar."""
     # 按总浏览量倒序排序
@@ -1253,7 +1510,7 @@ def main():
     )
     parser.add_argument(
         "--mode",
-        choices=["new", "trend", "metrics", "all", "sync-titles"],
+        choices=["new", "trend", "metrics", "all", "sync-titles", "covers"],
         default="new",
         help=(
             "运行模式：\n"
@@ -1261,6 +1518,7 @@ def main():
             "  trend       - 并发刷新存量整合包走势（执行无限时间线缝合）与版本更新日志\n"
             "  metrics     - 多线程定向刷新存量整合包基础指标 (浏览量/指数/投票等)\n"
             "  sync-titles - 并发扫描存量整合包更名情况，更新标题并记录历史别名 (解决更名后搜不到问题)\n"
+            "  covers      - 仅补充隔离工作区中已收录条目的缺失封面字段\n"
             "  all         - 串联执行：先探测新包，再全量刷新指标与缝合走势"
         )
     )
@@ -1269,6 +1527,12 @@ def main():
         type=int,
         default=None,
         help="限制存量处理的整合包数量 (默认全部，测试时可指定如 10)"
+    )
+    parser.add_argument(
+        "--cover-offset",
+        type=int,
+        default=0,
+        help="covers 模式按原始记录顺序跳过前 N 条，用于分批继续；只影响隔离工作区"
     )
     parser.add_argument(
         "--max-404",
@@ -1326,6 +1590,13 @@ def main():
     )
 
     args = parser.parse_args()
+    if args.mode == "covers":
+        if args.limit is None or args.limit <= 0:
+            parser.error("covers 模式必须指定正整数 --limit")
+        if not os.environ.get("MC_DESKTOP_WORKSPACE"):
+            parser.error("covers 模式仅允许在显式设置 MC_DESKTOP_WORKSPACE 的隔离目录中运行")
+        if not os.environ.get("MC_DESKTOP_COLLECTION_RESULT"):
+            parser.error("covers 模式需要隔离工作区的 MC_DESKTOP_COLLECTION_RESULT 路径")
 
     # 网络连接与代理策略 (默认纯直连，用户无需懂任何代理)
     proxy_to_use = None
@@ -1354,6 +1625,35 @@ def main():
     if args.limit:
         print(f"  测试限制: 仅处理前 {args.limit} 款整合包")
     print("=" * 70)
+
+    if args.mode == "covers":
+        cover_result = refresh_missing_mcmod_covers(args.limit, offset=args.cover_offset)
+        failed_requests = cover_result["failed"] + (1 if cover_result["blocked"] else 0)
+        request_completed = not cover_result["blocked"] and failed_requests == 0
+        status = "success" if request_completed and cover_result["updated"] else (
+            "success_no_change" if request_completed else "partial"
+        )
+        write_collection_result(
+            "mcmod",
+            request_completed=request_completed,
+            fetched_count=cover_result["updated"],
+            pages_completed=cover_result["requests"],
+            failed_requests=failed_requests,
+            errors=[cover_result["blocked"]] if cover_result["blocked"] else [],
+            status=status,
+            no_change_confirmed=request_completed and cover_result["updated"] == 0,
+            details={"mode": "covers", **cover_result},
+        )
+        print(
+            "  [封面补充完成] "
+            f"请求 {cover_result['requests']} 页 | 新增 {cover_result['updated']} 个封面 | "
+            f"无来源封面 {cover_result['noCover']} | 失败 {cover_result['failed']} | "
+            f"记录不匹配 {cover_result['unmatched']} | 字段冲突 {cover_result['conflicts']}"
+        )
+        if cover_result["blocked"]:
+            print(f"  [停止访问] {cover_result['blocked']}")
+        print("  [安全范围] 只写隔离工作区 raw.cover_url / sidecar.coverUrl；未覆盖已有字段。")
+        return
 
     # 1. 读取现有数据
     rows, compare_data = load_data()

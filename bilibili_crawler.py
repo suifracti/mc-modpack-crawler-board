@@ -297,29 +297,42 @@ class BiliModpackCrawler:
                 res = json.loads(resp.read().decode('utf-8'))
                 if res.get('code') == 0:
                     self.stats["successful"] += 1
-                    top = res.get('data', {}).get('top', {})
+                    data = res.get('data')
+                    if not isinstance(data, dict) or 'top' not in data:
+                        return {'message': '', 'time': '', 'ctime': 0, 'observed': False}
+                    top = data.get('top') or {}
+                    if not isinstance(top, dict):
+                        return {'message': '', 'time': '', 'ctime': 0, 'observed': False}
                     upper_top = top.get('upper')
-                    if upper_top:
-                        content = upper_top.get('content', {}).get('message', '') or ''
+                    if upper_top is not None:
+                        if not isinstance(upper_top, dict):
+                            return {'message': '', 'time': '', 'ctime': 0, 'observed': False}
+                        comment_content = upper_top.get('content')
+                        if not isinstance(comment_content, dict) or not isinstance(comment_content.get('message'), str):
+                            return {'message': '', 'time': '', 'ctime': 0, 'observed': False}
+                        content = comment_content['message'] or ''
                         ctime = upper_top.get('ctime', 0)
                         t_str = time.strftime('%Y-%m-%d %H:%M', time.localtime(ctime)) if ctime else ""
                         return {
                             'message': content,
                             'time': t_str,
-                            'ctime': ctime
+                            'ctime': ctime,
+                            'observed': True,
                         }
+                    return {'message': '', 'time': '', 'ctime': 0, 'observed': True}
                 else:
                     self.stats["failed"] += 1
                     self.stats["errors"].append(f"pinned code={res.get('code')} aid={aid}")
         except Exception as error:
             self.stats["failed"] += 1
             self.stats["errors"].append(f"pinned aid={aid}: {error}")
-        return {'message': '', 'time': '', 'ctime': 0}
+        return {'message': '', 'time': '', 'ctime': 0, 'observed': False}
 
     def get_video_subtitle(self, aid: int, cid: int, bvid: str = "") -> Dict[str, Any]:
         """抓取官方 CC 字幕或平台 AI 语音识别转写字幕"""
+        no_subtitle = {'has_subtitle': False, 'lan_doc': '', 'subtitle_text': '', 'subtitle_summary': '', 'observed': False}
         if not aid or not cid:
-            return {'has_subtitle': False, 'lan_doc': '', 'subtitle_text': '', 'subtitle_summary': ''}
+            return no_subtitle
         
         params = {'aid': aid, 'cid': cid}
         if bvid:
@@ -327,18 +340,21 @@ class BiliModpackCrawler:
         signed = enc_wbi(params, self.img_key, self.sub_key)
         url = 'https://api.bilibili.com/x/player/wbi/v2?' + urllib.parse.urlencode(signed)
         req = urllib.request.Request(url, headers=self.headers)
+        confirmed_no_subtitles = False
         
         try:
             self.stats["requests"] += 1
             with urllib.request.urlopen(req, timeout=6) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
-                if data.get('code', 0) != 0:
+                if data.get('code') != 0:
                     self.stats["failed"] += 1
                     self.stats["errors"].append(f"subtitle code={data.get('code')} bvid={bvid}")
-                    return {'has_subtitle': False, 'lan_doc': '', 'subtitle_text': '', 'subtitle_summary': ''}
+                    return no_subtitle
                 self.stats["successful"] += 1
-                subtitle_info = data.get('data', {}).get('subtitle', {})
-                subs = subtitle_info.get('subtitles', [])
+                subtitle_info = data.get('data', {}).get('subtitle')
+                if not isinstance(subtitle_info, dict) or not isinstance(subtitle_info.get('subtitles'), list):
+                    return no_subtitle
+                subs = subtitle_info['subtitles']
                 if not subs:
                     # 备用轻量接口
                     v2_url = f'https://api.bilibili.com/x/player/v2?aid={aid}&cid={cid}'
@@ -346,12 +362,16 @@ class BiliModpackCrawler:
                     self.stats["requests"] += 1
                     with urllib.request.urlopen(req2, timeout=5) as r2:
                         d2 = json.loads(r2.read().decode('utf-8'))
-                        if d2.get('code', 0) != 0:
+                        if d2.get('code') != 0:
                             self.stats["failed"] += 1
                             self.stats["errors"].append(f"subtitle fallback code={d2.get('code')} bvid={bvid}")
-                            return {'has_subtitle': False, 'lan_doc': '', 'subtitle_text': '', 'subtitle_summary': ''}
+                            return no_subtitle
                         self.stats["successful"] += 1
-                        subs = d2.get('data', {}).get('subtitle', {}).get('subtitles', [])
+                        fallback_info = d2.get('data', {}).get('subtitle')
+                        if not isinstance(fallback_info, dict) or not isinstance(fallback_info.get('subtitles'), list):
+                            return no_subtitle
+                        subs = fallback_info['subtitles']
+                        confirmed_no_subtitles = not subs
 
                 if subs:
                     chosen = None
@@ -371,8 +391,10 @@ class BiliModpackCrawler:
                         self.stats["requests"] += 1
                         with urllib.request.urlopen(sub_req, timeout=6) as sub_resp:
                             sub_json = json.loads(sub_resp.read().decode('utf-8'))
+                            if not isinstance(sub_json, dict) or not isinstance(sub_json.get('body'), list):
+                                return no_subtitle
                             self.stats["successful"] += 1
-                            body = sub_json.get('body', [])
+                            body = sub_json['body']
                             lines = [item.get('content', '').strip() for item in body if item.get('content')]
                             full_sub_text = ' '.join(lines)
                             summary = full_sub_text[:280] + ('...' if len(full_sub_text) > 280 else '')
@@ -380,12 +402,14 @@ class BiliModpackCrawler:
                                 'has_subtitle': True,
                                 'lan_doc': chosen.get('lan_doc', '中文'),
                                 'subtitle_text': full_sub_text,
-                                'subtitle_summary': summary
+                                'subtitle_summary': summary,
+                                'observed': True,
                             }
+                    return no_subtitle
         except Exception as error:
             self.stats["failed"] += 1
             self.stats["errors"].append(f"subtitle {bvid}: {error}")
-        return {'has_subtitle': False, 'lan_doc': '', 'subtitle_text': '', 'subtitle_summary': ''}
+        return {**no_subtitle, 'observed': confirmed_no_subtitles}
 
     @staticmethod
     def extract_modpack_info(title: str, desc: str, pinned_comment: str, subtitle_text: str = "", author: str = "", duration: str = "") -> Dict[str, Any]:
@@ -1061,6 +1085,14 @@ def crawl_bilibili_modpacks(until_date: Optional[str] = None, max_pages_per_kw: 
                 "loaders": ext["loaders"],
                 "categories": ext["categories"],
                 "download_links": ext["download_links"],
+                "desc_observed": isinstance(detail.get('desc'), str),
+                "pinned_comment_observed": isinstance(pinned_res, dict) and pinned_res.get('observed') is True,
+                "subtitle_observed": sub_info.get('observed') is True,
+                "download_links_observed": bool(
+                    isinstance(detail.get('desc'), str)
+                    and isinstance(pinned_res, dict) and pinned_res.get('observed') is True
+                    and sub_info.get('observed') is True
+                ),
                 "extract_code": ext["extract_code"],
                 "qq_group": ext["qq_group"],
                 "mod_count": ext["mod_count"],
@@ -1154,7 +1186,11 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
             "author": "",
             "views": 0,
             "pub_timestamp": int(time.time()),
-            "download_links": []
+            "download_links": [],
+            "desc_observed": False,
+            "pinned_comment_observed": False,
+            "subtitle_observed": False,
+            "download_links_observed": False,
         }
 
     crawler = BiliModpackCrawler()
@@ -1173,12 +1209,18 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
         orig_pack = pack_map[bvid]
         try:
             detail = crawler.get_video_detail(bvid)
-            if not detail:
+            if not isinstance(detail, dict) or not detail:
+                with lock:
+                    checked_count += 1
+                    orig_pack["desc_observed"] = False
+                    orig_pack["download_links_observed"] = False
                 return
             aid = detail.get("aid", 0)
             cid = detail.get("cid", 0)
             new_title = detail.get("title", orig_pack.get("title", ""))
-            new_desc = detail.get("desc", "")
+            desc_value = detail.get("desc")
+            desc_observed = isinstance(desc_value, str)
+            new_desc = desc_value if desc_observed else ""
             owner = detail.get("owner", {})
             author = owner.get("name", orig_pack.get("author", ""))
             stat = detail.get("stat", {})
@@ -1189,19 +1231,38 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
             pub_time_str = time.strftime('%Y-%m-%d %H:%M', time.localtime(pubdate)) if pubdate else orig_pack.get("pub_time", "")
 
             pinned_res = crawler.get_pinned_comment(aid)
-            pinned_comment = pinned_res.get("message", "")
-            pinned_time = pinned_res.get("time", "")
+            pinned_observed = isinstance(pinned_res, dict) and pinned_res.get("observed") is True
+            pinned_comment = pinned_res.get("message", "") if pinned_observed else ""
+            pinned_time = pinned_res.get("time", "") if isinstance(pinned_res, dict) else ""
+
+            # Old captions may be reused only when their own source read was
+            # confirmed. Legacy records without that provenance are fetched
+            # again; an unknown caption is never treated as an empty one.
+            reused_subtitle = orig_pack.get("subtitle_observed") is True
+            if reused_subtitle:
+                subtitle_observed = True
+                subtitle_text = orig_pack.get("subtitle_text", "") if isinstance(orig_pack.get("subtitle_text", ""), str) else ""
+                sub_info = {
+                    "has_subtitle": orig_pack.get("has_subtitle", False),
+                    "subtitle_text": subtitle_text,
+                    "subtitle_summary": orig_pack.get("subtitle_summary", ""),
+                    "observed": True,
+                }
+            else:
+                sub_info = crawler.get_video_subtitle(aid, cid, bvid)
+                subtitle_observed = isinstance(sub_info, dict) and sub_info.get("observed") is True
+                subtitle_text = sub_info.get("subtitle_text", "") if subtitle_observed else ""
 
             # 实体解析
             ext = crawler.extract_modpack_info(
                 new_title, new_desc, pinned_comment,
-                orig_pack.get("subtitle_text", ""),
+                subtitle_text,
                 author=author
             )
 
             # 比对是否有简介/置顶更新，或者关键元数据变动
-            desc_changed = (new_desc.strip() != orig_pack.get("desc", "").strip())
-            pinned_changed = (pinned_comment.strip() != orig_pack.get("pinned_comment", "").strip())
+            desc_changed = desc_observed and (new_desc.strip() != orig_pack.get("desc", "").strip())
+            pinned_changed = pinned_observed and (pinned_comment.strip() != orig_pack.get("pinned_comment", "").strip())
             is_new_entry = (orig_pack.get("title") == "待同步")
 
             updated_flag = False
@@ -1217,13 +1278,25 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
                 orig_pack["pub_timestamp"] = pubdate
                 orig_pack["views"] = views
                 orig_pack["likes"] = likes
-                orig_pack["desc"] = new_desc
-                orig_pack["pinned_comment"] = pinned_comment
+                if desc_observed:
+                    orig_pack["desc"] = new_desc
+                if pinned_observed:
+                    orig_pack["pinned_comment"] = pinned_comment
+                orig_pack["desc_observed"] = desc_observed
+                orig_pack["pinned_comment_observed"] = pinned_observed
+                orig_pack["subtitle_observed"] = subtitle_observed
+                if subtitle_observed and not reused_subtitle:
+                    orig_pack["has_subtitle"] = sub_info.get("has_subtitle", False)
+                    orig_pack["subtitle_text"] = subtitle_text
+                    orig_pack["subtitle_summary"] = sub_info.get("subtitle_summary", "")
                 orig_pack["mc_version"] = ext["mc_version"]
                 orig_pack["all_versions"] = ext["all_versions"]
                 orig_pack["loaders"] = ext["loaders"]
                 orig_pack["categories"] = ext["categories"]
-                orig_pack["download_links"] = ext["download_links"]
+                link_sources_observed = desc_observed and pinned_observed and subtitle_observed
+                orig_pack["download_links_observed"] = link_sources_observed
+                if link_sources_observed:
+                    orig_pack["download_links"] = ext["download_links"]
                 orig_pack["extract_code"] = ext["extract_code"]
                 orig_pack["qq_group"] = ext["qq_group"]
                 orig_pack["mod_count"] = ext["mod_count"]
