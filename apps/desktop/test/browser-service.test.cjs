@@ -140,6 +140,12 @@ test('serves same-origin health, state and imported records over HTTP', async ()
     assert.equal(saved.status, 200);
     assert.equal(JSON.parse(saved.body).status.rating, 4);
 
+    const reminders = await request(`${started.url}api/favorite-updates`);
+    assert.equal(reminders.status, 200);
+    const reminderSummary = JSON.parse(reminders.body);
+    assert.equal(reminderSummary.unreadCount, 0);
+    assert.ok(reminderSummary.unknown.some((item) => item.key === 'bilibili:BV-browser'));
+
     const personalRecords = await request(`${started.url}api/platforms/bilibili/records?personalStatus=favorite`);
     assert.equal(personalRecords.status, 200);
     assert.equal(JSON.parse(personalRecords.body).total, 1);
