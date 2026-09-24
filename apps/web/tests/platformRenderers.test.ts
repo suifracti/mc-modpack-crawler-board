@@ -4,7 +4,7 @@ import { renderBbsmcCard } from '../src/platforms/bbsmc/renderer';
 import { renderXyebbsCard, XYEBBS_COVER_FALLBACK } from '../src/platforms/xyebbs/renderer';
 import { renderModrinthCard } from '../src/platforms/modrinth/renderer';
 import { CURSEFORGE_COVER_FALLBACK, renderCurseforgeCard } from '../src/platforms/curseforge/renderer';
-import { filterBilibiliGroupsByPersonalStatus, getDesktopSearchPlaceholder, renderCurseforgeFileIndexDetail, renderPackVersionDetail, renderPersonalBackup } from '../src/desktopShell';
+import { filterBilibiliGroupsByPersonalStatus, getDesktopSearchPlaceholder, renderCurseforgeFileIndexDetail, renderPackVersionDetail, renderPersonalBackup, resolvePersonalTargetRecord, type DesktopRecord } from '../src/desktopShell';
 import type { BiliGroup } from '../src/platforms/bilibili/renderer';
 import type { BilibiliPack } from '../src/types/legacy/bilibili';
 import type { BbsmcPack } from '../src/types/legacy/bbsmc';
@@ -15,6 +15,16 @@ import { clearFailedImage, getImageFailure, rememberFailedImage } from '../src/u
 import { releaseDetachedCoverImageRequest, renderCoverImage, startCoverImageRetry, type CoverImageRequestTarget } from '../src/utils/coverImage';
 
 describe('Platform Card Renderers', () => {
+  it('keeps a personal action bound to platform and source id after records reorder', () => {
+    const record = (platform: DesktopRecord['platform'], sourceId: string, title: string) => ({ platform, sourceId, title }) as DesktopRecord;
+    const first = record('modrinth', 'project-a', 'A');
+    const target = record('modrinth', 'project-b', 'B');
+    const reordered = [target, first];
+
+    expect(resolvePersonalTargetRecord(reordered, 'modrinth', 'project-b', 1)).toBe(target);
+    expect(resolvePersonalTargetRecord(reordered, undefined, undefined, 1)).toBe(first);
+  });
+
   it('shows missing personal sources as historical references with safe links and backup controls', () => {
     const status = { favorite: true, wantToPlay: true, played: false, rating: 4, note: '<script>备注</script>', updatedAt: null };
     const html = renderPersonalBackup({
