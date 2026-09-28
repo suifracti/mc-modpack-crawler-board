@@ -54,11 +54,45 @@ def fetch_releases(platform, project_id):
         releases = inner.get("data") if isinstance(inner, dict) else inner
         if not isinstance(releases, list):
             raise ValueError("XYEBBS 版本接口未返回列表")
-        return [{"version_number": item.get("label") or "", "date_published": item.get("createDate") or "",
-                 "changelog": item.get("notes") or "", "downloads": item.get("downloadCount") or 0,
-                 "files": [{"name": link.get("name") or "下载", "url": link.get("url")}
-                           for link in item.get("links") or [] if link.get("url")]}
-                for item in releases]
+
+        def _xyebbs_pan_name(l):
+            lt = (l.get("linkType") or l.get("type") or "").upper()
+            u = (l.get("url") or "").lower()
+            if "QUARK" in lt or "quark.cn" in u: return "夸克网盘"
+            if "BAIDU" in lt or "baidu.com" in u: return "百度网盘"
+            if "123" in lt or "123pan" in u or "123684" in u: return "123云盘"
+            if "LANZOU" in lt or "lanzou" in u: return "蓝奏云"
+            if "XUNLEI" in lt or "xunlei.com" in u: return "迅雷网盘"
+            raw = (l.get("name") or "").strip()
+            return raw if raw and raw != "下载" else "网盘下载"
+
+        def _format_xyebbs_release(item):
+            v_name = item.get("label") or item.get("name") or "Release"
+            raw_date = item.get("createDate") or ""
+            date_str = str(raw_date)[:10] if raw_date else ""
+            notes = (item.get("notes") or "").strip()
+            links = [{
+                "name": _xyebbs_pan_name(lk),
+                "url": lk.get("url"),
+                "type": lk.get("linkType"),
+                "code": lk.get("info") or lk.get("code") or ""
+            } for lk in item.get("links") or [] if lk.get("url")]
+            return {
+                "id": item.get("id"),
+                "label": v_name,
+                "name": v_name,
+                "version_number": v_name,
+                "createDate": raw_date,
+                "date_published": raw_date,
+                "date": date_str,
+                "notes": notes,
+                "changelog": notes,
+                "downloads": item.get("downloadCount") or 0,
+                "links": links,
+                "files": links,
+            }
+
+        return [_format_xyebbs_release(item) for item in releases]
     if platform == "modrinth":
         data = request_json(f"https://api.modrinth.com/v2/project/{ident}/version")
         if not isinstance(data, list):

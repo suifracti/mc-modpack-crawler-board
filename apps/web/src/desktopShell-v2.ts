@@ -50,6 +50,11 @@ import {
   type ImageRetryTicket,
 } from './utils/imageFallback';
 import { bindCompositionAwareSearchInput } from './utils/compositionAwareSearch';
+import {
+  findCrossPlatformAssociations,
+  renderCardLinkageCapsule,
+  renderDrawerLinkageSection,
+} from './domain/crossPlatformLinkage';
 import { formatDisplayDate } from './utils/format';
 
 export interface DesktopRecord {
@@ -386,7 +391,14 @@ const state = {
   stickyCategoriesExpanded: false,
   stickyModSearch: '',
   stickyCatSearch: '',
-  viewMode: 'cards' as ViewMode,
+  viewMode: (localStorage.getItem('mcmod-desktop-v2-view-mode') || 'cards') as ViewMode,
+  v2DrawerTab: 'overview' as 'overview' | 'mods' | 'linkage' | 'meta',
+  v2DrawerModFilter: '',
+  v2Toast: null as string | null,
+  v2UpdateScenario: 'daily-fast' as 'daily-fast' | 'enrich-versions' | 'full-catalog',
+  v2EnrichBatchSize: 50 as number,
+  v2SortCol: 'default' as 'default' | 'updatedAt' | 'title' | 'downloads',
+  v2SortDir: 'desc' as 'desc' | 'asc',
   biliViewMode: 'grouped' as BiliViewMode,
   biliGroups: [] as BiliGroup[],
   records: [] as DesktopRecord[],
@@ -434,6 +446,8 @@ const state = {
   auditOpen: false,
   auditLoading: false,
   auditError: '',
+  v2AuditTab: 'all' as 'all' | 'added' | 'updated' | 'version_gained' | 'removed',
+  v2AuditSearch: '',
   compareOpen: false,
   compareIds: [] as string[],
   compareRecords: {} as Record<string, DesktopRecord>,
@@ -535,7 +549,9 @@ function textOrUnknown(value: string | null | undefined): string {
 }
 
 function formatTime(value: string | null | undefined): string {
-  if (!value || /^0+(?:\.0+)?$/.test(String(value).trim())) return UNKNOWN_LOCAL_TEXT;
+  if (!value || /^0+(?:\.0+)?$/.test(String(value).trim()) || value === '未知' || value.includes('本地数据未提供')) return UNKNOWN_LOCAL_TEXT;
+  const clean = formatDisplayDate(value);
+  if (clean) return clean;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? UNKNOWN_LOCAL_TEXT : date.toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
 }
@@ -926,10 +942,11 @@ function legacyPackBase(record: DesktopRecord): Record<string, unknown> {
     client_side: String(raw.client_side || raw.clientSide || ''),
     server_side: String(raw.server_side || raw.serverSide || ''),
     env_display: environmentDisplay(record),
+    packVersion: record.packVersion,
   };
 }
 
-function renderPlatformRichCard(record: DesktopRecord): string {
+export function renderPlatformRichCard(record: DesktopRecord): string {
   const base = legacyPackBase(record);
   if (record.platform === 'mcmod') return renderMcmodCard(base as unknown as McmodStructuredItem);
   if (record.platform === 'bbsmc') return renderBbsmcCard(base as unknown as BbsmcPack);
@@ -1108,19 +1125,14 @@ function renderUpdateModal(): string {
   const batch = state.updateBatch;
   const progress = update && typeof update.total === 'number' && update.total > 0 ? Math.min(100, Math.round((update.processed / update.total) * 100)) : null;
   const logLines = (state.logs.length ? state.logs : update?.logs || []).slice(-80);
-  const otherPlatforms = selectedPlatforms.filter((platform) => platform !== 'mcmod');
-  const modeText = state.mcmodUpdateMode === 'new'
-    ? '只探测新包；每个新包会抓取当时可取得的真实走势与版本记录。'
-    : state.mcmodUpdateMode === 'versions'
-      ? '补抓所有尚未核实的旧包版本历史与更新正文，不重复抓取走势或封面；已确认无日志的包会跳过。'
-    : state.mcmodUpdateMode === 'trend'
-      ? '只检查已收录旧包；缝合过期走势、补抓逐版更新正文，并另行检查缺失封面（不会覆盖已有封面）。'
-      : '先探测新包，再刷新旧包基础指标、走势、逐版更新正文和缺失封面。旧包工作量较大。';
-  const visibleLogs = state.updateLogsExpanded ? logLines : logLines.slice(-3);
+  const scenario = state.v2UpdateScenario || 'daily-fast';
+  const enrichSize = state.v2EnrichBatchSize || 50;
+  const visibleLogs = state.updateLogsExpanded ? logLines : logLines.slice(-4);
+
   const formatLog = (line: string): string => {
     if (line.startsWith('desktop collector: ')) {
       const platform = line.match(/^desktop collector: (\w+)/)?.[1] as Platform | undefined;
-      return `已启动${platform ? PLATFORM_CONFIGS[platform]?.name || platform : '平台'}采集器`;
+      return `已启动 ${platform ? PLATFORM_CONFIGS[platform]?.name || platform : '平台'} 采集进程`;
     }
     if (!line.startsWith('DESKTOP_EVENT ')) return line;
     try {
@@ -1128,30 +1140,117 @@ function renderUpdateModal(): string {
       return [event.platform ? PLATFORM_CONFIGS[event.platform as Platform]?.name || event.platform : '', event.phase || '', event.total ? `${event.processed || 0}/${event.total}` : '', event.error || ''].filter(Boolean).join(' · ');
     } catch { return line; }
   };
+
   return `<div class="modal-backdrop update-backdrop" data-action="close-update-panel" role="dialog" aria-modal="true" aria-labelledby="update-title">
-    <section class="modal-panel update-modal-panel" onclick="event.stopPropagation()">
+    <section class="modal-panel update-modal-panel v2-update-modal" onclick="event.stopPropagation()">
       <header class="modal-header">
         <div class="modal-title-wrap">
-          <span class="eyebrow">本地快照更新</span>
-          <h2 id="update-title">数据更新</h2>
-          <p>按所选顺序逐个平台更新；每个平台完成校验后才切换快照。收起面板后任务继续运行，不影响浏览。</p>
+          <span class="eyebrow">INTELLIGENT UPDATE CENTER</span>
+          <h2 id="update-title">⚡ 整合包数据更新中心</h2>
+          <p>自由选择更新场景，清晰区分新包上架探测与旧包版本/网盘直链补全。任务全程在后台平稳运行，随时可收起面板不影响浏览。</p>
         </div>
         <button type="button" class="modal-close update-close" data-action="close-update-panel" aria-label="${running ? '收起更新面板，继续浏览' : '关闭更新面板'}">×</button>
       </header>
-      <div class="update-section-head"><div><strong>1 · 更新平台</strong><span>已选 ${selectedPlatforms.length} 个</span></div><div><button type="button" class="button secondary small" data-action="select-all-update-platforms" ${running ? 'disabled' : ''}>全选</button><button type="button" class="button secondary small" data-action="clear-update-platforms" ${running ? 'disabled' : ''}>清空</button></div></div>
-      <div class="update-platform-grid" role="group" aria-label="选择要更新的平台">${ALL_PLATFORMS.map((id) => {
-        const selected = selectedPlatforms.includes(id);
-        return `<button type="button" class="update-platform-choice ${selected ? 'is-selected' : ''}" data-action="toggle-update-platform" data-platform="${id}" aria-pressed="${selected}" ${running ? 'disabled' : ''}><span>${platformIcon(id)} ${esc(PLATFORM_CONFIGS[id].name)}</span><span class="update-platform-check" aria-hidden="true">${selected ? '✓' : '＋'}</span></button>`;
-      }).join('')}</div>
-      <div class="update-section-head"><div><strong>2 · 更新范围</strong><span>按平台分别生效</span></div></div>
-      ${selectedPlatforms.includes('mcmod') ? `<div class="update-scope-card"><label class="field-label" for="update-mode">MC百科 · 新包与旧包</label><select id="update-mode" class="field" ${running ? 'disabled' : ''}><option value="new" ${state.mcmodUpdateMode === 'new' ? 'selected' : ''}>只探测新包（推荐日常使用）</option><option value="versions" ${state.mcmodUpdateMode === 'versions' ? 'selected' : ''}>补抓全部旧包版本历史</option><option value="trend" ${state.mcmodUpdateMode === 'trend' ? 'selected' : ''}>只更新旧包走势、版本与缺失封面</option><option value="all" ${state.mcmodUpdateMode === 'all' ? 'selected' : ''}>新包 + 旧包指标、走势、版本与封面</option></select><p class="update-scope-help">${modeText}</p>${state.mcmodUpdateMode !== 'new' ? `<label class="field-label" for="update-mcmod-limit">本次最多检查多少个旧包</label><input id="update-mcmod-limit" class="field" type="number" min="1" max="100000" step="1" value="${state.mcmodOldLimit}" ${running ? 'disabled' : ''}><p class="update-scope-help">${state.mcmodUpdateMode === 'versions' ? `当前快照已收录 ${formatCount(state.data?.platforms.mcmod.count || 0)} 个 MC百科包；会检查尚未核实的版本页，完成后才切换快照。` : `当前快照已收录 ${formatCount(state.data?.platforms.mcmod.count || 0)} 个 MC百科包。默认最多 50 个走势/版本候选，另检查最多同数的缺失封面候选；近期确认原站无封面的包 30 天内不重复请求。仅新包模式按连续 8 个缺失 ID 自动停止，不受此数量限制。`}</p>` : ''}</div>` : ''}
-      ${otherPlatforms.length ? `<div class="update-scope-card"><label class="field-label" for="update-other-mode">其他五站 · 更新内容</label><select id="update-other-mode" class="field" ${running ? 'disabled' : ''}><option value="catalog" ${state.otherUpdateMode === 'catalog' ? 'selected' : ''}>刷新平台列表与新包</option><option value="existing" ${state.otherUpdateMode === 'existing' ? 'selected' : ''}>复查已收录旧包版本／B站简介</option></select><label class="field-label" for="update-limit">${state.otherUpdateMode === 'existing' ? '每个平台本次复查旧包数' : '每个平台采集上限'}</label><input id="update-limit" class="field" type="number" min="1" max="100000" step="1" placeholder="${state.otherUpdateMode === 'existing' ? '留空：每站轮流复查 50 个' : '留空：沿用各平台默认策略'}" value="${esc(state.updateOtherLimit)}" ${running ? 'disabled' : ''}><p class="update-scope-help">${state.otherUpdateMode === 'existing' ? '按最久未核对优先；B站检查旧视频简介与置顶，其他四站读取项目版本接口。大库建议分批执行，失败时不切换当前快照。' : '列表模式更新项目概要，但不代表逐个旧包的完整版本历史已复查。'} ${esc(otherPlatforms.map((id) => PLATFORM_CONFIGS[id].name).join('、'))}</p>${selectedPlatforms.includes('bilibili') && state.otherUpdateMode === 'catalog' ? `<label class="field-label" for="update-pages">B站检索页数</label><input id="update-pages" class="field" type="number" min="1" max="100000" step="1" value="${state.updateBiliPages}" ${running ? 'disabled' : ''}>` : ''}</div>` : ''}
+
+      <!-- 1. 场景化更新策略卡片 -->
+      <div class="update-section-head">
+        <div><strong>1 · 选择更新场景</strong><span>点击切换更新模式</span></div>
+      </div>
+      <div class="update-scenarios-grid">
+        <div class="update-scenario-card ${scenario === 'daily-fast' ? 'is-active' : ''}" data-action="set-v2-update-scenario" data-scenario="daily-fast">
+          <span class="scenario-badge scenario-badge-fast">⚡ 约 1-2 分钟 · 极速追新</span>
+          <div class="scenario-title">🌟 快速日常增量更新</div>
+          <div class="scenario-desc">在 6 大平台自动探测「今天或近期新上架的新整合包」，并同步近期活跃项目的最新动态。耗时极短，适合每天打开软件时点一下。</div>
+          <div class="scenario-meta">
+            <span>🆕 找新包: 开启</span>
+            <span>⚡ 耗时: 极短</span>
+          </div>
+        </div>
+
+        <div class="update-scenario-card ${scenario === 'enrich-versions' ? 'is-active' : ''}" data-action="set-v2-update-scenario" data-scenario="enrich-versions">
+          <span class="scenario-badge scenario-badge-enrich">🔄 约 1-3 分钟 · 补齐资源</span>
+          <div class="scenario-title">📦 旧包版本与网盘补全</div>
+          <div class="scenario-desc">专门针对本地已有旧包，深入补齐官方历史版本、更新日志、网盘下载直链（夸克、百度、123盘等）与提取码。解决部分包没有下载方式的问题。</div>
+          <div class="scenario-meta">
+            <span>💾 补全网盘: 开启</span>
+            <span>📦 范围: 自选批次</span>
+          </div>
+        </div>
+
+        <div class="update-scenario-card ${scenario === 'full-catalog' ? 'is-active' : ''}" data-action="set-v2-update-scenario" data-scenario="full-catalog">
+          <span class="scenario-badge scenario-badge-full">📊 约 3-5 分钟 · 全量校对</span>
+          <div class="scenario-title">🌐 全站全量目录体检</div>
+          <div class="scenario-desc">全量扫描 6 大平台的所有整合包目录，核对项目总数，同步所有新增内容与标签。适合初次使用或长时间未更新时进行完整校对。</div>
+          <div class="scenario-meta">
+            <span>📑 全量列表: 开启</span>
+            <span>🛡️ 完整度: 100%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 如果选了旧包版本补全，展示批次调节按钮 -->
+      ${scenario === 'enrich-versions' ? `<div class="update-scenario-options">
+        <div class="update-scenario-options-row">
+          <span><strong>深度补全批次数量：</strong>选择本次针对多少款旧包深入拉取版本与网盘直链（最久未核对优先）：</span>
+          <div class="update-option-buttons">
+            <button type="button" class="update-option-btn ${enrichSize === 50 ? 'is-active' : ''}" data-action="set-v2-enrich-size" data-size="50">50 个热门包 (极速)</button>
+            <button type="button" class="update-option-btn ${enrichSize === 150 ? 'is-active' : ''}" data-action="set-v2-enrich-size" data-size="150">150 个旧包 (推荐)</button>
+            <button type="button" class="update-option-btn ${enrichSize === 300 ? 'is-active' : ''}" data-action="set-v2-enrich-size" data-size="300">300 个旧包 (深度)</button>
+          </div>
+        </div>
+      </div>` : ''}
+
+      <!-- 2. 平台选择卡片 -->
+      <div class="update-section-head">
+        <div><strong>2 · 更新目标平台</strong><span>已选 ${selectedPlatforms.length} / 6 个平台</span></div>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="button secondary small" data-action="select-all-update-platforms" ${running ? 'disabled' : ''}>全选</button>
+          <button type="button" class="button secondary small" data-action="select-domestic-update-platforms" ${running ? 'disabled' : ''}>仅国内站</button>
+          <button type="button" class="button secondary small" data-action="select-overseas-update-platforms" ${running ? 'disabled' : ''}>仅海外站</button>
+          <button type="button" class="button secondary small" data-action="clear-update-platforms" ${running ? 'disabled' : ''}>清空</button>
+        </div>
+      </div>
+      <div class="update-platforms-grid-v2" role="group" aria-label="选择要更新的平台">
+        ${ALL_PLATFORMS.map((id) => {
+          const selected = selectedPlatforms.includes(id);
+          const count = state.data?.platforms[id]?.count || 0;
+          return `<div class="update-platform-card ${selected ? 'is-selected' : ''}" data-action="toggle-update-platform" data-platform="${id}" aria-pressed="${selected}">
+            <div class="update-platform-card-icon">${platformIcon(id)}</div>
+            <div class="update-platform-card-name">${esc(PLATFORM_CONFIGS[id].name)}</div>
+            <div class="update-platform-card-count">${formatCount(count)} 款收录</div>
+            <span class="v2-badge-pill" style="margin:2px 0 0 0;background:${selected ? 'var(--accent-primary)' : 'var(--border-subtle)'};">${selected ? '✓ 已选' : '＋ 添加'}</span>
+          </div>`;
+        }).join('')}
+      </div>
+
       ${state.updateFormError ? `<p class="update-form-error" role="alert">${esc(state.updateFormError)}</p>` : ''}
-      <div class="update-actions"><button class="button primary" data-action="start-update" ${running || !selectedPlatforms.length ? 'disabled' : ''}>${running ? '更新进行中' : `开始更新${selectedPlatforms.length > 1 ? `（${selectedPlatforms.length} 个平台）` : ''}`}</button>${running ? '<button class="button danger" data-action="cancel-update">取消本批任务</button>' : ''}</div>
-      <div class="update-section-head"><div><strong>3 · 执行状态</strong><span>${batch ? `批次 ${Math.min(batch.completed + 1, batch.total)}/${batch.total}` : update && update.state !== 'idle' ? '上次任务' : '等待开始'}</span></div></div>
-      <div class="update-status ${update?.state || 'idle'}" role="status"><div class="status-line"><strong>${esc(!update?.phase || update.phase === 'idle' ? '等待开始' : update.phase)}</strong><span>${update?.platform ? esc(PLATFORM_CONFIGS[update.platform]?.name || update.platform) : ''}</span></div>${progress === null ? (running ? '<div class="status-meta">处理总量暂未确定</div>' : '') : `<div class="progress-track"><span style="width:${progress}%"></span></div><div class="status-meta">${progress}% · ${update?.processed}/${update?.total}</div>`}${update?.error ? `<div class="error-box">${esc(update.error)}</div>` : ''}</div>
-      <div class="update-log-head"><strong>${batch || running || !update || update.state === 'idle' ? '任务日志' : '上次任务日志'} <span>${logLines.length} 条</span></strong><button type="button" class="button secondary small" data-action="toggle-update-logs" aria-expanded="${state.updateLogsExpanded}">${state.updateLogsExpanded ? '收起' : '查看全部'}</button></div>
-      <div class="update-log-list" role="log" aria-label="数据更新任务日志">${visibleLogs.length ? visibleLogs.map((line) => `<div class="update-log-line ${/失败|错误|error|failed/i.test(line) ? 'is-error' : ''}">${esc(formatLog(line))}</div>`).join('') : '<p>开始更新后显示任务进度与日志。</p>'}</div>
+
+      <!-- 3. 操作按钮 -->
+      <div class="update-actions" style="margin: 14px 0;">
+        <button class="button primary wide" data-action="start-update" style="font-size:14px;padding:12px;" ${running || !selectedPlatforms.length ? 'disabled' : ''}>
+          ${running ? '⚡ 任务执行中，已自动在后台运行…' : `🚀 开始执行${scenario === 'daily-fast' ? '【快速日常更新】' : scenario === 'enrich-versions' ? `【旧包网盘深度补全 (${enrichSize}个/站)】` : '【全量目录体检】'}（已选 ${selectedPlatforms.length} 个平台）`}
+        </button>
+        ${running ? '<button class="button danger" data-action="cancel-update" style="padding:12px 20px;">⏹ 取消任务</button>' : ''}
+      </div>
+
+      <!-- 4. 实时执行状态面板 -->
+      <div class="update-section-head">
+        <div><strong>3 · 执行进度与日志</strong><span>${batch ? `正在处理第 ${Math.min(batch.completed + 1, batch.total)}/${batch.total} 个平台` : update && update.state !== 'idle' ? '任务就绪' : '等待开始'}</span></div>
+      </div>
+      <div class="update-status ${update?.state || 'idle'}" role="status">
+        <div class="status-line">
+          <strong>${esc(!update?.phase || update.phase === 'idle' ? (running ? '正在启动更新引擎…' : '准备就绪，点击上方按钮开始') : update.phase)}</strong>
+          <span>${update?.platform ? esc(PLATFORM_CONFIGS[update.platform]?.name || update.platform) : ''}</span>
+        </div>
+        ${progress === null ? (running ? '<div class="status-meta">正在连接原站并校对目录，请稍候…</div>' : '') : `<div class="progress-track" style="height:8px;margin:8px 0;"><span style="width:${progress}%;background:linear-gradient(90deg,var(--accent-primary),#10b981);"></span></div><div class="status-meta" style="display:flex;justify-content:space-between;"><span>完成率: <b>${progress}%</b></span><span>已处理: ${update?.processed}/${update?.total} 条</span></div>`}
+        ${update?.error ? `<div class="error-box">${esc(update.error)}</div>` : ''}
+      </div>
+
+      <div class="update-log-head" style="margin-top:12px;">
+        <strong>任务执行日志 <span>${logLines.length} 条</span></strong>
+        <button type="button" class="button secondary small" data-action="toggle-update-logs" aria-expanded="${state.updateLogsExpanded}">${state.updateLogsExpanded ? '收起' : '展开完整日志'}</button>
+      </div>
+      <div class="update-log-list" role="log" style="max-height:${state.updateLogsExpanded ? '280px' : '110px'};">${visibleLogs.length ? visibleLogs.map((line) => `<div class="update-log-line ${/失败|错误|error|failed/i.test(line) ? 'is-error' : ''}">${esc(formatLog(line))}</div>`).join('') : '<p style="color:var(--text-muted);font-size:12px;margin:6px 0;">点击上方开始后，此处将实时展示各平台的下载与更新进展。</p>'}</div>
     </section>
   </div>`;
 }
@@ -1224,20 +1323,53 @@ interface DesktopMetricItem {
 
 function recordMetricItems(record: DesktopRecord): DesktopMetricItem[] {
   const raw = record.raw || {};
-  const entries: Array<[string, unknown, boolean?]> = record.platform === 'mcmod'
-    ? [['👁 浏览', raw.views], ['💬 评论', raw.commentsCount, true], ['⭐ 收藏', raw.favorites]]
-    : record.platform === 'bilibili'
-      ? [['▶ 播放', raw.views], ['👍 点赞', raw.likes], ['💬 评论', raw.reply, true]]
-      : record.platform === 'bbsmc'
-        ? [['⬇ 下载', raw.downloads], ['👁 关注', raw.followers], ['💬 评论', raw.comments, true]]
-        : record.platform === 'xyebbs'
-          ? [['⬇ 下载', raw.downloads], ['👁 浏览', raw.views], ['💬 评论', raw.comments, true]]
-          : [['⬇ 下载', raw.downloads], ['👁 关注', raw.followers], ['👍 点赞', raw.likes]];
+  let entries: Array<[string, unknown, boolean?]> = [];
+
+  if (record.platform === 'mcmod') {
+    const votes = (raw.votes && typeof raw.votes === 'object' ? raw.votes : {}) as Record<string, unknown>;
+    const voteStr = votes.redPercent !== undefined ? `${votes.redPercent}% 好评` : (votes.redVotes ? `👍 ${votes.redVotes}` : null);
+    const modCount = raw.includedModsCount || (Array.isArray(raw.includedModNames) ? raw.includedModNames.length : null);
+    entries = [
+      ['👁 浏览', raw.views],
+      ['🔥 热度', raw.score ? `${raw.score}★` : null],
+      ['👍 评价', voteStr],
+      ['📦 模组', modCount ? `${modCount} 款` : null],
+      ['💬 评论', raw.commentsCount, true],
+      ['⭐ 收藏', raw.favorites],
+    ];
+  } else if (record.platform === 'bilibili') {
+    entries = [
+      ['▶ 播放', raw.views],
+      ['👍 点赞', raw.likes],
+      ['💬 评论', raw.reply, true],
+      ['⭐ 收藏', raw.favorites || raw.favs],
+    ];
+  } else if (record.platform === 'curseforge' || record.platform === 'modrinth') {
+    entries = [
+      ['⬇ 下载', raw.downloads || raw.download_count],
+      ['👁 关注', raw.followers],
+      ['👍 点赞', raw.likes],
+      ['💬 评论', raw.comments, true],
+    ];
+  } else if (record.platform === 'xyebbs' || record.platform === 'bbsmc') {
+    entries = [
+      ['⬇ 下载', raw.downloads],
+      ['👁 浏览', raw.views || raw.followers],
+      ['💬 评论', raw.comments, true],
+    ];
+  } else {
+    entries = [
+      ['⬇ 下载', raw.downloads],
+      ['👁 关注', raw.followers],
+      ['👍 点赞', raw.likes],
+    ];
+  }
+
   return entries
     .filter(([, value]) => value !== undefined && value !== null && value !== '')
     .map(([label, value, isComment]) => ({
       label,
-      text: `${label} ${formatMetric(value)}`,
+      text: typeof value === 'number' ? `${label} ${formatMetric(value)}` : `${label} ${value}`,
       isComment: Boolean(isComment),
     }));
 }
@@ -1255,28 +1387,57 @@ function renderRecord(record: DesktopRecord, index: number): string {
   const originalCoverUrl = recordRealCoverUrl(record);
   const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
   const cover = renderCoverImage({ url: originalCoverUrl, fallback: fallbackUrl, alt: `${record.title}封面`, key: record.id, className: 'pack-card-cover-image' });
-  const coverMarkup = `<div class="cover-media cover-media-record" data-cover-frame data-cover-state="${cover.state}"><button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面">${cover.image}${cover.status}</button>${cover.retryButton}</div>`;
+  const packVer = record.packVersion && record.packVersion.trim() && record.packVersion !== '未知' && !record.packVersion.includes('本地数据未提供') ? record.packVersion.trim() : null;
+  const coverMarkup = `<div class="cover-media cover-media-record" data-cover-frame data-cover-state="${cover.state}">
+    <button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面">
+      ${cover.image}${cover.status}
+    </button>
+    ${packVer ? `<span class="cover-pack-ver-badge" title="整合包版本：${esc(packVer)}">🏷️ v${esc(packVer.replace(/^[vV]/, ''))}</span>` : ''}
+    ${cover.retryButton}
+  </div>`;
   const metrics = recordMetricItems(record);
-  return `<article class="pack-card platform-pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
+  const association = findCrossPlatformAssociations(record, state.records, state.biliGroups);
+  const linkageHtml = renderCardLinkageCapsule(association);
+  const displayTime = formatDisplayDate(record.updatedAt) || '暂无更新时间';
+
+  return `<article class="pack-card platform-pack-card v2-pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
     ${coverMarkup}
-    <div class="card-top"><span class="platform-badge">${platformIcon(record.platform)} ${config.name}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>
-    <h3 class="platform-card-title">${esc(record.title)}</h3><p class="author platform-card-meta">${esc(record.author)}</p>
+    <div class="card-top">
+      <span class="platform-badge">${platformIcon(record.platform)} ${config.name}</span>
+      ${packVer ? `<span class="card-pack-ver-pill" title="整合包版本：${esc(packVer)}">🏷️ v${esc(packVer.replace(/^[vV]/, ''))}</span>` : ''}
+      <span class="card-time" title="最后更新时间：${esc(displayTime)}">🕒 ${esc(displayTime)}</span>
+    </div>
+    <h3 class="platform-card-title">${esc(record.title)}</h3>
+    <p class="author platform-card-meta">${esc(record.author || '未知作者')}</p>
     <p class="summary platform-card-summary">${textOrUnknown(record.summary)}</p>
-    <div class="chips platform-card-tags">${record.versions.slice(0, 4).map((value, versionIndex) => `<span>${versionIndex === 0 ? 'MC ' : ''}${esc(value)}</span>`).join('')}${record.loaders.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${!record.versions.length && !record.loaders.length ? '<span class="muted-chip">兼容信息未知</span>' : ''}</div>
+    <div class="chips platform-card-tags">
+      ${record.versions.slice(0, 4).map((value, versionIndex) => `<span>${versionIndex === 0 ? 'MC ' : ''}${esc(value)}</span>`).join('')}
+      ${record.loaders.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}
+      ${!record.versions.length && !record.loaders.length ? '<span class="muted-chip">兼容信息未知</span>' : ''}
+    </div>
     ${metrics.length ? `<div class="card-metrics">${metrics.map((m) => m.isComment
       ? `<button type="button" class="card-metric-bubble card-metric-comment" data-action="open-comment-preview" data-index="${index}" title="点击预览此整合包的评论区">${esc(m.text)}</button>`
       : `<span>${esc(m.text)}</span>`
     ).join('')}</div>` : ''}
+    ${linkageHtml}
     ${renderQuickDownloadLinks(record)}
     ${renderPersonalCardZone(renderPersonalCardActions(record, index), 'pack-card-personal-zone')}
-    <div class="card-footer platform-card-actions"><span>查看详情与来源证据</span><button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div>
+    <div class="card-footer platform-card-actions">
+      <span class="card-footer-view-link">查看详情与生态 ➔</span>
+      <div class="card-footer-right-actions" onclick="event.stopPropagation()">
+        ${safeExternalUrl(record.url) ? `<button type="button" class="card-inapp-btn" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(record.url)}" data-title="${esc(record.title)}" title="在软件内小窗浏览">🪟 小窗</button>` : ''}
+        <button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">
+          ${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比
+        </button>
+      </div>
+    </div>
   </article>`;
 }
 
-function renderMcmodWindowAction(record: DesktopRecord): string {
-  if (record.platform !== 'mcmod') return '';
-  const url = safeExternalUrl(record.url) || `https://www.mcmod.cn/modpack/${encodeURIComponent(record.sourceId)}.html`;
-  return `<button type="button" class="mcmod-comment-link" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(url)}" data-title="${esc(record.title)}">▣ 小窗浏览</button>`;
+function renderRecordWindowAction(record: DesktopRecord): string {
+  const url = safeExternalUrl(record.url) || (record.platform === 'mcmod' ? `https://www.mcmod.cn/modpack/${encodeURIComponent(record.sourceId)}.html` : '');
+  if (!url) return '';
+  return `<button type="button" class="mcmod-comment-link inapp-compact-link" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(url)}" data-title="${esc(record.title)}">🪟 小窗</button>`;
 }
 
 function renderCompactRecord(record: DesktopRecord, index: number): string {
@@ -1286,6 +1447,10 @@ function renderCompactRecord(record: DesktopRecord, index: number): string {
   const coverMarkup = `<div class="cover-media cover-media-compact" data-cover-frame data-cover-state="${cover.state}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面">${cover.image}</button></div>`;
   const metrics = recordMetricItems(record);
   const authorText = record.author && record.author !== '未知' ? esc(record.author) : '';
+  const packVer = record.packVersion && record.packVersion.trim() && record.packVersion !== '未知' && !record.packVersion.includes('本地数据未提供') ? record.packVersion.trim() : null;
+  const association = findCrossPlatformAssociations(record, state.records, state.biliGroups);
+  const linkageHtml = renderCardLinkageCapsule(association);
+  const displayTime = formatDisplayDate(record.updatedAt) || '暂无更新时间';
   let summaryText = record.summary ? record.summary.trim() : '';
   if (!summaryText || summaryText === '未知' || summaryText.includes('本地数据未提供')) {
     const raw = record.raw || {};
@@ -1304,12 +1469,14 @@ function renderCompactRecord(record: DesktopRecord, index: number): string {
     <div class="compact-record-main">
       <div class="compact-record-head">
         <span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span>
-        <span class="card-time">${esc(formatTime(record.updatedAt))}</span>
+        ${packVer ? `<span class="card-pack-ver-pill" title="整合包版本：${esc(packVer)}">🏷️ v${esc(packVer.replace(/^[vV]/, ''))}</span>` : ''}
+        <span class="card-time">🕒 ${esc(displayTime)}</span>
         ${authorText ? `<span class="compact-record-author">${authorText}</span>` : ''}
       </div>
       <h3 class="compact-record-title">${esc(record.title)}</h3>
       <p class="compact-record-summary">${esc(summaryText)}</p>
-      <div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div>
+      <div class="chips">${record.versions.slice(0, 3).map((value) => `<span>MC ${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div>
+      ${linkageHtml}
     </div>
     <div class="compact-record-side">
       <div class="compact-record-metrics">${metrics.map((m) => m.isComment
@@ -1317,7 +1484,7 @@ function renderCompactRecord(record: DesktopRecord, index: number): string {
         : `<span>${esc(m.text)}</span>`
       ).join('')}</div>
       <div class="compact-record-actions">
-        ${renderMcmodWindowAction(record)}
+        ${renderRecordWindowAction(record)}
         ${renderPersonalCardActions(record, index)}
         <button type="button" class="compare-star compact-compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button>
       </div>
@@ -1499,7 +1666,7 @@ function renderMcmodTable(records: DesktopRecord[]): string {
       <td class="mcmod-mod-cell">${modCellHtml}</td>
       <td class="mcmod-personal-cell">
         <div class="table-action-cell">
-          ${renderMcmodWindowAction(record)}
+          ${renderRecordWindowAction(record)}
           ${renderPersonalCardActions(record, index)}
           <button type="button" class="compare-star table-compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button>
         </div>
@@ -1597,34 +1764,138 @@ function renderCrossResults(): string {
   return groups ? `<div class="cross-results-wrap"><div class="cross-results-heading"><strong>各平台匹配结果</strong><span>按当前筛选条件展示各平台首批结果（每个平台最多 12 条）</span></div><div class="cross-results-grid">${groups}</div></div>` : '<div class="cross-results-wrap cross-results-empty">当前关键词在已载入平台中没有匹配结果。</div>';
 }
 
+function findRecordForAudit(item: Record<string, unknown>): DesktopRecord | undefined {
+  const itemId = String(item.id || item.sourceId || '').trim();
+  const itemUrl = String(item.url || '').trim();
+  const itemPlatform = String(item.platform || '').trim();
+  const itemTitle = String(item.title || item.name || '').trim().toLowerCase();
+
+  return state.records.find((r) => {
+    if (itemId && (r.id === itemId || r.sourceId === itemId)) return true;
+    if (itemUrl && r.url === itemUrl) return true;
+    if (itemPlatform && r.platform === itemPlatform && itemTitle && r.title.trim().toLowerCase() === itemTitle) return true;
+    return false;
+  });
+}
+
 function auditCount(audit: DesktopAuditResult | null): number {
   const stats = audit?.stats || {};
   return ['added_count', 'updated_count', 'removed_count', 'version_gained_count'].reduce((sum, key) => sum + Number(stats[key] || 0), 0);
 }
 
 function auditRows(audit: DesktopAuditResult): string {
-  const groups: Array<[string, Array<Record<string, unknown>>]> = [
-    ['新增', audit.added],
-    ['更新', audit.updated],
-    ['新增版本', audit.version_gained],
-    ['移除', audit.removed],
-  ];
-  const rows = groups.flatMap(([label, items]) => items.slice(0, 80).map((item) => `<article class="audit-row"><div><strong>${esc(label)} · ${esc(String(item.title || item.name || item.id || '未命名记录'))}</strong><span>${esc(String(item.platform || '平台未知'))} · ${esc(String(item.author || '作者未知'))}</span></div><a class="detail-link" href="${esc(safeExternalUrl(item.url))}" target="_blank" rel="noreferrer">原站 ↗</a></article>`));
-  return rows.length ? rows.join('') : '<div class="empty-evidence">当前快照没有可展示的变动条目。</div>';
+  const tab = state.v2AuditTab || 'all';
+  const query = (state.v2AuditSearch || '').trim().toLowerCase();
+
+  interface AuditEntry {
+    category: 'added' | 'updated' | 'version_gained' | 'removed';
+    label: string;
+    item: Record<string, unknown>;
+  }
+
+  const allEntries: AuditEntry[] = [];
+  if (tab === 'all' || tab === 'added') {
+    (audit.added || []).forEach((item) => allEntries.push({ category: 'added', label: '✨ 新增上架', item }));
+  }
+  if (tab === 'all' || tab === 'updated') {
+    (audit.updated || []).forEach((item) => allEntries.push({ category: 'updated', label: '🔄 内容更新', item }));
+  }
+  if (tab === 'all' || tab === 'version_gained') {
+    (audit.version_gained || []).forEach((item) => allEntries.push({ category: 'version_gained', label: '🏷️ 补齐版本/直链', item }));
+  }
+  if (tab === 'all' || tab === 'removed') {
+    (audit.removed || []).forEach((item) => allEntries.push({ category: 'removed', label: '❌ 已移除', item }));
+  }
+
+  const filtered = query
+    ? allEntries.filter((entry) => {
+        const title = String(entry.item.title || entry.item.name || entry.item.id || '').toLowerCase();
+        const author = String(entry.item.author || '').toLowerCase();
+        const platform = String(entry.item.platform || '').toLowerCase();
+        return title.includes(query) || author.includes(query) || platform.includes(query);
+      })
+    : allEntries;
+
+  if (!filtered.length) {
+    return `<div class="empty-evidence">${query ? '未找到符合条件的变动条目。' : '当前类别没有变动条目。'}</div>`;
+  }
+
+  return filtered.slice(0, 100).map((entry) => {
+    const item = entry.item;
+    const title = String(item.title || item.name || item.id || '未命名整合包');
+    const platform = (item.platform ? String(item.platform) : '') as Platform;
+    const platformName = PLATFORM_CONFIGS[platform]?.name || platform || '未知平台';
+    const author = String(item.author || '未知作者');
+    const matchedRecord = findRecordForAudit(item);
+    const safeUrl = safeExternalUrl(String(item.url || (matchedRecord?.url) || ''));
+
+    const categoryBadgeClass = entry.category === 'added' ? 'audit-badge-added'
+      : entry.category === 'updated' ? 'audit-badge-updated'
+      : entry.category === 'version_gained' ? 'audit-badge-version' : 'audit-badge-removed';
+
+    return `<article class="audit-row v2-audit-row">
+      <div class="audit-row-left">
+        <span class="v2-badge-pill ${categoryBadgeClass}">${esc(entry.label)}</span>
+        <span class="audit-platform-tag">${platform ? platformIcon(platform) : ''} ${esc(platformName)}</span>
+      </div>
+      <div class="audit-row-main">
+        <strong class="audit-pack-title">${esc(title)}</strong>
+        <span class="audit-pack-author">${esc(author)}</span>
+      </div>
+      <div class="audit-row-actions">
+        ${matchedRecord ? `<button type="button" class="button primary small" data-action="audit-select-record" data-record-id="${esc(matchedRecord.id)}">📦 详情抽屉</button>` : ''}
+        ${safeUrl ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-url="${esc(safeUrl)}" data-title="${esc(title)}">🪟 小窗</button><a class="button ghost small" href="${esc(safeUrl)}" target="_blank" rel="noreferrer">原站 ↗</a>` : ''}
+      </div>
+    </article>`;
+  }).join('');
 }
 
 function auditPanel(): string {
   if (!state.auditOpen) return '';
   const audit = state.audit;
-  const stats = audit?.stats || {};
+  const stats = (audit?.stats || {}) as Record<string, unknown>;
+  const currentTab = state.v2AuditTab || 'all';
+
   const body = state.auditLoading
     ? '<div class="loading-state">正在读取当前快照的审计文件…</div>'
     : state.auditError
       ? `<div class="error-state"><div class="empty-icon">!</div><h3>审计请求失败</h3><p>${esc(state.auditError)}</p><button type="button" class="button secondary" data-action="retry-audit">重试审计请求</button></div>`
       : audit
-        ? `<p class="audit-meta">${esc(audit.generated_at || '当前快照')} · ${audit.available ? '可用历史对比' : '没有可用历史基线'}</p>${audit.message ? `<div class="notice">${esc(audit.message)}</div>` : ''}<div class="audit-kpis"><div><strong>${formatCount(Number(stats.total_current || 0))}</strong><span>当前范围</span></div><div><strong>${formatCount(Number(stats.added_count || 0))}</strong><span>新增</span></div><div><strong>${formatCount(Number(stats.updated_count || 0))}</strong><span>更新</span></div><div><strong>${formatCount(Number(stats.removed_count || 0))}</strong><span>移除</span></div></div><div class="audit-list">${auditRows(audit)}</div>`
+        ? `<p class="audit-meta">${esc(audit.generated_at || '当前快照')} · ${audit.available ? '可用历史对比' : '没有可用历史基线'}</p>
+          ${audit.message ? `<div class="notice">${esc(audit.message)}</div>` : ''}
+          <div class="audit-kpis">
+            <div><strong>${formatCount(Number(stats.total_current || 0))}</strong><span>当前范围总数</span></div>
+            <div style="border-left: 3px solid #10b981;"><strong>${formatCount(Number(stats.added_count || audit.added?.length || 0))}</strong><span>✨ 新增上架</span></div>
+            <div style="border-left: 3px solid #3b82f6;"><strong>${formatCount(Number(stats.updated_count || audit.updated?.length || 0))}</strong><span>🔄 内容更新</span></div>
+            <div style="border-left: 3px solid #f59e0b;"><strong>${formatCount(Number(stats.version_gained_count || audit.version_gained?.length || 0))}</strong><span>🏷️ 补齐版本/直链</span></div>
+            <div style="border-left: 3px solid #ef4444;"><strong>${formatCount(Number(stats.removed_count || audit.removed?.length || 0))}</strong><span>❌ 已下架移除</span></div>
+          </div>
+          <div class="v2-audit-toolbar">
+            <div class="v2-audit-tabs" role="tablist">
+              <button type="button" class="v2-audit-tab-btn ${currentTab === 'all' ? 'is-active' : ''}" data-action="set-v2-audit-tab" data-tab="all">全部变动 (${auditCount(audit)})</button>
+              <button type="button" class="v2-audit-tab-btn ${currentTab === 'added' ? 'is-active' : ''}" data-action="set-v2-audit-tab" data-tab="added">✨ 新增 (${audit.added?.length || 0})</button>
+              <button type="button" class="v2-audit-tab-btn ${currentTab === 'updated' ? 'is-active' : ''}" data-action="set-v2-audit-tab" data-tab="updated">🔄 更新 (${audit.updated?.length || 0})</button>
+              <button type="button" class="v2-audit-tab-btn ${currentTab === 'version_gained' ? 'is-active' : ''}" data-action="set-v2-audit-tab" data-tab="version_gained">🏷️ 补齐版本 (${audit.version_gained?.length || 0})</button>
+              <button type="button" class="v2-audit-tab-btn ${currentTab === 'removed' ? 'is-active' : ''}" data-action="set-v2-audit-tab" data-tab="removed">❌ 移除 (${audit.removed?.length || 0})</button>
+            </div>
+            <input type="search" class="field v2-audit-search-input js-audit-search" value="${esc(state.v2AuditSearch || '')}" placeholder="搜索变动条目名称或作者…" autocomplete="off" />
+          </div>
+          <div class="audit-list">${auditRows(audit)}</div>`
         : '<div class="empty-evidence">当前快照没有可读取的审计信息。</div>';
-  return `<div class="modal-backdrop audit-backdrop" data-action="close-audit" role="dialog" aria-modal="true" aria-label="变动审计"><section class="modal-panel audit-panel" onclick="event.stopPropagation()"><header class="modal-header"><div class="modal-title-wrap"><span class="eyebrow">SNAPSHOT AUDIT</span><h2>抓取变动审计</h2></div><button type="button" class="modal-close audit-close" data-action="close-audit" aria-label="关闭审计">×</button></header>${body}</section></div>`;
+
+  return `<div class="modal-backdrop audit-backdrop" data-action="close-audit" role="dialog" aria-modal="true" aria-label="变动审计">
+    <section class="modal-panel audit-panel v2-audit-modal" onclick="event.stopPropagation()">
+      <header class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="eyebrow">SNAPSHOT AUDIT</span>
+          <h2>抓取变动审计与增量核验</h2>
+          <p>对比上一次快照与本次采集结果，清晰列出新上架整合包、内容更新、历史版本补全与下架变动，可直接在此处打开详情或小窗预览。</p>
+        </div>
+        <button type="button" class="modal-close audit-close" data-action="close-audit" aria-label="关闭审计">×</button>
+      </header>
+      ${body}
+    </section>
+  </div>`;
 }
 
 function compareEntries(): DesktopRecord[] {
@@ -1634,13 +1905,132 @@ function compareEntries(): DesktopRecord[] {
 function renderCompareTray(): string {
   const entries = compareEntries();
   if (!entries.length) return '';
-  return `<aside class="compare-tray"><div><strong>待比较整合包</strong><span>${entries.length} 个${state.compareIds.length > entries.length ? `，当前筛选外 ${state.compareIds.length - entries.length} 个` : ''}</span></div><div class="compare-tray-names">${entries.slice(0, 5).map((record) => `<span>${esc(record.title)}</span>`).join('')}</div><button type="button" class="button secondary" data-action="open-compare" ${entries.length < 2 ? 'disabled' : ''}>全面对比</button><button type="button" class="button" data-action="clear-compare">清空</button></aside>`;
+  return `<aside class="compare-tray" aria-label="整合包对比快捷托盘">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span style="font-size:16px;">⚖️</span>
+      <strong>待对比整合包</strong>
+      <span class="badge-pill" style="background:var(--accent-primary);color:#fff;font-size:11px;padding:1px 6px;border-radius:10px;">${entries.length}</span>
+    </div>
+    <div class="compare-tray-names" style="display:flex;gap:6px;max-width:380px;overflow-x:auto;">
+      ${entries.slice(0, 4).map((record) => `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg-surface);padding:2px 8px;border-radius:4px;border:1px solid var(--border-subtle);font-size:12px;white-space:nowrap;">${esc(record.title)} <button type="button" data-action="remove-compare-item" data-record-id="${esc(record.id)}" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:0 2px;">✕</button></span>`).join('')}
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button type="button" class="button primary small" data-action="open-compare" ${entries.length < 2 ? 'disabled' : ''}>全面横向对比 (${entries.length})</button>
+      <button type="button" class="button secondary small" data-action="clear-compare">清空</button>
+    </div>
+  </aside>`;
 }
 
 function renderComparePanel(): string {
   if (!state.compareOpen) return '';
   const entries = compareEntries();
-  return `<div class="modal-backdrop compare-backdrop" data-action="close-compare" role="dialog" aria-modal="true" aria-label="整合包全面对比"><section class="modal-panel compare-panel" onclick="event.stopPropagation()"><header class="modal-header"><div class="modal-title-wrap"><span class="eyebrow">MODPACK COMPARISON</span><h2>整合包全面对比</h2></div><button type="button" class="modal-close compare-close" data-action="close-compare" aria-label="关闭比较">×</button></header>${entries.length < 2 ? '<div class="empty-evidence">至少选择两个当前已载入的整合包。</div>' : `<div class="compare-table"><div class="compare-row compare-row-head"><span>字段</span>${entries.map((record) => `<strong>${esc(record.title)}</strong>`).join('')}</div><div class="compare-row"><span>平台</span>${entries.map((record) => `<span>${esc(PLATFORM_CONFIGS[record.platform].name)}</span>`).join('')}</div><div class="compare-row"><span>作者</span>${entries.map((record) => `<span>${esc(record.author)}</span>`).join('')}</div><div class="compare-row"><span>Minecraft</span>${entries.map((record) => `<span>${esc(record.versions.join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div><div class="compare-row"><span>Loader</span>${entries.map((record) => `<span>${esc(record.loaders.join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div><div class="compare-row"><span>分类</span>${entries.map((record) => `<span>${esc(record.categories.map((c) => getCategoryLabel(c)).join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div><div class="compare-row"><span>服务端</span>${entries.map((record) => `<span>${esc(environmentDisplay(record))}</span>`).join('')}</div><div class="compare-row"><span>平台指标</span>${entries.map((record) => `<span>${esc(recordMetricItems(record).map((m) => m.text).join(' · ') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div></div>`}</section></div>`;
+  if (entries.length < 2) {
+    return `<div class="modal-backdrop compare-backdrop" data-action="close-compare" role="dialog" aria-modal="true" aria-label="整合包全面对比">
+      <section class="modal-panel compare-panel" onclick="event.stopPropagation()">
+        <header class="modal-header">
+          <div class="modal-title-wrap">
+            <span class="eyebrow">MODPACK COMPARISON</span>
+            <h2>⚖️ 整合包多维横向对比</h2>
+          </div>
+          <button type="button" class="modal-close compare-close" data-action="close-compare" aria-label="关闭比较">×</button>
+        </header>
+        <div class="empty-evidence" style="padding: 40px; text-align: center;">
+          <p>请至少选择 2 款整合包加入对比（点击卡片右下角或操作列中的“加入对比”）。</p>
+        </div>
+      </section>
+    </div>`;
+  }
+
+  const headerCol = `<div class="compare-row compare-row-head">
+    <span class="compare-field-label">项目概要</span>
+    ${entries.map((record) => {
+      const coverUrl = recordRealCoverUrl(record);
+      const isDirectDownloadable = ['curseforge', 'modrinth'].includes(record.platform);
+      return `<div class="compare-pack-card">
+        <button type="button" class="compare-remove-btn" data-action="remove-compare-item" data-record-id="${esc(record.id)}" title="从对比中移除">✕</button>
+        ${coverUrl ? `<div class="compare-cover-wrap"><img src="${esc(coverUrl)}" alt="${esc(record.title)}" class="compare-cover-img" loading="lazy" /></div>` : '<div class="compare-cover-placeholder">📦</div>'}
+        <strong class="compare-pack-title" title="${esc(record.title)}">${esc(record.title)}</strong>
+        <div class="compare-pack-actions">
+          <button type="button" class="button primary small" data-action="compare-select-record" data-record-id="${esc(record.id)}" title="打开详情抽屉">📋 详情</button>
+          ${safeExternalUrl(record.url) ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(record.url)}" data-title="${esc(record.title)}">🪟 小窗</button>` : ''}
+          ${isDirectDownloadable ? `<button type="button" class="button secondary small" data-action="copy-launcher-link" data-record-id="${esc(record.id)}" title="复制启动器直链">🚀 直通</button>` : ''}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+
+  const versionRow = `<div class="compare-row">
+    <span class="compare-field-label">🏷️ 整合包版本</span>
+    ${entries.map((record) => `<span><strong style="color:var(--accent-primary);font-size:13px;">${esc(record.packVersion ? `v${record.packVersion}` : '未指定版本')}</strong></span>`).join('')}
+  </div>`;
+
+  const platformRow = `<div class="compare-row">
+    <span class="compare-field-label">来源平台</span>
+    ${entries.map((record) => `<span>${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span>`).join('')}
+  </div>`;
+
+  const dateRow = `<div class="compare-row">
+    <span class="compare-field-label">🕒 更新时间</span>
+    ${entries.map((record) => `<span>${esc(record.updatedAt ? formatDisplayDate(record.updatedAt) : '—')}</span>`).join('')}
+  </div>`;
+
+  const mcRow = `<div class="compare-row">
+    <span class="compare-field-label">Minecraft 版本</span>
+    ${entries.map((record) => `<span>${esc(record.versions.join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}
+  </div>`;
+
+  const loaderRow = `<div class="compare-row">
+    <span class="compare-field-label">⚙️ Loader</span>
+    ${entries.map((record) => `<span>${esc(record.loaders.join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}
+  </div>`;
+
+  const authorRow = `<div class="compare-row">
+    <span class="compare-field-label">作者</span>
+    ${entries.map((record) => `<span>${esc(record.author || '未知')}</span>`).join('')}
+  </div>`;
+
+  const categoriesRow = `<div class="compare-row">
+    <span class="compare-field-label">分类标签</span>
+    ${entries.map((record) => `<span>${esc(record.categories.map((c) => getCategoryLabel(c)).join('、') || '—')}</span>`).join('')}
+  </div>`;
+
+  const metricsRow = `<div class="compare-row">
+    <span class="compare-field-label">热度与指标</span>
+    ${entries.map((record) => `<span>${esc(recordMetricItems(record).map((m) => m.text).join(' · ') || '—')}</span>`).join('')}
+  </div>`;
+
+  const linkageRow = `<div class="compare-row">
+    <span class="compare-field-label">🔗 全网多端联动</span>
+    ${entries.map((record) => {
+      const assoc = findCrossPlatformAssociations(record, state.records, state.biliGroups);
+      if (assoc.totalMatches === 0) return `<span style="color:var(--text-muted);font-size:12px;">暂无其他端同名关联</span>`;
+      return `<span><strong style="color:var(--accent-primary);">匹配到 ${assoc.totalMatches} 处</strong><br><small style="color:var(--text-muted);">${assoc.links.map((l) => PLATFORM_CONFIGS[l.platform]?.name || l.platform).join(' · ')}</small></span>`;
+    }).join('')}
+  </div>`;
+
+  return `<div class="modal-backdrop compare-backdrop" data-action="close-compare" role="dialog" aria-modal="true" aria-label="整合包全面对比">
+    <section class="modal-panel compare-panel v2-compare-panel" onclick="event.stopPropagation()">
+      <header class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="eyebrow">MODPACK COMPARISON</span>
+          <h2>⚖️ 整合包多维横向对比（共 ${entries.length} 款）</h2>
+        </div>
+        <button type="button" class="modal-close compare-close" data-action="close-compare" aria-label="关闭比较">×</button>
+      </header>
+      <div class="compare-table-v2">
+        ${headerCol}
+        ${versionRow}
+        ${platformRow}
+        ${dateRow}
+        ${mcRow}
+        ${loaderRow}
+        ${authorRow}
+        ${categoriesRow}
+        ${metricsRow}
+        ${linkageRow}
+      </div>
+    </section>
+  </div>`;
 }
 
 function renderPlatformHero(platform: Platform): string {
@@ -1719,7 +2109,7 @@ export function renderStickyFollowBar(): string {
 
   const viewButtons = isBili
     ? `<button type="button" class="desktop-view-button ${state.biliViewMode === 'grouped' ? 'is-active' : ''}" data-action="set-bili-view-mode" data-bili-view-mode="grouped">同包聚合</button><button type="button" class="desktop-view-button ${state.biliViewMode === 'flat' ? 'is-active' : ''}" data-action="set-bili-view-mode" data-bili-view-mode="flat">视频平铺</button>`
-    : `<button type="button" class="desktop-view-button ${state.viewMode === 'cards' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="cards">卡片</button><button type="button" class="desktop-view-button ${state.viewMode === 'compact' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="compact">紧凑</button>${isMcmod ? `<button type="button" class="desktop-view-button ${state.viewMode === 'table' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="table">表格</button>` : ''}`;
+    : `<button type="button" class="desktop-view-button ${state.viewMode === 'cards' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="cards">卡片</button><button type="button" class="desktop-view-button ${state.viewMode === 'compact' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="compact">紧凑</button><button type="button" class="desktop-view-button ${state.viewMode === 'table' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="table">表格</button>`;
 
   const hasActiveFilters = Boolean(
     state.category ||
@@ -1971,7 +2361,29 @@ export function renderStickyFollowBar(): string {
     }
   }
 
-  // 4. Active filters chips row (if any)
+  // 4. Hot Keywords Row
+  const HOT_KEYWORDS = [
+    '脆骨症',
+    '机械动力',
+    '格雷科技',
+    'RLCraft',
+    'DawnCraft',
+    '宝可梦',
+    '灾变',
+    '贝雷塔',
+    '惊变100天',
+    '暮色森林',
+    '空岛生存',
+  ];
+  const hotKeywordsHtml = `<div class="hot-keywords-bar">
+    <span class="hot-keywords-label">🔥 热门搜索：</span>
+    ${HOT_KEYWORDS.map((kw) => {
+      const isActive = state.query === kw;
+      return `<button type="button" class="hot-keyword-chip ${isActive ? 'is-active' : ''}" data-action="quick-search" data-query="${esc(kw)}">${esc(kw)}</button>`;
+    }).join('')}
+  </div>`;
+
+  // 5. Active filters chips row (if any)
   const activeFiltersHtml = renderActiveFilters();
   const activeFiltersRowHtml = activeFiltersHtml
     ? `<div class="sticky-bar-row sticky-active-filters-row">${activeFiltersHtml}</div>`
@@ -1979,6 +2391,7 @@ export function renderStickyFollowBar(): string {
 
   return `<nav class="desktop-sticky-bar ${state.stickyFollowMode ? 'is-sticky' : ''}" aria-label="跟随屏幕快捷筛选与排序导航">
     ${toolbarRowHtml}
+    ${hotKeywordsHtml}
     ${categoryRowHtml}
     ${row3Html}
     ${activeFiltersRowHtml}
@@ -2019,6 +2432,206 @@ export function setStickyFollowStateForTest(params: {
   if (params.records) state.records = params.records;
 }
 
+
+let v2ToastTimer: any = null;
+function showV2Toast(message: string): void {
+  state.v2Toast = message;
+  render();
+  clearTimeout(v2ToastTimer);
+  v2ToastTimer = setTimeout(() => {
+    state.v2Toast = null;
+    render();
+  }, 3200);
+}
+
+function renderV2Toast(): string {
+  return state.v2Toast ? `<div class="v2-toast is-visible"><span>${esc(state.v2Toast)}</span></div>` : '';
+}
+
+function renderUniversalTable(records: DesktopRecord[]): string {
+  if (state.platform === 'mcmod') return renderMcmodTable(records);
+  let list = [...records];
+  if (state.v2SortCol === 'title') {
+    list.sort((a, b) => state.v2SortDir === 'asc' ? a.title.localeCompare(b.title, 'zh-CN') : b.title.localeCompare(a.title, 'zh-CN'));
+  } else if (state.v2SortCol === 'updatedAt') {
+    list.sort((a, b) => state.v2SortDir === 'asc' ? (a.updatedAt || '').localeCompare(b.updatedAt || '') : (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  } else if (state.v2SortCol === 'downloads') {
+    const getDl = (r: DesktopRecord) => {
+      const raw = (r.raw || {}) as Record<string, unknown>;
+      return Number(raw.downloads || raw.download_count || raw.views || 0);
+    };
+    list.sort((a, b) => state.v2SortDir === 'asc' ? getDl(a) - getDl(b) : getDl(b) - getDl(a));
+  }
+
+  const sortArrow = (col: string) => {
+    if (state.v2SortCol !== col) return ' ↕';
+    return state.v2SortDir === 'asc' ? ' ↑' : ' ↓';
+  };
+
+  const rows = list.map((record, index) => {
+    const originalCoverUrl = recordRealCoverUrl(record);
+    const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
+    const cover = renderCoverImage({ url: originalCoverUrl, fallback: fallbackUrl, alt: `${record.title}封面`, key: record.id, className: 'table-thumb' });
+    const raw = (record.raw || {}) as Record<string, unknown>;
+    const dls = raw.downloads || raw.download_count || raw.views;
+    const dlStr = dls ? formatMetric(dls) : '—';
+    const vers = (record.versions || []).slice(0, 2).map((v) => `<span class="table-tag-chip">MC ${esc(v)}</span>`).join('');
+    const ldrs = (record.loaders || []).slice(0, 2).map((l) => `<span class="table-tag-chip">${esc(l)}</span>`).join('');
+    const dateStr = formatDisplayDate(record.updatedAt) || '—';
+    const platConfig = PLATFORM_CONFIGS[record.platform];
+    const platAccent = PLATFORM_ACCENTS[record.platform];
+    const isDirectDownloadable = ['curseforge', 'modrinth'].includes(record.platform);
+    const packVer = record.packVersion && record.packVersion.trim() && record.packVersion !== '未知' && !record.packVersion.includes('本地数据未提供') ? record.packVersion.trim() : null;
+    const assoc = findCrossPlatformAssociations(record, state.records, state.biliGroups);
+    const linkageBrief = assoc.totalMatches > 0
+      ? `<span class="table-linkage-pill" style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:10px;background:rgba(16,185,129,0.12);color:var(--status-success);font-size:11px;font-weight:600;" title="已关联 ${assoc.totalMatches} 处多端资源">🔗 ${assoc.totalMatches} 处</span>`
+      : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+
+    return `<tr data-action="select-record" data-index="${index}">
+      <td style="width: 50px;"><div class="cover-media cover-media-table" data-cover-frame data-cover-state="${cover.state}">${cover.image}</div></td>
+      <td class="table-title-cell">
+        <div class="table-title-text" title="${esc(record.title)}">${esc(record.title)}</div>
+        <div class="table-author-text">${esc(record.author || '未知作者')}</div>
+      </td>
+      <td><span class="table-badge-platform" style="background:${esc(platAccent)}15; color:${esc(platAccent)}; border: 1px solid ${esc(platAccent)}30;">${platformIcon(record.platform)} ${esc(platConfig?.name || record.platform)}</span></td>
+      <td>${packVer ? `<span class="table-pack-ver-pill" style="display:inline-block;padding:2px 8px;border-radius:12px;background:rgba(59,130,246,0.12);color:var(--accent-primary);font-weight:600;font-size:12px;">🏷️ v${esc(packVer.replace(/^[vV]/, ''))}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
+      <td>${vers || '—'}</td>
+      <td>${ldrs || '—'}</td>
+      <td style="font-weight: 600;">${esc(dlStr)}</td>
+      <td style="color:var(--text-secondary);font-size:12px;">🕒 ${esc(dateStr)}</td>
+      <td>${linkageBrief}</td>
+      <td>
+        <div class="table-actions" onclick="event.stopPropagation()">
+          <button type="button" class="table-action-btn" data-action="select-record" data-index="${index}" title="展开侧边资料抽屉">📋 详情</button>
+          ${safeExternalUrl(record.url) ? `<button type="button" class="table-action-btn" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(record.url)}" data-title="${esc(record.title)}">🪟 小窗</button>` : ''}
+          <button type="button" class="table-action-btn compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button>
+          ${isDirectDownloadable ? `<button type="button" class="table-action-btn launcher-btn" data-action="copy-launcher-link" data-record-id="${esc(record.id)}" title="复制启动器直链 (PCL2/HMCL/Prism)">🚀 直通</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="modpack-table-container">
+    <table class="modpack-table">
+      <thead>
+        <tr>
+          <th style="width: 50px;">封面</th>
+          <th class="sortable" data-action="sort-table-col" data-col="title">整合包名称与作者${sortArrow('title')}</th>
+          <th>来源平台</th>
+          <th>整合包版本</th>
+          <th>MC 版本</th>
+          <th>Loader</th>
+          <th class="sortable" data-action="sort-table-col" data-col="downloads">下载/热度${sortArrow('downloads')}</th>
+          <th class="sortable" data-action="sort-table-col" data-col="updatedAt">更新时间${sortArrow('updatedAt')}</th>
+          <th>全网联动</th>
+          <th style="width: 190px;">快捷操作</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderV2ViewToolbar(hasFilter: boolean): string {
+  return `<div class="v2-toolbar-row ${hasFilter ? 'has-filter' : ''}">
+    <div class="v2-toolbar-left">
+      ${hasFilter ? `<button type="button" class="button secondary small" data-action="clear-filters">↺ 清除当前筛选</button>` : ''}
+    </div>
+    <div class="view-mode-toggle" aria-label="视图切换">
+      <button type="button" class="view-mode-btn ${state.viewMode === 'cards' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="cards">🎛 卡片</button>
+      <button type="button" class="view-mode-btn ${state.viewMode === 'compact' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="compact">📑 摘要</button>
+      <button type="button" class="view-mode-btn ${state.viewMode === 'table' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="table">📋 全平台表格</button>
+    </div>
+  </div>`;
+}
+
+function renderV2BottomPagination(
+  displayedCount: number,
+  totalCount: number,
+  isAllPlatform: boolean,
+  hasMore: boolean,
+  loadMoreLabel: string
+): string {
+  const percent = totalCount > 0 ? Math.min(100, Math.round((displayedCount / totalCount) * 100)) : 100;
+  const isBiliGrouped = state.platform === 'bilibili' && state.biliViewMode === 'grouped';
+  const remaining = Math.max(0, totalCount - displayedCount);
+
+  const progressSection = isAllPlatform
+    ? `<div class="v2-progress-row">
+        <span>全平台聚合概览 · 当前已加载 <strong>${formatCount(displayedCount)}</strong> 条</span>
+        <button type="button" class="v2-back-to-top-btn" data-action="scroll-to-top" title="返回页面顶部"><span>↑ 回到顶部</span></button>
+      </div>`
+    : `<div class="v2-progress-row">
+        <div class="v2-progress-summary">
+          <span>已查看 <strong>${formatCount(displayedCount)}</strong> / <strong>${formatCount(totalCount)}</strong> 款整合包</span>
+          <span class="v2-progress-percent">(${percent}%)</span>
+        </div>
+        <div class="v2-progress-track" title="当前加载进度 ${percent}%">
+          <div class="v2-progress-fill" style="width: ${percent}%;"></div>
+        </div>
+        <button type="button" class="v2-back-to-top-btn" data-action="scroll-to-top" title="返回页面顶部"><span>↑ 回到顶部</span></button>
+      </div>`;
+
+  let actionsSection = '';
+  if (hasMore) {
+    actionsSection = `<div class="v2-bottom-actions-row">
+      <div class="v2-batch-controls">
+        ${!isAllPlatform && !isBiliGrouped ? `<span class="v2-batch-label">单次步长：</span>
+        <button type="button" class="v2-size-pill ${state.pageSize === 24 ? 'is-active' : ''}" data-action="set-v2-page-size" data-size="24">24 条</button>
+        <button type="button" class="v2-size-pill ${state.pageSize === 48 ? 'is-active' : ''}" data-action="set-v2-page-size" data-size="48">48 条</button>
+        <button type="button" class="v2-size-pill ${state.pageSize === 100 ? 'is-active' : ''}" data-action="set-v2-page-size" data-size="100">100 条</button>` : ''}
+      </div>
+      <div class="v2-load-buttons-group">
+        <button type="button" class="v2-primary-load-btn" data-action="load-more">
+          <span>📥 ${esc(loadMoreLabel)}</span>
+        </button>
+        ${!isAllPlatform && remaining > (isBiliGrouped ? 48 : state.pageSize) ? `
+          <button type="button" class="v2-batch-add-btn" data-action="load-more-batch" data-count="2" title="快速连翻 2 页">⚡ 连翻 2 页</button>
+          <button type="button" class="v2-batch-add-btn" data-action="load-more-batch" data-count="4" title="快速连翻 4 页">⚡ 连翻 4 页</button>
+        ` : ''}
+      </div>
+    </div>`;
+  } else {
+    actionsSection = `<div class="v2-all-loaded-banner">
+      <span>🎉 已加载当前全部 ${formatCount(totalCount)} 款整合包</span>
+      <button type="button" class="v2-back-to-top-btn" data-action="scroll-to-top" title="返回页面顶部"><span>↑ 回到顶部</span></button>
+    </div>`;
+  }
+
+  return `<div class="v2-bottom-nav-container">
+    <div class="v2-bottom-nav-card">
+      ${progressSection}
+      ${actionsSection}
+    </div>
+  </div>`;
+}
+
+export function findCrossPlatformInsights(record: DesktopRecord): { biliCount: number; biliSampleUrl?: string; mcmodUrl?: string } {
+  let biliCount = 0;
+  let biliSampleUrl: string | undefined;
+  let mcmodUrl: string | undefined;
+
+  const normalizedTitle = record.title.trim().toLowerCase();
+  if (normalizedTitle.length >= 3) {
+    for (const group of state.biliGroups) {
+      const matchItem = group.items.find((item) => (item.title || '').toLowerCase().includes(normalizedTitle) || normalizedTitle.includes((item.title || '').toLowerCase()));
+      if (matchItem) {
+        biliCount += group.items.length;
+        if (!biliSampleUrl && matchItem.bvid) {
+          biliSampleUrl = `https://www.bilibili.com/video/${matchItem.bvid}`;
+        }
+      }
+    }
+
+    const matchingMcmod = state.records.find((r) => r.platform === 'mcmod' && (r.title.toLowerCase().includes(normalizedTitle) || normalizedTitle.includes(r.title.toLowerCase())));
+    if (matchingMcmod) {
+      mcmodUrl = safeExternalUrl(matchingMcmod.url);
+    }
+  }
+
+  return { biliCount, biliSampleUrl, mcmodUrl };
+}
+
 function renderResultsWorkspace(selectedName: string): string {
   const records = currentRecords();
   const data = state.data;
@@ -2031,11 +2644,9 @@ function renderResultsWorkspace(selectedName: string): string {
     : records.length
       ? state.viewMode === 'compact'
         ? `<div class="compact-record-list">${records.map(renderCompactRecord).join('')}</div>`
-        : state.viewMode === 'table' && state.platform === 'mcmod'
-          ? renderMcmodTable(records)
-        : state.platform !== 'all'
-            ? `<div class="pack-grid legacy-rich-grid">${records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderPlatformRichCard(record)}${renderPersonalCardZone(renderPersonalCardActions(record, index))}</article>`).join('')}</div>`
-          : `<div class="pack-grid">${records.map(renderRecord).join('')}</div>`
+        : state.viewMode === 'table'
+          ? renderUniversalTable(records)
+        : `<div class="pack-grid">${records.map(renderRecord).join('')}</div>`
       : `<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>`;
   const displayedCount = isBili && state.biliViewMode === 'grouped' ? Math.min(state.page * 48, state.biliGroups.length) : records.length;
   const totalLabel = isBili && state.biliViewMode === 'grouped' ? state.biliGroups.length : state.total;
@@ -2053,8 +2664,8 @@ function renderResultsWorkspace(selectedName: string): string {
       ? '<div class="loading-state">正在读取当前快照…</div>'
       : state.recordsError && !records.length
         ? recordsFailure
-        : `${state.recordsError ? recordsFailure : ''}${resultBody}${state.hasMore ? `<div class="load-more"><button class="button secondary" data-action="load-more">${loadMoreLabel}</button></div>` : ''}`;
-  return `<div class="content-grid"><section class="results-column">${renderStickyFollowBar()}<div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : state.recordsError && !records.length ? '加载失败' : resultHeading}</h2></div><span class="result-count">${state.loading || (state.recordsError && !records.length) ? '' : resultCount}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${recordsBody}</section></div>`;
+        : `${state.recordsError ? recordsFailure : ''}${resultBody}${records.length ? renderV2BottomPagination(displayedCount, totalLabel, isAllPlatform, state.hasMore, loadMoreLabel) : ''}`;
+  return `<div class="content-grid"><section class="results-column">${renderStickyFollowBar()}${renderV2ViewToolbar(Boolean(hasFilter))}<div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : state.recordsError && !records.length ? '加载失败' : resultHeading}</h2></div><span class="result-count">${state.loading || (state.recordsError && !records.length) ? '' : resultCount}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${recordsBody}</section></div>`;
 }
 
 function renderRelease(release: Record<string, unknown>): string {
@@ -2643,14 +3254,6 @@ function detailPanel(): string {
   for (const name of modNames) if (!modsByName.has(name)) modsByName.set(name, { name });
   const mods = [...modsByName.values()];
   const sourceUrl = safeExternalUrl(activeRecord.url);
-  const modHtml = mods.length
-    ? `<div class="detail-section"><h3>已收录模组</h3><details class="detail-expand"><summary>已收录模组（共 ${mods.length} 款，点击展开）▾</summary><div class="mod-list">${mods.map((mod) => {
-        const url = safeExternalUrl(mod.url);
-        return url
-          ? `<a class="mod-chip" href="${esc(url)}" target="_blank" rel="noreferrer">${esc(String(mod.title || mod.name || '未知模组'))} ↗</a>`
-          : `<span class="mod-chip">${esc(String(mod.title || mod.name || '未知模组'))}</span>`;
-      }).join('')}</div></details></div>`
-    : '';
 
   const hasAuthor = Boolean(activeRecord.author && activeRecord.author.trim() !== '' && activeRecord.author.trim() !== '未知' && !activeRecord.author.includes('未知'));
   const authorHtml = hasAuthor ? `<p class="detail-author">作者：${esc(activeRecord.author)}</p>` : '';
@@ -2659,8 +3262,10 @@ function detailPanel(): string {
   const loaders = activeRecord.loaders.filter((l) => l && l !== '未知' && !l.includes('本地数据未提供')).join('、');
 
   const metaChips: string[] = [];
+  if (activeRecord.packVersion) metaChips.push(`🏷️ 整合包版本 ${activeRecord.packVersion}`);
   if (mcVer && mcVer !== '未知' && !mcVer.includes('本地数据未提供')) metaChips.push(`MC ${mcVer}`);
   if (loaders) metaChips.push(loaders);
+  if (activeRecord.updatedAt) metaChips.push(`🕒 更新于 ${formatDisplayDate(activeRecord.updatedAt)}`);
   metaChips.push(...categories);
   const tagsHtml = metaChips.length ? `<div class="detail-tags-row">${metaChips.map((c) => `<span class="detail-tag-chip">${esc(c)}</span>`).join('')}</div>` : '';
 
@@ -2669,28 +3274,84 @@ function detailPanel(): string {
     : '';
 
   const sourceDynamicsHtml = renderDetailSourceDynamics(activeRecord, vm, state.biliGroups);
+  
+  // ── 跨平台全网多端生态关联计算 ──
+  const association = findCrossPlatformAssociations(activeRecord, state.records, state.biliGroups);
+  const crossPlatformHtml = (association.totalMatches > 0) ? `<div class="cross-platform-callout">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <h4 style="margin:0;">💡 全网多平台联动发现（已匹配 ${association.totalMatches} 处关联资源）</h4>
+      <button type="button" class="button secondary small" data-action="set-v2-drawer-tab" data-tab="linkage">查看全网生态 ➔</button>
+    </div>
+    <p>我们在其他平台为您关联到了该整合包的汉化、百科词条或海外官方发布：</p>
+    <div class="cross-platform-links">
+      ${association.biliVideos.length ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-url="${esc(association.biliVideos[0].url)}" data-title="${esc(activeRecord.title)} B站视频">📺 B站相关实况/教程（共 ${association.biliVideos.length} 期）↗</button>` : ''}
+      ${association.links.find((l) => l.platform === 'mcmod') ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-url="${esc(association.links.find((l) => l.platform === 'mcmod')!.url)}" data-title="${esc(activeRecord.title)} MC百科词条">📖 MC百科中文介绍与长评 ↗</button>` : ''}
+      ${association.links.find((l) => l.isOrigin) ? `<a class="button secondary small" href="${esc(association.links.find((l) => l.isOrigin)!.url)}" target="_blank" rel="noreferrer">📦 官方原版发布 (${association.links.find((l) => l.isOrigin)!.platform}) ↗</a>` : ''}
+      ${association.links.find((l) => l.platform === 'bbsmc' || l.platform === 'xyebbs') ? `<a class="button secondary small" href="${esc(association.links.find((l) => l.platform === 'bbsmc' || l.platform === 'xyebbs')!.url)}" target="_blank" rel="noreferrer">📜 中文论坛与网盘直链 ↗</a>` : ''}
+    </div>
+  </div>` : '';
+
+  const isDirectDownloadable = ['curseforge', 'modrinth'].includes(activeRecord.platform);
+  const launcherHeroAction = isDirectDownloadable ? `<div style="margin: 10px 0;"><button type="button" class="button primary wide" data-action="copy-launcher-link" data-record-id="${esc(activeRecord.id)}" style="background:var(--status-success);border-color:var(--status-success);">🚀 一键复制启动器直链 (PCL2 / HMCL / Prism)</button></div>` : '';
+
+  const drawerTab = state.v2DrawerTab || 'overview';
+  const linkageCountBadge = association.totalMatches > 0 ? ` (${association.totalMatches})` : '';
+  const drawerTabsNav = `<nav class="drawer-tabs-nav" aria-label="抽屉内容分类">
+    <button type="button" class="drawer-tab-btn ${drawerTab === 'overview' ? 'is-active' : ''}" data-action="set-v2-drawer-tab" data-tab="overview">📌 概览与下载</button>
+    <button type="button" class="drawer-tab-btn ${drawerTab === 'linkage' ? 'is-active' : ''}" data-action="set-v2-drawer-tab" data-tab="linkage">🌐 全网跨平台联动${linkageCountBadge}</button>
+    <button type="button" class="drawer-tab-btn ${drawerTab === 'mods' ? 'is-active' : ''}" data-action="set-v2-drawer-tab" data-tab="mods">📦 收录模组 (${mods.length})</button>
+    <button type="button" class="drawer-tab-btn ${drawerTab === 'meta' ? 'is-active' : ''}" data-action="set-v2-drawer-tab" data-tab="meta">🔍 原始数据与趋势</button>
+  </nav>`;
+
+  const modQuery = (state.v2DrawerModFilter || '').trim().toLowerCase();
+  const filteredMods = modQuery ? mods.filter((m) => String(m.name || m.title || '').toLowerCase().includes(modQuery)) : mods;
+  const tabModsHtml = `<div class="detail-section">
+    <h3>已收录模组清单</h3>
+    <input type="search" class="drawer-mod-filter-input js-v2-mod-filter" placeholder="搜索此整合包内的模组名称..." value="${esc(state.v2DrawerModFilter || '')}">
+    <p class="detail-summary">共收录 ${mods.length} 款模组${modQuery ? `（当前筛选出 ${filteredMods.length} 款）` : ''}</p>
+    <div class="mod-list">${filteredMods.map((mod) => {
+      const url = safeExternalUrl(mod.url);
+      return url
+        ? `<a class="mod-chip" href="${esc(url)}" target="_blank" rel="noreferrer">${esc(String(mod.title || mod.name || '未知模组'))} ↗</a>`
+        : `<span class="mod-chip">${esc(String(mod.title || mod.name || '未知模组'))}</span>`;
+    }).join('')}</div>
+  </div>`;
+
+  const tabLinkageHtml = renderDrawerLinkageSection(association, activeRecord);
+
+  const tabMetaHtml = `<div>
+    ${renderMcmodTrendDetail(activeRecord)}
+    ${evidenceHtml || '<div class="empty-evidence">当前记录无额外核验证据项。</div>'}
+  </div>`;
+
+  const mainColContent = drawerTab === 'overview'
+    ? `${launcherHeroAction}${crossPlatformHtml}<details class="detail-source-fold" open><summary>版本与来源动态</summary>${sourceDynamicsHtml}</details>${renderDetailDownloadLinks(activeRecord)}${renderCommentSection(activeRecord)}`
+    : drawerTab === 'linkage'
+      ? tabLinkageHtml
+      : drawerTab === 'mods'
+        ? tabModsHtml
+        : tabMetaHtml;
 
   return `<div class="detail-backdrop" data-action="close-detail"><aside class="detail-panel" data-detail-panel onclick="event.stopPropagation()">
     <button type="button" class="modal-close close-detail" data-action="close-detail" aria-label="关闭详情">×</button>
     <header class="detail-header-block">
-      <span class="eyebrow">${esc(PLATFORM_CONFIGS[record.platform].name)} · 原始来源</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px;flex-wrap:wrap;">
+        <span class="eyebrow">${esc(PLATFORM_CONFIGS[record.platform].name)} · 原始来源</span>
+        ${activeRecord.packVersion ? `<span class="detail-pack-ver-badge">🏷️ 整合包版本：<strong>${esc(activeRecord.packVersion)}</strong></span>` : ''}
+      </div>
       <h2>${esc(record.title)}</h2>
       ${authorHtml}
       ${tagsHtml}
       ${renderMediaSection(record)}
       ${renderDetailFacts(record)}
     </header>
+    ${drawerTabsNav}
     <div class="detail-columns-layout">
       <div class="detail-col-source">
-        <details class="detail-source-fold"><summary>版本与来源动态</summary>${sourceDynamicsHtml}</details>
-        ${renderDetailDownloadLinks(record)}
-        ${renderCommentSection(record)}
-        ${modHtml}
-        ${evidenceHtml}
+        ${mainColContent}
       </div>
       <div class="detail-col-personal">
-        ${renderMcmodTrendDetail(record)}
-        ${renderPersonalDetail(record)}
+        ${renderPersonalDetail(activeRecord)}
         <div class="detail-actions">${sourceUrl ? `<button class="button primary wide" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(sourceUrl)}" data-title="${esc(record.title)} 原站页面">🪟 软件内小窗浏览</button><button class="button secondary wide" data-action="open-source" data-url="${esc(sourceUrl)}">外部浏览器打开 ↗</button>` : '<div class="unknown-action">原站链接未知</div>'}</div>
       </div>
     </div>
@@ -3552,9 +4213,9 @@ function render(): void {
   const savedGridScrollTop = gridWrap ? gridWrap.scrollTop : 0;
   const savedUpdateScrollTop = root?.querySelector<HTMLElement>('.update-modal-panel')?.scrollTop || 0;
   const savedLogScrollTop = root?.querySelector<HTMLElement>('.update-log-list')?.scrollTop || 0;
-  replaceRootHtmlPreservingCoverImages(`<div class="desktop-app legacy-shell"><div class="bg-layer" aria-hidden="true"></div>
+  replaceRootHtmlPreservingCoverImages(`${renderV2Toast()}<div class="desktop-app legacy-shell"><div class="bg-layer" aria-hidden="true"></div>
     <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav><nav class="topbar-platform-flyout" aria-label="完整平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button>${updateAction}<button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button>${personalProfileAction}<span class="data-status ${data?.hasData ? 'ready' : 'empty'}" title="${esc(snapshotStatusDescription)}" aria-label="${esc(snapshotStatusDescription)}"><i aria-hidden="true"></i>${snapshotStatusLabel}</span><div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
-    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main><button type="button" class="update-task-dock" data-action="toggle-update" hidden><span class="pulse-indicator" aria-hidden="true"></span><span class="update-task-copy"><strong class="update-task-title"></strong><small class="update-task-detail"></small></span><span class="update-task-track" aria-hidden="true"><span></span></span></button>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${renderCommentPreviewModal()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}${renderMcmodTrendDialog()}${renderUpdateModal()}${renderDataImportModal()}${renderPickerModal()}${renderInAppWindowModal()}</div>`);
+    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span class="footer-sep">·</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span><span class="footer-sep">·</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main><button type="button" class="update-task-dock" data-action="toggle-update" hidden><span class="pulse-indicator" aria-hidden="true"></span><span class="update-task-copy"><strong class="update-task-title"></strong><small class="update-task-detail"></small></span><span class="update-task-track" aria-hidden="true"><span></span></span></button>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${renderCommentPreviewModal()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}${renderMcmodTrendDialog()}${renderUpdateModal()}${renderDataImportModal()}${renderPickerModal()}${renderInAppWindowModal()}</div>`);
   if (savedGridScrollTop > 0) {
     const nextGridWrap = root?.querySelector<HTMLElement>('.picker-grid-wrap');
     if (nextGridWrap) nextGridWrap.scrollTop = savedGridScrollTop;
@@ -3730,6 +4391,32 @@ function bindTrendPreviews(): void {
 }
 
 function bindEvents(): void {
+  const modFilterInput = root?.querySelector<HTMLInputElement>('.js-v2-mod-filter');
+  if (modFilterInput) {
+    modFilterInput.addEventListener('input', () => {
+      state.v2DrawerModFilter = modFilterInput.value;
+      const filtered = modFilterInput.value.trim().toLowerCase();
+      const list = root?.querySelector<HTMLElement>('.mod-list');
+      if (list) {
+        list.querySelectorAll<HTMLElement>('.mod-chip').forEach((chip) => {
+          const name = chip.textContent?.toLowerCase() || '';
+          chip.style.display = (!filtered || name.includes(filtered)) ? '' : 'none';
+        });
+      }
+    });
+  }
+
+  const auditSearchInput = root?.querySelector<HTMLInputElement>('.js-audit-search');
+  if (auditSearchInput) {
+    auditSearchInput.addEventListener('input', () => {
+      state.v2AuditSearch = auditSearchInput.value;
+      const list = root?.querySelector<HTMLElement>('.audit-list');
+      if (list && state.audit) {
+        list.innerHTML = auditRows(state.audit);
+      }
+    });
+  }
+
   bindInAppFrame();
   bindTrendPreviews();
   root.querySelectorAll<HTMLDetailsElement>('[data-more-filters]').forEach((details) => details.addEventListener('toggle', () => {
@@ -4490,6 +5177,20 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     if (element.classList.contains('audit-backdrop') && event && event.target !== element) return;
     state.auditOpen = false;
     render();
+  } else if (action === 'set-v2-audit-tab') {
+    const tab = element.getAttribute('data-tab') as 'all' | 'added' | 'updated' | 'version_gained' | 'removed';
+    if (tab) {
+      state.v2AuditTab = tab;
+      render();
+    }
+  } else if (action === 'audit-select-record') {
+    const recordId = element.getAttribute('data-record-id');
+    const record = state.records.find((r) => r.id === recordId);
+    if (record) {
+      state.selected = record;
+      state.auditOpen = false;
+      render();
+    }
   } else if (action === 'open-compare') {
     if (compareEntries().length >= 2) {
       state.compareOpen = true;
@@ -4503,6 +5204,23 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     state.compareIds = [];
     state.compareOpen = false;
     render();
+  } else if (action === 'remove-compare-item') {
+    const recordId = element.getAttribute('data-record-id');
+    if (recordId) {
+      state.compareIds = state.compareIds.filter((id) => id !== recordId);
+      if (state.compareIds.length < 2 && state.compareOpen) {
+        state.compareOpen = false;
+      }
+      render();
+    }
+  } else if (action === 'compare-select-record') {
+    const recordId = element.getAttribute('data-record-id');
+    const record = (recordId && state.compareRecords[recordId]) || state.records.find((r) => r.id === recordId);
+    if (record) {
+      state.selected = record;
+      state.compareOpen = false;
+      render();
+    }
   } else if (action === 'retry-records') {
     await loadRecords(true);
   } else if (action === 'toggle-included-mod' && state.platform === 'mcmod') {
@@ -4777,8 +5495,42 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   } else if (action === 'select-all-update-platforms' && state.update?.state !== 'running') {
     state.updatePlatforms = [...ALL_PLATFORMS];
     render();
+  } else if (action === 'select-domestic-update-platforms' && state.update?.state !== 'running') {
+    state.updatePlatforms = ['mcmod', 'bbsmc', 'xyebbs', 'bilibili'];
+    if (state.updatePlatforms.length) state.updatePlatform = state.updatePlatforms[0];
+    render();
+  } else if (action === 'select-overseas-update-platforms' && state.update?.state !== 'running') {
+    state.updatePlatforms = ['curseforge', 'modrinth'];
+    if (state.updatePlatforms.length) state.updatePlatform = state.updatePlatforms[0];
+    render();
   } else if (action === 'clear-update-platforms' && state.update?.state !== 'running') {
     state.updatePlatforms = [];
+    render();
+  } else if (action === 'set-v2-update-scenario') {
+    const scenario = element.dataset.scenario;
+    if (scenario === 'daily-fast' || scenario === 'enrich-versions' || scenario === 'full-catalog') {
+      state.v2UpdateScenario = scenario;
+      if (scenario === 'daily-fast') {
+        state.mcmodUpdateMode = 'new';
+        state.otherUpdateMode = 'catalog';
+        state.updateOtherLimit = '100';
+      } else if (scenario === 'enrich-versions') {
+        state.mcmodUpdateMode = 'versions';
+        state.mcmodOldLimit = state.v2EnrichBatchSize || 50;
+        state.otherUpdateMode = 'existing';
+        state.updateOtherLimit = String(state.v2EnrichBatchSize || 50);
+      } else if (scenario === 'full-catalog') {
+        state.mcmodUpdateMode = 'all';
+        state.otherUpdateMode = 'catalog';
+        state.updateOtherLimit = '1000';
+      }
+      render();
+    }
+  } else if (action === 'set-v2-enrich-size') {
+    const size = Number(element.dataset.size || '50');
+    state.v2EnrichBatchSize = size;
+    state.mcmodOldLimit = size;
+    state.updateOtherLimit = String(size);
     render();
   } else if (action === 'toggle-update-logs') {
     state.updateLogsExpanded = !state.updateLogsExpanded;
@@ -4786,6 +5538,21 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   } else if (action === 'start-update') {
     const platforms = [...state.updatePlatforms];
     if (!platforms.length) return;
+    const scenario = state.v2UpdateScenario || 'daily-fast';
+    if (scenario === 'enrich-versions') {
+      state.mcmodUpdateMode = 'versions';
+      state.mcmodOldLimit = state.v2EnrichBatchSize || 50;
+      state.otherUpdateMode = 'existing';
+      state.updateOtherLimit = String(state.v2EnrichBatchSize || 50);
+    } else if (scenario === 'daily-fast') {
+      state.mcmodUpdateMode = 'new';
+      state.otherUpdateMode = 'catalog';
+      state.updateOtherLimit = '100';
+    } else if (scenario === 'full-catalog') {
+      state.mcmodUpdateMode = 'all';
+      state.otherUpdateMode = 'catalog';
+      state.updateOtherLimit = '1000';
+    }
     const validPositive = (value: string): boolean => /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 100000;
     const oldMode = platforms.includes('mcmod') && state.mcmodUpdateMode !== 'new';
     const oldLimit = String(state.mcmodOldLimit);
@@ -4949,6 +5716,105 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
         void loadPreviewVersions(record);
       }
       render();
+    }
+  } else if (action === 'set-v2-page-size') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const size = Number(element.dataset.size);
+    if ([24, 48, 100].includes(size) && state.pageSize !== size) {
+      state.pageSize = size;
+      void loadRecords(true);
+    }
+  } else if (action === 'load-more-batch') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const batches = Number(element.dataset.count) || 2;
+    if (state.platform === 'bilibili' && state.biliViewMode === 'grouped') {
+      state.page += batches;
+      state.hasMore = state.page * 48 < state.biliGroups.length;
+      render();
+    } else {
+      void (async () => {
+        for (let i = 0; i < batches && state.hasMore; i += 1) {
+          await loadRecords(false);
+        }
+      })();
+    }
+  } else if (action === 'scroll-to-top') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+  } else if (action === 'sort-table-col') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const col = element.dataset.col as 'updatedAt' | 'title' | 'downloads';
+    if (state.v2SortCol === col) {
+      state.v2SortDir = state.v2SortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      state.v2SortCol = col;
+      state.v2SortDir = 'desc';
+    }
+    render();
+  } else if (action === 'set-v2-drawer-tab') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    state.v2DrawerTab = (element.dataset.tab || 'overview') as 'overview' | 'linkage' | 'mods' | 'meta';
+    render();
+  } else if (action === 'search-modpack-all') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    state.platform = 'all';
+    state.query = element.dataset.query || '';
+    state.selected = null;
+    await loadRecords(true);
+  } else if (action === 'switch-to-record') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const targetId = element.dataset.recordId;
+    const targetRecord = state.records.find((r) => r.id === targetId);
+    if (targetRecord) {
+      state.selected = targetRecord;
+      state.v2DrawerTab = 'overview';
+      render();
+      await loadComments(targetRecord);
+    }
+  } else if (action === 'copy-launcher-link') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const recordId = element.dataset.recordId;
+    const record = (recordId && state.selected?.id === recordId)
+      ? state.selected
+      : (recordId ? (state.records.find((r) => r.id === recordId) || state.inAppWindows.find((w) => w.record?.id === recordId)?.record) : state.selected);
+    if (record) {
+      const live = previewVersionCache.get(record.id);
+      let targetLink = '';
+      if (live?.versions?.[0]) {
+        const v = live.versions[0] as Record<string, unknown>;
+        const u = safeExternalUrl(String(v.downloadUrl || (Array.isArray(v.files) && (v.files[0] as any)?.url) || ''));
+        if (u) targetLink = u;
+      }
+      if (!targetLink) {
+        const downloads = rawRecords(record, ['download_links', 'releases', 'files']);
+        for (const item of downloads) {
+          const d = (item || {}) as Record<string, unknown>;
+          const u = String(d.url || (Array.isArray(d.files) && (d.files[0] as any)?.url) || '');
+          const safe = safeExternalUrl(u);
+          if (safe && !safe.startsWith('curseforge://') && !safe.startsWith('modrinth://')) {
+            targetLink = safe;
+            break;
+          }
+        }
+      }
+      if (!targetLink) {
+        targetLink = safeExternalUrl(record.url);
+      }
+      if (targetLink) {
+        void navigator.clipboard.writeText(targetLink);
+        showV2Toast('🚀 已复制整合包链接！在 PCL2 / HMCL / Prism 中粘贴即可自动安装。');
+      } else {
+        showV2Toast('⚠️ 未找到可用的下载或导入链接');
+      }
     }
   } else if (action === 'fetch-live-versions') {
     event?.preventDefault();
@@ -5196,7 +6062,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     await loadRecords(true);
   } else if (action === 'set-view-mode') {
     const viewMode = element.dataset.viewMode;
-    if (viewMode === 'cards' || viewMode === 'compact' || (viewMode === 'table' && state.platform === 'mcmod')) {
+    if (viewMode === 'cards' || viewMode === 'compact' || viewMode === 'table') {
       state.viewMode = viewMode;
       if (viewMode !== 'table') state.expandedMcmodTableMods = '';
       render();
@@ -5460,7 +6326,7 @@ async function warmupPlatformCache(): Promise<void> {
   }
 }
 
-export async function initDesktopShell(): Promise<void> {
+export async function initDesktopShellV2(): Promise<void> {
   root = document.querySelector<HTMLElement>('#desktop-root')!;
   bindDocumentEvents();
   const savedTheme = localStorage.getItem('mcmod-desktop-theme');

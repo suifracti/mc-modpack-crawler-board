@@ -15,40 +15,50 @@ export function adaptXyebbsToVersionModal(
 ): VersionModalViewModel {
   const p = pack || {};
   const id = p.id || (p as any).project_id || (extra?.id as string) || '';
-  const releasesList = [p.releases, extra?.releases_data].find((list) => Array.isArray(list) && list.length > 0) as any[] || [];
+  const releasesList = [p.releases, (p as any).releases_data, extra?.releases_data, extra?.releases].find((list) => Array.isArray(list) && list.length > 0) as any[] || [];
   const targetUrl = p.url || (extra?.url as string) || `https://xyebbs.com/thread-${id}-1-1.html`;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const releases: ReleaseItemViewModel[] = releasesList.map((r: any) => {
+    const rawLinks = r.links || r.files || r.downloads || r.download_links || [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const downloads: DownloadItemViewModel[] = (r.links || []).map((l: any) => {
+    const downloads: DownloadItemViewModel[] = (Array.isArray(rawLinks) ? rawLinks : []).map((l: any) => {
       const lType = (l.type || l.linkType || '').toUpperCase();
+      const u = String(l.url || '').toLowerCase();
       const defaultName =
-        lType === 'QUARK'
+        lType.includes('QUARK') || u.includes('quark.cn')
           ? '夸克网盘'
-          : lType === 'BAIDU'
+          : lType.includes('BAIDU') || u.includes('baidu.com')
           ? '百度网盘'
-          : lType.includes('123')
+          : lType.includes('123') || u.includes('123pan') || u.includes('123684')
           ? '123云盘'
-          : lType === 'LANZOU'
+          : lType.includes('LANZOU') || u.includes('lanzou')
           ? '蓝奏云'
-          : lType === 'XUNLEI'
+          : lType.includes('XUNLEI') || lType.includes('XUN_LEI') || u.includes('xunlei.com')
           ? '迅雷云盘'
-          : '极速下载';
+          : '网盘下载';
+
+      const rawName = String(l.name || '').trim();
+      const explicitName = rawName && rawName !== '下载' && !rawName.includes('') ? rawName : defaultName;
 
       return {
-        name: (l.name || defaultName).trim(),
+        name: explicitName.trim(),
         url: l.url || '',
-        panClass: getVPanClass(l.type || l.linkType || l.name),
-        code: l.code || l.info,
+        panClass: getVPanClass(l.type || l.linkType || explicitName),
+        code: l.code || l.info || undefined,
       };
     });
 
+    const vName = r.label || r.version_number || r.version || r.name || r.displayName || 'Release';
+    const rawDate = r.createDate || r.create_date || r.date_published || r.date || '';
+    const date = rawDate ? String(rawDate).substring(0, 10) : undefined;
+    const changelogMd = r.notes || r.changelog || r.changelogMd || r.changelogHtml || '该版本未提供更新日志说明。';
+
     return {
-      versionId: String(r.id || r.label || ''),
-      versionName: r.label || r.name || 'Release',
-      date: r.createDate ? String(r.createDate).substring(0, 10) : undefined,
-      changelogMd: r.notes || '该版本未提供更新日志说明。',
+      versionId: String(r.id || vName || ''),
+      versionName: vName,
+      date,
+      changelogMd,
       downloads,
     };
   });

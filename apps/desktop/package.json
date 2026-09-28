@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.cjs --open",
     "start:no-open": "node server.cjs",
+    "start:v2": "node server.cjs --port 8766 --frontend-root ../../build/desktop-v2/frontend --no-open",
     "test": "node --test test/*.test.cjs",
     "build:frontend": "npm --prefix ../web run build:desktop"
   }

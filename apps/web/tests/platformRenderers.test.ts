@@ -914,8 +914,8 @@ describe('Platform Card Renderers', () => {
     expect(mcmodSideHtml).toContain('宝可梦探险包');
     expect(mcmodSideHtml).toContain('MC百科');
     expect(mcmodSideHtml).toContain('我的整合包库');
-    expect(mcmodSideHtml).toContain('v2.1.0');
-    expect(mcmodSideHtml).toContain('没有（详见左侧原站）');
+    const mcmodChangelogHtml = renderInAppChangelogView(baseRecord);
+    expect(mcmodChangelogHtml).toContain('v2.1.0');
 
     // 2. CurseForge
     const cfRecord: DesktopRecord = {
@@ -929,16 +929,19 @@ describe('Platform Card Renderers', () => {
       ],
     };
     const cfSideHtml = renderInAppSideContent(cfRecord);
-    expect(cfSideHtml).toContain('CurseForge 文件快照');
-    expect(cfSideHtml).toContain('1 个文件');
+    expect(cfSideHtml).toContain('RLCraft Test');
+    const cfChangelogHtml = renderInAppChangelogView(cfRecord);
+    expect(cfChangelogHtml).toContain('CurseForge 文件索引快照');
+    expect(cfChangelogHtml).toContain('1 个文件');
 
     // 3. CurseForge without files shows explicit '没有'
     const cfEmptyRecord: DesktopRecord = {
       ...cfRecord,
+      packVersion: '',
       fileIndexes: [],
     };
-    const cfEmptySideHtml = renderInAppSideContent(cfEmptyRecord);
-    expect(cfEmptySideHtml).toContain('没有');
+    const cfEmptyChangelogHtml = renderInAppChangelogView(cfEmptyRecord);
+    expect(cfEmptyChangelogHtml).toContain('没有');
 
     // 4. Modrinth
     const mrRecord: DesktopRecord = {
@@ -947,10 +950,12 @@ describe('Platform Card Renderers', () => {
       platform: 'modrinth',
       sourceId: '300',
       title: 'Fabulously Optimized',
+      packVersion: '',
     };
     const mrSideHtml = renderInAppSideContent(mrRecord);
-    expect(mrSideHtml).toContain('Modrinth 版本快照');
-    expect(mrSideHtml).toContain('没有');
+    expect(mrSideHtml).toContain('Fabulously Optimized');
+    const mrChangelogHtml = renderInAppChangelogView(mrRecord);
+    expect(mrChangelogHtml).toContain('没有');
 
     // 5. Bilibili
     const biliRecord: DesktopRecord = {
@@ -959,10 +964,12 @@ describe('Platform Card Renderers', () => {
       platform: 'bilibili',
       sourceId: 'BV123456',
       title: '【MC整合包】超好玩生存',
+      packVersion: '',
     };
     const biliSideHtml = renderInAppSideContent(biliRecord);
-    expect(biliSideHtml).toContain('B站视频动态');
-    expect(biliSideHtml).toContain('没有（单期视频）');
+    expect(biliSideHtml).toContain('超好玩生存');
+    const biliChangelogHtml = renderInAppChangelogView(biliRecord);
+    expect(biliChangelogHtml).toContain('视频发布记录');
 
     // 6. BBSMC
     const bbsmcRecord: DesktopRecord = {
@@ -971,10 +978,12 @@ describe('Platform Card Renderers', () => {
       platform: 'bbsmc',
       sourceId: '400',
       title: '论坛精选整合包',
+      packVersion: '',
     };
     const bbsmcSideHtml = renderInAppSideContent(bbsmcRecord);
-    expect(bbsmcSideHtml).toContain('BBSMC 原帖动态');
-    expect(bbsmcSideHtml).toContain('没有（原帖在左侧直接查看）');
+    expect(bbsmcSideHtml).toContain('论坛精选整合包');
+    const bbsmcChangelogHtml = renderInAppChangelogView(bbsmcRecord);
+    expect(bbsmcChangelogHtml).toContain('没有');
   });
 
   it('renders in-app changelog view with releases or explicit empty status', () => {

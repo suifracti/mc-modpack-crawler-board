@@ -14,10 +14,10 @@ from pathlib import Path
 from typing import Iterable
 
 
-def _result_path() -> Path:
+def _result_path() -> Path | None:
     configured = os.environ.get("MC_DESKTOP_COLLECTION_RESULT")
     if not configured:
-        raise RuntimeError("MC_DESKTOP_COLLECTION_RESULT 未配置")
+        return None
     return Path(configured).resolve()
 
 
@@ -65,6 +65,8 @@ def write_collection_result(
         payload["details"] = details
 
     path = _result_path()
+    if path is None:
+        return payload
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(prefix=".desktop-collection-", suffix=".tmp", dir=path.parent)
     try:

@@ -174,7 +174,92 @@ function asText(value) {
 
 function asDateText(value) {
   const text = asText(value);
-  return /^0+(?:\.0+)?$/.test(text) ? '' : text;
+  if (/^0+(?:\.0+)?$/.test(text)) return '';
+  const isoMatch = text.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/);
+  if (isoMatch) {
+    return `${isoMatch[1]} ${isoMatch[2]}`;
+  }
+  return text;
+}
+
+const MC_PREFIXES = ['1.21', '1.20', '1.19', '1.18', '1.16', '1.15', '1.14', '1.13', '1.12', '1.11', '1.10', '1.9', '1.8', '1.7', '1.6', '1.5'];
+
+function isMcVersion(ver, mcVersions) {
+  if (!ver) return false;
+  if (Array.isArray(mcVersions) && mcVersions.includes(ver)) return true;
+  return MC_PREFIXES.some((pre) => ver.startsWith(pre));
+}
+
+function extractModpackVersion(platform, raw, record, title, mcVersions) {
+  if (platform === 'mcmod') {
+    const v = raw.packVersion || raw.latest_version || raw.latestVersion;
+    return typeof v === 'string' && v.trim() ? v.trim() : undefined;
+  }
+
+  let candidate = asText(firstValue(raw, ['packVersion', 'pack_version', 'latest_version', 'latestVersion', 'version_number', 'version']));
+
+  const isHashId = candidate && /^[a-zA-Z0-9]{7,12}$/.test(candidate) && !candidate.includes('.') && !candidate.includes('-');
+  if (!candidate || isHashId || isMcVersion(candidate, mcVersions)) {
+    candidate = '';
+    const releasesList = [
+      record?.releases,
+      record?.versions_data,
+      record?.releases_data,
+      raw?.releases,
+      raw?.versions_data,
+      raw?.releases_data,
+      record?.versions,
+      raw?.versions,
+    ].find((list) => Array.isArray(list) && list.length > 0) || [];
+
+    if (releasesList.length > 0) {
+      const firstRel = releasesList[0];
+      if (firstRel && typeof firstRel === 'object') {
+        const relVer = asText(firstValue(firstRel, ['version_number', 'label', 'versionName', 'name', 'displayName', 'version']));
+        if (relVer && (!/^[a-zA-Z0-9]{7,12}$/.test(relVer) || relVer.includes('.') || relVer.includes('-') || relVer.startsWith('v'))) {
+          if (!isMcVersion(relVer, mcVersions)) {
+            candidate = relVer;
+          }
+        }
+      }
+    }
+  }
+
+  if (!candidate && platform === 'curseforge') {
+    const fileIndexes = firstValue(raw, ['file_indexes', 'fileIndexes']);
+    if (Array.isArray(fileIndexes) && fileIndexes.length > 0) {
+      for (const fi of fileIndexes) {
+        const fn = asText(fi?.filename);
+        if (fn) {
+          const matches = [...fn.matchAll(/([vV]?\d+(?:\.\d+)+(?:-[a-zA-Z0-9_.]+)?)/gi)];
+          for (const m of matches) {
+            const v = m[1];
+            if (!isMcVersion(v, mcVersions)) {
+              candidate = v;
+              break;
+            }
+          }
+          if (candidate) break;
+        }
+      }
+    }
+  }
+
+  if (!candidate && title) {
+    const matches = [...title.matchAll(/([vV]?\d+(?:\.\d+)+(?:-[a-zA-Z0-9_.]+)?)/gi)];
+    for (const m of matches) {
+      const v = m[1];
+      if (!isMcVersion(v, mcVersions)) {
+        candidate = v;
+        break;
+      }
+    }
+  }
+
+  if (!candidate) return undefined;
+  candidate = candidate.trim();
+  if (candidate === '未知' || candidate.includes('本地数据未提供')) return undefined;
+  return candidate;
 }
 
 function asList(value) {
@@ -306,8 +391,8 @@ function normaliseRecord(platform, record, index) {
     platform,
     sourceId,
     sourceIdOrigin,
-    ...(platform === 'mcmod' && typeof (raw.packVersion || raw.latest_version || raw.latestVersion) === 'string' && (raw.packVersion || raw.latest_version || raw.latestVersion).trim()
-      ? { packVersion: (raw.packVersion || raw.latest_version || raw.latestVersion).trim() } : {}),
+    ...(extractModpackVersion(platform, raw, record, title, versions)
+      ? { packVersion: extractModpackVersion(platform, raw, record, title, versions) } : {}),
     title,
     author,
     url,

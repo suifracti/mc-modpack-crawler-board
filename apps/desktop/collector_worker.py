@@ -69,9 +69,9 @@ def build_script_args(platform: str, args: argparse.Namespace) -> list[str]:
             result.extend(["--cover-offset", str(cover_offset)])
         return result
     if platform == "bbsmc":
-        return ["--type", "modpack", "--max", str(limit or 0), "--enrich", "0"]
+        return ["--type", "modpack", "--max", str(limit or 0), "--enrich", str(min(limit, 100) if limit else 100)]
     if platform == "xyebbs":
-        return ["--max", str(limit or 0), "--enrich", "0"]
+        return ["--max", str(limit or 0), "--enrich", str(min(limit, 100) if limit else 100)]
     if platform == "modrinth":
         return ["--max", str(limit or 0)]
     if platform == "curseforge":

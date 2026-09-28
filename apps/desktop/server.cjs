@@ -18,7 +18,7 @@ const { openSystemTarget } = require('./lib/system-open.cjs');
 const { getPreviewVersions } = require('./lib/preview-versions.cjs');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
-const frontendRoot = path.join(repoRoot, 'build', 'desktop', 'frontend');
+const defaultFrontendRoot = path.join(repoRoot, 'build', 'desktop', 'frontend');
 const workerSource = path.join(repoRoot, 'apps', 'desktop', 'collector_worker.py');
 const proxyHostSuffixes = [
   'mcmod.cn', 'bilibili.com', 'curseforge.com', 'modrinth.com',
@@ -33,11 +33,12 @@ function parseAllowedProxyTarget(value) {
   return parsed;
 }
 
-function proxyPageError(response, status, message) {
+function proxyPageError(response, status, message, targetUrl = '') {
   if (response.headersSent || response.destroyed) return;
   const text = String(message).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
+  const safeTarget = targetUrl ? String(targetUrl).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;') : '';
   response.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-  response.end(`<!doctype html><meta charset="utf-8"><style>body{font:15px system-ui;padding:32px;color:#475569}h2{color:#172033}</style><h2>原站暂时无法载入</h2><p>${text}</p><p>可切换上方的资料、版本或图片继续查看。</p><script>parent.postMessage({type:'in-app-page-state',ok:false},'*')</script>`);
+  response.end(`<!doctype html><meta charset="utf-8"><style>body{font:15px system-ui,-apple-system,sans-serif;padding:36px 32px;color:#475569;max-width:640px;margin:0 auto;line-height:1.6}h2{color:#0f172a;margin-top:0;font-size:20px;display:flex;align-items:center;gap:8px}.err-msg{background:#fee2e2;color:#991b1b;padding:12px 16px;border-radius:8px;font-family:monospace;font-size:13px;word-break:break-all;margin:16px 0;border:1px solid #fecaca}.actions{display:flex;gap:10px;margin:20px 0;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:6px;font-weight:500;font-size:14px;text-decoration:none;cursor:pointer;border:none}.btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}.btn-secondary{background:#f1f5f9;color:#334155;border:1px solid #cbd5e1}.btn-secondary:hover{background:#e2e8f0}.tips{color:#64748b;font-size:13px;border-top:1px solid #e2e8f0;padding-top:16px;margin-top:24px}ul{padding-left:20px;margin:8px 0}li{margin-bottom:6px}</style><h2>🌐 原站暂时无法载入</h2><div class="err-msg">${text}</div><div class="actions"><button type="button" class="btn btn-primary" onclick="location.reload()">🔄 重新尝试载入</button>${safeTarget ? `<a href="${safeTarget}" target="_blank" rel="noreferrer" class="btn btn-secondary">在新标签页中打开原站 ↗</a>` : ''}</div><div class="tips"><strong>💡 解决建议：</strong><ul><li>站点可能存在短暂网络波动或 CDN 限制，点击上方“重新尝试载入”通常可直接恢复；</li><li>可切换上方小窗顶部的<strong>【资料】</strong>或<strong>【版本历史】</strong>标签，直接查看已收录的网盘下载链接与更新日志；</li><li>也可直接点击“在新标签页中打开原站”前往外部浏览器浏览。</li></ul></div><script>parent.postMessage({type:'in-app-page-state',ok:false},'*')</script>`);
 }
 
 function rewriteProxiedHtml(html, targetUrl, options = {}) {
@@ -79,7 +80,7 @@ function rewriteProxiedHtml(html, targetUrl, options = {}) {
 }
 
 function parseArgs(argv) {
-  const args = { host: '::', port: 8765, open: false, dataRoot: null, python: null };
+  const args = { host: '::', port: 8765, open: false, dataRoot: null, python: null, frontendRoot: null };
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
     if (value === '--open') args.open = true;
@@ -88,6 +89,7 @@ function parseArgs(argv) {
     else if (value === '--port') args.port = Number(argv[++index] || args.port);
     else if (value === '--data-root') args.dataRoot = String(argv[++index] || '');
     else if (value === '--python') args.python = String(argv[++index] || '');
+    else if (value === '--frontend-root') args.frontendRoot = String(argv[++index] || '');
   }
   if (!Number.isInteger(args.port) || args.port < 1 || args.port > 65535) throw new Error('端口必须是 1 到 65535 之间的整数');
   return args;
@@ -175,6 +177,7 @@ function createBrowserService(options = {}) {
   const port = options.port ?? 8765;
   const sourceRoot = options.sourceRoot || repoRoot;
   const dataRoot = path.resolve(options.dataRoot || process.env.MC_DESKTOP_DATA_ROOT || defaultUserDataRoot());
+  const frontendRoot = path.resolve(options.frontendRoot || defaultFrontendRoot);
   const personalLibrary = options.personalLibrary || new PersonalLibrary(dataRoot);
   const favoriteUpdates = options.favoriteUpdates || new FavoriteUpdateTracker(dataRoot);
   const store = options.store || new DataStore(dataRoot, { personalLibrary });
@@ -226,9 +229,12 @@ function createBrowserService(options = {}) {
   }
 
   async function serveStatic(requestUrl, res) {
-    const requested = requestUrl === '/' ? 'desktop.html' : decodeURIComponent(requestUrl.slice(1));
-    if (!requested || requested.includes('\0')) return errorJson(res, 400, '非法资源路径');
     const root = path.resolve(frontendRoot);
+    let requested = requestUrl === '/' ? 'desktop.html' : decodeURIComponent(requestUrl.slice(1));
+    if (requestUrl === '/' && !fs.existsSync(path.join(root, 'desktop.html')) && fs.existsSync(path.join(root, 'desktop-v2.html'))) {
+      requested = 'desktop-v2.html';
+    }
+    if (!requested || requested.includes('\0')) return errorJson(res, 400, '非法资源路径');
     const filePath = path.resolve(root, requested);
     if (filePath !== root && !filePath.startsWith(`${root}${path.sep}`)) return errorJson(res, 403, '拒绝访问该路径');
     let stat;
@@ -240,7 +246,7 @@ function createBrowserService(options = {}) {
 
   async function handleApi(request, response, requestUrl) {
     const pathname = requestUrl.pathname;
-    const previewVersionsMatch = pathname.match(/^\/api\/preview-versions\/(mcmod|bbsmc|modrinth)\/([A-Za-z0-9_-]+)$/);
+    const previewVersionsMatch = pathname.match(/^\/api\/preview-versions\/(mcmod|bbsmc|modrinth|curseforge|xyebbs)\/([A-Za-z0-9_-]+)$/);
     if (previewVersionsMatch && request.method === 'GET') return json(response, 200, await getPreviewVersions(previewVersionsMatch[1], previewVersionsMatch[2]));
     if (pathname === '/api/health' && request.method === 'GET') return json(response, 200, { ok: true, service: 'mc-modpack-board-browser' });
     if (pathname === '/api/events' && request.method === 'GET') {
@@ -404,83 +410,108 @@ function createBrowserService(options = {}) {
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
           'Accept-Encoding': 'identity',
         };
-        const proxyReq = client.request(targetUrl, {
-          method: 'GET',
-          headers: reqHeaders,
-        }, (proxyRes) => {
-          if (proxyRes.statusCode >= 400) {
-            proxyRes.resume();
-            return proxyPageError(response, proxyRes.statusCode, `原站返回 HTTP ${proxyRes.statusCode}，可能需要在浏览器中验证或登录。`);
-          }
-          if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
-            const redirected = new URL(proxyRes.headers.location, targetUrl).toString();
-            try {
-              parseAllowedProxyTarget(redirected);
-            } catch (error) {
-              return errorJson(response, 502, error);
+        const executeProxyRequest = (attempt = 0) => {
+          if (response.headersSent || response.destroyed) return;
+          const reqOptions = {
+            method: 'GET',
+            headers: reqHeaders,
+            agent: false,
+            servername: parsed.hostname,
+          };
+          const proxyReq = client.request(targetUrl, reqOptions, (proxyRes) => {
+            if (proxyRes.statusCode >= 400) {
+              proxyRes.resume();
+              return proxyPageError(response, proxyRes.statusCode, `原站返回 HTTP ${proxyRes.statusCode}，可能需要在浏览器中验证或登录。`, targetUrl);
             }
-            response.writeHead(302, { Location: `/api/proxy-page?${requestUrl.searchParams.get('static') === '1' ? 'static=1&' : ''}url=${encodeURIComponent(redirected)}` });
-            return response.end();
-          }
+            if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
+              const redirected = new URL(proxyRes.headers.location, targetUrl).toString();
+              try {
+                parseAllowedProxyTarget(redirected);
+              } catch (error) {
+                return errorJson(response, 502, error);
+              }
+              response.writeHead(302, { Location: `/api/proxy-page?${requestUrl.searchParams.get('static') === '1' ? 'static=1&' : ''}url=${encodeURIComponent(redirected)}` });
+              return response.end();
+            }
 
-          const responseHeaders = { ...proxyRes.headers };
-          delete responseHeaders['x-frame-options'];
-          delete responseHeaders['X-Frame-Options'];
-          delete responseHeaders['content-security-policy'];
-          delete responseHeaders['Content-Security-Policy'];
-          delete responseHeaders['content-security-policy-report-only'];
-          delete responseHeaders['set-cookie'];
-          delete responseHeaders['content-length'];
+            const responseHeaders = { ...proxyRes.headers };
+            delete responseHeaders['x-frame-options'];
+            delete responseHeaders['X-Frame-Options'];
+            delete responseHeaders['content-security-policy'];
+            delete responseHeaders['Content-Security-Policy'];
+            delete responseHeaders['content-security-policy-report-only'];
+            delete responseHeaders['set-cookie'];
+            delete responseHeaders['content-length'];
+            delete responseHeaders['transfer-encoding'];
+            delete responseHeaders['Transfer-Encoding'];
+            delete responseHeaders['connection'];
+            delete responseHeaders['Connection'];
 
-          const contentTypeHeader = String(responseHeaders['content-type'] || '');
-          if (!/text\/html|application\/xhtml\+xml/i.test(contentTypeHeader)) {
-            response.writeHead(proxyRes.statusCode || 200, responseHeaders);
-            proxyRes.pipe(response);
-            return;
-          }
-
-          const chunks = [];
-          let totalBytes = 0;
-          proxyRes.on('data', (chunk) => {
-            totalBytes += chunk.length;
-            if (totalBytes > 10 * 1024 * 1024) {
-              proxyRes.destroy(new Error('代理页面超过 10MB 限制'));
+            const contentTypeHeader = String(responseHeaders['content-type'] || '');
+            if (!/text\/html|application\/xhtml\+xml/i.test(contentTypeHeader)) {
+              response.writeHead(proxyRes.statusCode || 200, responseHeaders);
+              proxyRes.pipe(response);
               return;
             }
-            chunks.push(chunk);
-          });
-          proxyRes.on('end', () => {
-            if (response.headersSent) return;
-            let decoded = Buffer.concat(chunks);
-            const encoding = String(responseHeaders['content-encoding'] || '').toLowerCase();
-            try {
-              if (encoding === 'gzip') decoded = zlib.gunzipSync(decoded);
-              else if (encoding === 'br') decoded = zlib.brotliDecompressSync(decoded);
-              else if (encoding === 'deflate') decoded = zlib.inflateSync(decoded);
-              else if (encoding && encoding !== 'identity') throw new Error(`不支持的内容编码：${encoding}`);
-            } catch (error) {
-              return errorJson(response, 502, `代理页面解压失败：${error instanceof Error ? error.message : String(error)}`);
-            }
-            delete responseHeaders['content-encoding'];
-            const body = rewriteProxiedHtml(decoded.toString('utf8'), targetUrl, {
-              static: requestUrl.searchParams.get('static') === '1',
-            });
-            responseHeaders['content-length'] = Buffer.byteLength(body);
-            responseHeaders['cache-control'] = 'no-store';
-            response.writeHead(proxyRes.statusCode || 200, responseHeaders);
-            response.end(body);
-          });
-          proxyRes.on('error', (error) => {
-            if (!response.headersSent) errorJson(response, 502, `代理响应失败：${error.message}`);
-          });
-        });
 
-        proxyReq.on('error', (err) => {
-          proxyPageError(response, 502, `代理请求失败：${err.message}`);
-        });
-        proxyReq.setTimeout(15000, () => proxyReq.destroy(new Error('原站请求超过 15 秒，请稍后重试')));
-        response.on('close', () => { if (!response.writableEnded) proxyReq.destroy(); });
-        proxyReq.end();
+            const chunks = [];
+            let totalBytes = 0;
+            proxyRes.on('data', (chunk) => {
+              totalBytes += chunk.length;
+              if (totalBytes > 10 * 1024 * 1024) {
+                proxyRes.destroy(new Error('代理页面超过 10MB 限制'));
+                return;
+              }
+              chunks.push(chunk);
+            });
+            proxyRes.on('end', () => {
+              if (response.headersSent) return;
+              let decoded = Buffer.concat(chunks);
+              const encoding = String(responseHeaders['content-encoding'] || '').toLowerCase();
+              try {
+                if (encoding === 'gzip') decoded = zlib.gunzipSync(decoded);
+                else if (encoding === 'br') decoded = zlib.brotliDecompressSync(decoded);
+                else if (encoding === 'deflate') decoded = zlib.inflateSync(decoded);
+                else if (encoding && encoding !== 'identity') throw new Error(`不支持的内容编码：${encoding}`);
+              } catch (error) {
+                return errorJson(response, 502, `代理页面解压失败：${error instanceof Error ? error.message : String(error)}`);
+              }
+              delete responseHeaders['content-encoding'];
+              const body = rewriteProxiedHtml(decoded.toString('utf8'), targetUrl, {
+                static: requestUrl.searchParams.get('static') === '1',
+              });
+              responseHeaders['content-length'] = Buffer.byteLength(body);
+              responseHeaders['cache-control'] = 'no-store';
+              response.writeHead(proxyRes.statusCode || 200, responseHeaders);
+              response.end(body);
+            });
+            proxyRes.on('error', (error) => {
+              if (!response.headersSent) errorJson(response, 502, `代理响应失败：${error.message}`);
+            });
+          });
+
+          proxyReq.on('error', (err) => {
+            if (response.headersSent || response.destroyed) return;
+            const msg = String(err.message || '').toLowerCase();
+            const isTransient = msg.includes('disconnected before secure tls') ||
+                                msg.includes('econnreset') ||
+                                msg.includes('etimedout') ||
+                                msg.includes('socket hang up') ||
+                                err.code === 'ECONNRESET' ||
+                                err.code === 'ETIMEDOUT';
+            if (isTransient && attempt < 2) {
+              setTimeout(() => executeProxyRequest(attempt + 1), 350);
+              return;
+            }
+            proxyPageError(response, 502, `代理请求失败：${err.message}`, targetUrl);
+          });
+
+          proxyReq.setTimeout(18000, () => proxyReq.destroy(new Error('原站请求超过 18 秒，请稍后重试')));
+          response.on('close', () => { if (!response.writableEnded) proxyReq.destroy(); });
+          proxyReq.end();
+        };
+
+        executeProxyRequest(0);
         return;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -545,4 +576,4 @@ async function main() {
 
 if (require.main === module) main().catch((error) => { console.error(error.stack || error); process.exitCode = 1; });
 
-module.exports = { createBrowserService, openBrowser, parseArgs, frontendRoot, parseAllowedProxyTarget, rewriteProxiedHtml };
+module.exports = { createBrowserService, openBrowser, parseArgs, frontendRoot: defaultFrontendRoot, parseAllowedProxyTarget, rewriteProxiedHtml };

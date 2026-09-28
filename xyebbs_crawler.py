@@ -18,6 +18,7 @@ import time
 import json
 import random
 import argparse
+import re
 import urllib.request
 import urllib.parse
 from datetime import datetime
@@ -182,16 +183,23 @@ class XyebbsCrawler:
                                         "name": pname,
                                         "url": u,
                                         "type": ltype,
+                                        "code": lk.get("info") or lk.get("code") or "",
                                         "is_server": is_server
                                     })
                             cleaned_releases.append({
                                 "label": rel.get("label", ""),
+                                "version_number": rel.get("label", ""),
                                 "create_date": format_iso_time(rel.get("createDate", "")),
+                                "createDate": rel.get("createDate", ""),
+                                "date_published": rel.get("createDate", ""),
                                 "downloads": rel.get("downloadCount", 0),
                                 "notes": (rel.get("notes") or "").strip(),
-                                "links": rel_links
+                                "changelog": (rel.get("notes") or "").strip(),
+                                "links": rel_links,
+                                "files": rel_links,
                             })
                         r['releases_data'] = cleaned_releases
+                        r['releases'] = cleaned_releases
                         r['has_server'] = any(lk.get('is_server') for rel in cleaned_releases for lk in rel.get('links', [])) or bool(re.search(r'(?:服务端|server|开服|服端)', (r.get('title') or "") + " " + (r.get('description') or "") + " " + (r.get('sub_title') or ""), re.I))
                         if download_links:
                             enriched_count += 1
@@ -247,7 +255,8 @@ class XyebbsCrawler:
                     "name": pan_name,
                     "url": url,
                     "type": pan_type,
-                    "label": rel_label
+                    "label": rel_label,
+                    "code": link_obj.get("info") or link_obj.get("code") or ""
                 })
 
         return links

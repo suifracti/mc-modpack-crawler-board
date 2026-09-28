@@ -3,7 +3,7 @@
  * Pure HTML rendering functions for Version Modal Header, Overview, Changelog, Downloads, and Discussions.
  */
 import { escHtml } from '../../utils/html';
-import { fmtBigNum } from '../../utils/format';
+import { fmtBigNum, formatDisplayDate } from '../../utils/format';
 import type { VersionModalViewModel } from './types';
 
 export function buildMcVersionStrip(versions: string[]): string {
@@ -232,13 +232,13 @@ export function renderOverviewPane(vm: VersionModalViewModel): string {
     '<div class="vcard-metric" style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:12px; padding:14px;">' +
     '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">📅 最近更新时间</div>' +
     '<div style="font-size:1.05rem; font-weight:700; color:var(--text-primary);">' +
-    escHtml(vm.lastUpdated) +
+    escHtml(formatDisplayDate(vm.lastUpdated) || vm.lastUpdated) +
     '</div>' +
     '</div>' +
     '<div class="vcard-metric" style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:12px; padding:14px;">' +
     '<div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">🚀 首次发布日期</div>' +
     '<div style="font-size:1.05rem; font-weight:700; color:var(--text-primary);">' +
-    escHtml(vm.dateCreated || vm.lastUpdated) +
+    escHtml(formatDisplayDate(vm.dateCreated || vm.lastUpdated) || vm.dateCreated || vm.lastUpdated) +
     '</div>' +
     '</div>' +
     '<div class="vcard-metric" style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:12px; padding:14px;">' +

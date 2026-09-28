@@ -41,10 +41,11 @@ export function renderModrinthCard(p: ModrinthPack): string {
   const links = p.download_links || [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   links.forEach((l: any) => {
-    if (l && l.url) {
-      const lClass = l.type === 'APP_IMPORT' ? 'pan-btn-modrinth' : 'pan-btn-other';
-      const icon = l.type === 'APP_IMPORT' ? '🚀' : '🌐';
-      dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="bili-pan-btn ' + lClass + '" style="font-size:0.8rem;" title="' + escHtml(l.name || '') + '">' + icon + ' ' + escHtml(l.label || '下载') + ' ↗</a>';
+    const urlStr = String(l?.url || '');
+    if (urlStr.startsWith('http://') || urlStr.startsWith('https://')) {
+      const lClass = 'pan-btn-other';
+      const icon = '🌐';
+      dlZoneHtml += '<a href="' + urlStr + '" target="_blank" rel="noreferrer" class="bili-pan-btn ' + lClass + '" style="font-size:0.8rem;" title="' + escHtml(l.name || '') + '">' + icon + ' ' + escHtml(l.label || '官网直达') + ' ↗</a>';
     }
   });
   dlZoneHtml += '<button type="button" class="bili-pan-btn pan-btn-other js-open-plat-version-modal" data-platform="modrinth" data-vkey="' + escHtml(p.url || '') + '" data-title="' + safeTitle + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" data-url="' + escHtml(p.url || '#') + '" data-author="' + safeAuthor + '" data-downloads="' + dlStr + '" style="font-size:0.8rem; background:color-mix(in srgb,var(--plat-modrinth) 12%,var(--bg-surface)); color:color-mix(in srgb,var(--plat-modrinth) 72%,var(--text-primary)); border-color:color-mix(in srgb,var(--plat-modrinth) 32%,transparent); margin-top:4px;">📜 版本详情 ↗</button>';
