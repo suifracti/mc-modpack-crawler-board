@@ -5,6 +5,7 @@ const https = require('node:https');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
+const net = require('node:net');
 const zlib = require('node:zlib');
 const { URL } = require('node:url');
 const { DataStore, defaultUserDataRoot } = require('./lib/data-store.cjs');
@@ -78,7 +79,7 @@ function rewriteProxiedHtml(html, targetUrl, options = {}) {
 }
 
 function parseArgs(argv) {
-  const args = { host: '127.0.0.1', port: 8765, open: false, dataRoot: null, python: null };
+  const args = { host: '::', port: 8765, open: false, dataRoot: null, python: null };
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
     if (value === '--open') args.open = true;
@@ -90,6 +91,11 @@ function parseArgs(argv) {
   }
   if (!Number.isInteger(args.port) || args.port < 1 || args.port > 65535) throw new Error('端口必须是 1 到 65535 之间的整数');
   return args;
+}
+
+function displayHost(host) {
+  if (host === '::' || host === '0.0.0.0') return host === '::' ? '[::1]' : '127.0.0.1';
+  return net.isIP(host) === 6 ? `[${host}]` : host;
 }
 
 function pythonCommand(explicit) {
@@ -165,7 +171,7 @@ function openDirectory(directory) {
 }
 
 function createBrowserService(options = {}) {
-  const host = options.host || '127.0.0.1';
+  const host = options.host || '::';
   const port = options.port ?? 8765;
   const sourceRoot = options.sourceRoot || repoRoot;
   const dataRoot = path.resolve(options.dataRoot || process.env.MC_DESKTOP_DATA_ROOT || defaultUserDataRoot());
@@ -514,7 +520,7 @@ function createBrowserService(options = {}) {
       });
       const address = server.address();
       const actualPort = typeof address === 'object' && address ? address.port : port;
-      return { url: `http://${host}:${actualPort}/`, port: actualPort };
+      return { url: `http://${displayHost(host)}:${actualPort}/`, port: actualPort };
     },
     async stop() {
       await updateManager.shutdown();
