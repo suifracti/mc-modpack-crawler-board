@@ -2004,6 +2004,41 @@ button { cursor: pointer; }
 .update-modal-panel {
   width: min(740px, 100%);
 }
+.update-task-dock {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(300px, calc(100vw - 36px));
+  padding: 11px 14px 15px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-modal);
+  text-align: left;
+  cursor: pointer;
+}
+.update-task-dock[hidden] { display: none; }
+.update-task-dock:hover { border-color: var(--border-hover); background: var(--bg-surface-hover); }
+.update-task-copy { display: grid; gap: 3px; min-width: 0; }
+.update-task-copy strong, .update-task-copy small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.update-task-copy strong { font-size: 13px; }
+.update-task-copy small { color: var(--text-muted); font-size: 11px; }
+.update-task-track {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 0 0 14px 14px;
+  background: color-mix(in srgb, var(--status-warning) 20%, var(--bg-surface));
+}
+.update-task-track span { display: block; height: 100%; background: var(--status-warning); }
 .data-import-panel {
   width: min(760px, 100%);
 }

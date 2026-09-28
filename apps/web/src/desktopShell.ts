@@ -1100,7 +1100,7 @@ function renderActiveFilters(): string {
 
 
 function renderUpdateModal(): string {
-  if (!state.updateOpen && state.update?.state !== 'running') return '';
+  if (!state.updateOpen) return '';
   const update = state.update;
   const running = update?.state === 'running';
   const selectedPlatforms = state.updatePlatforms;
@@ -1133,9 +1133,9 @@ function renderUpdateModal(): string {
         <div class="modal-title-wrap">
           <span class="eyebrow">本地快照更新</span>
           <h2 id="update-title">数据更新</h2>
-          <p>按所选顺序逐个平台更新；每个平台完成校验后才切换快照。失败或取消会停止后续平台。</p>
+          <p>按所选顺序逐个平台更新；每个平台完成校验后才切换快照。收起面板后任务继续运行，不影响浏览。</p>
         </div>
-        <button type="button" class="modal-close update-close" data-action="close-update-panel" aria-label="关闭更新面板">×</button>
+        <button type="button" class="modal-close update-close" data-action="close-update-panel" aria-label="${running ? '收起更新面板，继续浏览' : '关闭更新面板'}">×</button>
       </header>
       <div class="update-section-head"><div><strong>1 · 更新平台</strong><span>已选 ${selectedPlatforms.length} 个</span></div><div><button type="button" class="button secondary small" data-action="select-all-update-platforms" ${running ? 'disabled' : ''}>全选</button><button type="button" class="button secondary small" data-action="clear-update-platforms" ${running ? 'disabled' : ''}>清空</button></div></div>
       <div class="update-platform-grid" role="group" aria-label="选择要更新的平台">${ALL_PLATFORMS.map((id) => {
@@ -1153,6 +1153,27 @@ function renderUpdateModal(): string {
       <div class="update-log-list" role="log" aria-label="数据更新任务日志">${visibleLogs.length ? visibleLogs.map((line) => `<div class="update-log-line ${/失败|错误|error|failed/i.test(line) ? 'is-error' : ''}">${esc(formatLog(line))}</div>`).join('') : '<p>开始更新后显示任务进度与日志。</p>'}</div>
     </section>
   </div>`;
+}
+
+function refreshUpdateDock(): void {
+  const update = state.update;
+  const active = update?.state === 'running' || Boolean(state.updateBatch);
+  const dock = root.querySelector<HTMLButtonElement>('.update-task-dock');
+  if (dock) {
+    dock.hidden = !active;
+    const platform = update?.platform ? PLATFORM_CONFIGS[update.platform]?.name || update.platform : '数据';
+    const phase = update?.state === 'running' ? update.phase || '采集中' : '准备下一平台';
+    const progress = update && typeof update.total === 'number' && update.total > 0
+      ? Math.min(100, Math.round((update.processed / update.total) * 100)) : null;
+    const title = dock.querySelector<HTMLElement>('.update-task-title');
+    const detail = dock.querySelector<HTMLElement>('.update-task-detail');
+    const bar = dock.querySelector<HTMLElement>('.update-task-track span');
+    if (title) title.textContent = `${platform}更新中`;
+    if (detail) detail.textContent = `${phase}${progress === null ? '' : ` · ${progress}%`} · 点此查看`;
+    if (bar) bar.style.width = `${progress ?? 0}%`;
+  }
+  const nav = root.querySelector<HTMLButtonElement>('.top-action-btn[data-action="toggle-update"]');
+  nav?.classList.toggle('is-running', active);
 }
 
 function renderDataImportModal(): string {
@@ -3483,14 +3504,14 @@ function render(): void {
   const snapshotStatusLabel = data?.hasData ? '快照' : '等待数据';
   const snapshotStatusDescription = data?.hasData ? `当前快照：${data.snapshotId || '已载入'}` : '等待数据';
   const isUpdating = state.update?.state === 'running';
-  const updateAction = `<button type="button" class="top-action-btn ${isUpdating ? 'is-running' : ''}" data-action="toggle-update" aria-label="数据更新">${isUpdating ? '<span class="pulse-indicator"></span>' : ''}数据更新</button>`;
+  const updateAction = `<button type="button" class="top-action-btn ${isUpdating ? 'is-running' : ''}" data-action="toggle-update" aria-label="数据更新" aria-expanded="${state.updateOpen}">${isUpdating ? '<span class="pulse-indicator"></span>' : ''}数据更新</button>`;
   const gridWrap = root?.querySelector<HTMLElement>('.picker-grid-wrap');
   const savedGridScrollTop = gridWrap ? gridWrap.scrollTop : 0;
   const savedUpdateScrollTop = root?.querySelector<HTMLElement>('.update-modal-panel')?.scrollTop || 0;
   const savedLogScrollTop = root?.querySelector<HTMLElement>('.update-log-list')?.scrollTop || 0;
   replaceRootHtmlPreservingCoverImages(`<div class="desktop-app legacy-shell"><div class="bg-layer" aria-hidden="true"></div>
     <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav><nav class="topbar-platform-flyout" aria-label="完整平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button>${updateAction}<button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button>${personalProfileAction}<span class="data-status ${data?.hasData ? 'ready' : 'empty'}" title="${esc(snapshotStatusDescription)}" aria-label="${esc(snapshotStatusDescription)}"><i aria-hidden="true"></i>${snapshotStatusLabel}</span><div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
-    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${renderCommentPreviewModal()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}${renderMcmodTrendDialog()}${renderUpdateModal()}${renderDataImportModal()}${renderPickerModal()}${renderInAppWindowModal()}</div>`);
+    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main><button type="button" class="update-task-dock" data-action="toggle-update" hidden><span class="pulse-indicator" aria-hidden="true"></span><span class="update-task-copy"><strong class="update-task-title"></strong><small class="update-task-detail"></small></span><span class="update-task-track" aria-hidden="true"><span></span></span></button>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${renderCommentPreviewModal()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}${renderMcmodTrendDialog()}${renderUpdateModal()}${renderDataImportModal()}${renderPickerModal()}${renderInAppWindowModal()}</div>`);
   if (savedGridScrollTop > 0) {
     const nextGridWrap = root?.querySelector<HTMLElement>('.picker-grid-wrap');
     if (nextGridWrap) nextGridWrap.scrollTop = savedGridScrollTop;
@@ -3500,6 +3521,7 @@ function render(): void {
   const nextLogList = root?.querySelector<HTMLElement>('.update-log-list');
   if (nextLogList && savedLogScrollTop > 0) nextLogList.scrollTop = savedLogScrollTop;
   bindEvents();
+  refreshUpdateDock();
   const focusTarget = profileFocusAfterRender;
   profileFocusAfterRender = '';
   if (focusTarget === 'close') root.querySelector<HTMLButtonElement>('.personal-profile-close')?.focus();
@@ -4328,10 +4350,13 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     profileFocusAfterRender = 'trigger';
     render();
   } else if (action === 'toggle-update') {
+    event?.preventDefault();
+    event?.stopPropagation();
     state.updateOpen = !state.updateOpen;
     render();
   } else if (action === 'close-update-panel') {
     if (element.classList.contains('update-backdrop') && event && event.target !== element) return;
+    event?.stopPropagation();
     state.updateOpen = false;
     render();
   } else if (action === 'close-data-import') {
@@ -4744,6 +4769,10 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     };
     render();
     await startUpdateBatchPlatform(platforms[0]);
+    if (state.updateBatch) {
+      state.updateOpen = false;
+      render();
+    }
   } else if (action === 'cancel-update') {
     if (state.updateBatch) state.updateBatch.queue = [];
     await window.desktopApi.cancelUpdate();
@@ -5400,7 +5429,8 @@ export async function initDesktopShell(): Promise<void> {
     state.update = update;
     if (update.platform) state.updatePlatform = update.platform;
     state.logs = update.logs || state.logs;
-    render();
+    if (state.updateOpen) render();
+    else refreshUpdateDock();
     if (update.state === 'success') {
       let nextPlatform: Platform | undefined;
       const batch = state.updateBatch;
@@ -5421,12 +5451,13 @@ export async function initDesktopShell(): Promise<void> {
       if (nextPlatform) window.setTimeout(() => void startUpdateBatchPlatform(nextPlatform!), 0);
     } else if ((update.state === 'failed' || update.state === 'cancelled') && state.updateBatch) {
       state.updateBatch = null;
-      render();
+      if (state.updateOpen) render();
     }
+    refreshUpdateDock();
   });
   window.desktopApi.onUpdateLog((line) => {
     state.logs = [...state.logs, line].slice(-200);
-    render();
+    if (state.updateOpen) render();
   });
   window.desktopApi.onDataChanged((data) => {
     platformRecordCache.clear();
