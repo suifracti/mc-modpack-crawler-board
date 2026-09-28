@@ -17,8 +17,9 @@ if str(DESKTOP_ROOT) not in sys.path:
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from collector_worker import PLATFORMS, collect_output_contract, file_state, run_selected_collector  # noqa: E402
+from collector_worker import PLATFORMS, build_script_args, collect_output_contract, file_state, run_selected_collector  # noqa: E402
 import curseforge_full_crawler  # noqa: E402
+import mcmod_full_crawler  # noqa: E402
 
 
 class StubResponse:
@@ -376,6 +377,45 @@ const { DataStore } = require(storeModule);
                 self.assertEqual(contract["outcome"], "failed")
                 self.assertIn(contract["crawlerResult"]["status"], {"empty", "failed"})
                 self.assertEqual(json.loads((raw_dir / PLATFORMS["curseforge"]["raw"]).read_text(encoding="utf-8"))[0]["title"], "Cached old record")
+
+    def test_mcmod_build_script_args_modes(self):
+        args_default = type("Args", (), {"limit": None, "pages": 1, "until": None})()
+        self.assertEqual(build_script_args("mcmod", args_default), ["--mode", "new"])
+
+        args_trend = type("Args", (), {"limit": 50, "pages": 1, "until": None, "mode": "trend", "cover_offset": None})()
+        self.assertEqual(build_script_args("mcmod", args_trend), ["--mode", "trend", "--limit", "50"])
+
+        args_all = type("Args", (), {"limit": 50, "pages": 1, "until": None, "mode": "all", "cover_offset": None})()
+        self.assertEqual(build_script_args("mcmod", args_all), ["--mode", "all", "--limit", "50"])
+
+        args_covers = type("Args", (), {"limit": None, "pages": 1, "until": None, "mode": "covers", "cover_offset": None})()
+        self.assertEqual(build_script_args("mcmod", args_covers), ["--mode", "covers", "--limit", "20"])
+
+        args_covers_custom = type("Args", (), {"limit": 50, "pages": 1, "until": None, "mode": "covers", "cover_offset": 100})()
+        self.assertEqual(build_script_args("mcmod", args_covers_custom), ["--mode", "covers", "--limit", "50", "--cover-offset", "100"])
+
+    def test_mcmod_existing_pack_trend_result_is_committable(self):
+        with tempfile.TemporaryDirectory(prefix="mcmod-trend-contract-") as temp:
+            result_path = Path(temp) / "result.json"
+            rows = [{"mid": 16, "trend_dates": "2026-09-24", "trend_vals": "10"}]
+            def refresh_existing(rows_arg, _compare, **_kwargs):
+                rows_arg[0]["trend_dates"] = "2026-09-24,2026-09-25"
+                rows_arg[0]["trend_vals"] = "10,14"
+                return 1, 0
+            with patch.dict(os.environ, {"MC_DESKTOP_COLLECTION_RESULT": str(result_path)}), \
+                 patch.object(sys, "argv", ["mcmod_full_crawler.py", "--mode", "trend", "--limit", "1"]), \
+                 patch.object(mcmod_full_crawler, "init_network"), \
+                 patch.object(mcmod_full_crawler, "load_data", return_value=(rows, {})), \
+                 patch.object(mcmod_full_crawler, "save_all_outputs"), \
+                 patch.object(mcmod_full_crawler, "refresh_trend_and_versions", side_effect=refresh_existing), \
+                 patch.object(mcmod_full_crawler, "COLLECTION_STATS", {"requests": 1, "successful": 1, "not_found": 0, "failed": 0, "errors": []}), \
+                 patch.object(mcmod_full_crawler, "IS_BANNED", False):
+                mcmod_full_crawler.main()
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            self.assertEqual(result["status"], "success")
+            self.assertEqual(result["fetchedCount"], 1)
+            self.assertTrue(result["requestCompleted"])
+            self.assertEqual(rows[0]["trend_dates"], "2026-09-24,2026-09-25")
 
 
 if __name__ == "__main__":

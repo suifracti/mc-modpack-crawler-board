@@ -63,6 +63,8 @@ class UpdateManager extends EventEmitter {
       limit: validLimit(options.limit),
       pages: validLimit(options.pages),
       until: options.until ? String(options.until).slice(0, 32) : null,
+      mode: options.mode ? String(options.mode).slice(0, 32) : null,
+      coverOffset: options.coverOffset !== undefined && options.coverOffset !== null ? validLimit(options.coverOffset) || 0 : null,
     };
     const taskId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const active = { taskId, platform, workspace: null, runner: null, cancelled: false };
@@ -136,13 +138,16 @@ class UpdateManager extends EventEmitter {
       }
       this.setStatus({
         state: 'success',
-        phase: '已完成并切换数据快照',
+        phase: validation.outcome === 'partial_update' ? '部分更新已切换（原站有请求失败）' : '已完成并切换数据快照',
         processed: validation.count,
         total: validation.count,
         endedAt: this.now(),
-        result: { count: validation.count, snapshotId: manifest.snapshotId, canonicalReady: manifest.canonicalReady },
+        result: { count: validation.count, snapshotId: manifest.snapshotId, canonicalReady: manifest.canonicalReady,
+          outcome: validation.outcome, failedRequests: validation.contract?.crawlerResult?.failedRequests || 0 },
       });
-      this.appendLog(`更新成功：${validation.count} 条数据已切换；上一份快照仍保留。`);
+      this.appendLog(validation.outcome === 'partial_update'
+        ? `部分更新已切换：${validation.count} 条记录，${validation.contract?.crawlerResult?.failedRequests || 0} 个原站请求失败；旧记录全部保留，未完成范围需后续补抓。`
+        : `更新成功：${validation.count} 条数据已切换；上一份快照仍保留。`);
       return this.getStatus();
     } catch (error) {
       const cancelled = error instanceof CancelledBeforeCommit || (active.cancelled && !active.commitStarted);
@@ -155,7 +160,13 @@ class UpdateManager extends EventEmitter {
       this.appendLog(cancelled ? '任务已取消，未替换当前数据。' : `更新失败：${this.status.error}`);
       return this.getStatus();
     } finally {
-      if (prepared) await this.store.cleanupWorkspace(prepared.workspace).catch(() => {});
+      if (prepared && (['versions', 'existing'].includes(normalizedOptions.mode)
+          || (active.platform === 'mcmod' && ['new', 'trend', 'metrics', 'all'].includes(normalizedOptions.mode)))
+          && !active.committed) {
+        this.appendLog(`旧包复查未提交；已保留中途结果：${prepared.workspace}。重试前请先核对该目录。`);
+      } else if (prepared) {
+        await this.store.cleanupWorkspace(prepared.workspace).catch(() => {});
+      }
       if (this.active === active) this.active = null;
       if (this.taskPromise && this.taskPromise === active.promise) this.taskPromise = null;
     }

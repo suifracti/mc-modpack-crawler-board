@@ -15,16 +15,23 @@ export function adaptMcmodToVersionModal(
   const title = (extra?.title as string) || p.title || `整合包 #${mid}`;
 
   const raw = p as any;
+  const latestVer = (extra?.ver as string) || raw.latest_version || raw.latestVersion || raw.packVersion || (p as any).packVersion || '';
+  const lastUpdated = (extra?.date as string) || raw.last_update_date || raw.lastUpdateDate || raw.modifiedAt || (p as any).modifiedAt || '暂无记录';
+  const dateCreated = (extra?.date_created as string) || raw.release_date || raw.releaseDate || raw.publishedAt || (p as any).publishedAt || undefined;
+  const versionCount = (extra?.count as number) || raw.version_count || raw.versionCount || (latestVer ? 1 : 0);
+
+  const releases = [extra?.releases, raw.releases, raw.versions_data, raw.version_history].find((list) => Array.isArray(list) && list.length > 0) as any[] || [];
+
   return {
     platform: 'mcmod',
     id: mid,
     title,
     platformName: 'MC百科权威',
     siteShort: 'MC百科',
-    latestVersion: (extra?.ver as string) || raw.latest_version || raw.latestVersion || '通用 / 最新',
-    lastUpdated: (extra?.date as string) || raw.last_update_date || raw.lastUpdateDate || '暂无记录',
-    dateCreated: (extra?.date_created as string) || raw.release_date || raw.releaseDate || undefined,
-    versionCount: (extra?.count as number) || raw.version_count || raw.versionCount || 1,
+    latestVersion: latestVer || '通用 / 最新',
+    lastUpdated,
+    dateCreated,
+    versionCount: versionCount || 1,
     mcVersionsSummary: mcVersions.length ? mcVersions.join(', ') : '通用 / 未指定',
     mcVersionsList: mcVersions,
     typeName: (extra?.typeName as string) || raw.type_name || raw.typeName || '优质模组包',
@@ -34,6 +41,6 @@ export function adaptMcmodToVersionModal(
     serverStatus: (p.has_server || extra?.has_server) ? 'supported' : 'unknown',
     envDisplay: (p.has_server || extra?.has_server) ? '有服务端运行线索' : '未知（本地数据未提供）',
     formerTitles: former,
-    releases: (extra?.releases as any[]) || raw.releases || raw.versions_data || raw.version_history || [],
+    releases,
   };
 }

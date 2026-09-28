@@ -1,10 +1,11 @@
 'use strict';
 
 const http = require('node:http');
+const https = require('node:https');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const zlib = require('node:zlib');
 const { URL } = require('node:url');
 const { DataStore, defaultUserDataRoot } = require('./lib/data-store.cjs');
 const { PersonalLibrary } = require('./lib/personal-library.cjs');
@@ -12,10 +13,69 @@ const { FavoriteUpdateTracker } = require('./lib/favorite-updates.cjs');
 const { assertPlatform, redactLogLine } = require('./lib/platforms.cjs');
 const { UpdateManager } = require('./lib/update-manager.cjs');
 const { createProcessRunner } = require('./lib/process-runner.cjs');
+const { openSystemTarget } = require('./lib/system-open.cjs');
+const { getPreviewVersions } = require('./lib/preview-versions.cjs');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const frontendRoot = path.join(repoRoot, 'build', 'desktop', 'frontend');
 const workerSource = path.join(repoRoot, 'apps', 'desktop', 'collector_worker.py');
+const proxyHostSuffixes = [
+  'mcmod.cn', 'bilibili.com', 'curseforge.com', 'modrinth.com',
+  'bbsmc.net', 'xyebbs.com', 'binjie.fun', 'minecraft.net',
+];
+
+function parseAllowedProxyTarget(value) {
+  const parsed = new URL(String(value || ''));
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('需要合法的 HTTP/HTTPS 目标 URL');
+  const allowed = proxyHostSuffixes.some((suffix) => parsed.hostname === suffix || parsed.hostname.endsWith(`.${suffix}`));
+  if (!allowed) throw new Error('不支持代理该域名');
+  return parsed;
+}
+
+function proxyPageError(response, status, message) {
+  if (response.headersSent || response.destroyed) return;
+  const text = String(message).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
+  response.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+  response.end(`<!doctype html><meta charset="utf-8"><style>body{font:15px system-ui;padding:32px;color:#475569}h2{color:#172033}</style><h2>原站暂时无法载入</h2><p>${text}</p><p>可切换上方的资料、版本或图片继续查看。</p><script>parent.postMessage({type:'in-app-page-state',ok:false},'*')</script>`);
+}
+
+function rewriteProxiedHtml(html, targetUrl, options = {}) {
+  let content = String(html || '');
+  const target = new URL(String(targetUrl));
+  const staticMode = options.static === true || ['bbsmc.net', 'modrinth.com', 'xyebbs.com'].some((host) => target.hostname === host || target.hostname.endsWith(`.${host}`));
+  if (staticMode) {
+    content = content
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
+      .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  }
+  const escapedBase = String(targetUrl).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
+  const navigationScript = `<script>(function(){
+    var base=${JSON.stringify(target.href).replaceAll('<', '\\u003c')};
+    function ready(){window.parent.postMessage({type:'in-app-page-state',ok:true,url:base},'*');}
+    document.addEventListener('click',function(event){
+      var anchor=event.target&&event.target.closest&&event.target.closest('a[href]');
+      if(!anchor||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+      try{var next=new URL(anchor.getAttribute('href'),base);if(next.protocol!=='http:'&&next.protocol!=='https:')return;
+        if(next.origin===new URL(base).origin&&next.pathname===new URL(base).pathname&&next.search===new URL(base).search&&next.hash){var section=document.getElementById(decodeURIComponent(next.hash.slice(1)));if(section){event.preventDefault();section.scrollIntoView();return;}}
+        var host=new URL(base).hostname;var sameSite=next.hostname===host||next.hostname.replace(/^www\\./,'')===host.replace(/^www\\./,'');
+        if(!sameSite||anchor.hasAttribute('download')||/\\.(zip|jar|mrpack|7z)(?:$|[?#])/i.test(next.href)){anchor.href=next.href;anchor.target='_blank';anchor.rel='noreferrer';return;}
+        event.preventDefault();event.stopImmediatePropagation();window.parent.postMessage({type:'in-app-page-state',loading:true,url:next.href},'*');location.href=location.origin+'/api/proxy-page?${staticMode ? 'static=1&' : ''}url='+encodeURIComponent(next.href);
+      }catch(_){}
+    },${staticMode ? 'true' : 'false'});
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready,{once:true});else ready();
+  })();</script>`;
+  const mcmodPack = new URL(String(targetUrl)).hostname.endsWith('mcmod.cn') && /^\/modpack\/\d+\.html$/.test(new URL(String(targetUrl)).pathname);
+  const modNavigator = mcmodPack ? `<script>(function(){
+    function entries(){var root=document.querySelector('li.text-area[data-id="2"] .class-relation-list')||document.querySelector('.class-relation-list');if(!root)return[];var result=[];root.querySelectorAll('li.modlist').forEach(function(group){var category=group.querySelector('a[href*="/class/category/"]');group.querySelectorAll('ul li').forEach(function(item){var link=item.querySelector('p a[href*="/class/"]');if(link&&link.textContent.trim())result.push({name:link.textContent.trim(),url:link.href,categoryUrl:category?category.href:''});});});return result;}
+    function publish(){window.parent.postMessage({type:'mcmod-mod-index',entries:entries()},'*');}
+    window.addEventListener('message',function(event){if(event.source!==window.parent||!event.data||event.data.type!=='mcmod-focus-mod')return;var wanted=String(event.data.name||'').trim();var root=document.querySelector('li.text-area[data-id="2"] .class-relation-list')||document.querySelector('.class-relation-list');var found=null;if(root&&wanted){root.querySelectorAll('li.modlist ul li p a[href*="/class/"]').forEach(function(link){if(!found&&link.textContent.trim()===wanted)found=link;});}if(found){var tab=document.querySelector('.class-menu-page li.page-li[data-id="2"] a');if(tab&&tab.click)tab.click();setTimeout(function(){found.scrollIntoView({block:'center',behavior:'smooth'});found.style.outline='3px solid #1677ff';setTimeout(function(){found.style.outline='';},3500);},80);}window.parent.postMessage({type:'mcmod-focus-result',name:wanted,found:!!found},'*');});
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',publish,{once:true});else publish();
+  })();</script>` : '';
+  const injection = `<base href="${escapedBase}">${navigationScript}${modNavigator}`;
+  if (/<base\b[^>]*>/i.test(content)) return content.replace(/<base\b[^>]*>/i, injection);
+  if (/<head\b[^>]*>/i.test(content)) return content.replace(/<head\b[^>]*>/i, (head) => `${head}${injection}`);
+  return `${injection}${content}`;
+}
 
 function parseArgs(argv) {
   const args = { host: '127.0.0.1', port: 8765, open: false, dataRoot: null, python: null };
@@ -42,7 +102,9 @@ function makeRunner({ platform, options, workspace, onLine, sourceRoot = repoRoo
   if (!fs.existsSync(workerSource)) throw new Error(`采集 worker 未找到: ${workerSource}`);
   const command = pythonCommand(python);
   const args = [workerSource, '--platform', platform, '--workspace', workspace, '--source-root', sourceRoot];
+  if (options.mode) args.push('--mode', String(options.mode));
   if (options.limit) args.push('--limit', String(options.limit));
+  if (options.coverOffset !== undefined && options.coverOffset !== null) args.push('--cover-offset', String(options.coverOffset));
   if (options.pages) args.push('--pages', String(options.pages));
   if (options.until) args.push('--until', options.until);
   return createProcessRunner({ command, args, cwd: workspace, onLine });
@@ -95,10 +157,11 @@ function contentType(filePath) {
 }
 
 function openBrowser(url) {
-  const command = process.platform === 'win32' ? 'cmd' : process.platform === 'darwin' ? 'open' : 'xdg-open';
-  const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
-  const child = spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true });
-  child.unref();
+  return openSystemTarget(url, { kind: 'url' });
+}
+
+function openDirectory(directory) {
+  return openSystemTarget(path.resolve(directory), { kind: 'path' });
 }
 
 function createBrowserService(options = {}) {
@@ -171,6 +234,8 @@ function createBrowserService(options = {}) {
 
   async function handleApi(request, response, requestUrl) {
     const pathname = requestUrl.pathname;
+    const previewVersionsMatch = pathname.match(/^\/api\/preview-versions\/(mcmod|bbsmc|modrinth)\/([A-Za-z0-9_-]+)$/);
+    if (previewVersionsMatch && request.method === 'GET') return json(response, 200, await getPreviewVersions(previewVersionsMatch[1], previewVersionsMatch[2]));
     if (pathname === '/api/health' && request.method === 'GET') return json(response, 200, { ok: true, service: 'mc-modpack-board-browser' });
     if (pathname === '/api/events' && request.method === 'GET') {
       response.writeHead(200, {
@@ -185,6 +250,32 @@ function createBrowserService(options = {}) {
     }
     if (pathname === '/api/state' && request.method === 'GET') return json(response, 200, { data: await store.getState(), update: updateManager.getStatus() });
     if (pathname === '/api/audit' && request.method === 'GET') return json(response, 200, await store.getAuditDiff());
+    if (pathname === '/api/data/library' && request.method === 'GET') return json(response, 200, await store.listSnapshots());
+    if (pathname === '/api/data/open' && request.method === 'POST') {
+      const body = await readJsonBody(request, 64 * 1024);
+      const target = body.snapshotId ? await store.getSnapshotDirectory(body.snapshotId) : dataRoot;
+      await fsp.mkdir(target, { recursive: true });
+      await openDirectory(target);
+      return json(response, 200, { opened: true, path: target });
+    }
+    if (pathname === '/api/data/export' && request.method === 'POST') {
+      return json(response, 200, await store.exportActiveSnapshot());
+    }
+    if (pathname === '/api/data/activate' && request.method === 'POST') {
+      const body = await readJsonBody(request, 64 * 1024);
+      const data = await store.activateSnapshot(body.snapshotId);
+      await favoriteUpdates.resetFavoriteBaselines(
+        (await personalLibrary.list()).entries,
+        (platform, sourceId) => store.findSourceRecord(platform, sourceId),
+      );
+      sendEvent('data', data);
+      return json(response, 200, { data });
+    }
+    if (pathname === '/api/data/delete' && request.method === 'POST') {
+      const body = await readJsonBody(request, 64 * 1024);
+      const archived = await store.archiveSnapshot(body.snapshotId);
+      return json(response, 200, { archived, library: await store.listSnapshots() });
+    }
 
     const recordsMatch = pathname.match(/^\/api\/platforms\/([^/]+)\/records$/);
     if (recordsMatch && request.method === 'GET') {
@@ -291,6 +382,105 @@ function createBrowserService(options = {}) {
     }
 
     if (pathname === '/api/updates/cancel' && request.method === 'POST') return json(response, 200, updateManager.cancel());
+
+    if (pathname === '/api/proxy-page' && request.method === 'GET') {
+      const targetUrl = requestUrl.searchParams.get('url');
+      if (!targetUrl) {
+        return errorJson(response, 400, '需要合法的 HTTP/HTTPS 目标 URL');
+      }
+      try {
+        const parsed = parseAllowedProxyTarget(targetUrl);
+
+        const client = parsed.protocol === 'https:' ? https : http;
+        const reqHeaders = {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'Accept-Encoding': 'identity',
+        };
+        const proxyReq = client.request(targetUrl, {
+          method: 'GET',
+          headers: reqHeaders,
+        }, (proxyRes) => {
+          if (proxyRes.statusCode >= 400) {
+            proxyRes.resume();
+            return proxyPageError(response, proxyRes.statusCode, `原站返回 HTTP ${proxyRes.statusCode}，可能需要在浏览器中验证或登录。`);
+          }
+          if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
+            const redirected = new URL(proxyRes.headers.location, targetUrl).toString();
+            try {
+              parseAllowedProxyTarget(redirected);
+            } catch (error) {
+              return errorJson(response, 502, error);
+            }
+            response.writeHead(302, { Location: `/api/proxy-page?${requestUrl.searchParams.get('static') === '1' ? 'static=1&' : ''}url=${encodeURIComponent(redirected)}` });
+            return response.end();
+          }
+
+          const responseHeaders = { ...proxyRes.headers };
+          delete responseHeaders['x-frame-options'];
+          delete responseHeaders['X-Frame-Options'];
+          delete responseHeaders['content-security-policy'];
+          delete responseHeaders['Content-Security-Policy'];
+          delete responseHeaders['content-security-policy-report-only'];
+          delete responseHeaders['set-cookie'];
+          delete responseHeaders['content-length'];
+
+          const contentTypeHeader = String(responseHeaders['content-type'] || '');
+          if (!/text\/html|application\/xhtml\+xml/i.test(contentTypeHeader)) {
+            response.writeHead(proxyRes.statusCode || 200, responseHeaders);
+            proxyRes.pipe(response);
+            return;
+          }
+
+          const chunks = [];
+          let totalBytes = 0;
+          proxyRes.on('data', (chunk) => {
+            totalBytes += chunk.length;
+            if (totalBytes > 10 * 1024 * 1024) {
+              proxyRes.destroy(new Error('代理页面超过 10MB 限制'));
+              return;
+            }
+            chunks.push(chunk);
+          });
+          proxyRes.on('end', () => {
+            if (response.headersSent) return;
+            let decoded = Buffer.concat(chunks);
+            const encoding = String(responseHeaders['content-encoding'] || '').toLowerCase();
+            try {
+              if (encoding === 'gzip') decoded = zlib.gunzipSync(decoded);
+              else if (encoding === 'br') decoded = zlib.brotliDecompressSync(decoded);
+              else if (encoding === 'deflate') decoded = zlib.inflateSync(decoded);
+              else if (encoding && encoding !== 'identity') throw new Error(`不支持的内容编码：${encoding}`);
+            } catch (error) {
+              return errorJson(response, 502, `代理页面解压失败：${error instanceof Error ? error.message : String(error)}`);
+            }
+            delete responseHeaders['content-encoding'];
+            const body = rewriteProxiedHtml(decoded.toString('utf8'), targetUrl, {
+              static: requestUrl.searchParams.get('static') === '1',
+            });
+            responseHeaders['content-length'] = Buffer.byteLength(body);
+            responseHeaders['cache-control'] = 'no-store';
+            response.writeHead(proxyRes.statusCode || 200, responseHeaders);
+            response.end(body);
+          });
+          proxyRes.on('error', (error) => {
+            if (!response.headersSent) errorJson(response, 502, `代理响应失败：${error.message}`);
+          });
+        });
+
+        proxyReq.on('error', (err) => {
+          proxyPageError(response, 502, `代理请求失败：${err.message}`);
+        });
+        proxyReq.setTimeout(15000, () => proxyReq.destroy(new Error('原站请求超过 15 秒，请稍后重试')));
+        response.on('close', () => { if (!response.writableEnded) proxyReq.destroy(); });
+        proxyReq.end();
+        return;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return errorJson(response, message === '不支持代理该域名' ? 403 : 400, message);
+      }
+    }
     return errorJson(response, 404, 'API 路径不存在');
   }
 
@@ -341,7 +531,7 @@ async function main() {
   const started = await service.start();
   console.log(`MC Modpack Board browser service: ${started.url}`);
   console.log(`Data root: ${service.dataRoot}`);
-  if (args.open) openBrowser(started.url);
+  if (args.open) await openBrowser(started.url);
   const shutdown = async () => { await service.stop(); process.exit(0); };
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
@@ -349,4 +539,4 @@ async function main() {
 
 if (require.main === module) main().catch((error) => { console.error(error.stack || error); process.exitCode = 1; });
 
-module.exports = { createBrowserService, openBrowser, parseArgs, frontendRoot };
+module.exports = { createBrowserService, openBrowser, parseArgs, frontendRoot, parseAllowedProxyTarget, rewriteProxiedHtml };

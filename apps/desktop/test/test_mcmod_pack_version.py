@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from dataclasses import asdict
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -22,12 +23,52 @@ def read_sidecar(path):
 
 
 class PackVersionContract(unittest.TestCase):
+    def test_modern_only_new_pack_keeps_existing_records(self):
+        page = (ROOT / "tests" / "fixtures" / "mcmod_cover_page_16_excerpt.html").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory(prefix="mcmod-modern-new-") as temp:
+            raw_path = Path(temp) / "raw.json"
+            sidecar_path = Path(temp) / "mcmod_data.js"
+            old_raw = {"mid": "15", "title": "已有整合包", "versions": [{"versionName": "1.0"}], "cover_url": "https://example.com/old.png"}
+            old_modern = {"mid": 15, "title": "已有整合包", "releases": [{"versionName": "1.0"}], "coverUrl": "https://example.com/old.png"}
+            raw_path.write_text(json.dumps([old_raw], ensure_ascii=False), encoding="utf-8")
+            sidecar_path.write_text("window.mcmodData = " + json.dumps([old_modern], ensure_ascii=False) + ";", encoding="utf-8")
+            seen = []
+            def fetch(url, **_kwargs):
+                seen.append(url)
+                return page if url.endswith("/16.html") else 404
+            args = SimpleNamespace(mode="new", max_404=2, limit=None, cache_size=10)
+            with patch.multiple(crawler, RAW_JSON_PATH=str(raw_path), MCMOD_DATA_PATH=str(sidecar_path),
+                                fetch_html=fetch, fetch_trend_data=lambda _mid: [],
+                                fetch_version_data=lambda _mid: {"checked": True, "latest_version": "", "latest_date": "", "release_date": "", "version_count": 0, "versions": []},
+                                write_collection_result=lambda *_args, **_kwargs: None):
+                crawler.refresh_modern_snapshot(args)
+            raw = json.loads(raw_path.read_text(encoding="utf-8"))
+            modern = read_sidecar(sidecar_path)
+            self.assertEqual(raw[0], old_raw)
+            self.assertEqual(modern[0], old_modern)
+            self.assertEqual([item["mid"] for item in raw], ["15", "16"])
+            self.assertEqual(modern[1]["mid"], 16)
+            self.assertEqual(len(seen), 3)
+
+    def test_visible_release_notes_exclude_embedded_page_scripts(self):
+        page = ('<div class="version-content" data-frame="1.20.1">'
+                '<div class="version-content-block"><span class="time">2026-09-14</span>'
+                '<span class="name">1.4.6</span><div class="content common-text">'
+                '<p>修复加载问题</p><script>$("#link").webuiPopover({title:"外链"});</script>'
+                '</div></div></div>')
+        self.assertEqual(crawler.parse_mcmod_version_history(page), [{
+            "versionName": "1.4.6", "date": "2026-09-14",
+            "changelog": "修复加载问题", "gameVersions": ["1.20.1"],
+        }])
+
     def test_producers_and_desktop_consumer_preserve_only_explicit_version(self):
         with tempfile.TemporaryDirectory(prefix="mcmod-pack-version-") as temp:
             workspace = Path(temp)
             data = workspace / "converted_output" / "data"
             data.mkdir(parents=True)
-            rows = [{"mid": 1, "title": "Fixture A", "latest_version": "1.2.3"},
+            rows = [{"mid": 1, "title": "Fixture A", "latest_version": "1.2.3",
+                     "versions": [{"versionName": "1.2.3", "date": "2026-09-14", "changelog": "修复加载问题", "gameVersions": ["1.20.1"]},
+                                  {"versionName": "1.2.2", "date": "2026-09-13", "changelog": "新增任务", "gameVersions": ["1.20.1"]}]},
                     {"mid": 2, "title": "Fixture B"},
                     {"mid": 3, "title": "Fixture empty", "latest_version": "   "}]
             app = {str(i): {"mc_versions": ["1.20.1"]} for i in (1, 2, 3)}
@@ -39,8 +80,10 @@ class PackVersionContract(unittest.TestCase):
                 crawler.save_all_outputs(rows, app)
             raw = json.loads((workspace / "crawler_output/mcmod_modpacks.json").read_text(encoding="utf-8"))
             self.assertEqual(raw[0]["latest_version"], "1.2.3")
+            self.assertEqual(len(raw[0]["versions"]), 2)
             modern = read_sidecar(data / "mcmod_data.js")
             self.assertEqual(modern[0]["packVersion"], "1.2.3")
+            self.assertEqual(modern[0]["releases"][1]["changelog"], "新增任务")
             for item in modern[1:]:
                 self.assertNotIn("packVersion", item)
 
@@ -81,12 +124,17 @@ const { DataStore } = require('./apps/desktop/lib/data-store.cjs');
                 for table, model in (("packs", bundle.pack), ("source_items", bundle.source_item)):
                     fields = asdict(model)
                     conn.execute(f"INSERT INTO {table} ({','.join(fields)}) VALUES ({','.join('?' for _ in fields)})", list(fields.values()))
+                for release in bundle.releases:
+                    fields = asdict(release)
+                    fields.pop("mc_versions")
+                    conn.execute(f"INSERT INTO releases ({','.join(fields)}) VALUES ({','.join('?' for _ in fields)})", list(fields.values()))
             conn.commit()
             conn.close()
             out = workspace / "exported"
             StructuredMCModExporter(str(db), str(out)).export()
             exported = read_sidecar(out / "mcmod_data.js")
             self.assertEqual(exported[0]["packVersion"], "1.2.3")
+            self.assertEqual([item["changelog"] for item in exported[0]["releases"]], ["修复加载问题", "新增任务"])
             for item in exported[1:]:
                 self.assertNotIn("packVersion", item)
 
@@ -106,6 +154,14 @@ const { DataStore } = require('./apps/desktop/lib/data-store.cjs');
         self.assertEqual(
             crawler.extract_mcmod_pack_cover("16", lazy_cover_page),
             "https://i.mcmod.cn/modpack/cover/lazy-cover.webp",
+        )
+        class_cover_page = (
+            '<div class="class-cover-image"><img '
+            'src="//i.mcmod.cn/class/cover/20180330/1522414725_2_thtz.jpg@480x300.jpg"></div>'
+        )
+        self.assertEqual(
+            crawler.extract_mcmod_pack_cover("437", class_cover_page),
+            "https://i.mcmod.cn/class/cover/20180330/1522414725_2_thtz.jpg@480x300.jpg",
         )
 
         with tempfile.TemporaryDirectory(prefix="mcmod-cover-pipeline-") as temp:
@@ -166,12 +222,18 @@ const { DataStore } = require('./apps/desktop/lib/data-store.cjs');
             self.assertEqual(sidecar_after[0]["coverUrl"], expected_cover)
             self.assertEqual(raw_after[1]["cover_url"], "")
             self.assertEqual(sidecar_after[1]["coverUrl"], "")
+            self.assertGreater(raw_after[1]["cover_checked_at"], 0)
             for before, after in zip(raw_before, raw_after):
                 self.assertEqual({k: v for k, v in before.items() if k != "cover_url"},
-                                 {k: v for k, v in after.items() if k != "cover_url"})
+                                 {k: v for k, v in after.items() if k not in ("cover_url", "cover_checked_at")})
             for before, after in zip(sidecar_before, sidecar_after):
                 self.assertEqual({k: v for k, v in before.items() if k != "coverUrl"},
                                  {k: v for k, v in after.items() if k != "coverUrl"})
+            with patch.multiple(crawler, RAW_JSON_PATH=str(raw_path), MCMOD_DATA_PATH=str(sidecar_path)):
+                repeat = crawler.refresh_missing_mcmod_covers(
+                    limit=2, page_fetcher=lambda url: self.fail(f"近期已确认无封面，不应重抓：{url}")
+                )
+            self.assertEqual(repeat["requests"], 0)
 
             script = """
 const assert = require('node:assert/strict');

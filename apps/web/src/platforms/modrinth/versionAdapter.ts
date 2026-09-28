@@ -15,7 +15,7 @@ export function adaptModrinthToVersionModal(
 ): VersionModalViewModel {
   const p = pack || {};
   const slug = p.slug || p.id || (p as any).project_id || (extra?.id as string) || '';
-  const versionsList = p.versions || (extra?.versions_data as any[]) || [];
+  const versionsList = [p.versions, extra?.versions_data].find((list) => Array.isArray(list) && list.length > 0) as any[] || [];
   const targetUrl = p.url || (extra?.url as string) || `https://modrinth.com/modpack/${slug}`;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

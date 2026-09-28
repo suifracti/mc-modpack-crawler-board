@@ -101,6 +101,53 @@ function readPlatformRecords(dataDir, platform) {
   try {
     const parsed = parseSidecarFile(sidecar);
     const records = Array.isArray(parsed) ? parsed : Object.values(parsed);
+
+    if (platform === 'mcmod') {
+      try {
+        const repoRoot = path.resolve(__dirname, '..', '..', '..');
+        const candidates = [
+          path.join(dataDir, '..', 'crawler_output', 'mcmod_modpacks.json'),
+          path.join(dataDir, 'mcmod_modpacks.json'),
+          path.join(repoRoot, 'crawler_output', 'mcmod_modpacks.json'),
+        ];
+        let rawFile = null;
+        for (const cand of candidates) {
+          if (fs.existsSync(cand)) {
+            rawFile = cand;
+            break;
+          }
+        }
+        if (rawFile) {
+          const rawPacks = JSON.parse(fs.readFileSync(rawFile, 'utf8'));
+          if (Array.isArray(rawPacks)) {
+            const map = new Map();
+            for (const item of rawPacks) {
+              const k = String(item.mid || item.project_id || item.id || '').trim();
+              if (k) map.set(k, item);
+            }
+            for (const rec of records) {
+              const mid = String(rec.mid || rec.id || rec.sourceId || '').trim();
+              const meta = map.get(mid);
+              if (meta) {
+                if (meta.latest_version && typeof meta.latest_version === 'string' && meta.latest_version.trim()) {
+                  if (!rec.packVersion) rec.packVersion = meta.latest_version.trim();
+                  rec.latest_version = meta.latest_version.trim();
+                }
+                if (meta.last_update_date) rec.last_update_date = meta.last_update_date;
+                if (meta.release_date) rec.release_date = meta.release_date;
+                if (meta.version_count) rec.version_count = meta.version_count;
+                if ((!rec.releases || !rec.releases.length) && Array.isArray(meta.releases)) {
+                  rec.releases = meta.releases;
+                }
+              }
+            }
+          }
+        }
+      } catch {
+        // graceful fallback if raw file unreadable
+      }
+    }
+
     return { records, sourceFile: path.basename(sidecar), error: null };
   } catch (error) {
     return {
@@ -259,8 +306,8 @@ function normaliseRecord(platform, record, index) {
     platform,
     sourceId,
     sourceIdOrigin,
-    ...(platform === 'mcmod' && typeof raw.packVersion === 'string' && raw.packVersion.trim()
-      ? { packVersion: raw.packVersion.trim() } : {}),
+    ...(platform === 'mcmod' && typeof (raw.packVersion || raw.latest_version || raw.latestVersion) === 'string' && (raw.packVersion || raw.latest_version || raw.latestVersion).trim()
+      ? { packVersion: (raw.packVersion || raw.latest_version || raw.latestVersion).trim() } : {}),
     title,
     author,
     url,
@@ -271,7 +318,15 @@ function normaliseRecord(platform, record, index) {
     updatedAt,
     coverUrl: asText(firstValue(record, ['coverUrl', 'cover', 'icon_url', 'logo_url', 'cover_url'])),
     environment,
-    releases: Array.isArray(record?.releases) ? record.releases : Array.isArray(record?.versions_data) ? record.versions_data : Array.isArray(record?.versions) ? record.versions : [],
+    releases: Array.isArray(record?.releases) && record.releases.length
+      ? record.releases
+      : (Array.isArray(record?.versions_data) && record.versions_data.length
+        ? record.versions_data
+        : (Array.isArray(record?.releases_data) && record.releases_data.length
+          ? record.releases_data
+        : (Array.isArray(raw?.releases) && raw.releases.length
+          ? raw.releases
+          : (platform !== 'mcmod' && Array.isArray(record?.versions) ? record.versions : [])))),
     ...(fileIndexes === undefined ? {} : { fileIndexes }),
     ...(mainFileId === null ? {} : { mainFileId }),
     raw,

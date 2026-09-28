@@ -80,6 +80,18 @@ test('failure keeps the previous snapshot and cancellation does not commit', asy
   assert.equal((await store.getPlatformRecords('bilibili')).records[0].title, '旧数据');
 });
 
+test('cancelled old-pack refresh keeps its isolated checkpoint for recovery', async () => {
+  const { store } = await setupStore();
+  const manager = new UpdateManager({ store, runnerFactory: fakeRunnerFactory('cancel') });
+  const pending = manager.start('bilibili', { mode: 'existing' });
+  manager.cancel();
+  const result = await pending;
+  assert.equal(result.state, 'cancelled');
+  const workspaces = await fs.readdir(store.incomingDir);
+  assert.equal(workspaces.length, 1);
+  assert.equal((await store.getPlatformRecords('bilibili')).records[0].title, '旧数据');
+});
+
 test('cancellation during preparation prevents the runner and shutdown waits for the task', async () => {
   const { store } = await setupStore();
   const preparation = deferred();
@@ -151,3 +163,18 @@ test('cancellation after the pointer commit point is refused and the result is s
   assert.equal(result.state, 'success');
   assert.equal((await store.getPlatformRecords('bilibili')).records[0].title, '新数据');
 });
+
+test('preserves mode and coverOffset options for runner', async () => {
+  const { store } = await setupStore();
+  let capturedOptions = null;
+  const runnerFactory = ({ platform, options, workspace, onLine }) => {
+    capturedOptions = options;
+    return fakeRunnerFactory('cancel')({ workspace, onLine });
+  };
+  const manager = new UpdateManager({ store, runnerFactory });
+  await manager.start('mcmod', { mode: 'covers', coverOffset: 40, limit: 10 });
+  assert.equal(capturedOptions?.mode, 'covers');
+  assert.equal(capturedOptions?.coverOffset, 40);
+  assert.equal(capturedOptions?.limit, 10);
+});
+

@@ -7,6 +7,9 @@ import { escHtml, escAttrJs } from '../../utils/html';
 import { generateSparklineSvg } from './sparkline';
 import type { McmodStructuredItem, McmodPreviewModItem } from './types';
 import { recordRendererDebug } from '../../debug';
+import { renderCoverImage } from '../../utils/coverImage';
+
+export const MCMOD_COVER_FALLBACK = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%231e293b%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%2394a3b8%22 font-family%3D%22sans-serif%22 font-size%3D%2215%22%3E%F0%9F%93%A6 MC%E7%99%BE%E7%A7%91%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E';
 
 export function renderTitleCell(pack: McmodStructuredItem): string {
   if (typeof window !== 'undefined') {
@@ -192,7 +195,7 @@ export function renderModsCell(pack: McmodStructuredItem): string {
 
   const moreHint =
     totalCount > 8
-      ? `<div class="tag-empty">折叠状态精选预览前 8 个模组；展开抽屉或点击分类可查看全部 ${totalCount} 款收录模组。</div>`
+      ? `<div class="tag-empty">折叠状态精选预览前 8 个模组；<button type="button" class="mod-open-drawer-btn" data-action="open-detail-from-mod" data-mid="${escAttrJs(String(pack.mid || ''))}">展开抽屉查看全部 ${totalCount} 款收录模组 ↗</button></div>`
       : '';
 
   return (
@@ -212,4 +215,85 @@ export function renderEnvironmentBadge(pack: McmodStructuredItem): string {
     return `<span class="modpack-env-badge badge-server-supported" title="${escAttrJs(server.evidenceText || '有服务端运行线索')}">✔ 有服务端运行线索</span>`;
   }
   return '';
+}
+
+export function renderMcmodCard(p: McmodStructuredItem): string {
+  if (typeof window !== 'undefined') {
+    recordRendererDebug('mcmod');
+  }
+  const mid = String(p.mid || '');
+  const fullTitle = p.title || `Modpack ${mid}`;
+  const titleCn = p.chineseName || fullTitle;
+  const titleEn = p.englishName && p.englishName !== p.chineseName ? p.englishName : '';
+  const originalCover = p.coverUrl || '';
+  const cover = renderCoverImage({
+    url: originalCover,
+    fallback: MCMOD_COVER_FALLBACK,
+    alt: `${fullTitle}封面`,
+    key: `mcmod:${mid}`,
+    className: 'mcmod-card-cover-img',
+  });
+  const viewsN = p.views || 0;
+  const viewsStr = viewsN >= 10000 ? `${(viewsN / 10000).toFixed(1)}万` : String(viewsN);
+  const score = p.score || p.trendStats?.score || 0;
+  const scoreStr = score > 0 ? `${score}★ 流行` : 'MC百科';
+  const ver = (p.mcVersions && p.mcVersions[0]) || '';
+  const modCount = p.includedModsCount || (p.previewMods ? p.previewMods.length : 0);
+  const votes = p.votes || { redVotes: 0, blackVotes: 0, redPercent: 95 };
+  const goodPct = votes.redPercent ?? (votes.redVotes > 0 ? Math.round(votes.redVotes / (votes.redVotes + (votes.blackVotes || 0)) * 100) : 95);
+  const recN = p.recommendations || 0;
+  const favN = p.favorites || 0;
+  const comN = p.commentsCount || 0;
+  const typeName = p.typeName || '魔改整合';
+
+  let badgesHtml = '';
+  if (p.has_server) {
+    badgesHtml += '<span class="badge-env badge-env-server" title="含服务端/支持联机开服">🖳 服务端</span>';
+  }
+  badgesHtml += `<span class="mcmod-badge-type">${escHtml(typeName)}</span>`;
+  if (modCount > 0) {
+    badgesHtml += `<span class="mcmod-badge-mods js-open-version-modal" data-mid="${escAttrJs(mid)}" style="cursor:pointer;" title="点击查看版本与参数详情">🧩 ${modCount} 款模组</span>`;
+  }
+  badgesHtml += `<span class="mcmod-badge-score" title="红票 ${votes.redVotes} / 黑票 ${votes.blackVotes || 0}">👍 ${goodPct}% 好评</span>`;
+  if (p.categories && Array.isArray(p.categories)) {
+    p.categories.slice(0, 3).forEach((c) => {
+      badgesHtml += `<span class="mcmod-badge-cat">${escHtml(c)}</span>`;
+    });
+  }
+
+  const coverOverlay = `<div class="mcmod-card-overlay">
+    <span class="mcmod-overlay-views">👁️ ${escHtml(viewsStr)}</span>
+    <span class="mcmod-overlay-score">${escHtml(scoreStr)}</span>
+  </div>`;
+  const verBadge = ver ? `<span class="mcmod-card-ver-badge" title="Minecraft 版本">MC ${escHtml(ver)}</span>` : '';
+
+  return `<div class="mcmod-pack-card platform-pack-card">
+    <div class="cover-media cover-media-rich" data-cover-frame data-cover-state="${cover.state}">
+      <button type="button" class="mcmod-card-cover-btn image-preview-trigger" data-action="open-image" data-image-url="${escAttrJs(cover.source)}" data-image-title="${escAttrJs(fullTitle)}封面" aria-label="查看${escAttrJs(fullTitle)}封面">
+        ${cover.image}
+        ${coverOverlay}
+        ${verBadge}
+      </button>
+      ${cover.retryButton}
+    </div>
+    <div class="mcmod-card-body platform-card-body">
+      <a href="https://www.mcmod.cn/modpack/${escAttrJs(mid)}.html" target="_blank" rel="noreferrer" class="mcmod-card-title platform-card-title modpack-link" data-mid="${escAttrJs(mid)}" data-full-title="${escAttrJs(fullTitle)}" title="${escAttrJs(fullTitle)}">
+        <span class="mcmod-title-cn">${escHtml(titleCn)}</span>
+        ${titleEn ? `<span class="mcmod-title-en">${escHtml(titleEn)}</span>` : ''}
+      </a>
+      <div class="mcmod-card-badges platform-card-tags">${badgesHtml}</div>
+      <div class="mcmod-card-metrics-row platform-card-metrics">
+        <span class="mcmod-metric-item" title="推荐数"><span class="metric-icon">👍</span> 推: <b>${recN}</b></span>
+        <span class="metric-sep">·</span>
+        <span class="mcmod-metric-item" title="收藏数"><span class="metric-icon">⭐</span> 藏: <b>${favN}</b></span>
+        <span class="metric-sep">·</span>
+        <button type="button" class="mcmod-metric-item mcmod-metric-btn" data-action="open-comment-preview" data-mid="${escAttrJs(mid)}" title="在网页内预览评论详情"><span class="metric-icon">💬</span> 评: <b>${comN}</b></button>
+      </div>
+      <div class="mcmod-card-foot platform-card-actions">
+        <button type="button" class="mcmod-comment-link" data-action="open-in-app-window" data-url="https://www.mcmod.cn/modpack/${escAttrJs(mid)}.html" data-title="${escAttrJs(fullTitle)}">▣ 小窗浏览</button>
+        <a class="modpack-diff-link" href="https://www.mcmod.cn/modpack/version/${escAttrJs(mid)}.html" target="_blank" rel="noreferrer" title="在 MC百科 查看真实版本发布与更新日志">📜 更新日志 ↗</a>
+        <button type="button" class="mcmod-comment-link js-open-comments" data-mid="${escAttrJs(mid)}" data-action="open-comment-preview" title="在网页内预览此整合包的评论">💬 详情评论</button>
+      </div>
+    </div>
+  </div>`;
 }

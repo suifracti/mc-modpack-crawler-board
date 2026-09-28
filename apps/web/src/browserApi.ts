@@ -1,5 +1,5 @@
 import type { Platform } from './domain/types';
-import type { DesktopApi, DesktopDataState, DesktopCommentsResult, DesktopUpdateStatus, DesktopAuditResult, FavoriteUpdatesResult, PersonalStatus } from './desktopShell';
+import type { DesktopApi, DesktopDataState, DesktopCommentsResult, DesktopUpdateStatus, DesktopAuditResult, DesktopDataLibrary, FavoriteUpdatesResult, PersonalStatus } from './desktopShell';
 
 async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const method = init?.method || 'GET';
@@ -58,6 +58,7 @@ function subscribe<T>(listeners: Set<(value: T) => void>, callback: (value: T) =
 export function installBrowserApi(): void {
   if (window.desktopApi) return;
   const api: DesktopApi = {
+    nativeDataDirectoryPicker: false,
     getState: () => request<{ data: DesktopDataState; update: DesktopUpdateStatus }>('/api/state'),
     getPersonalLibrary: () => request<{ schema: number; entries: Record<string, PersonalStatus> }>('/api/library'),
     getFavoriteUpdates: () => request<FavoriteUpdatesResult>('/api/favorite-updates'),
@@ -90,15 +91,21 @@ export function installBrowserApi(): void {
       return request<Awaited<ReturnType<DesktopApi['getPlatformRecords']>>>(`/api/platforms/${encodeURIComponent(platform)}/records?${params.toString()}`);
     },
     getPlatformComments: (platform, sourceId) => request<DesktopCommentsResult>(`/api/platforms/${encodeURIComponent(platform)}/comments/${encodeURIComponent(sourceId)}`),
-    chooseDataDirectory: async () => {
-      const selected = window.prompt('输入本地看板数据目录路径（可选 data、converted_output 或 build/frontend_preview）');
-      if (!selected?.trim()) return { cancelled: true };
+    getPreviewVersions: (platform, sourceId) => request(`/api/preview-versions/${encodeURIComponent(platform)}/${encodeURIComponent(sourceId)}`),
+    getDataLibrary: () => request<DesktopDataLibrary>('/api/data/library'),
+    chooseDataDirectory: async (path) => {
+      const selected = path?.trim();
+      if (!selected) return { cancelled: true };
       const result = await request<{ cancelled: boolean; data?: DesktopDataState }>('/api/data/import', {
         method: 'POST',
-        body: JSON.stringify({ path: selected.trim() }),
+        body: JSON.stringify({ path: selected }),
       });
       return result;
     },
+    activateDataSnapshot: (snapshotId) => request<{ data: DesktopDataState }>('/api/data/activate', { method: 'POST', body: JSON.stringify({ snapshotId }) }),
+    deleteDataSnapshot: (snapshotId) => request<{ archived: { snapshotId: string; recoverablePath: string }; library: DesktopDataLibrary }>('/api/data/delete', { method: 'POST', body: JSON.stringify({ snapshotId }) }),
+    exportActiveData: () => request<{ path: string; snapshotId: string; reused: boolean }>('/api/data/export', { method: 'POST', body: '{}' }),
+    openDataDirectory: (snapshotId) => request<{ opened: boolean; path: string }>('/api/data/open', { method: 'POST', body: JSON.stringify(snapshotId ? { snapshotId } : {}) }),
     startUpdate: (platform: Platform, options = {}) => request<DesktopUpdateStatus>('/api/updates', { method: 'POST', body: JSON.stringify({ platform, options }) }),
     cancelUpdate: () => request<{ cancelled: boolean; reason?: string }>('/api/updates/cancel', { method: 'POST', body: '{}' }),
     openExternal: async (url) => {

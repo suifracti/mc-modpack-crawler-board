@@ -15,9 +15,9 @@ export default defineConfig({
     rollupOptions: {
       input: path.resolve(__dirname, 'desktop.html'),
       output: {
-        entryFileNames: 'assets/[name].js',
-        chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name].[ext]',
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
       },
     },
     target: 'es2022',

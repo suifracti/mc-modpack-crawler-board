@@ -171,20 +171,41 @@ class MCModAdapter(BaseAdapter):
         if not mc_vers and raw_item.get("mc_version") and raw_item.get("mc_version") != "未知":
             mc_vers = [raw_item["mc_version"]]
         
-        ver_name = raw_item.get("latest_version") or (mc_vers[0] if mc_vers else "最新版")
-        releases.append(CanonicalRelease(
-            id=f"{source_item_id}:rel:latest",
-            pack_id=pack_id,
-            source_item_id=source_item_id,
-            version_name=ver_name,
-            version_type="release",
-            release_date=mod_at or pub_at,
-            is_latest=True,
-            downloads_count=None,
-            mc_versions=mc_vers,
-            extra_json=None,
-            created_at=now_str
-        ))
+        for index, version in enumerate(raw_item.get("versions") or []):
+            if not isinstance(version, dict):
+                continue
+            name = str(version.get("versionName") or version.get("version_name") or "").strip()
+            if not name:
+                continue
+            releases.append(CanonicalRelease(
+                id=f"{source_item_id}:rel:{index}",
+                pack_id=pack_id,
+                source_item_id=source_item_id,
+                version_name=name,
+                version_type="release",
+                release_date=clean_date_str(version.get("date")),
+                is_latest=(index == 0),
+                changelog=version.get("changelog") or None,
+                downloads_count=None,
+                mc_versions=version.get("gameVersions") or mc_vers,
+                extra_json=None,
+                created_at=now_str,
+            ))
+        if not releases:
+            ver_name = raw_item.get("latest_version") or (mc_vers[0] if mc_vers else "最新版")
+            releases.append(CanonicalRelease(
+                id=f"{source_item_id}:rel:latest",
+                pack_id=pack_id,
+                source_item_id=source_item_id,
+                version_name=ver_name,
+                version_type="release",
+                release_date=mod_at or pub_at,
+                is_latest=True,
+                downloads_count=None,
+                mc_versions=mc_vers,
+                extra_json=None,
+                created_at=now_str
+            ))
 
         # 6. Metrics
         metrics = CanonicalMetrics(

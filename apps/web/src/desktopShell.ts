@@ -5,6 +5,11 @@ import { getCategoryLabel } from './filters/platformFilters';
 import { buildVersionModalViewModel } from './modals/version/buildViewModel';
 import { generateSparklineSvg } from './platforms/mcmod/sparkline';
 import {
+  renderMcmodCard,
+  MCMOD_COVER_FALLBACK,
+  type McmodStructuredItem,
+} from './platforms/mcmod';
+import {
   parseMcmodTrendSeries,
   selectMcmodTrendRange,
   summarizeMcmodTrend,
@@ -168,7 +173,27 @@ export interface DesktopDataState {
   updatedAt: string | null;
   source: string | null;
   canonicalReady: boolean;
+  dataRoot?: string;
   platforms: Record<Platform, DesktopPlatformState>;
+}
+
+export interface DesktopDataSnapshot {
+  snapshotId: string;
+  directory: string;
+  active: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+  source: string;
+  updatedPlatforms: string[];
+  canonicalReady: boolean;
+  platforms: Partial<Record<Platform, number>>;
+  total: number;
+}
+
+export interface DesktopDataLibrary {
+  dataRoot: string;
+  activeSnapshotId: string | null;
+  snapshots: DesktopDataSnapshot[];
 }
 
 export interface DesktopRecordQuery {
@@ -210,6 +235,8 @@ export interface DesktopUpdateStatus {
 }
 
 export interface DesktopApi {
+  getPreviewVersions?: (platform: string, sourceId: string) => Promise<{ versions: Record<string, unknown>[]; fetchedAt: string }>;
+  nativeDataDirectoryPicker?: boolean;
   getState: () => Promise<{ data: DesktopDataState; update: DesktopUpdateStatus }>;
   getPersonalLibrary: () => Promise<{ schema: number; entries: Record<string, PersonalStatus> }>;
   getFavoriteUpdates: () => Promise<FavoriteUpdatesResult>;
@@ -218,12 +245,19 @@ export interface DesktopApi {
   restorePersonalLibrary: (payload: unknown) => Promise<{ restored: number; 'skipped-conflict': number; invalid: number }>;
   updatePersonalStatus: (platform: Platform, sourceId: string, patch: Partial<Pick<PersonalStatus, 'favorite' | 'wantToPlay' | 'played' | 'rating' | 'note'>>) => Promise<{ key: string; status: PersonalStatus }>;
   getAuditDiff: () => Promise<DesktopAuditResult>;
-  getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availableIncludedMods: DesktopFilterOption[]; availableGameplayCategories: DesktopFilterOption[]; availablePans: string[]; error?: string | null }>;
+  getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availableCategoryCounts?: DesktopFilterOption[]; availableIncludedMods: DesktopFilterOption[]; availableGameplayCategories: DesktopFilterOption[]; availablePans: string[]; error?: string | null }>;
   getPlatformComments: (platform: Platform, sourceId: string) => Promise<DesktopCommentsResult>;
-  chooseDataDirectory: () => Promise<{ cancelled: boolean; data?: DesktopDataState }>;
-  startUpdate: (platform: Platform, options?: { limit?: number; pages?: number; until?: string }) => Promise<DesktopUpdateStatus>;
+  getDataLibrary: () => Promise<DesktopDataLibrary>;
+  chooseDataDirectory: (path?: string) => Promise<{ cancelled: boolean; data?: DesktopDataState }>;
+  activateDataSnapshot: (snapshotId: string) => Promise<{ data: DesktopDataState }>;
+  deleteDataSnapshot: (snapshotId: string) => Promise<{ archived: { snapshotId: string; recoverablePath: string }; library: DesktopDataLibrary }>;
+  exportActiveData: () => Promise<{ path: string; snapshotId: string; reused: boolean }>;
+  openDataDirectory: (snapshotId?: string) => Promise<{ opened: boolean; path: string }>;
+  startUpdate: (platform: Platform, options?: UpdateOptions) => Promise<DesktopUpdateStatus>;
   cancelUpdate: () => Promise<{ cancelled: boolean; reason?: string }>;
   openExternal: (url: string) => Promise<{ opened: boolean }>;
+  openInAppWindow?: (url: string, title?: string) => Promise<{ opened: boolean }>;
+  flushSession?: () => Promise<{ ok: boolean }>;
   onUpdateStatus: (callback: (status: DesktopUpdateStatus) => void) => () => void;
   onUpdateLog: (callback: (line: string) => void) => () => void;
   onDataChanged: (callback: (data: DesktopDataState) => void) => () => void;
@@ -236,9 +270,45 @@ declare global {
 }
 
 type FilterPlatform = 'all' | Platform;
-type DropdownId = 'version' | 'loader' | 'category' | 'pan' | 'date' | 'sort' | 'page-size' | 'personal' | 'update-platform';
+type DropdownId = 'version' | 'loader' | 'category' | 'pan' | 'date' | 'sort' | 'page-size' | 'personal' | 'update-platform' | 'sticky-sort';
 type ViewMode = 'cards' | 'compact' | 'table';
 type BiliViewMode = 'grouped' | 'flat';
+
+type UpdateOptions = { limit?: number; mcmodLimit?: number; pages?: number; until?: string; mode?: string; otherMode?: string; coverOffset?: number };
+
+interface UpdateBatchState {
+  queue: Platform[];
+  total: number;
+  completed: number;
+  options: UpdateOptions;
+  handledTaskId: string;
+}
+
+interface InAppWindowState {
+  record?: DesktopRecord;
+  contentTab?: 'web' | 'overview' | 'versions' | 'gallery';
+  id?: string;
+  url: string;
+  title: string;
+  recordId?: string;
+  maximized?: boolean;
+  minimized?: boolean;
+  activeTab?: 'web' | 'changelog';
+  showChangelogPane?: boolean;
+  sourcePaneTab?: 'source' | 'versions' | 'mods';
+  showPersonalPane?: boolean;
+  zoom?: string;
+}
+
+export type PickerType = 'included-mod' | 'gameplay-category' | 'category';
+export type PickerSort = 'count_desc' | 'count_asc' | 'name_asc' | 'name_desc';
+
+export interface PickerModalState {
+  type: PickerType;
+  search: string;
+  limit: number;
+  sort?: PickerSort;
+}
 
 const UNKNOWN_LOCAL_TEXT = '未知（本地数据未提供）';
 
@@ -280,7 +350,7 @@ const PLATFORM_TAGLINES: Record<Platform, string> = {
 };
 
 const PLATFORM_COVER_FALLBACKS: Record<Platform, string> = {
-  mcmod: 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23fff7e6%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%23b66c2a%22 font-family%3D%22sans-serif%22 font-size%3D%2216%22%3EMC%E7%99%BE%E7%A7%91%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E',
+  mcmod: MCMOD_COVER_FALLBACK,
   bilibili: 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23fff0f5%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%23fb7299%22 font-family%3D%22sans-serif%22 font-size%3D%2216%22%3EB%E7%AB%99%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E',
   bbsmc: 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23eef8ff%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%230284c7%22 font-family%3D%22sans-serif%22 font-size%3D%2216%22%3EBBSMC%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E',
   xyebbs: 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22400%22 height%3D%22225%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23effcf5%22%2F%3E%3Ctext x%3D%2250%25%22 y%3D%2250%25%22 dominant-baseline%3D%22middle%22 text-anchor%3D%22middle%22 fill%3D%22%23059669%22 font-family%3D%22sans-serif%22 font-size%3D%2216%22%3EXYEBBS%20%E6%9A%82%E6%97%A0%E5%B0%81%E9%9D%A2%3C%2Ftext%3E%3C%2Fsvg%3E',
@@ -309,6 +379,12 @@ const state = {
   personalFilter: '' as PersonalFilter,
   moreFiltersOpen: false,
   sort: 'updated_desc',
+  stickyFollowMode: true,
+  stickyModsExpanded: false,
+  stickyModsExpandAll: false,
+  stickyCategoriesExpanded: false,
+  stickyModSearch: '',
+  stickyCatSearch: '',
   viewMode: 'cards' as ViewMode,
   biliViewMode: 'grouped' as BiliViewMode,
   biliGroups: [] as BiliGroup[],
@@ -317,6 +393,7 @@ const state = {
   availableVersions: [] as string[],
   availableLoaders: [] as string[],
   availableCategories: [] as string[],
+  availableCategoryCounts: [] as DesktopFilterOption[],
   availableIncludedMods: [] as DesktopFilterOption[],
   availableGameplayCategories: [] as DesktopFilterOption[],
   availablePans: [] as string[],
@@ -325,9 +402,33 @@ const state = {
   hasMore: false,
   openDropdown: '' as DropdownId | '',
   updatePlatform: 'bilibili' as Platform,
+  updatePlatforms: ['bilibili'] as Platform[],
+  updateBatch: null as UpdateBatchState | null,
+  mcmodUpdateMode: 'new' as 'new' | 'trend' | 'versions' | 'all',
+  mcmodOldLimit: 50,
+  otherUpdateMode: 'catalog' as 'catalog' | 'existing',
+  updateOtherLimit: '',
+  updateBiliPages: 1,
+  updateFormError: '',
+  updateLogsExpanded: false,
+  expandedMcmodTableMods: '' as string,
   selected: null as DesktopRecord | null,
   trendChart: null as { record: DesktopRecord; range: McmodTrendRange } | null,
   imagePreview: null as { url: string; title: string } | null,
+  commentPreviewRecord: null as DesktopRecord | null,
+  commentPreviewQuery: '',
+  commentPreviewTab: 'comments' as 'comments' | 'web',
+  inAppWindow: null as InAppWindowState | null,
+  inAppWindows: [] as InAppWindowState[],
+  inAppWindowPreviousSelected: null as DesktopRecord | null,
+  updateOpen: false,
+  dataImportOpen: false,
+  dataImportPath: '',
+  dataLibrary: null as DesktopDataLibrary | null,
+  dataLibraryLoading: false,
+  dataLibraryError: '',
+  dataExportPath: '',
+  dataNotice: '',
   audit: null as DesktopAuditResult | null,
   auditOpen: false,
   auditLoading: false,
@@ -346,6 +447,7 @@ const state = {
   recordsError: '',
   message: '',
   logs: [] as string[],
+  pickerModal: null as PickerModalState | null,
 };
 
 let root: HTMLElement;
@@ -353,8 +455,70 @@ let searchTimer: number | undefined;
 let personalNoteTimer: number | undefined;
 let profileFocusAfterRender: 'close' | 'trigger' | '' = '';
 let platformFilterFocusAfterRender: 'included-mod-search' | '' = '';
+let pickerFocusAfterRender: 'picker-modal-search' | '' = '';
+let stickyFocusAfterRender: 'sticky-mod-search' | 'sticky-cat-search' | '' = '';
 let trendFocusAfterRender: 'close' | 'trigger' | '' = '';
 let trendReturnRecordId = '';
+let mcmodTableFocusRecordId = '';
+let activeLoadRequestId = 0;
+const mcmodLiveModIndex = new Map<string, Array<{ name: string; url: string; categoryUrl: string }>>();
+const mcmodModIndexRequests = new Map<string, Promise<void>>();
+
+function ensureMcmodModIndex(record: DesktopRecord): Promise<void> {
+  if (mcmodLiveModIndex.has(record.id) || !/^\d+$/.test(record.sourceId)) return Promise.resolve();
+  const existing = mcmodModIndexRequests.get(record.id);
+  if (existing) return existing;
+  const url = `https://www.mcmod.cn/modpack/${record.sourceId}.html`;
+  const request = fetch(`/api/proxy-page?url=${encodeURIComponent(url)}`)
+    .then(async (response) => {
+      if (!response.ok) return;
+      const document = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const list = document.querySelector('li.text-area[data-id="2"] .class-relation-list') || document.querySelector('.class-relation-list');
+      if (!list) return;
+      const entries: Array<{ name: string; url: string; categoryUrl: string }> = [];
+      list.querySelectorAll('li.modlist').forEach((group) => {
+        const categoryUrl = safeExternalUrl((group.querySelector('a[href*="/class/category/"]') as HTMLAnchorElement | null)?.href);
+        group.querySelectorAll('ul li p a[href*="/class/"]').forEach((node) => {
+          const link = node as HTMLAnchorElement;
+          const name = link.textContent?.trim() || '';
+          if (name) entries.push({ name, url: safeExternalUrl(link.href), categoryUrl });
+        });
+      });
+      if (entries.length) mcmodLiveModIndex.set(record.id, entries);
+    })
+    .catch(() => {})
+    .finally(() => { mcmodModIndexRequests.delete(record.id); });
+  mcmodModIndexRequests.set(record.id, request);
+  return request;
+}
+
+interface PlatformCacheEntry {
+  records: DesktopRecord[];
+  biliGroups: BiliGroup[];
+  total: number;
+  availableVersions: string[];
+  availableLoaders: string[];
+  availableCategories: string[];
+  availableCategoryCounts?: DesktopFilterOption[];
+  availableIncludedMods: DesktopFilterOption[];
+  availableGameplayCategories: DesktopFilterOption[];
+  availablePans: string[];
+}
+
+const platformRecordCache = new Map<string, PlatformCacheEntry>();
+
+function isDefaultPlatformFilters(): boolean {
+  return !state.query
+    && !state.version
+    && !state.loader
+    && !state.category
+    && state.includedMods.length === 0
+    && state.gameplayCategories.length === 0
+    && !state.pan
+    && !state.dateRange
+    && !state.serverOnly
+    && !state.personalFilter;
+}
 
 function esc(value: unknown): string {
   return String(value ?? '')
@@ -491,7 +655,8 @@ function safeExternalUrl(value: unknown): string {
 }
 
 function safeImageUrl(value: unknown): string {
-  const text = String(value ?? '').trim();
+  let text = String(value ?? '').trim();
+  if (text.startsWith('//')) text = `https:${text}`;
   if (text.startsWith('data:image/')) return text;
   return safeExternalUrl(text);
 }
@@ -684,7 +849,7 @@ function renderBilibiliGroupPersonalActions(group: BiliGroup): string {
   if (!record || !latest) return '';
   const status = personalStatus(record);
   const target = personalTargetAttributes(record);
-  const targetLabel = `<span class="bili-personal-target">当前视频：${esc(record.title)} · BVID ${esc(record.sourceId)}</span>`;
+  const targetLabel = `<span class="bili-personal-target" title="${esc(record.title)}">保存至当前视频 · ${esc(record.sourceId)}</span>`;
   if (!isPersonalWritable(record)) {
     return `<div class="bili-personal-actions personal-unavailable">${targetLabel}<span>${esc(personalUnavailableReason(record))}</span></div>`;
   }
@@ -708,7 +873,8 @@ function renderBilibiliGroupPersonalSummary(group: BiliGroup): string {
     ].filter(Boolean).join(' · ');
     return `<button type="button" class="bili-personal-member" data-action="select-bili-member" data-bili-bvid="${esc(pack.bvid)}" ${personalTargetAttributes(record)} title="打开该视频详情并编辑状态"><span>${esc(pack.title || record.title)}</span><small>${esc(pack.bvid)} · ${esc(labels)}</small></button>`;
   }).filter(Boolean).join('');
-  return `<div class="bili-personal-summary"><div class="bili-personal-summary-head"><strong>个人状态摘要</strong><span>${marked.length ? `已标记 ${marked.length}/${group.items.length} 个成员` : `暂无成员标记`} · 范围：${scope}</span></div>${memberButtons ? `<div class="bili-personal-members">${memberButtons}</div>` : '<span class="bili-personal-summary-empty">组状态按视频保存；评分和备注不会折叠为组值。</span>'}</div>`;
+  if (!marked.length) return `<span class="bili-personal-summary-empty" title="${scope}；收藏、评分和备注均按视频保存">${group.items.length} 个关联视频 · 暂无标记</span>`;
+  return `<details class="bili-personal-summary"><summary>已标记 ${marked.length}/${group.items.length} 个视频</summary><div class="bili-personal-members">${memberButtons}</div></details>`;
 }
 
 function biliSortValue(group: BiliGroup, sort: string): number {
@@ -764,6 +930,7 @@ function legacyPackBase(record: DesktopRecord): Record<string, unknown> {
 
 function renderPlatformRichCard(record: DesktopRecord): string {
   const base = legacyPackBase(record);
+  if (record.platform === 'mcmod') return renderMcmodCard(base as unknown as McmodStructuredItem);
   if (record.platform === 'bbsmc') return renderBbsmcCard(base as unknown as BbsmcPack);
   if (record.platform === 'xyebbs') return renderXyebbsCard(base as unknown as XyebbsPack);
   if (record.platform === 'modrinth') return renderModrinthCard(base as unknown as ModrinthPack);
@@ -841,17 +1008,37 @@ function renderComments(comments: DesktopComment[]): string {
 function renderDropdown(id: DropdownId, selected: string, options: Array<{ value: string; label: string }>, disabled = false): string {
   const selectedOption = options.find((option) => option.value === selected) || options[0];
   const isOpen = state.openDropdown === id;
+  const isActive = Boolean(selected);
   return `<div class="ui-dropdown ${isOpen ? 'is-open' : ''}" data-dropdown-root="${id}">
-    <button type="button" class="ui-dropdown-trigger" data-action="toggle-dropdown" data-dropdown="${id}" aria-haspopup="listbox" aria-expanded="${isOpen}" ${disabled ? 'disabled' : ''}><span>${esc(selectedOption?.label || '')}</span><span class="ui-dropdown-chevron" aria-hidden="true">⌄</span></button>
-    <div class="ui-dropdown-menu" id="${id}-menu" role="listbox" aria-label="${esc(selectedOption?.label || '')}">${options.map((option) => `<button type="button" class="ui-dropdown-option ${option.value === selected ? 'is-selected' : ''}" data-action="select-dropdown" data-dropdown="${id}" data-value="${esc(option.value)}" role="option" aria-selected="${option.value === selected}">${esc(option.label)}</button>`).join('')}</div>
+    <button type="button" class="ui-dropdown-trigger ${isActive ? 'is-active' : ''}" data-action="toggle-dropdown" data-dropdown="${id}" aria-haspopup="listbox" aria-expanded="${isOpen}" ${disabled ? 'disabled' : ''}><span>${esc(selectedOption?.label || '')}</span><span class="ui-dropdown-chevron" aria-hidden="true">⌄</span></button>
+    <div class="ui-dropdown-menu" id="${id}-menu" role="listbox" aria-label="${esc(selectedOption?.label || '')}">${options.map((option) => `<button type="button" class="ui-dropdown-option ${option.value === selected ? 'is-selected' : ''}" data-action="select-dropdown" data-dropdown="${id}" data-value="${esc(option.value)}" role="option" aria-selected="${option.value === selected}"><span>${esc(option.label)}</span>${option.value === selected ? '<span class="ui-dropdown-check" aria-hidden="true">✓</span>' : ''}</button>`).join('')}</div>
   </div>`;
 }
 
 function renderFilterDropdown(id: 'version' | 'loader' | 'category' | 'pan', values: string[], selected: string, emptyLabel: string): string {
-  return renderDropdown(id, selected, [{ value: '', label: emptyLabel }, ...values.map((value) => ({ value, label: value }))]);
+  const options = [{ value: '', label: emptyLabel }, ...values.map((value) => ({
+    value,
+    label: id === 'category' ? getCategoryLabel(value) : value,
+  }))];
+  const selectedOption = options.find((option) => option.value === selected) || options[0];
+  const isOpen = state.openDropdown === id;
+  const isActive = Boolean(selected);
+  const pickerAction = id === 'category' && values.length > 12
+    ? `<button type="button" class="ui-dropdown-picker-action" data-action="open-picker" data-picker="category">弹窗查看全部分类（共 ${values.length} 类）...</button>`
+    : '';
+  return `<div class="ui-dropdown ${isOpen ? 'is-open' : ''}" data-dropdown-root="${id}">
+    <button type="button" class="ui-dropdown-trigger ${isActive ? 'is-active' : ''}" data-action="toggle-dropdown" data-dropdown="${id}" aria-haspopup="listbox" aria-expanded="${isOpen}"><span>${esc(selectedOption?.label || '')}</span><span class="ui-dropdown-chevron" aria-hidden="true">⌄</span></button>
+    <div class="ui-dropdown-menu" id="${id}-menu" role="listbox" aria-label="${esc(selectedOption?.label || '')}">
+      ${pickerAction}
+      ${options.map((option) => {
+        const subtext = id === 'category' && option.value && option.label !== option.value ? ` (${esc(option.value)})` : '';
+        return `<button type="button" class="ui-dropdown-option ${option.value === selected ? 'is-selected' : ''}" data-action="select-dropdown" data-dropdown="${id}" data-value="${esc(option.value)}" role="option" aria-selected="${option.value === selected}"><span>${esc(option.label)}${subtext}</span>${option.value === selected ? '<span class="ui-dropdown-check" aria-hidden="true">✓</span>' : ''}</button>`;
+      }).join('')}
+    </div>
+  </div>`;
 }
 
-function renderSortDropdown(): string {
+function renderSortDropdown(dropdownId: DropdownId = 'sticky-sort'): string {
   const options = state.platform === 'bilibili'
     ? [
       { value: 'updated_desc', label: '最新发布' },
@@ -873,16 +1060,7 @@ function renderSortDropdown(): string {
       { value: 'created_desc', label: '创建时间' },
       { value: 'title_asc', label: '名称 A-Z' },
     ];
-  return renderDropdown('sort', state.sort, options);
-}
-
-function renderDateDropdown(): string {
-  return renderDropdown('date', state.dateRange, [
-    { value: '', label: '全部时间' },
-    { value: '7d', label: '近 7 天' },
-    { value: '30d', label: '近 30 天' },
-    { value: '90d', label: '近 90 天' },
-  ]);
+  return renderDropdown(dropdownId, state.sort, options);
 }
 
 function renderPersonalDropdown(): string {
@@ -894,16 +1072,6 @@ function renderPersonalDropdown(): string {
   ]);
 }
 
-function moreFilterSelectionCount(): number {
-  return [
-    Boolean(state.pan),
-    Boolean(state.dateRange),
-    state.serverOnly,
-    state.platform !== 'all' && state.sort !== 'updated_desc',
-    state.platform !== 'all' && state.pageSize !== 24,
-  ].filter(Boolean).length;
-}
-
 function panLabel(value: string): string {
   const labels: Record<string, string> = {
     official: '官方原站',
@@ -913,64 +1081,13 @@ function panLabel(value: string): string {
   return labels[value] || value;
 }
 
-function selectedFacetOptions(options: DesktopFilterOption[], selected: string[], limit: number, search = ''): DesktopFilterOption[] {
-  const term = search.trim().toLowerCase();
-  const matches = term ? options.filter((option) => option.value.toLowerCase().includes(term)) : options;
-  const visible = matches.slice(0, limit);
-  const seen = new Set(visible.map((option) => option.value));
-  for (const value of selected) {
-    if (seen.has(value)) continue;
-    const option = options.find((item) => item.value === value);
-    if (option) visible.push(option);
-  }
-  return visible;
-}
-
-function facetOptionsByValue(options: DesktopFilterOption[], values: string[]): DesktopFilterOption[] {
-  return values.map((value) => options.find((option) => option.value === value)).filter((option): option is DesktopFilterOption => Boolean(option));
-}
-
-function renderFacetButton(action: 'toggle-included-mod' | 'toggle-gameplay-category', option: DesktopFilterOption, selected: boolean, label = option.value): string {
-  return `<button type="button" class="platform-facet-chip ${selected ? 'is-active' : ''}" data-action="${action}" data-value="${esc(option.value)}" aria-pressed="${selected}" title="${esc(option.value)}：${option.count} 个整合包"><span>${esc(label)}</span><small>${formatCount(option.count)}</small></button>`;
-}
-
-function renderPlatformSpecificFilters(): string {
-  if (state.platform === 'mcmod') {
-    const selected = facetOptionsByValue(state.availableIncludedMods, state.includedMods);
-    const term = state.includedModSearch.trim();
-    const limit = term ? 32 : state.includedModsExpanded ? state.availableIncludedMods.length : 10;
-    const options = selectedFacetOptions(state.availableIncludedMods.filter((option) => !state.includedMods.includes(option.value)), [], limit, term);
-    const emptyText = state.includedModSearch ? '没有匹配的模组名称。' : '当前快照没有可用的模组名称。';
-    return `<section class="platform-facet-panel ${state.includedModsExclude ? 'is-excluding' : ''}" aria-labelledby="included-mod-filter-title">
-      <div class="platform-facet-head"><div><h3 id="included-mod-filter-title">包含模组</h3><p>${state.includedMods.length ? `已选 ${state.includedMods.length} 项 · ${state.includedModsExclude ? '排除完整组合' : '需全部包含'}` : '搜索后多选，记录需包含全部所选模组'}</p></div><label class="platform-facet-exclude"><input id="included-mod-exclude" type="checkbox" ${state.includedModsExclude ? 'checked' : ''} ${state.includedMods.length ? '' : 'disabled'}> <span>排除完整组合</span></label></div>
-      <div class="platform-facet-search"><input id="included-mod-search" type="search" value="${esc(state.includedModSearch)}" placeholder="搜索模组名称" aria-label="搜索包含模组候选" autocomplete="off"><span>${formatCount(state.availableIncludedMods.length)} 个候选</span>${state.includedMods.length ? '<button type="button" class="platform-facet-clear" data-action="clear-platform-facet">清空已选</button>' : ''}</div>
-      ${selected.length ? `<div class="platform-facet-selected"><strong>已选</strong><div class="platform-facet-options" aria-label="已选包含模组">${selected.map((option) => renderFacetButton('toggle-included-mod', option, true)).join('')}</div></div>` : ''}
-      <div class="platform-facet-candidates"><span class="platform-facet-candidate-label">${term ? '搜索结果' : '候选模组'}</span><div class="platform-facet-options" aria-label="包含模组候选">${options.length ? options.map((option) => renderFacetButton('toggle-included-mod', option, false)).join('') : `<span class="platform-facet-empty">${emptyText}</span>`}</div></div>
-      ${!term && state.availableIncludedMods.length > 10 ? `<button type="button" class="platform-facet-expand" data-action="toggle-included-mods-expanded" aria-expanded="${state.includedModsExpanded}">${state.includedModsExpanded ? '收起候选' : `展开更多（共 ${state.availableIncludedMods.length} 项）`}</button>` : ''}
-      <details class="platform-facet-help"><summary>筛选规则</summary><p>包含为 AND；排除是否定“同时包含全部所选模组”。清单未知的记录不算命中。候选和计数来自当前快照全部 MC百科记录，不只来自当前页。</p></details>
-    </section>`;
-  }
-  if (state.platform === 'curseforge') {
-    const limit = state.gameplayCategoriesExpanded ? state.availableGameplayCategories.length : 12;
-    const selected = facetOptionsByValue(state.availableGameplayCategories, state.gameplayCategories);
-    const options = selectedFacetOptions(state.availableGameplayCategories.filter((option) => !state.gameplayCategories.includes(option.value)), [], limit);
-    return `<section class="platform-facet-panel ${state.gameplayCategoriesExclude ? 'is-excluding' : ''}" aria-labelledby="gameplay-category-filter-title">
-      <div class="platform-facet-head"><div><h3 id="gameplay-category-filter-title">玩法分类</h3><p>${state.gameplayCategories.length ? `已选 ${state.gameplayCategories.length} 项 · ${state.gameplayCategoriesExclude ? '排除任一命中' : '命中任一即可'}` : '可多选，命中任一分类即可'}</p></div><div class="platform-facet-head-actions"><label class="platform-facet-exclude"><input id="gameplay-category-exclude" type="checkbox" ${state.gameplayCategoriesExclude ? 'checked' : ''} ${state.gameplayCategories.length ? '' : 'disabled'}> <span>排除任一命中</span></label>${state.gameplayCategories.length ? '<button type="button" class="platform-facet-clear" data-action="clear-platform-facet">清空已选</button>' : ''}</div></div>
-      ${selected.length ? `<div class="platform-facet-selected"><strong>已选</strong><div class="platform-facet-options" aria-label="已选玩法分类">${selected.map((option) => renderFacetButton('toggle-gameplay-category', option, true, getCategoryLabel(option.value))).join('')}</div></div>` : ''}
-      <div class="platform-facet-candidates"><span class="platform-facet-candidate-label">分类候选</span><div class="platform-facet-options" aria-label="玩法分类候选">${options.map((option) => renderFacetButton('toggle-gameplay-category', option, false, getCategoryLabel(option.value))).join('') || '<span class="platform-facet-empty">当前快照没有玩法分类。</span>'}</div></div>
-      ${state.availableGameplayCategories.length > 12 ? `<button type="button" class="platform-facet-expand" data-action="toggle-gameplay-expanded" aria-expanded="${state.gameplayCategoriesExpanded}">${state.gameplayCategoriesExpanded ? '收起' : `展开全部（${state.availableGameplayCategories.length} 项）`}</button>` : ''}
-      <details class="platform-facet-help"><summary>筛选规则</summary><p>包含为 OR；排除会移除命中任一所选分类的记录。分类缺失不算命中。候选和计数来自当前快照全部 CurseForge 记录，不只来自当前页。</p></details>
-    </section>`;
-  }
-  return '';
-}
 
 function renderActiveFilters(): string {
   const filters: Array<{ key: string; label: string }> = [];
   if (state.query) filters.push({ key: 'query', label: `关键词：${state.query}` });
   if (state.version) filters.push({ key: 'version', label: `版本：${state.version}` });
   if (state.loader) filters.push({ key: 'loader', label: `Loader：${state.loader}` });
-  if (state.category && state.platform !== 'curseforge') filters.push({ key: 'category', label: `分类：${state.category}` });
+  if (state.category && state.platform !== 'curseforge') filters.push({ key: 'category', label: `分类：${getCategoryLabel(state.category)}` });
   if (state.platform === 'mcmod') state.includedMods.forEach((value) => filters.push({ key: `includedMod:${value}`, label: `${state.includedModsExclude ? '排除组合' : '包含模组'}：${value}` }));
   if (state.platform === 'curseforge') state.gameplayCategories.forEach((value) => filters.push({ key: `gameplayCategory:${value}`, label: `${state.gameplayCategoriesExclude ? '排除玩法' : '玩法分类'}：${getCategoryLabel(value)}` }));
   if (state.pan) filters.push({ key: 'pan', label: `渠道：${panLabel(state.pan)}` });
@@ -981,64 +1098,92 @@ function renderActiveFilters(): string {
   return `<div class="desktop-active-filters" aria-label="当前筛选条件">${filters.map((filter) => `<button type="button" class="desktop-active-filter" data-action="clear-filter" data-filter="${esc(filter.key)}">${esc(filter.label)} <span aria-hidden="true">×</span></button>`).join('')}<button type="button" class="desktop-active-clear" data-action="clear-filters">清空全部</button></div>`;
 }
 
-function renderFilterControls(): string {
-  const isAllPlatform = state.platform === 'all';
-  const moreFilterCount = moreFilterSelectionCount();
-  const moreFilterSummary = moreFilterCount ? `${moreFilterCount} 项已设置` : '渠道、时间与结果设置';
-  const viewButtons = state.platform === 'bilibili'
-    ? `<button type="button" class="desktop-view-button ${state.biliViewMode === 'grouped' ? 'is-active' : ''}" data-action="set-bili-view-mode" data-bili-view-mode="grouped">同包聚合</button><button type="button" class="desktop-view-button ${state.biliViewMode === 'flat' ? 'is-active' : ''}" data-action="set-bili-view-mode" data-bili-view-mode="flat">视频平铺</button>`
-    : `<button type="button" class="desktop-view-button ${state.viewMode === 'cards' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="cards">卡片</button><button type="button" class="desktop-view-button ${state.viewMode === 'compact' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="compact">紧凑</button>${state.platform === 'mcmod' ? `<button type="button" class="desktop-view-button ${state.viewMode === 'table' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="table">表格</button>` : ''}`;
-  return `<div class="desktop-filter-dock desktop-filter-dock-rich">
-    <div class="desktop-filter-primary">
-      <div class="desktop-filter-control"><span class="filter-label">版本</span>${renderFilterDropdown('version', state.availableVersions, state.version, '全部版本')}</div>
-      <div class="desktop-filter-control"><span class="filter-label">Loader</span>${renderFilterDropdown('loader', state.availableLoaders, state.loader, '全部 Loader')}</div>
-      ${state.platform === 'curseforge' ? '' : `<div class="desktop-filter-control"><span class="filter-label">分类</span>${renderFilterDropdown('category', state.availableCategories, state.category, '全部分类')}</div>`}
-      <div class="desktop-filter-control desktop-personal-filter"><span class="filter-label">回访状态</span>${renderPersonalDropdown()}</div>
-      <div class="desktop-filter-primary-actions">
-        <div class="desktop-filter-tool"><span class="filter-label">视图</span><div class="desktop-view-toggle" role="group" aria-label="结果视图">${viewButtons}</div></div>
-        <button type="button" class="hub-reset-btn" data-action="clear-filters">重置筛选</button>
-      </div>
-    </div>
-    ${renderPlatformSpecificFilters()}
-    <details class="desktop-more-filters" data-more-filters ${state.moreFiltersOpen ? 'open' : ''}>
-      <summary class="desktop-more-summary"><span class="desktop-more-title">更多筛选</span><span class="desktop-more-state">${moreFilterSummary}</span><span class="desktop-more-chevron" aria-hidden="true">⌄</span></summary>
-      <div class="desktop-more-filter-groups">
-        <section class="desktop-more-filter-group" aria-labelledby="more-filter-scope-title">
-          <h3 id="more-filter-scope-title">来源与更新时间</h3>
-          <div class="desktop-more-filter-controls">
-            <div class="desktop-filter-control"><span class="filter-label">渠道</span>${renderFilterDropdown('pan', state.availablePans, state.pan, '全部渠道')}</div>
-            <div class="desktop-filter-control"><span class="filter-label">更新时间</span>${renderDateDropdown()}</div>
-            <label class="desktop-check"><input id="server-only-toggle" type="checkbox" ${state.serverOnly ? 'checked' : ''}> <span>有服务端运行线索</span></label>
-          </div>
-        </section>
-        ${isAllPlatform ? '' : `<section class="desktop-more-filter-group" aria-labelledby="more-filter-display-title">
-          <h3 id="more-filter-display-title">排序与条数</h3>
-          <div class="desktop-more-filter-controls">
-            <div class="desktop-filter-control"><span class="filter-label">排序</span>${renderSortDropdown()}</div>
-            <div class="desktop-filter-control"><span class="filter-label">每页</span>${renderDropdown('page-size', String(state.pageSize), [{ value: '24', label: '24 条' }, { value: '48', label: '48 条' }, { value: '100', label: '100 条' }])}</div>
-          </div>
-        </section>`}
-      </div>
-    </details>
-  </div>${renderActiveFilters()}`;
-}
 
-function updatePanel(): string {
+function renderUpdateModal(): string {
+  if (!state.updateOpen && state.update?.state !== 'running') return '';
   const update = state.update;
   const running = update?.state === 'running';
-  const platform = update?.platform || state.updatePlatform;
+  const selectedPlatforms = state.updatePlatforms;
+  const batch = state.updateBatch;
   const progress = update && typeof update.total === 'number' && update.total > 0 ? Math.min(100, Math.round((update.processed / update.total) * 100)) : null;
   const logLines = (state.logs.length ? state.logs : update?.logs || []).slice(-80);
-  return `<section class="update-panel" aria-labelledby="update-title">
-    <div class="panel-heading"><div><span class="eyebrow">DATA REFRESH</span><h2 id="update-title">更新数据</h2></div><span class="panel-dot ${running ? 'is-running' : ''}"></span></div>
-    <p class="panel-copy">选择一个平台，采集将在隔离目录完成。成功后才切换新快照，失败或取消不会覆盖当前可用数据。</p>
-    <label class="field-label" for="update-platform">更新平台</label>
-    ${renderDropdown('update-platform', platform, ALL_PLATFORMS.map((id) => ({ value: id, label: PLATFORM_CONFIGS[id].name })), running)}
-    <div class="field-row"><div><label class="field-label" for="update-limit">采集上限</label><input id="update-limit" class="field" inputmode="numeric" placeholder="默认平台策略" value="" ${running ? 'disabled' : ''}></div><div><label class="field-label" for="update-pages">B站页数</label><input id="update-pages" class="field" inputmode="numeric" placeholder="1" value="1" ${running ? 'disabled' : ''}></div></div>
-    <div class="update-actions"><button class="button primary" data-action="start-update" ${running ? 'disabled' : ''}>${running ? '更新进行中' : '开始更新'}</button>${running ? '<button class="button danger" data-action="cancel-update">取消任务</button>' : ''}</div>
-    <div class="update-status ${update?.state || 'idle'}"><div class="status-line"><strong>${esc(update?.phase || '等待操作')}</strong><span>${update?.processed ? `已处理 ${update.processed} 条` : ''}</span></div>${progress === null ? (running ? '<div class="status-meta">总量未知，按实际处理结果更新</div>' : '') : `<div class="progress-track"><span style="width:${progress}%"></span></div><div class="status-meta">${progress}% · ${update?.processed}/${update?.total}</div>`}${update?.error ? `<div class="error-box">${esc(update.error)}</div>` : ''}</div>
-    <details class="log-details" ${running || logLines.length ? 'open' : ''}><summary>任务日志${logLines.length ? ` · ${logLines.length} 条` : ''}</summary><pre>${esc(logLines.join('\n') || '暂无日志')}</pre></details>
-  </section>`;
+  const otherPlatforms = selectedPlatforms.filter((platform) => platform !== 'mcmod');
+  const modeText = state.mcmodUpdateMode === 'new'
+    ? '只探测新包；每个新包会抓取当时可取得的真实走势与版本记录。'
+    : state.mcmodUpdateMode === 'versions'
+      ? '补抓所有尚未核实的旧包版本历史与更新正文，不重复抓取走势或封面；已确认无日志的包会跳过。'
+    : state.mcmodUpdateMode === 'trend'
+      ? '只检查已收录旧包；缝合过期走势、补抓逐版更新正文，并另行检查缺失封面（不会覆盖已有封面）。'
+      : '先探测新包，再刷新旧包基础指标、走势、逐版更新正文和缺失封面。旧包工作量较大。';
+  const visibleLogs = state.updateLogsExpanded ? logLines : logLines.slice(-3);
+  const formatLog = (line: string): string => {
+    if (line.startsWith('desktop collector: ')) {
+      const platform = line.match(/^desktop collector: (\w+)/)?.[1] as Platform | undefined;
+      return `已启动${platform ? PLATFORM_CONFIGS[platform]?.name || platform : '平台'}采集器`;
+    }
+    if (!line.startsWith('DESKTOP_EVENT ')) return line;
+    try {
+      const event = JSON.parse(line.slice('DESKTOP_EVENT '.length)) as { platform?: string; phase?: string; processed?: number; total?: number; error?: string };
+      return [event.platform ? PLATFORM_CONFIGS[event.platform as Platform]?.name || event.platform : '', event.phase || '', event.total ? `${event.processed || 0}/${event.total}` : '', event.error || ''].filter(Boolean).join(' · ');
+    } catch { return line; }
+  };
+  return `<div class="modal-backdrop update-backdrop" data-action="close-update-panel" role="dialog" aria-modal="true" aria-labelledby="update-title">
+    <section class="modal-panel update-modal-panel" onclick="event.stopPropagation()">
+      <header class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="eyebrow">本地快照更新</span>
+          <h2 id="update-title">数据更新</h2>
+          <p>按所选顺序逐个平台更新；每个平台完成校验后才切换快照。失败或取消会停止后续平台。</p>
+        </div>
+        <button type="button" class="modal-close update-close" data-action="close-update-panel" aria-label="关闭更新面板">×</button>
+      </header>
+      <div class="update-section-head"><div><strong>1 · 更新平台</strong><span>已选 ${selectedPlatforms.length} 个</span></div><div><button type="button" class="button secondary small" data-action="select-all-update-platforms" ${running ? 'disabled' : ''}>全选</button><button type="button" class="button secondary small" data-action="clear-update-platforms" ${running ? 'disabled' : ''}>清空</button></div></div>
+      <div class="update-platform-grid" role="group" aria-label="选择要更新的平台">${ALL_PLATFORMS.map((id) => {
+        const selected = selectedPlatforms.includes(id);
+        return `<button type="button" class="update-platform-choice ${selected ? 'is-selected' : ''}" data-action="toggle-update-platform" data-platform="${id}" aria-pressed="${selected}" ${running ? 'disabled' : ''}><span>${platformIcon(id)} ${esc(PLATFORM_CONFIGS[id].name)}</span><span class="update-platform-check" aria-hidden="true">${selected ? '✓' : '＋'}</span></button>`;
+      }).join('')}</div>
+      <div class="update-section-head"><div><strong>2 · 更新范围</strong><span>按平台分别生效</span></div></div>
+      ${selectedPlatforms.includes('mcmod') ? `<div class="update-scope-card"><label class="field-label" for="update-mode">MC百科 · 新包与旧包</label><select id="update-mode" class="field" ${running ? 'disabled' : ''}><option value="new" ${state.mcmodUpdateMode === 'new' ? 'selected' : ''}>只探测新包（推荐日常使用）</option><option value="versions" ${state.mcmodUpdateMode === 'versions' ? 'selected' : ''}>补抓全部旧包版本历史</option><option value="trend" ${state.mcmodUpdateMode === 'trend' ? 'selected' : ''}>只更新旧包走势、版本与缺失封面</option><option value="all" ${state.mcmodUpdateMode === 'all' ? 'selected' : ''}>新包 + 旧包指标、走势、版本与封面</option></select><p class="update-scope-help">${modeText}</p>${state.mcmodUpdateMode !== 'new' ? `<label class="field-label" for="update-mcmod-limit">本次最多检查多少个旧包</label><input id="update-mcmod-limit" class="field" type="number" min="1" max="100000" step="1" value="${state.mcmodOldLimit}" ${running ? 'disabled' : ''}><p class="update-scope-help">${state.mcmodUpdateMode === 'versions' ? `当前快照已收录 ${formatCount(state.data?.platforms.mcmod.count || 0)} 个 MC百科包；会检查尚未核实的版本页，完成后才切换快照。` : `当前快照已收录 ${formatCount(state.data?.platforms.mcmod.count || 0)} 个 MC百科包。默认最多 50 个走势/版本候选，另检查最多同数的缺失封面候选；近期确认原站无封面的包 30 天内不重复请求。仅新包模式按连续 8 个缺失 ID 自动停止，不受此数量限制。`}</p>` : ''}</div>` : ''}
+      ${otherPlatforms.length ? `<div class="update-scope-card"><label class="field-label" for="update-other-mode">其他五站 · 更新内容</label><select id="update-other-mode" class="field" ${running ? 'disabled' : ''}><option value="catalog" ${state.otherUpdateMode === 'catalog' ? 'selected' : ''}>刷新平台列表与新包</option><option value="existing" ${state.otherUpdateMode === 'existing' ? 'selected' : ''}>复查已收录旧包版本／B站简介</option></select><label class="field-label" for="update-limit">${state.otherUpdateMode === 'existing' ? '每个平台本次复查旧包数' : '每个平台采集上限'}</label><input id="update-limit" class="field" type="number" min="1" max="100000" step="1" placeholder="${state.otherUpdateMode === 'existing' ? '留空：每站轮流复查 50 个' : '留空：沿用各平台默认策略'}" value="${esc(state.updateOtherLimit)}" ${running ? 'disabled' : ''}><p class="update-scope-help">${state.otherUpdateMode === 'existing' ? '按最久未核对优先；B站检查旧视频简介与置顶，其他四站读取项目版本接口。大库建议分批执行，失败时不切换当前快照。' : '列表模式更新项目概要，但不代表逐个旧包的完整版本历史已复查。'} ${esc(otherPlatforms.map((id) => PLATFORM_CONFIGS[id].name).join('、'))}</p>${selectedPlatforms.includes('bilibili') && state.otherUpdateMode === 'catalog' ? `<label class="field-label" for="update-pages">B站检索页数</label><input id="update-pages" class="field" type="number" min="1" max="100000" step="1" value="${state.updateBiliPages}" ${running ? 'disabled' : ''}>` : ''}</div>` : ''}
+      ${state.updateFormError ? `<p class="update-form-error" role="alert">${esc(state.updateFormError)}</p>` : ''}
+      <div class="update-actions"><button class="button primary" data-action="start-update" ${running || !selectedPlatforms.length ? 'disabled' : ''}>${running ? '更新进行中' : `开始更新${selectedPlatforms.length > 1 ? `（${selectedPlatforms.length} 个平台）` : ''}`}</button>${running ? '<button class="button danger" data-action="cancel-update">取消本批任务</button>' : ''}</div>
+      <div class="update-section-head"><div><strong>3 · 执行状态</strong><span>${batch ? `批次 ${Math.min(batch.completed + 1, batch.total)}/${batch.total}` : update && update.state !== 'idle' ? '上次任务' : '等待开始'}</span></div></div>
+      <div class="update-status ${update?.state || 'idle'}" role="status"><div class="status-line"><strong>${esc(!update?.phase || update.phase === 'idle' ? '等待开始' : update.phase)}</strong><span>${update?.platform ? esc(PLATFORM_CONFIGS[update.platform]?.name || update.platform) : ''}</span></div>${progress === null ? (running ? '<div class="status-meta">处理总量暂未确定</div>' : '') : `<div class="progress-track"><span style="width:${progress}%"></span></div><div class="status-meta">${progress}% · ${update?.processed}/${update?.total}</div>`}${update?.error ? `<div class="error-box">${esc(update.error)}</div>` : ''}</div>
+      <div class="update-log-head"><strong>${batch || running || !update || update.state === 'idle' ? '任务日志' : '上次任务日志'} <span>${logLines.length} 条</span></strong><button type="button" class="button secondary small" data-action="toggle-update-logs" aria-expanded="${state.updateLogsExpanded}">${state.updateLogsExpanded ? '收起' : '查看全部'}</button></div>
+      <div class="update-log-list" role="log" aria-label="数据更新任务日志">${visibleLogs.length ? visibleLogs.map((line) => `<div class="update-log-line ${/失败|错误|error|failed/i.test(line) ? 'is-error' : ''}">${esc(formatLog(line))}</div>`).join('') : '<p>开始更新后显示任务进度与日志。</p>'}</div>
+    </section>
+  </div>`;
+}
+
+function renderDataImportModal(): string {
+  if (!state.dataImportOpen) return '';
+  const library = state.dataLibrary;
+  const snapshots = library?.snapshots || [];
+  const sourceLabel = (source: string): string => source === 'desktop-update' ? '应用更新' : source === 'local-import' ? '外部导入' : '本地快照';
+  const snapshotRows = snapshots.map((snapshot) => {
+    const platformNames = Object.entries(snapshot.platforms)
+      .filter(([, count]) => Number(count) > 0)
+      .map(([platform]) => PLATFORM_CONFIGS[platform as Platform]?.name || platform);
+    return `<article class="data-snapshot-row ${snapshot.active ? 'is-active' : ''}">
+      <div class="data-snapshot-main"><div class="data-snapshot-title"><strong>${snapshot.active ? '当前使用' : sourceLabel(snapshot.source)}</strong>${snapshot.canonicalReady ? '<span class="data-snapshot-badge">Canonical</span>' : ''}</div><code>${esc(snapshot.snapshotId)}</code><p>${esc(formatTime(snapshot.updatedAt || snapshot.createdAt || ''))} · ${formatCount(snapshot.total)} 条 · ${esc(platformNames.join('、') || '未识别平台')}</p></div>
+      <div class="data-snapshot-actions"><button type="button" class="button ghost" data-action="open-data-directory" data-snapshot-id="${esc(snapshot.snapshotId)}">打开目录</button><button type="button" class="button ghost data-copy-path" data-action="copy-data-path" data-path="${esc(snapshot.directory)}" title="复制快照目录路径">复制路径</button>${snapshot.active ? '<span class="data-snapshot-current">已选中</span>' : `<button type="button" class="button secondary" data-action="activate-data-snapshot" data-snapshot-id="${esc(snapshot.snapshotId)}">切换到此快照</button><button type="button" class="button danger data-snapshot-delete" data-action="delete-data-snapshot" data-snapshot-id="${esc(snapshot.snapshotId)}">删除</button>`}</div>
+    </article>`;
+  }).join('');
+  return `<div class="modal-backdrop data-import-backdrop" data-action="close-data-import" role="dialog" aria-modal="true" aria-labelledby="data-import-title">
+    <section class="modal-panel data-import-panel" onclick="event.stopPropagation()">
+      <header class="modal-header">
+        <div class="modal-title-wrap"><span class="eyebrow">LOCAL DATA</span><h2 id="data-import-title">本地数据管理</h2><p>快照、导入和导出统一放在应用数据目录。切换只改变当前读取的快照，不删除原数据。</p></div>
+        <button type="button" class="modal-close" data-action="close-data-import" aria-label="关闭更换数据面板">×</button>
+      </header>
+      <section class="data-root-card"><div><span>统一数据目录</span><code>${esc(library?.dataRoot || state.data?.dataRoot || '正在读取…')}</code></div><div class="data-root-actions"><button type="button" class="button secondary" data-action="open-data-directory">浏览目录</button><button type="button" class="button secondary" data-action="copy-data-path" data-path="${esc(library?.dataRoot || state.data?.dataRoot || '')}">复制路径</button><button type="button" class="button secondary" data-action="export-active-data" ${state.data?.hasData ? '' : 'disabled'}>导出当前数据</button></div></section>
+      ${state.dataExportPath ? `<div class="notice">已导出到：<code>${esc(state.dataExportPath)}</code></div>` : ''}
+      ${state.dataNotice ? `<div class="notice">${esc(state.dataNotice)}</div>` : ''}
+      <div class="data-library-heading"><div><strong>可用快照</strong><span>共 ${snapshots.length} 个</span></div><button type="button" class="button ghost" data-action="refresh-data-library">刷新</button></div>
+      <div class="data-snapshot-list">${state.dataLibraryLoading ? '<div class="loading-state">正在读取数据快照…</div>' : state.dataLibraryError ? `<div class="error-box">${esc(state.dataLibraryError)}</div>` : snapshotRows || '<div class="empty-evidence">还没有可用快照。</div>'}</div>
+      <details class="data-import-details"><summary>导入外部数据包</summary><p>可选择本应用导出的目录，或包含 data、converted_output 数据的旧目录。导入成功后会复制为新快照，不直接在外部目录上运行。</p><div class="data-import-input-row"><input id="data-import-path" class="field data-import-path" value="${esc(state.dataImportPath)}" placeholder="粘贴数据包或 data 目录路径" autocomplete="off" spellcheck="false">${window.desktopApi.nativeDataDirectoryPicker ? '<button type="button" class="button secondary" data-action="browse-data-import">选择目录</button>' : ''}<button type="button" class="button primary" data-action="confirm-data-import">导入并使用</button></div></details>
+      ${state.message ? `<div class="error-box">${esc(state.message)}</div>` : ''}
+    </section>
+  </div>`;
 }
 
 function formatMetric(value: unknown): string {
@@ -1049,18 +1194,30 @@ function formatMetric(value: unknown): string {
   return number.toLocaleString('zh-CN');
 }
 
-function recordMetricItems(record: DesktopRecord): string[] {
+interface DesktopMetricItem {
+  label: string;
+  text: string;
+  isComment?: boolean;
+}
+
+function recordMetricItems(record: DesktopRecord): DesktopMetricItem[] {
   const raw = record.raw || {};
-  const entries: Array<[string, unknown]> = record.platform === 'mcmod'
-    ? [['浏览', raw.views], ['评论', raw.commentsCount], ['收藏', raw.favorites]]
+  const entries: Array<[string, unknown, boolean?]> = record.platform === 'mcmod'
+    ? [['👁 浏览', raw.views], ['💬 评论', raw.commentsCount, true], ['⭐ 收藏', raw.favorites]]
     : record.platform === 'bilibili'
-      ? [['播放', raw.views], ['点赞', raw.likes], ['评论', raw.reply]]
+      ? [['▶ 播放', raw.views], ['👍 点赞', raw.likes], ['💬 评论', raw.reply, true]]
       : record.platform === 'bbsmc'
-        ? [['下载', raw.downloads], ['关注', raw.followers], ['评论', raw.comments]]
+        ? [['⬇ 下载', raw.downloads], ['👁 关注', raw.followers], ['💬 评论', raw.comments, true]]
         : record.platform === 'xyebbs'
-          ? [['下载', raw.downloads], ['浏览', raw.views], ['评论', raw.comments]]
-          : [['下载', raw.downloads], ['关注', raw.followers], ['点赞', raw.likes]];
-  return entries.filter(([, value]) => value !== undefined && value !== null && value !== '').map(([label, value]) => `${label} ${formatMetric(value)}`);
+          ? [['⬇ 下载', raw.downloads], ['👁 浏览', raw.views], ['💬 评论', raw.comments, true]]
+          : [['⬇ 下载', raw.downloads], ['👁 关注', raw.followers], ['👍 点赞', raw.likes]];
+  return entries
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([label, value, isComment]) => ({
+      label,
+      text: `${label} ${formatMetric(value)}`,
+      isComment: Boolean(isComment),
+    }));
 }
 
 function renderQuickDownloadLinks(record: DesktopRecord): string {
@@ -1078,26 +1235,72 @@ function renderRecord(record: DesktopRecord, index: number): string {
   const cover = renderCoverImage({ url: originalCoverUrl, fallback: fallbackUrl, alt: `${record.title}封面`, key: record.id, className: 'pack-card-cover-image' });
   const coverMarkup = `<div class="cover-media cover-media-record" data-cover-frame data-cover-state="${cover.state}"><button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面">${cover.image}${cover.status}</button>${cover.retryButton}</div>`;
   const metrics = recordMetricItems(record);
-  return `<article class="pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
+  return `<article class="pack-card platform-pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
     ${coverMarkup}
     <div class="card-top"><span class="platform-badge">${platformIcon(record.platform)} ${config.name}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>
-    <h3>${esc(record.title)}</h3><p class="author">${esc(record.author)}</p>
-    <p class="summary">${textOrUnknown(record.summary)}</p>
-    <div class="chips">${record.versions.slice(0, 4).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${!record.versions.length && !record.loaders.length ? '<span class="muted-chip">兼容信息未知</span>' : ''}</div>
-    ${metrics.length ? `<div class="card-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}</div>` : ''}
+    <h3 class="platform-card-title">${esc(record.title)}</h3><p class="author platform-card-meta">${esc(record.author)}</p>
+    <p class="summary platform-card-summary">${textOrUnknown(record.summary)}</p>
+    <div class="chips platform-card-tags">${record.versions.slice(0, 4).map((value, versionIndex) => `<span>${versionIndex === 0 ? 'MC ' : ''}${esc(value)}</span>`).join('')}${record.loaders.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${!record.versions.length && !record.loaders.length ? '<span class="muted-chip">兼容信息未知</span>' : ''}</div>
+    ${metrics.length ? `<div class="card-metrics">${metrics.map((m) => m.isComment
+      ? `<button type="button" class="card-metric-bubble card-metric-comment" data-action="open-comment-preview" data-index="${index}" title="点击预览此整合包的评论区">${esc(m.text)}</button>`
+      : `<span>${esc(m.text)}</span>`
+    ).join('')}</div>` : ''}
     ${renderQuickDownloadLinks(record)}
     ${renderPersonalCardZone(renderPersonalCardActions(record, index), 'pack-card-personal-zone')}
-    <div class="card-footer"><span>查看详情与来源证据</span><button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div>
+    <div class="card-footer platform-card-actions"><span>查看详情与来源证据</span><button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div>
   </article>`;
+}
+
+function renderMcmodWindowAction(record: DesktopRecord): string {
+  if (record.platform !== 'mcmod') return '';
+  const url = safeExternalUrl(record.url) || `https://www.mcmod.cn/modpack/${encodeURIComponent(record.sourceId)}.html`;
+  return `<button type="button" class="mcmod-comment-link" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(url)}" data-title="${esc(record.title)}">▣ 小窗浏览</button>`;
 }
 
 function renderCompactRecord(record: DesktopRecord, index: number): string {
   const originalCoverUrl = recordRealCoverUrl(record);
   const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
   const cover = renderCoverImage({ url: originalCoverUrl, fallback: fallbackUrl, alt: `${record.title}封面`, key: record.id, className: 'compact-record-cover-image' });
-  const coverMarkup = `<div class="cover-media cover-media-compact" data-cover-frame data-cover-state="${cover.state}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面">${cover.image}${cover.status}</button>${cover.retryButton}</div>`;
+  const coverMarkup = `<div class="cover-media cover-media-compact" data-cover-frame data-cover-state="${cover.state}"><button type="button" class="compact-record-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面">${cover.image}</button></div>`;
   const metrics = recordMetricItems(record);
-  return `<article class="compact-record" data-action="select-record" data-index="${index}">${coverMarkup}<div class="compact-record-main"><div class="compact-record-head"><span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span><span class="card-time">${esc(formatTime(record.updatedAt))}</span></div>${renderPersonalCardActions(record, index)}<h3>${esc(record.title)}</h3><p>${esc(record.author)} · ${textOrUnknown(record.summary)}</p><div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div></div><div class="compact-record-metrics">${metrics.map((metric) => `<span>${esc(metric)}</span>`).join('')}<button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div></article>`;
+  const authorText = record.author && record.author !== '未知' ? esc(record.author) : '';
+  let summaryText = record.summary ? record.summary.trim() : '';
+  if (!summaryText || summaryText === '未知' || summaryText.includes('本地数据未提供')) {
+    const raw = record.raw || {};
+    if (record.platform === 'mcmod') {
+      const typeStr = raw.typeName ? String(raw.typeName) : '整合包';
+      const modCount = raw.includedModsCount ? `${raw.includedModsCount} 款模组` : '';
+      const votes = (raw.votes && typeof raw.votes === 'object' ? raw.votes : {}) as Record<string, unknown>;
+      const voteStr = votes.redPercent !== undefined ? `${votes.redPercent}% 好评` : '';
+      summaryText = [typeStr, modCount, voteStr].filter(Boolean).join(' · ');
+    } else {
+      summaryText = record.categories.slice(0, 3).map((c) => getCategoryLabel(c)).join(' / ') || '暂无描述';
+    }
+  }
+  return `<article class="compact-record" data-action="select-record" data-index="${index}">
+    ${coverMarkup}
+    <div class="compact-record-main">
+      <div class="compact-record-head">
+        <span class="platform-badge">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span>
+        <span class="card-time">${esc(formatTime(record.updatedAt))}</span>
+        ${authorText ? `<span class="compact-record-author">${authorText}</span>` : ''}
+      </div>
+      <h3 class="compact-record-title">${esc(record.title)}</h3>
+      <p class="compact-record-summary">${esc(summaryText)}</p>
+      <div class="chips">${record.versions.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div>
+    </div>
+    <div class="compact-record-side">
+      <div class="compact-record-metrics">${metrics.map((m) => m.isComment
+        ? `<button type="button" class="compact-metric-bubble compact-metric-comment" data-action="open-comment-preview" data-index="${index}" title="点击预览此整合包的评论区">${esc(m.text)}</button>`
+        : `<span>${esc(m.text)}</span>`
+      ).join('')}</div>
+      <div class="compact-record-actions">
+        ${renderMcmodWindowAction(record)}
+        ${renderPersonalCardActions(record, index)}
+        <button type="button" class="compare-star compact-compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button>
+      </div>
+    </div>
+  </article>`;
 }
 
 function mcmodTrendSeries(record: DesktopRecord): McmodTrendSeries {
@@ -1128,41 +1331,182 @@ function renderMcmodTrendDetail(record: DesktopRecord): string {
   if (record.platform !== 'mcmod') return '';
   const series = mcmodTrendSeries(record);
   const summary = series.status === 'ready' ? `当前快照有 ${series.points.length} 个官方流行指数历史点。` : mcmodTrendStatusText(series);
-  return `<div class="detail-section mcmod-trend-detail"><h3>历史趋势</h3><p class="detail-summary">${esc(summary)}${series.skippedCount ? ` 已跳过 ${series.skippedCount} 个日期或数值异常的点。` : ''}</p>${renderMcmodTrendTrigger(record, series)}</div>`;
+  return `<div class="detail-section mcmod-trend-detail"><h3>历史趋势</h3><p class="detail-summary">${esc(summary)}${series.skippedCount ? ` 已跳过 ${series.skippedCount} 个日期或数值异常的点。` : ''}</p>${renderMcmodTrendTrigger(record, series)}<output class="trend-preview-readout">悬浮曲线查看日期和指数；方向键切换点位</output></div>`;
+}
+
+function mcmodTableModInfo(record: DesktopRecord): {
+  count: number;
+  categories: Array<{ name: string; count: number; url: string }>;
+  names: string[];
+} {
+  const raw = record.raw || {};
+  const names = [...new Set([
+    ...rawList(record, ['includedModNames', 'included_mod_names']),
+    ...rawRecords(record, ['includedMods', 'included_mods', 'previewMods', 'mods'])
+      .map((mod) => String(mod.title || mod.name || '').trim()),
+  ].filter(Boolean))];
+  const reportedCount = Number(raw.includedModsCount ?? raw.included_mods_count ?? raw.modCount ?? raw.mod_count);
+  const count = Number.isFinite(reportedCount) && reportedCount > 0 ? Math.max(reportedCount, names.length) : names.length;
+  const categories = (Array.isArray(raw.modCategories) ? raw.modCategories : [])
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => ({ name: String(item.categoryName || '').trim(), count: Number(item.count) || 0, url: safeExternalUrl(item.categoryUrl) }))
+    .filter((item) => item.name && item.count > 0);
+  return { count, categories, names };
+}
+
+function renderMcmodFullModList(record: DesktopRecord, context: 'table' | 'window'): string {
+  const info = mcmodTableModInfo(record);
+  if (!info.names.length) return '<p class="mcmod-mod-drawer-empty">当前快照有模组数量，但未提供可展示的名称清单。</p>';
+  const modDetails = new Map<string, { url: string; category: string }>();
+  const categoryByPath = new Map(info.categories.filter((item) => item.url).map((item) => [new URL(item.url).pathname, item.name]));
+  for (const mod of rawRecords(record, ['includedMods', 'included_mods', 'previewMods', 'mods'])) {
+    const name = String(mod.title || mod.name || '').trim();
+    const url = safeExternalUrl(mod.url);
+    const category = String(mod.categoryName || mod.category_name || '').trim();
+    if (name) modDetails.set(name, { url, category });
+  }
+  for (const mod of mcmodLiveModIndex.get(record.id) || []) {
+    const category = mod.categoryUrl ? categoryByPath.get(new URL(mod.categoryUrl).pathname) || '' : '';
+    if (mod.name) modDetails.set(mod.name, { url: safeExternalUrl(mod.url), category });
+  }
+  const groups = new Map<string, Array<{ name: string; index: number; url: string }>>();
+  info.names.forEach((name, index) => {
+    const detail = modDetails.get(name);
+    const category = detail?.category || '未归类（当前资料未逐项标注）';
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category)!.push({ name, index, url: detail?.url || '' });
+  });
+  const orderedGroups = [...groups.entries()].sort((a, b) => {
+    const ai = info.categories.findIndex((item) => item.name === a[0]);
+    const bi = info.categories.findIndex((item) => item.name === b[0]);
+    return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
+  });
+  return `<div class="mcmod-full-mod-list ${context === 'window' ? 'is-window' : 'is-table'}" data-mod-list>
+    <div class="mcmod-full-mod-toolbar"><input type="search" class="js-mcmod-mod-search" placeholder="搜索 ${info.names.length} 款模组…" aria-label="搜索已收录模组" autocomplete="off"><span data-mod-match-count>显示全部 ${info.names.length} 款</span></div>
+    <div class="mcmod-full-mod-items" aria-label="完整已收录模组清单">${orderedGroups.map(([category, mods]) => `<section class="mcmod-mod-group"><h4>${esc(category)} <span>${mods.length}</span></h4><div class="mcmod-mod-group-grid">${mods.map(({ name, index, url }) => {
+      const label = `<span class="mcmod-mod-index">${index + 1}</span><span class="mcmod-mod-name">${esc(name)}</span>`;
+      if (context === 'window') return `<button type="button" class="mcmod-full-mod-item js-focus-in-app-mod" data-mod-name="${esc(name.toLocaleLowerCase())}" data-mod-raw-name="${esc(name)}" title="在中间网页定位 ${esc(name)}">${label}<span class="mcmod-mod-locate">定位 ↘</span></button>`;
+      return url ? `<a class="mcmod-full-mod-item" href="${esc(url)}" target="_blank" rel="noreferrer" data-mod-name="${esc(name.toLocaleLowerCase())}">${label}<span aria-hidden="true">↗</span></a>` : `<span class="mcmod-full-mod-item" data-mod-name="${esc(name.toLocaleLowerCase())}">${label}</span>`;
+    }).join('')}</div></section>`).join('')}</div>
+  </div>`;
 }
 
 function renderMcmodTable(records: DesktopRecord[]): string {
   const rows = records.map((record, index) => {
     const raw = record.raw || {};
-    const trend = (raw.trendStats && typeof raw.trendStats === 'object' ? raw.trendStats : {}) as Record<string, unknown>;
+    const ts = (raw.trendStats && typeof raw.trendStats === 'object' ? raw.trendStats : {}) as Record<string, unknown>;
+    const score = ts.score !== undefined && ts.score !== null ? Number(ts.score) : null;
+    const lat = ts.lat !== undefined && ts.lat !== null ? formatMetric(ts.lat) : '—';
+    const max = ts.max !== undefined && ts.max !== null ? formatMetric(ts.max) : '—';
+    const avg = ts.avg !== undefined && ts.avg !== null ? formatMetric(ts.avg) : '—';
+    const days = ts.days !== undefined && ts.days !== null ? `${ts.days}天` : '—';
     const trendSeries = mcmodTrendSeries(record);
     const votes = (raw.votes && typeof raw.votes === 'object' ? raw.votes : {}) as Record<string, unknown>;
     const categories = valueList(raw.categories ?? record.categories);
-    const mods = valueList(raw.includedModNames ?? raw.included_mod_names);
+    const originalCoverUrl = recordRealCoverUrl(record);
+    const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
+    const cover = renderCoverImage({ url: originalCoverUrl, fallback: fallbackUrl, alt: `${record.title}封面`, key: record.id, className: 'mcmod-table-cover-image' });
+    const coverMarkup = `<div class="cover-media cover-media-table" data-cover-frame data-cover-state="${cover.state}"><button type="button" class="mcmod-table-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面">${cover.image}</button></div>`;
+
+    const svgHtml = trendSeries.status === 'ready'
+      ? generateSparklineSvg(trendSeries.points.map((p) => p.value), 118, 30)
+      : '';
+    const hint = svgHtml ? '看大图 ↗' : '无历史';
+    const scoreBadge = score !== null && score > 0
+      ? `<div class="trend-score-badge" title="官方流行指数评分"><span>流行</span><b>${score}</b></div>`
+      : `<div class="trend-score-badge unrated" title="官方暂无评分"><span>暂无评分</span></div>`;
+    const t7Num = asNumber(ts.t7);
+    const t30Num = asNumber(ts.t30);
+    const t7Label = Number.isFinite(t7Num) && t7Num !== 0 ? `${t7Num > 0 ? '+' : ''}${Math.round(t7Num)}%` : formatMetric(ts.t7);
+    const t30Label = Number.isFinite(t30Num) && t30Num !== 0 ? `${t30Num > 0 ? '+' : ''}${Math.round(t30Num)}%` : formatMetric(ts.t30);
+
+    const trendCellHtml = `<div class="trend-consolidated-cell">
+      <div class="trend-cell-top">
+        ${scoreBadge}
+        <div class="trend-growth-pair">
+          <span class="trend-growth-item ${t7Num > 0 ? 'is-up' : t7Num < 0 ? 'is-down' : ''}" title="7日涨幅">7日 <strong>${esc(t7Label)}</strong></span>
+          <span class="trend-growth-item ${t30Num > 0 ? 'is-up' : t30Num < 0 ? 'is-down' : ''}" title="30日涨幅">30日 <strong>${esc(t30Label)}</strong></span>
+        </div>
+      </div>
+      <button type="button" class="mcmod-trend-trigger is-compact" data-action="open-mcmod-trend" data-record-id="${esc(record.id)}" data-trend-trigger="true" aria-label="查看${esc(record.title)}的趋势图" title="点击查看${esc(record.title)}完整历史走势">
+        <div class="trend-main-row">
+          ${svgHtml ? `<span class="mcmod-trend-sparkline" data-trend-vals="${trendSeries.points.map((p) => p.value).join(',')}" data-trend-dates="${trendSeries.points.map((p) => p.date).join(',')}">${svgHtml}</span>` : '<span class="trend-no-data">暂无历史走势</span>'}
+          <div class="trend-val-group">
+            <span class="trend-val-lat" title="最新指数">最新: ${esc(lat)}</span>
+            <span class="trend-open-hint">${hint}</span>
+          </div>
+        </div>
+      </button>
+      <div class="trend-meta-row">
+        <span title="最高指数">高: ${esc(max)}</span>
+        <span title="平均指数">平: ${esc(avg)}</span>
+        <span title="走势天数">${esc(days)}</span>
+      </div>
+    </div>`;
+
+    const rv = Number(votes.redVotes) || 0;
+    const bv = Number(votes.blackVotes) || 0;
+    const rp = votes.redPercent !== undefined ? Number(votes.redPercent) : (rv + bv > 0 ? Math.round(rv / (rv + bv) * 100) : 50);
+    const bp = 100 - rp;
+    const voteCell = `<div class="votes-consolidated-cell">
+      <div class="vote-ratio-text"><span class="vote-positive">👍 ${rv} 红</span> / <span class="vote-negative">👎 ${bv} 黑</span></div>
+      <div class="vote-ratio-bar" title="红占比: ${rp}% | 黑占比: ${bp}%"><div class="vote-ratio-red" style="width: ${rp}%;"></div><div class="vote-ratio-black" style="width: ${bp}%;"></div></div>
+      <small>${rp}% 好评</small>
+    </div>`;
+
+    const com = formatMetric(raw.commentsCount);
+    const rec = formatMetric(raw.recommendations);
+    const fav = formatMetric(raw.favorites);
+    const hasComments = Number(raw.commentsCount) > 0;
+    const engageCell = `<div class="mcmod-engage-cell"><button type="button" class="mcmod-comment-btn ${hasComments ? 'has-count' : ''}" data-action="open-comment-preview" data-index="${index}" title="在网页内预览${esc(record.title)}的评论">💬 <strong>${esc(com)}</strong> 评</button><small>👍 ${esc(rec)} 推 · ⭐ ${esc(fav)} 藏</small></div>`;
+
+    const authorMarkup = record.author && record.author !== '未知' ? `<small>${esc(record.author)}</small>` : '';
+    const modInfo = mcmodTableModInfo(record);
+    const modsExpanded = state.expandedMcmodTableMods === record.id;
+    const modPanelId = `mcmod-table-mods-${index}`;
+    const categoryPreview = [...modInfo.categories].sort((a, b) => b.count - a.count).slice(0, 2).map((category) => `<span class="mcmod-mod-category" title="${esc(category.name)} ${category.count} 款">${esc(category.name)} <b>${category.count}</b></span>`).join('');
+    const modCellHtml = `<div class="mcmod-mod-summary"><div class="mcmod-mod-summary-top"><strong>${modInfo.count ? `${formatCount(modInfo.count)} 款模组` : '模组清单未知'}</strong><button type="button" class="mcmod-mod-toggle" data-action="toggle-mcmod-table-mods" data-record-id="${esc(record.id)}" aria-expanded="${modsExpanded}" aria-controls="${modPanelId}" ${modInfo.count || modInfo.categories.length ? '' : 'disabled'}>${modsExpanded ? '收起' : '查看模组'} <span aria-hidden="true">${modsExpanded ? '▴' : '▾'}</span></button></div>${categoryPreview ? `<div class="mcmod-mod-category-preview">${categoryPreview}${modInfo.categories.length > 2 ? `<span class="mcmod-mod-category-more">另 ${modInfo.categories.length - 2} 类</span>` : ''}</div>` : '<small>当前快照未提供分类</small>'}</div>`;
+    const modDrawer = modsExpanded ? `<tr class="mcmod-table-mod-drawer-row"><td colspan="7"><div class="mcmod-table-mod-drawer" id="${modPanelId}"><div class="mcmod-mod-drawer-header"><div><strong>${esc(record.title)} · 已收录模组</strong><span>${modInfo.count ? `来源共 ${formatCount(modInfo.count)} 款` : '清单数量未知'} · 本地可显示 ${modInfo.names.length} 款</span></div></div>${modInfo.categories.length ? `<div class="mcmod-mod-drawer-categories" aria-label="模组分类">${modInfo.categories.map((category) => `<span>${esc(category.name)} <b>${category.count}</b></span>`).join('')}</div>` : ''}${renderMcmodFullModList(record, 'table')}</div></td></tr>` : '';
+
     return `<tr class="mcmod-table-row" data-action="select-record" data-index="${index}">
-      <td class="mcmod-name-cell"><strong>${esc(record.title)}</strong><small>${esc(record.author || '作者未知')}</small><div class="mcmod-table-tags">${categories.slice(0, 4).map((item) => `<span>${esc(item)}</span>`).join('')}${categories.length > 4 ? `<span>+${categories.length - 4}</span>` : ''}</div></td>
-      <td>${esc(formatMetric(raw.views))}</td>
-      <td><strong>${esc(formatMetric(raw.score))}</strong><small>推荐 ${esc(formatMetric(raw.recommendations))}</small></td>
-      <td class="mcmod-trend-cell"><div class="mcmod-trend-values"><span><small>7 日</small><strong class="trend-number ${asNumber(trend.t7) >= 0 ? 'is-up' : 'is-down'}">${esc(formatMetric(trend.t7))}</strong></span><span><small>30 日</small><strong class="trend-number ${asNumber(trend.t30) >= 0 ? 'is-up' : 'is-down'}">${esc(formatMetric(trend.t30))}</strong></span></div>${renderMcmodTrendTrigger(record, trendSeries, true)}</td>
-      <td><span class="vote-positive">${esc(formatMetric(votes.redVotes))}</span> / <span class="vote-negative">${esc(formatMetric(votes.blackVotes))}</span><small>红 / 黑</small></td>
-      <td>${esc(formatMetric(raw.commentsCount))}<small>推荐 ${esc(formatMetric(raw.recommendations))} · 收藏 ${esc(formatMetric(raw.favorites))}</small></td>
-      <td class="mcmod-mod-cell">${mods.slice(0, 3).map((item) => `<span>${esc(item)}</span>`).join('')}${mods.length > 3 ? `<small>另有 ${mods.length - 3} 款模组</small>` : ''}</td><td class="mcmod-personal-cell">${renderPersonalCardActions(record, index)}</td>
-    </tr>`;
+      <td class="mcmod-name-cell"><div class="mcmod-name-cell-inner">${coverMarkup}<div class="mcmod-name-content"><strong>${esc(record.title)}</strong>${authorMarkup}<div class="mcmod-table-tags">${categories.slice(0, 4).map((item) => `<span>${esc(getCategoryLabel(item))}</span>`).join('')}${categories.length > 4 ? `<span>+${categories.length - 4}</span>` : ''}</div></div></div></td>
+      <td class="mcmod-reach-cell"><div class="mcmod-reach-metrics"><strong>${esc(formatMetric(raw.views))}</strong><span>🔥 ${esc(formatMetric(raw.score))}★ <i aria-hidden="true">·</i> ${esc(formatMetric(raw.recommendations))} 推荐</span></div></td>
+      <td class="mcmod-trend-cell">${trendCellHtml}</td>
+      <td>${voteCell}</td>
+      <td>${engageCell}</td>
+      <td class="mcmod-mod-cell">${modCellHtml}</td>
+      <td class="mcmod-personal-cell">
+        <div class="table-action-cell">
+          ${renderMcmodWindowAction(record)}
+          ${renderPersonalCardActions(record, index)}
+          <button type="button" class="compare-star table-compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button>
+        </div>
+      </td>
+    </tr>${modDrawer}`;
   }).join('');
   if (!rows) return '<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>';
-  return `<div class="mcmod-table-wrap"><table class="mcmod-table"><thead><tr><th>整合包</th><th>浏览</th><th>热度 / 推荐</th><th>趋势</th><th>投票</th><th>评论 / 收藏</th><th>包含模组</th><th>个人库</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="mcmod-table-wrap"><table class="mcmod-table"><colgroup><col style="width:21%"><col style="width:12%"><col style="width:22%"><col style="width:9%"><col style="width:10%"><col style="width:16%"><col style="width:10%"></colgroup><thead><tr><th>整合包</th><th>浏览 / 热度</th><th>趋势</th><th>投票</th><th>评论 / 收藏</th><th>包含模组</th><th>个人库 / 对比</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function renderBilibiliGroupedWorkspace(): string {
   const groups = sortBilibiliGroups(state.biliGroups);
   if (!groups.length) return '<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>';
-  const cards = groups.map((group) => {
+  const pageSize = 48;
+  const visibleGroups = groups.slice(0, state.page * pageSize);
+  const recordIndexBySourceId = new Map<string, number>();
+  for (let i = 0; i < state.records.length; i += 1) {
+    recordIndexBySourceId.set(state.records[i].sourceId, i);
+  }
+  const cards = visibleGroups.map((group) => {
     const latest = group.items[0];
-    const index = latest ? state.records.findIndex((record) => record.sourceId === latest.bvid) : -1;
+    const index = latest ? (recordIndexBySourceId.get(latest.bvid) ?? -1) : -1;
     const personalZone = renderPersonalCardZone(`${renderBilibiliGroupPersonalActions(group)}${renderBilibiliGroupPersonalSummary(group)}`, 'is-bilibili');
     return `<article class="desktop-rich-card" data-action="select-record" data-index="${index}" data-bili-group-key="${esc(group.key)}">${renderBiliGroupedCard(group)}${personalZone}</article>`;
   }).join('');
-  return `<div class="bili-legacy-mode-note"><strong>✨ 同名整合包智能聚合</strong><span>${formatCount(groups.length)} 款独立整合包 · 关联视频、统计、网盘与历史版本均保留</span></div><div class="bili-cards-grid desktop-bili-grid">${cards}</div>`;
+  const noteCount = visibleGroups.length < groups.length
+    ? `已显示 ${formatCount(visibleGroups.length)} / ${formatCount(groups.length)} 款独立整合包 · 关联视频、统计、网盘与历史版本均保留`
+    : `${formatCount(groups.length)} 款独立整合包 · 关联视频、统计、网盘与历史版本均保留`;
+  return `<div class="bili-legacy-mode-note"><strong>✨ 同名整合包智能聚合</strong><span>${noteCount}</span></div><div class="bili-cards-grid desktop-bili-grid">${cards}</div>`;
 }
 
 function renderBilibiliFlatWorkspace(records: DesktopRecord[]): string {
@@ -1215,9 +1559,8 @@ function renderCrossSearch(): string {
   const themeChips = ['机械动力', '拔刀剑', '宝可梦', '科技', '魔法', 'Fabulously Optimized', '空岛', 'RLCraft'].map((value) => `<button type="button" class="hot-chip chip-theme" data-action="quick-search" data-query="${esc(value)}">${esc(value)}</button>`).join('');
   return `<section class="cross-search-section" aria-labelledby="cross-search-title">
     <div class="csearch-top-row"><div><h2 id="cross-search-title" class="csearch-heading">跨平台检索总览</h2><p class="csearch-sub">每个平台独立在完整本地数据上搜索、筛选并按平台内规则排序；每轮每个平台最多 12 条。字段覆盖因平台而异，MC百科额外支持模组名检索。</p></div><div class="csearch-platforms-hint">${platformPills}</div></div>
-    <div class="cross-search-input-wrap"><span class="cross-search-icon">🔍</span><input id="pack-search" class="cross-search-input" value="${esc(state.query)}" placeholder="${esc(getDesktopSearchPlaceholder('all'))}" autocomplete="off"><div class="cross-search-kbd"><kbd>Ctrl</kbd><kbd>K</kbd></div></div>
+    <div class="cross-search-input-wrap"><span class="cross-search-icon">🔍</span><input id="pack-search" class="cross-search-input js-pack-search" value="${esc(state.query)}" placeholder="${esc(getDesktopSearchPlaceholder('all'))}" autocomplete="off"><div class="cross-search-kbd"><kbd>Ctrl</kbd><kbd>K</kbd></div></div>
     <div class="cross-chips-deck"><div class="chip-deck-row"><span class="deck-row-lbl">🎮 核心版本：</span><div class="deck-chips-group">${versionChips}</div></div><div class="chip-deck-row"><span class="deck-row-lbl">🔥 常用关键词：</span><div class="deck-chips-group">${themeChips}</div></div></div>
-    ${renderFilterControls()}
     ${renderCrossResults()}
   </section>`;
 }
@@ -1259,7 +1602,7 @@ function auditPanel(): string {
       : audit
         ? `<p class="audit-meta">${esc(audit.generated_at || '当前快照')} · ${audit.available ? '可用历史对比' : '没有可用历史基线'}</p>${audit.message ? `<div class="notice">${esc(audit.message)}</div>` : ''}<div class="audit-kpis"><div><strong>${formatCount(Number(stats.total_current || 0))}</strong><span>当前范围</span></div><div><strong>${formatCount(Number(stats.added_count || 0))}</strong><span>新增</span></div><div><strong>${formatCount(Number(stats.updated_count || 0))}</strong><span>更新</span></div><div><strong>${formatCount(Number(stats.removed_count || 0))}</strong><span>移除</span></div></div><div class="audit-list">${auditRows(audit)}</div>`
         : '<div class="empty-evidence">当前快照没有可读取的审计信息。</div>';
-  return `<div class="audit-backdrop" data-action="close-audit" role="dialog" aria-modal="true" aria-label="变动审计"><section class="audit-panel"><button type="button" class="icon-button audit-close" data-action="close-audit" aria-label="关闭审计">×</button><div class="eyebrow">SNAPSHOT AUDIT</div><h2>抓取变动审计</h2>${body}</section></div>`;
+  return `<div class="modal-backdrop audit-backdrop" data-action="close-audit" role="dialog" aria-modal="true" aria-label="变动审计"><section class="modal-panel audit-panel" onclick="event.stopPropagation()"><header class="modal-header"><div class="modal-title-wrap"><span class="eyebrow">SNAPSHOT AUDIT</span><h2>抓取变动审计</h2></div><button type="button" class="modal-close audit-close" data-action="close-audit" aria-label="关闭审计">×</button></header>${body}</section></div>`;
 }
 
 function compareEntries(): DesktopRecord[] {
@@ -1275,14 +1618,383 @@ function renderCompareTray(): string {
 function renderComparePanel(): string {
   if (!state.compareOpen) return '';
   const entries = compareEntries();
-  return `<div class="compare-backdrop" data-action="close-compare"><section class="compare-panel"><button type="button" class="icon-button compare-close" data-action="close-compare" aria-label="关闭比较">×</button><div class="eyebrow">MODPACK COMPARISON</div><h2>整合包全面对比</h2>${entries.length < 2 ? '<div class="empty-evidence">至少选择两个当前已载入的整合包。</div>' : `<div class="compare-table"><div class="compare-row compare-row-head"><span>字段</span>${entries.map((record) => `<strong>${esc(record.title)}</strong>`).join('')}</div><div class="compare-row"><span>平台</span>${entries.map((record) => `<span>${esc(PLATFORM_CONFIGS[record.platform].name)}</span>`).join('')}</div><div class="compare-row"><span>作者</span>${entries.map((record) => `<span>${esc(record.author)}</span>`).join('')}</div><div class="compare-row"><span>Minecraft</span>${entries.map((record) => `<span>${esc(record.versions.join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div><div class="compare-row"><span>Loader</span>${entries.map((record) => `<span>${esc(record.loaders.join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div><div class="compare-row"><span>分类</span>${entries.map((record) => `<span>${esc(record.categories.join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div><div class="compare-row"><span>服务端</span>${entries.map((record) => `<span>${esc(environmentDisplay(record))}</span>`).join('')}</div><div class="compare-row"><span>平台指标</span>${entries.map((record) => `<span>${esc(recordMetricItems(record).join(' · ') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div></div>`}</section></div>`;
+  return `<div class="modal-backdrop compare-backdrop" data-action="close-compare" role="dialog" aria-modal="true" aria-label="整合包全面对比"><section class="modal-panel compare-panel" onclick="event.stopPropagation()"><header class="modal-header"><div class="modal-title-wrap"><span class="eyebrow">MODPACK COMPARISON</span><h2>整合包全面对比</h2></div><button type="button" class="modal-close compare-close" data-action="close-compare" aria-label="关闭比较">×</button></header>${entries.length < 2 ? '<div class="empty-evidence">至少选择两个当前已载入的整合包。</div>' : `<div class="compare-table"><div class="compare-row compare-row-head"><span>字段</span>${entries.map((record) => `<strong>${esc(record.title)}</strong>`).join('')}</div><div class="compare-row"><span>平台</span>${entries.map((record) => `<span>${esc(PLATFORM_CONFIGS[record.platform].name)}</span>`).join('')}</div><div class="compare-row"><span>作者</span>${entries.map((record) => `<span>${esc(record.author)}</span>`).join('')}</div><div class="compare-row"><span>Minecraft</span>${entries.map((record) => `<span>${esc(record.versions.join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div><div class="compare-row"><span>Loader</span>${entries.map((record) => `<span>${esc(record.loaders.join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div><div class="compare-row"><span>分类</span>${entries.map((record) => `<span>${esc(record.categories.map((c) => getCategoryLabel(c)).join('、') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div><div class="compare-row"><span>服务端</span>${entries.map((record) => `<span>${esc(environmentDisplay(record))}</span>`).join('')}</div><div class="compare-row"><span>平台指标</span>${entries.map((record) => `<span>${esc(recordMetricItems(record).map((m) => m.text).join(' · ') || UNKNOWN_LOCAL_TEXT)}</span>`).join('')}</div></div>`}</section></div>`;
 }
 
 function renderPlatformHero(platform: Platform): string {
   const config = PLATFORM_CONFIGS[platform];
   const count = state.data?.platforms[platform]?.count ?? 0;
-  return `<section class="channel-hero ${platform}-channel-hero"><div class="channel-hero-left"><span class="channel-badge-tag">${platformIcon(platform)} ${esc(config.name)}</span><div class="channel-title">${esc(config.name)}资料看板</div><div class="channel-desc">${esc(PLATFORM_TAGLINES[platform])}。详情页保留版本、模组、评论和原始来源入口。</div></div><div class="channel-quick-stats"><div class="cstat-item"><span class="cs-num">${formatCount(count)}</span><span class="cs-lbl">当前快照记录</span></div><div class="cstat-item"><span class="cs-num">${state.loading ? '…' : formatCount(state.total)}</span><span class="cs-lbl">当前结果总数</span></div></div></section>
-   <section class="central-hub"><div class="hub-tier-search"><div class="hub-stat-badge">当前平台 <strong>${esc(config.name)}</strong></div><div class="hub-search-box"><span class="hub-search-icon">🔍</span><input id="pack-search" class="hub-search-input" value="${esc(state.query)}" placeholder="${esc(getDesktopSearchPlaceholder(platform))}" autocomplete="off"></div></div>${renderFilterControls()}</section>`;
+  return `<section class="channel-hero ${platform}-channel-hero"><div class="channel-hero-left"><span class="channel-badge-tag">${platformIcon(platform)} ${esc(config.name)}</span><div class="channel-title">${esc(config.name)}资料看板</div><div class="channel-desc">${esc(PLATFORM_TAGLINES[platform])}。详情页保留版本、模组、评论和原始来源入口。</div></div><div class="channel-quick-stats"><div class="cstat-item"><span class="cs-num">${formatCount(count)}</span><span class="cs-lbl">当前快照记录</span></div><div class="cstat-item"><span class="cs-num">${state.loading ? '…' : formatCount(state.total)}</span><span class="cs-lbl">当前结果总数</span></div></div></section>`;
+}
+
+function getCategoryOptionsWithCounts(): Array<{ value: string; count: number }> {
+  if (state.availableCategoryCounts && state.availableCategoryCounts.length > 0) {
+    const existingValues = new Set(state.availableCategoryCounts.map((c) => c.value));
+    const extra: Array<{ value: string; count: number }> = state.availableCategories
+      .filter((cat) => !existingValues.has(cat))
+      .map((cat) => ({ value: cat, count: 0 }));
+    return [...state.availableCategoryCounts.map((c) => ({ value: c.value, count: c.count ?? 0 })), ...extra];
+  }
+  const cachedCounts = platformRecordCache.get(state.platform)?.availableCategoryCounts;
+  if (cachedCounts && cachedCounts.length > 0) {
+    return cachedCounts.map((c) => ({ value: c.value, count: c.count ?? 0 }));
+  }
+  const countMap = new Map<string, number>();
+  for (const record of state.records) {
+    for (const cat of record.categories || []) {
+      if (cat) {
+        countMap.set(cat, (countMap.get(cat) || 0) + 1);
+      }
+    }
+  }
+  const allCategories = state.availableCategories;
+  const sorted = [...allCategories].sort((a, b) => {
+    const countA = countMap.get(a) || 0;
+    const countB = countMap.get(b) || 0;
+    if (countB !== countA) return countB - countA;
+    return getCategoryLabel(a).localeCompare(getCategoryLabel(b), 'zh-Hans-CN');
+  });
+  return sorted.map((cat) => ({
+    value: cat,
+    count: countMap.get(cat) || 0,
+  }));
+}
+
+export function renderStickyFollowBar(): string {
+  const isAll = state.platform === 'all';
+  const isCurseforge = state.platform === 'curseforge';
+  const isMcmod = state.platform === 'mcmod';
+  const isBili = state.platform === 'bilibili';
+
+  // 1. Primary Toolbar Row (Row 1):
+  // Search + Version + Loader + Status + Sort (if not all) + View Mode Toggle + Reset + Follow + Top
+  const searchPlaceholder = getDesktopSearchPlaceholder(state.platform);
+  const searchInputHtml = `<div class="sticky-main-search-wrap">
+    <span class="sticky-main-search-icon">🔍</span>
+    <input id="pack-search" class="sticky-main-search-input js-pack-search" value="${esc(state.query)}" placeholder="${esc(searchPlaceholder)}" autocomplete="off" aria-label="搜索整合包" />
+    ${state.query ? `<button type="button" class="sticky-search-clear-btn" data-action="clear-query" aria-label="清空搜索" title="清空搜索">✕</button>` : ''}
+  </div>`;
+
+  const versionDropdownHtml = `<div class="sticky-filter-control" title="按 Minecraft 版本筛选">
+    <span class="sticky-filter-icon">🏷️</span>
+    ${renderFilterDropdown('version', state.availableVersions, state.version, '全部版本')}
+  </div>`;
+
+  const loaderDropdownHtml = `<div class="sticky-filter-control" title="按 Mod Loader 筛选">
+    <span class="sticky-filter-icon">⚙️</span>
+    ${renderFilterDropdown('loader', state.availableLoaders, state.loader, '全部 Loader')}
+  </div>`;
+
+  const statusDropdownHtml = `<div class="sticky-filter-control" title="按个人回访状态筛选">
+    <span class="sticky-filter-icon">⭐</span>
+    ${renderPersonalDropdown()}
+  </div>`;
+
+  const sortSelectHtml = isAll ? '' : `<div class="sticky-sort-group">
+    <span class="sticky-bar-label">排序</span>
+    ${renderSortDropdown('sticky-sort')}
+  </div>`;
+
+  const viewButtons = isBili
+    ? `<button type="button" class="desktop-view-button ${state.biliViewMode === 'grouped' ? 'is-active' : ''}" data-action="set-bili-view-mode" data-bili-view-mode="grouped">同包聚合</button><button type="button" class="desktop-view-button ${state.biliViewMode === 'flat' ? 'is-active' : ''}" data-action="set-bili-view-mode" data-bili-view-mode="flat">视频平铺</button>`
+    : `<button type="button" class="desktop-view-button ${state.viewMode === 'cards' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="cards">卡片</button><button type="button" class="desktop-view-button ${state.viewMode === 'compact' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="compact">紧凑</button>${isMcmod ? `<button type="button" class="desktop-view-button ${state.viewMode === 'table' ? 'is-active' : ''}" data-action="set-view-mode" data-view-mode="table">表格</button>` : ''}`;
+
+  const hasActiveFilters = Boolean(
+    state.category ||
+    state.includedMods.length ||
+    state.gameplayCategories.length ||
+    state.query ||
+    state.version ||
+    state.loader ||
+    state.pan ||
+    state.dateRange ||
+    state.serverOnly ||
+    state.personalFilter
+  );
+  const activeResetHtml = hasActiveFilters
+    ? `<button type="button" class="sticky-reset-btn" data-action="clear-filters" title="清空全部筛选条件">重置</button>`
+    : '';
+
+  const followBtnHtml = `<button type="button" class="sticky-tool-btn ${state.stickyFollowMode ? 'is-active' : ''}" data-action="toggle-sticky-follow" title="${state.stickyFollowMode ? '屏幕跟随模式已开启（向下滚动时吸顶常驻），点击可解除吸顶' : '点击开启屏幕跟随模式（向下滚动时吸顶常驻）'}">${state.stickyFollowMode ? '📌 跟随中' : '📌 开启跟随'}</button>`;
+  const topBtnHtml = `<button type="button" class="sticky-tool-btn sticky-top-btn" data-action="scroll-to-top" title="返回页面顶部">↑ 顶部</button>`;
+
+  const toolbarRowHtml = `<div class="sticky-bar-row sticky-toolbar-row">
+    <div class="sticky-toolbar-left">
+      ${searchInputHtml}
+      <span class="sticky-separator" aria-hidden="true"></span>
+      ${versionDropdownHtml}
+      ${loaderDropdownHtml}
+      ${statusDropdownHtml}
+      ${sortSelectHtml ? `<span class="sticky-separator" aria-hidden="true"></span>${sortSelectHtml}` : ''}
+    </div>
+    <div class="sticky-toolbar-right">
+      <div class="desktop-view-toggle" role="group" aria-label="结果视图">${viewButtons}</div>
+      ${activeResetHtml}
+      <span class="sticky-separator" aria-hidden="true"></span>
+      ${followBtnHtml}
+      ${topBtnHtml}
+    </div>
+  </div>`;
+
+  // 2. Categories (Row 2)
+  const categoryOptions = getCategoryOptionsWithCounts();
+  let filteredCategoryOptions = categoryOptions;
+  if (state.stickyCatSearch.trim()) {
+    const q = state.stickyCatSearch.trim().toLowerCase();
+    filteredCategoryOptions = categoryOptions.filter((cat) => {
+      const label = getCategoryLabel(cat.value).toLowerCase();
+      return label.includes(q) || cat.value.toLowerCase().includes(q);
+    });
+  }
+  const categoryLimit = state.stickyCategoriesExpanded ? 999999 : 14;
+  let topCategories = state.stickyCatSearch.trim()
+    ? filteredCategoryOptions.slice(0, 50)
+    : filteredCategoryOptions.slice(0, categoryLimit);
+  if (!state.stickyCatSearch.trim() && state.category && !topCategories.some((c) => c.value === state.category)) {
+    const selectedCat = categoryOptions.find((c) => c.value === state.category) || { value: state.category, count: 0 };
+    topCategories = [selectedCat, ...topCategories];
+  }
+  const isAllCategoryActive = !state.category;
+  const platformTotal = state.platform === 'all'
+    ? (state.data ? ALL_PLATFORMS.reduce((sum, p) => sum + (state.data?.platforms[p]?.count || 0), 0) : state.total)
+    : (state.data?.platforms[state.platform]?.count ?? state.total);
+  const allCatPill = `<button type="button" class="sticky-pill ${isAllCategoryActive ? 'is-active' : ''}" data-action="set-sticky-category" data-category="" title="全部分类 (${formatCount(platformTotal)})">
+    <span class="sticky-pill-name">全部</span>
+    <span class="sticky-pill-count">${formatCount(platformTotal)}</span>
+  </button>`;
+
+  const categoryPillsHtml = topCategories.length > 0
+    ? [
+      allCatPill,
+      ...topCategories.map((cat) => {
+        const isActive = state.category === cat.value;
+        const label = getCategoryLabel(cat.value);
+        const tooltip = label !== cat.value
+          ? `${esc(label)} (${esc(cat.value)}) (${formatCount(cat.count)})`
+          : `${esc(label)} (${formatCount(cat.count)})`;
+        return `<button type="button" class="sticky-pill ${isActive ? 'is-active' : ''}" data-action="set-sticky-category" data-category="${esc(cat.value)}" title="${tooltip}">
+          <span class="sticky-pill-name">${esc(label)}</span>
+          <span class="sticky-pill-count">${formatCount(cat.count)}</span>
+        </button>`;
+      }),
+    ].join('')
+    : `${allCatPill}<span class="sticky-no-match">无匹配分类</span>`;
+
+  const catSearchBox = `<div class="sticky-search-input-wrap">
+    <input type="search" id="sticky-cat-search" class="sticky-search-input" placeholder="🔍 搜索分类..." value="${esc(state.stickyCatSearch)}" aria-label="在栏内搜索分类" autocomplete="off" spellcheck="false" />
+    ${state.stickyCatSearch ? `<button type="button" class="sticky-search-clear-btn" data-action="clear-sticky-cat-search" aria-label="清空分类搜索">✕</button>` : ''}
+  </div>`;
+
+  const canExpandCategories = categoryOptions.length > 12;
+  const expandCategoriesBtn = canExpandCategories
+    ? `<button type="button" class="sticky-expand-btn ${state.stickyCategoriesExpanded ? 'is-expanded' : ''}" data-action="toggle-sticky-categories-expanded" title="${state.stickyCategoriesExpanded ? '收起分类至常用' : `在栏内展开显示全部分类（共 ${categoryOptions.length} 类）`}">${state.stickyCategoriesExpanded ? '收起分类 ▴' : (categoryOptions.length > 14 ? `展开全部分类 (${categoryOptions.length}) ▾` : '展开分类 ▾')}</button>`
+    : '';
+
+  const openAllCategoriesBtn = state.availableCategories.length > 0
+    ? `<button type="button" class="sticky-all-btn sticky-picker-trigger" data-action="open-picker" data-picker="category" title="打开全部分类检索独立弹窗（共 ${formatCount(state.availableCategories.length)} 类）"><span class="sticky-btn-icon">📑</span>分类库弹窗 (${formatCount(state.availableCategories.length)}) <span class="sticky-btn-arrow">↗</span></button>`
+    : '';
+
+  const categoryRowHtml = `<div class="sticky-bar-row sticky-category-row ${state.stickyCategoriesExpanded ? 'is-expanded' : ''}">
+    <div class="sticky-row-left">
+      <span class="sticky-bar-label">分类</span>
+      ${catSearchBox}
+      <div class="sticky-pills-flow">
+        ${categoryPillsHtml}
+      </div>
+    </div>
+    <div class="sticky-row-right">
+      ${expandCategoriesBtn}
+      ${openAllCategoriesBtn}
+    </div>
+  </div>`;
+
+  // 3. Mods / Gameplay Categories (Row 3, if available)
+  const hasMods = isMcmod || (isCurseforge && state.availableGameplayCategories.length > 0);
+  let row3Html = '';
+
+  if (hasMods) {
+    if (isCurseforge && state.availableGameplayCategories.length > 0) {
+      let filteredGameplay = state.availableGameplayCategories;
+      if (state.stickyModSearch.trim()) {
+        const q = state.stickyModSearch.trim().toLowerCase();
+        filteredGameplay = state.availableGameplayCategories.filter((cat) => {
+          const label = getCategoryLabel(cat.value).toLowerCase();
+          return label.includes(q) || cat.value.toLowerCase().includes(q);
+        });
+      }
+      const topGameplay = state.stickyModSearch.trim() ? filteredGameplay : state.availableGameplayCategories;
+      const isAllGameplayActive = state.gameplayCategories.length === 0;
+      const allGameplayPill = `<button type="button" class="sticky-pill ${isAllGameplayActive ? 'is-active' : ''}" data-action="clear-gameplay-categories" title="全部玩法">
+        <span class="sticky-pill-name">全部</span>
+      </button>`;
+      const gameplayPills = topGameplay.length > 0
+        ? [
+          allGameplayPill,
+          ...topGameplay.map((cat) => {
+            const isActive = state.gameplayCategories.includes(cat.value);
+            const label = getCategoryLabel(cat.value);
+            const tooltip = label !== cat.value
+              ? `${esc(label)} (${esc(cat.value)}) (${formatCount(cat.count)})`
+              : `${esc(label)} (${formatCount(cat.count)})`;
+            return `<button type="button" class="sticky-pill ${isActive ? 'is-active' : ''}" data-action="toggle-sticky-gameplay-category" data-category="${esc(cat.value)}" title="${tooltip}">
+              <span class="sticky-pill-name">${esc(label)}</span>
+              <span class="sticky-pill-count">${formatCount(cat.count)}</span>
+            </button>`;
+          }),
+        ].join('')
+        : `${allGameplayPill}<span class="sticky-no-match">无匹配玩法</span>`;
+
+      const gameplaySearchBox = `<div class="sticky-search-input-wrap">
+        <input type="search" id="sticky-mod-search" class="sticky-search-input" placeholder="🔍 搜索玩法分类..." value="${esc(state.stickyModSearch)}" aria-label="在栏内搜索玩法分类" autocomplete="off" spellcheck="false" />
+        ${state.stickyModSearch ? `<button type="button" class="sticky-search-clear-btn" data-action="clear-sticky-mod-search" aria-label="清空玩法搜索">✕</button>` : ''}
+      </div>`;
+
+      const canExpandGameplay = state.availableGameplayCategories.length > 8;
+      const expandGameplayBtn = canExpandGameplay
+        ? `<button type="button" class="sticky-expand-btn ${state.stickyModsExpanded ? 'is-expanded' : ''}" data-action="toggle-sticky-mods-expanded" title="${state.stickyModsExpanded ? '收起玩法至常用' : `在栏内展开显示全部玩法分类（共 ${state.availableGameplayCategories.length} 类）`}">${state.stickyModsExpanded ? '收起玩法 ▴' : `展开全部玩法 (${state.availableGameplayCategories.length}) ▾`}</button>`
+        : '';
+
+      const openAllCurseforgeBtn = `<button type="button" class="sticky-all-btn sticky-picker-trigger" data-action="open-picker" data-picker="gameplay-category" title="打开玩法分类独立检索弹窗（共 ${state.availableGameplayCategories.length} 类）"><span class="sticky-btn-icon">🎮</span>玩法库弹窗 (${state.availableGameplayCategories.length}) <span class="sticky-btn-arrow">↗</span></button>`;
+      const activeGameplayBadge = state.gameplayCategories.length > 0
+        ? `<button type="button" class="sticky-active-badge" data-action="clear-gameplay-categories" title="点击清空已选玩法分类">已选玩法 ${state.gameplayCategories.length} ✕</button>`
+        : '';
+
+      row3Html = `<div class="sticky-bar-row sticky-mods-row ${state.stickyModsExpanded ? 'is-expanded' : ''}">
+        <div class="sticky-row-left">
+          <span class="sticky-bar-label">玩法</span>
+          ${gameplaySearchBox}
+          <div class="sticky-pills-flow">
+            ${gameplayPills}
+          </div>
+        </div>
+        <div class="sticky-row-right">
+          ${expandGameplayBtn}
+          ${openAllCurseforgeBtn}
+          ${activeGameplayBadge}
+        </div>
+      </div>`;
+    } else if (isMcmod) {
+      let filteredMods = state.availableIncludedMods;
+      if (state.stickyModSearch.trim()) {
+        const q = state.stickyModSearch.trim().toLowerCase();
+        filteredMods = state.availableIncludedMods.filter((mod) => mod.value.toLowerCase().includes(q));
+      }
+      const modLimit = state.stickyModsExpandAll
+        ? state.availableIncludedMods.length
+        : state.stickyModsExpanded
+          ? 70
+          : 14;
+      let topMods = state.stickyModSearch.trim()
+        ? filteredMods.slice(0, 100)
+        : filteredMods.slice(0, modLimit);
+      if (!state.stickyModSearch.trim()) {
+        for (const sel of state.includedMods) {
+          if (!topMods.some((m) => m.value === sel)) {
+            const found = state.availableIncludedMods.find((m) => m.value === sel) || { value: sel, count: 0 };
+            topMods.unshift(found);
+          }
+        }
+      }
+      const modPillsHtml = topMods.length > 0
+        ? topMods.map((mod) => {
+          const isActive = state.includedMods.includes(mod.value);
+          const label = mod.value;
+          return `<button type="button" class="sticky-pill ${isActive ? 'is-active' : ''}" data-action="toggle-included-mod" data-value="${esc(mod.value)}" title="${esc(label)} (${formatCount(mod.count)})">
+            <span class="sticky-pill-name">${esc(label)}</span>
+            <span class="sticky-pill-count">${formatCount(mod.count)}</span>
+          </button>`;
+        }).join('')
+        : `<span class="sticky-no-match">无匹配模组</span>`;
+
+      const modCountLabel = state.availableIncludedMods.length ? ` (${formatCount(state.availableIncludedMods.length)}款)` : '';
+      const modSearchBox = `<div class="sticky-search-input-wrap">
+        <input type="search" id="sticky-mod-search" class="sticky-search-input" placeholder="🔍 搜索模组${modCountLabel}..." value="${esc(state.stickyModSearch)}" aria-label="在栏内搜索模组" autocomplete="off" spellcheck="false" />
+        ${state.stickyModSearch ? `<button type="button" class="sticky-search-clear-btn" data-action="clear-sticky-mod-search" aria-label="清空模组搜索">✕</button>` : ''}
+      </div>`;
+
+      const canExpandMods = state.availableIncludedMods.length > 8;
+      const canExpandAllMods = state.availableIncludedMods.length > 70;
+      let expandModsControls = '';
+      if (canExpandMods) {
+        if (state.stickyModsExpandAll) {
+          expandModsControls = `<button type="button" class="sticky-expand-btn is-expanded" data-action="toggle-sticky-mods-expand-all" title="收起全部模组至常用">收起全部 ▴</button>`;
+        } else if (state.stickyModsExpanded) {
+          expandModsControls = `<button type="button" class="sticky-expand-btn is-expanded" data-action="toggle-sticky-mods-expanded" title="收起模组至常用">收起模组 ▴</button>
+          ${canExpandAllMods ? `<button type="button" class="sticky-expand-btn sticky-expand-all-btn" data-action="toggle-sticky-mods-expand-all" title="在栏内直接平铺展开全部 ${formatCount(state.availableIncludedMods.length)} 款模组（无需弹窗）">展开全部 (${formatCount(state.availableIncludedMods.length)}) ▾</button>` : ''}`;
+        } else {
+          expandModsControls = `<button type="button" class="sticky-expand-btn" data-action="toggle-sticky-mods-expanded" title="在栏内展开显示前 70 款热门模组">展开模组 ▾</button>
+          ${canExpandAllMods ? `<button type="button" class="sticky-expand-btn sticky-expand-all-btn" data-action="toggle-sticky-mods-expand-all" title="在栏内直接平铺展开全部 ${formatCount(state.availableIncludedMods.length)} 款模组（无需弹窗）">展开全部 ▾</button>` : ''}`;
+        }
+      }
+
+      const openAllModsBtn = `<button type="button" class="sticky-all-btn sticky-picker-trigger" data-action="open-picker" data-picker="included-mod" title="打开全部收录模组库独立弹窗（共 ${formatCount(state.availableIncludedMods.length)} 款，支持按拼音/中英检索与多选）"><span class="sticky-btn-icon">🧩</span>模组库弹窗 (${formatCount(state.availableIncludedMods.length)}) <span class="sticky-btn-arrow">↗</span></button>`;
+      const activeModBadge = state.includedMods.length > 0
+        ? `<button type="button" class="sticky-active-badge" data-action="clear-included-mods" title="点击清空已选包含模组">已选模组 ${state.includedMods.length} ✕</button>`
+        : '';
+
+      row3Html = `<div class="sticky-bar-row sticky-mods-row ${state.stickyModsExpanded ? 'is-expanded' : ''} ${state.stickyModsExpandAll ? 'is-expanded-all' : ''}">
+        <div class="sticky-row-left">
+          <span class="sticky-bar-label">模组</span>
+          ${modSearchBox}
+          <div class="sticky-pills-flow">
+            ${modPillsHtml}
+          </div>
+        </div>
+        <div class="sticky-row-right">
+          ${expandModsControls}
+          ${openAllModsBtn}
+          ${activeModBadge}
+        </div>
+      </div>`;
+    }
+  }
+
+  // 4. Active filters chips row (if any)
+  const activeFiltersHtml = renderActiveFilters();
+  const activeFiltersRowHtml = activeFiltersHtml
+    ? `<div class="sticky-bar-row sticky-active-filters-row">${activeFiltersHtml}</div>`
+    : '';
+
+  return `<nav class="desktop-sticky-bar ${state.stickyFollowMode ? 'is-sticky' : ''}" aria-label="跟随屏幕快捷筛选与排序导航">
+    ${toolbarRowHtml}
+    ${categoryRowHtml}
+    ${row3Html}
+    ${activeFiltersRowHtml}
+  </nav>`;
+}
+
+export function setStickyFollowStateForTest(params: {
+  platform?: FilterPlatform;
+  category?: string;
+  availableCategories?: string[];
+  gameplayCategories?: string[];
+  availableGameplayCategories?: DesktopFilterOption[];
+  availableIncludedMods?: DesktopFilterOption[];
+  includedMods?: string[];
+  sort?: string;
+  stickyFollowMode?: boolean;
+  stickyModsExpanded?: boolean;
+  stickyModsExpandAll?: boolean;
+  stickyCategoriesExpanded?: boolean;
+  stickyModSearch?: string;
+  stickyCatSearch?: string;
+  records?: DesktopRecord[];
+}): void {
+  if (params.platform) state.platform = params.platform;
+  if (params.category !== undefined) state.category = params.category;
+  if (params.availableCategories) state.availableCategories = params.availableCategories;
+  if (params.gameplayCategories) state.gameplayCategories = params.gameplayCategories;
+  if (params.availableGameplayCategories) state.availableGameplayCategories = params.availableGameplayCategories;
+  if (params.availableIncludedMods) state.availableIncludedMods = params.availableIncludedMods;
+  if (params.includedMods) state.includedMods = params.includedMods;
+  if (params.sort) state.sort = params.sort;
+  if (params.stickyFollowMode !== undefined) state.stickyFollowMode = params.stickyFollowMode;
+  if (params.stickyModsExpanded !== undefined) state.stickyModsExpanded = params.stickyModsExpanded;
+  if (params.stickyModsExpandAll !== undefined) state.stickyModsExpandAll = params.stickyModsExpandAll;
+  if (params.stickyCategoriesExpanded !== undefined) state.stickyCategoriesExpanded = params.stickyCategoriesExpanded;
+  if (params.stickyModSearch !== undefined) state.stickyModSearch = params.stickyModSearch;
+  if (params.stickyCatSearch !== undefined) state.stickyCatSearch = params.stickyCatSearch;
+  if (params.records) state.records = params.records;
 }
 
 function renderResultsWorkspace(selectedName: string): string {
@@ -1299,15 +2011,19 @@ function renderResultsWorkspace(selectedName: string): string {
         ? `<div class="compact-record-list">${records.map(renderCompactRecord).join('')}</div>`
         : state.viewMode === 'table' && state.platform === 'mcmod'
           ? renderMcmodTable(records)
-          : state.platform !== 'all' && state.platform !== 'mcmod'
+        : state.platform !== 'all'
             ? `<div class="pack-grid legacy-rich-grid">${records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderPlatformRichCard(record)}${renderPersonalCardZone(renderPersonalCardActions(record, index))}</article>`).join('')}</div>`
           : `<div class="pack-grid">${records.map(renderRecord).join('')}</div>`
       : `<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>`;
-  const displayedCount = isBili && state.biliViewMode === 'grouped' ? state.biliGroups.length : records.length;
-  const totalLabel = isBili && state.biliViewMode === 'grouped' ? displayedCount : state.total;
+  const displayedCount = isBili && state.biliViewMode === 'grouped' ? Math.min(state.page * 48, state.biliGroups.length) : records.length;
+  const totalLabel = isBili && state.biliViewMode === 'grouped' ? state.biliGroups.length : state.total;
   const resultHeading = isAllPlatform ? '分平台结果' : state.loading ? '正在读取数据…' : hasFilter ? '筛选结果' : '最近可用数据';
   const resultCount = isAllPlatform ? `${formatCount(displayedCount)} 条已加载 · 每个平台最多 12 条/轮` : `${formatCount(displayedCount)} / ${formatCount(totalLabel)}`;
-  const loadMoreLabel = isAllPlatform ? `各平台继续加载（当前第 ${state.page} 轮）` : `加载更多（已显示 ${formatCount(records.length)} / ${formatCount(state.total)}）`;
+  const loadMoreLabel = isAllPlatform
+    ? `各平台继续加载（当前第 ${state.page} 轮）`
+    : isBili && state.biliViewMode === 'grouped'
+      ? `加载更多（已显示 ${formatCount(displayedCount)} / ${formatCount(state.biliGroups.length)}）`
+      : `加载更多（已显示 ${formatCount(records.length)} / ${formatCount(state.total)}）`;
   const recordsFailure = `<div class="error-state"><div class="empty-icon">!</div><h3>整合包记录加载失败</h3><p>${esc(state.recordsError)}</p><button type="button" class="button secondary" data-action="retry-records">重试加载</button></div>`;
   const recordsBody = !data?.hasData
     ? `<div class="empty-state"><div class="empty-icon">◌</div><h3>还没有本地数据快照</h3><p>选择现有的 <code>converted_output</code>、<code>build/frontend_preview</code> 或其 <code>data</code> 目录。应用不会把空数据伪装成成功。</p><button class="button primary" data-action="choose-data">选择数据目录</button></div>`
@@ -1316,7 +2032,7 @@ function renderResultsWorkspace(selectedName: string): string {
       : state.recordsError && !records.length
         ? recordsFailure
         : `${state.recordsError ? recordsFailure : ''}${resultBody}${state.hasMore ? `<div class="load-more"><button class="button secondary" data-action="load-more">${loadMoreLabel}</button></div>` : ''}`;
-  return `<div class="content-grid"><section class="results-column"><div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : state.recordsError && !records.length ? '加载失败' : resultHeading}</h2></div><span class="result-count">${state.loading || (state.recordsError && !records.length) ? '' : resultCount}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${recordsBody}</section>${updatePanel()}</div>`;
+  return `<div class="content-grid"><section class="results-column">${renderStickyFollowBar()}<div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : state.recordsError && !records.length ? '加载失败' : resultHeading}</h2></div><span class="result-count">${state.loading || (state.recordsError && !records.length) ? '' : resultCount}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${recordsBody}</section></div>`;
 }
 
 function renderRelease(release: Record<string, unknown>): string {
@@ -1328,46 +2044,87 @@ function renderRelease(release: Record<string, unknown>): string {
   }).filter(Boolean).join('');
   const versions = valueList(release.gameVersions ?? release.game_versions ?? release.mc_versions).join('、');
   const loaders = valueList(release.loaders ?? release.loader).join('、');
-  const notes = String(release.changelogMd || release.changelog || '').trim();
-  const releaseDate = String(release.date || release.release_date || '').trim();
-  return `<article class="release-item"><div class="release-head"><strong>${textOrUnknown(String(release.versionName || release.version_number || ''))}</strong><span>${esc(releaseDate || UNKNOWN_LOCAL_TEXT)}</span></div><div class="release-meta">${versions ? `Minecraft：${esc(versions)}` : ''}${loaders ? ` · Loader：${esc(loaders)}` : ''}</div>${notes ? `<p>${esc(notes)}</p>` : ''}${links ? `<div class="release-links">${links}</div>` : ''}</article>`;
+  const sourceNotes = String(release.changelogMd || release.changelog || release.changelogHtml || release.notes || '').replace(/<\/(?:p|div|li|h[1-6])\s*>|<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '').trim();
+  const notes = sourceNotes === '该版本未提供更新日志说明。' ? '' : sourceNotes;
+  const releaseDate = String(release.date || release.release_date || release.date_published || release.create_date || '').trim();
+  const notesHtml = notes.length > 260
+    ? `<details class="release-notes-fold"><summary>查看完整更新说明</summary><p class="release-notes">${esc(notes)}</p></details>`
+    : notes ? `<p class="release-notes">${esc(notes)}</p>` : '';
+  return `<article class="release-item"><div class="release-head"><strong>${textOrUnknown(String(release.versionName || release.version_number || release.version || release.name || release.label || release.displayName || release.fileName || ''))}</strong><span>${esc(releaseDate || UNKNOWN_LOCAL_TEXT)}</span></div><div class="release-meta">${versions ? `Minecraft：${esc(versions)}` : ''}${loaders ? ` · Loader：${esc(loaders)}` : ''}</div>${notesHtml}${links ? `<div class="release-links">${links}</div>` : ''}</article>`;
+}
+
+function getPlatformCommentWebUrl(record: DesktopRecord): string {
+  const url = safeExternalUrl(record.url);
+  if (record.platform === 'mcmod') {
+    return `https://www.mcmod.cn/modpack/${record.sourceId}.html#comment`;
+  }
+  if (record.platform === 'bilibili') {
+    const raw = (record.raw || {}) as Record<string, unknown>;
+    const bvid = String(raw.bvid || record.sourceId);
+    return `https://www.bilibili.com/video/${bvid}#reply`;
+  }
+  if (record.platform === 'curseforge') {
+    return url ? (url.endsWith('/') ? `${url}comments` : `${url}/comments`) : '';
+  }
+  if (record.platform === 'bbsmc') {
+    return url ? `${url}#reviews` : '';
+  }
+  if (record.platform === 'xyebbs') {
+    return url ? `${url}#post_` : '';
+  }
+  return url;
 }
 
 function renderCommentSection(record: DesktopRecord): string {
-  const description = rawText(record, ['desc', 'description', 'summary', 'subtitle_summary']) || record.summary;
-  const pinned = rawText(record, ['pinned_comment']);
+  const rawDesc = (rawText(record, ['desc', 'description', 'summary', 'subtitle_summary']) || record.summary || '').trim();
+  const hasDesc = Boolean(rawDesc && rawDesc !== '未知' && !rawDesc.includes('本地数据未提供'));
+  const descHtml = hasDesc ? `<div class="detail-section"><h3>简介</h3><p class="detail-summary">${esc(rawDesc)}</p></div>` : '';
+
+  const pinned = rawText(record, ['pinned_comment']).trim();
   const commentState = state.comments.sourceId === record.sourceId ? state.comments : null;
-  const independentComments = commentState?.available ? renderComments(commentState.comments) : commentState?.loading ? '<div class="loading-state">正在读取独立评论…</div>' : commentState?.error ? `<div class="error-box">${esc(commentState.error)}</div>` : '<div class="empty-evidence">当前快照没有独立评论文件。</div>';
+  const hasComments = Boolean(pinned || (commentState?.available && commentState.comments?.length) || commentState?.loading || commentState?.error);
+  const webCommentUrl = getPlatformCommentWebUrl(record);
+  const webCommentAction = webCommentUrl
+    ? `<div class="detail-comment-web-entry"><button type="button" class="button secondary wide" data-action="open-comment-preview" data-record-id="${esc(record.id)}">💬 软件内小窗浏览「${esc(PLATFORM_CONFIGS[record.platform]?.name || '')}」原站讨论与评论</button></div>`
+    : '';
+
+  if (!hasComments) {
+    return descHtml;
+  }
+
+  const independentComments = commentState?.available
+    ? renderComments(commentState.comments)
+    : commentState?.loading
+      ? '<div class="loading-state">正在读取独立评论…</div>'
+      : commentState?.error
+        ? `<div class="error-box">${esc(commentState.error)}</div>`
+        : '';
   const pinnedHtml = pinned ? `<article class="comment-item"><div class="comment-head"><strong>来源置顶评论</strong></div><p>${esc(pinned)}</p></article>` : '';
   const meta = commentState?.pageCount ? `<span class="detail-submeta">记录数：${commentState.pageCount}</span>` : '';
-  return `<div class="detail-section"><h3>简介</h3><p class="detail-summary">${textOrUnknown(description)}</p></div><div class="detail-section"><h3>评论 / 讨论 ${meta}</h3>${pinnedHtml}${independentComments}</div>`;
+  return `${descHtml}<div class="detail-section"><h3>评论 / 讨论 ${meta}</h3>${pinnedHtml}${independentComments}${webCommentAction}</div>`;
 }
 
 function renderMediaSection(record: DesktopRecord): string {
   const urls = recordImageUrls(record);
-  if (!urls.length) return `<div class="detail-section"><h3>图片</h3><div class="empty-evidence">${UNKNOWN_LOCAL_TEXT}；列表继续使用现有封面占位图。</div></div>`;
+  if (!urls.length) return '';
   return `<div class="detail-section"><h3>图片 <span class="detail-submeta">${urls.length} 张 · 点击放大</span></h3><div class="detail-image-gallery">${urls.map((url, index) => renderImageButton(url, `${record.title}图片${index + 1}`, 'detail-image', PLATFORM_COVER_FALLBACKS[record.platform])).join('')}</div></div>`;
 }
 
 function renderDetailFacts(record: DesktopRecord): string {
   const raw = record.raw || {};
   const pairs: Array<[string, string]> = record.platform === 'bilibili'
-    ? [['播放', formatMetric(raw.views)], ['点赞', formatMetric(raw.likes)], ['投币', formatMetric(raw.coins)], ['收藏', formatMetric(raw.favorites)], ['评论', formatMetric(raw.reply)], ['弹幕', formatMetric(raw.danmaku)], ['QQ群', raw.qq_group ? String(raw.qq_group) : '未知'], ['提取码', raw.extract_code ? String(raw.extract_code) : '未知']]
+    ? [['播放', formatMetric(raw.views)], ['点赞', formatMetric(raw.likes)], ['投币', formatMetric(raw.coins)], ['收藏', formatMetric(raw.favorites)], ['评论', formatMetric(raw.reply)], ['弹幕', formatMetric(raw.danmaku)], ['QQ群', raw.qq_group ? String(raw.qq_group) : ''], ['提取码', raw.extract_code ? String(raw.extract_code) : '']]
     : record.platform === 'mcmod'
-      ? [['浏览', formatMetric(raw.views)], ['推荐', formatMetric(raw.recommendations)], ['收藏', formatMetric(raw.favorites)], ['评论', formatMetric(raw.commentsCount)], ['模组数', raw.includedModsCount ? `${raw.includedModsCount} 款` : '未知'], ['类型', raw.typeName ? String(raw.typeName) : '未知']]
+      ? [['浏览', formatMetric(raw.views)], ['推荐', formatMetric(raw.recommendations)], ['收藏', formatMetric(raw.favorites)], ['评论', formatMetric(raw.commentsCount)], ['模组数', raw.includedModsCount ? `${raw.includedModsCount} 款` : ''], ['类型', raw.typeName ? String(raw.typeName) : '']]
       : [['下载', formatMetric(raw.downloads)], ['关注', formatMetric(raw.followers)], ['点赞', formatMetric(raw.likes)], ['浏览', formatMetric(raw.views)], ['评论', formatMetric(raw.comments)]];
-  const valid = pairs.filter(([, value]) => value && value !== '—');
+  const valid = pairs.filter(([, value]) => value && value !== '—' && value !== '未知' && !value.includes('本地数据未提供'));
   if (!valid.length) return '';
-  return `<div class="detail-section"><h3>平台数据</h3><dl class="detail-facts">${valid.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl></div>`;
+  return `<div class="detail-facts-row">${valid.map(([label, value]) => `<div class="detail-fact-chip"><span class="detail-fact-label">${esc(label)}</span><strong class="detail-fact-val">${esc(value)}</strong></div>`).join('')}</div>`;
 }
 
 function renderDetailDownloadLinks(record: DesktopRecord): string {
   const links = rawRecords(record, ['download_links']).filter((item) => safeExternalUrl(item.url));
-  if (!links.length) {
-    return record.platform === 'mcmod'
-      ? `<div class="detail-section"><h3>下载入口</h3><div class="empty-evidence">${UNKNOWN_LOCAL_TEXT}；可打开 MC百科原站继续判断。</div></div>`
-      : '';
-  }
+  if (!links.length) return '';
   return `<div class="detail-section"><h3>下载与渠道 <span class="detail-submeta">${links.length} 个入口</span></h3><div class="release-links">${links.map((link) => `<a class="detail-link" href="${esc(safeExternalUrl(link.url))}" target="_blank" rel="noreferrer">${esc(String(link.name || link.type || '下载入口'))} ↗</a>`).join('')}</div></div>`;
 }
 
@@ -1491,17 +2248,23 @@ function renderMcmodTrendDialog(): string {
   const hasChart = series.status === 'ready' && points.length >= 2;
   const summary = hasChart ? summarizeMcmodTrend(points) : null;
   const point = hasChart ? points[points.length - 1] : null;
+  const firstPoint = hasChart ? points[0] : null;
+  const rangeDelta = firstPoint && point ? point.value - firstPoint.value : null;
+  const rangePercent = firstPoint && rangeDelta !== null && firstPoint.value !== 0
+    ? rangeDelta / Math.abs(firstPoint.value) * 100
+    : null;
+  const signedTrendValue = (value: number): string => `${value > 0 ? '+' : ''}${formatTrendValue(value)}`;
+  const trendDirectionClass = rangeDelta === null || rangeDelta === 0 ? '' : rangeDelta > 0 ? 'is-up' : 'is-down';
   const emptyText = series.status !== 'ready'
     ? mcmodTrendStatusText(series)
     : `所选时间范围内只有 ${points.length} 个有效历史点；至少需要两个点才能绘制走势。`;
   const rangeControls = MCMOD_TREND_RANGES.map((range) => `<button type="button" class="mcmod-trend-range ${chart.range === range.value ? 'is-active' : ''}" data-action="set-mcmod-trend-range" data-range="${range.value}" aria-pressed="${chart.range === range.value}" ${series.status === 'ready' ? '' : 'disabled'}>${range.label}</button>`).join('');
-  return `<div class="mcmod-trend-backdrop" data-action="close-mcmod-trend" role="dialog" aria-modal="true" aria-labelledby="mcmod-trend-title">
-    <section class="mcmod-trend-panel" data-mcmod-trend-panel>
-      <button type="button" class="icon-button mcmod-trend-close" data-action="close-mcmod-trend" aria-label="关闭趋势图">×</button>
-      <span class="eyebrow">MCMOD HISTORY</span><h2 id="mcmod-trend-title">${esc(chart.record.title)} · 趋势</h2>
+  return `<div class="modal-backdrop mcmod-trend-backdrop" data-action="close-mcmod-trend" role="dialog" aria-modal="true" aria-labelledby="mcmod-trend-title">
+    <section class="modal-panel mcmod-trend-panel" data-mcmod-trend-panel onclick="event.stopPropagation()">
+      <header class="modal-header"><div class="modal-title-wrap"><span class="eyebrow">MCMOD HISTORY</span><h2 id="mcmod-trend-title">${esc(chart.record.title)} · 趋势</h2></div><button type="button" class="modal-close mcmod-trend-close" data-action="close-mcmod-trend" aria-label="关闭趋势图">×</button></header>
       <div class="mcmod-trend-controls"><span class="mcmod-trend-metric">指标：官方流行指数</span><div class="mcmod-trend-ranges" aria-label="趋势时间范围">${rangeControls}</div></div>
       ${hasChart && summary ? `<p class="mcmod-trend-period">${esc(summary.firstDate)} 至 ${esc(summary.lastDate)} · ${summary.count} 个有效历史点</p>
-        <div class="mcmod-trend-summary" aria-label="当前范围统计"><div><span>最新</span><strong>${formatTrendValue(summary.latest)}</strong></div><div><span>最小</span><strong>${formatTrendValue(summary.minimum)}</strong></div><div><span>最大</span><strong>${formatTrendValue(summary.maximum)}</strong></div><div><span>平均</span><strong>${formatTrendValue(summary.average)}</strong></div></div>
+        <div class="mcmod-trend-summary" aria-label="当前范围统计"><div><span>起点</span><strong>${formatTrendValue(firstPoint!.value)}</strong></div><div><span>最新</span><strong>${formatTrendValue(summary.latest)}</strong></div><div><span>区间变化</span><strong class="${trendDirectionClass}">${rangeDelta === null ? '—' : signedTrendValue(rangeDelta)}</strong></div><div><span>区间涨跌</span><strong class="${trendDirectionClass}">${rangePercent === null ? '—' : `${rangePercent > 0 ? '+' : ''}${rangePercent.toFixed(1)}%`}</strong></div><div><span>最低 / 最高</span><strong>${formatTrendValue(summary.minimum)} / ${formatTrendValue(summary.maximum)}</strong></div><div><span>平均</span><strong>${formatTrendValue(summary.average)}</strong></div></div>
         <div class="mcmod-trend-chart-wrap">${renderMcmodTrendSvg(points)}</div>
         <output class="mcmod-trend-readout" data-trend-readout aria-live="polite">最新 · ${esc(point!.date)} · 指数 ${formatTrendValue(point!.value)}</output>
         ${series.skippedCount ? `<p class="mcmod-trend-note">已跳过 ${series.skippedCount} 个日期或数值异常的配对点；其他日期和值仍按原索引配对。</p>` : ''}
@@ -1509,6 +2272,310 @@ function renderMcmodTrendDialog(): string {
       <p class="mcmod-trend-footnote">当前快照只提供官方流行指数历史序列；7／30／60 天涨幅等汇总不作为独立曲线。图表不以当前值或汇总补造历史。</p>
     </section>
   </div>`;
+}
+
+export function setPickerModalForTest(
+  picker: PickerModalState | null,
+  context?: {
+    platform?: FilterPlatform;
+    includedMods?: string[];
+    availableIncludedMods?: DesktopFilterOption[];
+    gameplayCategories?: string[];
+    availableGameplayCategories?: DesktopFilterOption[];
+    category?: string;
+    availableCategories?: string[];
+  },
+): void {
+  state.pickerModal = picker;
+  if (context?.platform) state.platform = context.platform;
+  if (context?.includedMods) state.includedMods = context.includedMods;
+  if (context?.availableIncludedMods) state.availableIncludedMods = context.availableIncludedMods;
+  if (context?.gameplayCategories) state.gameplayCategories = context.gameplayCategories;
+  if (context?.availableGameplayCategories) state.availableGameplayCategories = context.availableGameplayCategories;
+  if (context?.category !== undefined) state.category = context.category;
+  if (context?.availableCategories) state.availableCategories = context.availableCategories;
+}
+
+export function setInAppWindowStateForTest(
+  inAppWindow: { url: string; title: string; recordId?: string; maximized?: boolean; activeTab?: 'web' | 'changelog' } | null,
+  selected: DesktopRecord | null,
+  previousSelected: DesktopRecord | null,
+): void {
+  state.inAppWindow = inAppWindow;
+  state.inAppWindows = inAppWindow ? [inAppWindow] : [];
+  state.selected = selected;
+  state.inAppWindowPreviousSelected = previousSelected;
+}
+
+export function getInAppWindowStateForTest(): {
+  inAppWindow: { url: string; title: string; recordId?: string; maximized?: boolean; activeTab?: 'web' | 'changelog' } | null;
+  selected: DesktopRecord | null;
+  previousSelected: DesktopRecord | null;
+} {
+  return {
+    inAppWindow: state.inAppWindow,
+    selected: state.selected,
+    previousSelected: state.inAppWindowPreviousSelected,
+  };
+}
+
+export function renderPickerModal(): string {
+  const picker = state.pickerModal;
+  if (!picker) return '';
+
+  let title = '';
+  let eyebrow = '';
+  let ruleHint = '';
+  let allItems: Array<{ value: string; count?: number }> = [];
+  let selectedValues: string[] = [];
+
+  if (picker.type === 'included-mod') {
+    eyebrow = 'MOD DISCOVERY · 包含模组发现';
+    title = `全部收录模组（${formatCount(state.availableIncludedMods.length)} 款）`;
+    ruleHint = '筛选包含指定模组的整合包 · 点击可多选（再次点击取消） · 按整合包收录数量排序';
+    allItems = state.availableIncludedMods;
+    selectedValues = state.includedMods;
+  } else if (picker.type === 'gameplay-category') {
+    eyebrow = 'GAMEPLAY DISCOVERY · 玩法分类发现';
+    title = `CurseForge 玩法分类（${state.availableGameplayCategories.length} 类）`;
+    ruleHint = '筛选包含指定玩法分类的整合包 · 点击可多选（再次点击取消） · 按整合包收录数量排序';
+    allItems = state.availableGameplayCategories;
+    selectedValues = state.gameplayCategories;
+  } else if (picker.type === 'category') {
+    const platName = state.platform === 'all' ? '全平台' : (PLATFORM_CONFIGS[state.platform]?.name || '');
+    eyebrow = 'CATEGORY DISCOVERY · 分类发现';
+    title = `${platName} 全部分类与标签（${state.availableCategories.length} 类）`;
+    ruleHint = '按分类标签精准筛选 · 点击选择单项分类（再次点击清除）';
+    allItems = getCategoryOptionsWithCounts();
+    selectedValues = state.category ? [state.category] : [];
+  }
+
+  const isCatOrGameplay = picker.type === 'category' || picker.type === 'gameplay-category';
+  const sortMode: PickerSort = picker.sort || 'count_desc';
+
+  const query = picker.search.trim().toLowerCase();
+  const matched = query
+    ? allItems.filter((item) => {
+        const valLower = item.value.toLowerCase();
+        if (valLower.includes(query)) return true;
+        if (isCatOrGameplay) {
+          const label = getCategoryLabel(item.value).toLowerCase();
+          if (label.includes(query)) return true;
+        }
+        return false;
+      })
+    : allItems;
+
+  const filtered = [...matched].sort((a, b) => {
+    const countA = a.count ?? 0;
+    const countB = b.count ?? 0;
+    const labelA = isCatOrGameplay ? getCategoryLabel(a.value) : a.value;
+    const labelB = isCatOrGameplay ? getCategoryLabel(b.value) : b.value;
+    if (sortMode === 'count_desc') {
+      if (countB !== countA) return countB - countA;
+      return labelA.localeCompare(labelB, 'zh-Hans-CN');
+    }
+    if (sortMode === 'count_asc') {
+      if (countA !== countB) return countA - countB;
+      return labelA.localeCompare(labelB, 'zh-Hans-CN');
+    }
+    if (sortMode === 'name_asc') {
+      return labelA.localeCompare(labelB, 'zh-Hans-CN');
+    }
+    if (sortMode === 'name_desc') {
+      return labelB.localeCompare(labelA, 'zh-Hans-CN');
+    }
+    return 0;
+  });
+
+  const displayItems = filtered.slice(0, picker.limit);
+  const remaining = filtered.length - displayItems.length;
+
+  return `<div class="modal-backdrop picker-modal-backdrop" data-action="close-picker-modal" role="dialog" aria-modal="true" aria-labelledby="picker-modal-title">
+    <section class="modal-panel picker-modal-panel" onclick="event.stopPropagation()">
+      <header class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="eyebrow">${esc(eyebrow)}</span>
+          <h2 id="picker-modal-title">${esc(title)}</h2>
+          <p>${esc(ruleHint)}</p>
+        </div>
+        <button type="button" class="modal-close picker-close" data-action="close-picker-modal" aria-label="关闭选择弹窗">×</button>
+      </header>
+      <div class="picker-toolbar">
+        <div class="facet-search-box picker-search-box">
+          <span class="facet-search-icon">🔍</span>
+          <input id="picker-modal-search" class="facet-search-input" type="search" placeholder="输入名称实时模糊搜索（支持中英文，如 JEI, Create, 冒险）..." value="${esc(picker.search)}" autocomplete="off" aria-label="弹窗内实时搜索">
+          ${picker.search ? '<button type="button" class="facet-search-clear-btn" data-action="clear-picker-search" title="清空搜索词">✕</button>' : ''}
+        </div>
+        <div class="picker-toolbar-controls">
+          <div class="picker-sort-group">
+            <label class="picker-sort-label" for="picker-modal-sort">排序</label>
+            <select id="picker-modal-sort" class="picker-sort-select" data-action="set-picker-sort" aria-label="选择排序方式">
+              <option value="count_desc" ${sortMode === 'count_desc' ? 'selected' : ''}>收录最多（热度）</option>
+              <option value="count_asc" ${sortMode === 'count_asc' ? 'selected' : ''}>收录最少（小众）</option>
+              <option value="name_asc" ${sortMode === 'name_asc' ? 'selected' : ''}>名称 A → Z</option>
+              <option value="name_desc" ${sortMode === 'name_desc' ? 'selected' : ''}>名称 Z → A</option>
+            </select>
+          </div>
+          <div class="picker-toolbar-stats">
+            <span>已选 <strong class="counter-num">${selectedValues.length}</strong> 项</span>
+            <span class="stat-divider">·</span>
+            <span>匹配 <strong class="counter-num">${formatCount(filtered.length)}</strong> 项</span>
+          </div>
+        </div>
+      </div>
+      <div class="picker-grid-wrap">
+        <div class="picker-grid" id="picker-modal-grid" role="listbox" aria-label="候选列表">
+          ${displayItems.length ? displayItems.map((item) => {
+            const isActive = selectedValues.includes(item.value);
+            const countStr = typeof item.count === 'number' && item.count > 0 ? `<b class="picker-count">${formatCount(item.count)}</b>` : '';
+            const label = isCatOrGameplay ? getCategoryLabel(item.value) : item.value;
+            const hasTranslation = isCatOrGameplay && label !== item.value;
+            const nameHtml = hasTranslation
+              ? `${esc(label)} <span class="picker-option-sub">(${esc(item.value)})</span>`
+              : esc(item.value);
+            const tooltip = hasTranslation ? `${esc(label)} (${esc(item.value)})` : esc(item.value);
+            return `<button type="button" class="picker-option ${isActive ? 'is-active' : ''}" data-action="toggle-picker-item" data-value="${esc(item.value)}" role="option" aria-selected="${isActive}" title="${tooltip}">
+              <span class="picker-option-name">${nameHtml}</span>
+              ${countStr}
+              ${isActive ? '<span class="picker-check-badge" aria-hidden="true">✓</span>' : ''}
+            </button>`;
+          }).join('') : '<div class="picker-empty-state">🔍 没有找到匹配项，请尝试其他关键词</div>'}
+        </div>
+        ${remaining > 0 ? `<div class="picker-more-bar">
+          <div class="picker-more-actions">
+            <button type="button" class="picker-load-more-btn" data-action="picker-load-more">📥 加载更多 300 项（剩余 ${formatCount(remaining)} 项）▾</button>
+            <button type="button" class="picker-load-all-btn" data-action="picker-load-all" title="一次性展示当前匹配的全部 ${formatCount(filtered.length)} 项">⚡ 一次展示完（全部 ${formatCount(filtered.length)} 项）</button>
+          </div>
+        </div>` : (picker.limit > 300 && filtered.length > 300 ? `<div class="picker-more-bar">
+          <div class="picker-more-actions">
+            <button type="button" class="picker-collapse-btn" data-action="picker-reset-limit" title="收起列表至前 300 项">⤴ 收起为前 300 项</button>
+          </div>
+        </div>` : '')}
+      </div>
+      <footer class="picker-footer">
+        <span class="picker-footer-summary">已选 ${selectedValues.length} 项 · 共匹配 ${formatCount(filtered.length)} 项${remaining > 0 ? `（已呈现前 ${formatCount(displayItems.length)} 项）` : '（已全部呈现）'}</span>
+        <div class="picker-footer-actions">
+          ${selectedValues.length ? '<button type="button" class="button picker-clear-btn" data-action="picker-clear-selected">清空已选</button>' : ''}
+          <button type="button" class="button primary picker-done-btn" data-action="close-picker-modal">完成 / 应用筛选</button>
+        </div>
+      </footer>
+    </section>
+  </div>`;
+}
+
+export function renderDetailSourceDynamics(
+  record: DesktopRecord,
+  vm: ReturnType<typeof buildVersionModalViewModel>,
+  biliGroups: BiliGroup[] = state.biliGroups,
+): string {
+  const releases = vm.releases?.length ? vm.releases : rawRecords(record, ['releases', 'versions_data', 'version_history']);
+  const releaseHtml = releases.length
+    ? `<div class="detail-section dynamics-section">
+        <div class="dynamics-header">
+          <h3>${record.platform === 'bilibili' ? '视频发布与版本动态' : record.platform === 'modrinth' ? '版本发布与变更记录' : record.platform === 'xyebbs' ? '原帖更新日志与版本' : '更新日志与版本历史'} <span class="detail-submeta">共 ${releases.length} 条记录</span></h3>
+        </div>
+        <div class="release-list">${releases.map((release) => renderRelease(release as unknown as Record<string, unknown>)).join('')}</div>
+      </div>`
+    : '';
+
+  const sourceUrl = safeExternalUrl(record.url);
+  const emptyDynamicsBox = (title: string, desc: string, btnText: string) => {
+    if (!sourceUrl) return '';
+    return `<div class="empty-dyn-box">
+      <div class="empty-dyn-title"><span>${esc(title)}</span></div>
+      <p>${esc(desc)}</p>
+      <button type="button" class="empty-dyn-btn" data-action="open-in-app-window" data-url="${esc(sourceUrl)}" data-title="${esc(record.title)}">${esc(btnText)}</button>
+    </div>`;
+  };
+
+  // 1. MCMod (MC百科)
+  if (record.platform === 'mcmod') {
+    const hasPackVersion = Boolean(record.packVersion && record.packVersion.trim() && record.packVersion !== '未知' && !record.packVersion.includes('本地数据未提供'));
+    const packVersionHtml = hasPackVersion ? renderPackVersionDetail(record) : '';
+    const emptyBox = !releases.length && sourceUrl
+      ? emptyDynamicsBox('📋 来源更新日志', '本地快照暂未收录更新日志，点击下方可在软件内小窗直接翻看原站', '🪟 软件内查看原站更新')
+      : '';
+    return releaseHtml ? `${packVersionHtml}${releaseHtml}` : `${packVersionHtml}${emptyBox}`;
+  }
+
+  // 2. CurseForge
+  if (record.platform === 'curseforge') {
+    const hasFileIndexes = Array.isArray(record.fileIndexes) && record.fileIndexes.length > 0;
+    const fileIndexHtml = hasFileIndexes ? renderCurseforgeFileIndexDetail(record) : '';
+    const emptyBox = (!releases.length && !hasFileIndexes && sourceUrl)
+      ? emptyDynamicsBox('📦 来源文件与版本', '本地快照暂未收录文件索引与更新记录，点击下方可在软件内小窗直接翻看原站', '🪟 软件内查看原站文件')
+      : '';
+    return (fileIndexHtml || releaseHtml) ? `${fileIndexHtml}${releaseHtml}` : emptyBox;
+  }
+
+  // 3. Modrinth
+  if (record.platform === 'modrinth') {
+    return releaseHtml || (!releases.length && sourceUrl
+      ? emptyDynamicsBox('🧩 Modrinth 版本发布', '本地快照暂未收录版本发布记录，点击下方可在软件内小窗直接翻看原站', '🪟 软件内查看原站版本')
+      : '');
+  }
+
+  // 4. Bilibili
+  if (record.platform === 'bilibili') {
+    const raw = (record.raw || {}) as Record<string, unknown>;
+    const matchingGroup = biliGroups.find((g) => g.items.some((item) => String(item.bvid) === String(record.sourceId) || String(item.id) === String(record.sourceId)));
+    const relatedItems = matchingGroup ? matchingGroup.items : [];
+    let groupHtml = '';
+    if (relatedItems.length > 1) {
+      groupHtml = `<div class="detail-section dynamics-section">
+        <div class="dynamics-header">
+          <h3>关联视频与版本动态</h3>
+          <span class="detail-submeta">同系列共 ${relatedItems.length} 期视频</span>
+        </div>
+        <div class="bili-related-videos-list">
+          ${relatedItems.map((item) => {
+            const isCurrent = String(item.bvid) === String(record.sourceId);
+            const itemUrl = item.bvid ? `https://www.bilibili.com/video/${item.bvid}` : (item.url || '');
+            const itemDate = item.pub_time || (item as any).date || '';
+            const itemViews = item.views ? formatMetric(item.views) : '';
+            return `<div class="bili-related-video-item ${isCurrent ? 'is-current' : ''}">
+              <div class="bili-related-video-info">
+                <strong>${isCurrent ? '<span class="current-indicator">▶ 当前</span> ' : ''}${esc(item.title)}</strong>
+                <span class="detail-submeta">${itemDate ? `发布：${esc(itemDate)}` : ''}${itemViews ? ` · 播放：${itemViews}` : ''}</span>
+              </div>
+              <div class="bili-related-video-actions">
+                ${itemUrl ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(itemUrl)}" data-title="${esc(item.title)} 视频页面">🪟 小窗浏览</button>` : ''}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }
+
+    const descUpdated = raw.desc_updated_at ? `<div class="bili-dyn-notice">🔄 <strong>简介更新时间：</strong>${esc(String(raw.desc_updated_at))}</div>` : '';
+    const groupVer = raw.has_group_version ? `<div class="bili-dyn-notice bili-group-notice">👥 <strong>群内版本提示：</strong>${esc(String(raw.group_version_note || 'UP主提示最新版本在交流群内发布'))}</div>` : '';
+
+    if (groupHtml) {
+      return `${descUpdated}${groupVer}${groupHtml}`;
+    }
+    if (descUpdated || groupVer) {
+      return `${descUpdated}${groupVer}`;
+    }
+
+    return '';
+  }
+
+  // 5. BBSMC
+  if (record.platform === 'bbsmc') {
+    return releaseHtml || (!releases.length && sourceUrl
+      ? emptyDynamicsBox('📜 BBSMC 原帖动态', '本地快照暂未收录更新记录，点击下方可在软件内小窗直接翻看原帖', '🪟 软件内查看原帖动态')
+      : '');
+  }
+
+  // 6. XYEBBS
+  if (record.platform === 'xyebbs') {
+    return releaseHtml || (!releases.length && sourceUrl
+      ? emptyDynamicsBox('📌 星域论坛 原帖动态', '本地快照暂未收录更新日志，点击下方可在软件内小窗直接翻看原帖', '🪟 软件内查看原帖更新')
+      : '');
+  }
+
+  return releaseHtml;
 }
 
 function detailPanel(): string {
@@ -1523,36 +2590,537 @@ function detailPanel(): string {
   }
   for (const name of modNames) if (!modsByName.has(name)) modsByName.set(name, { name });
   const mods = [...modsByName.values()];
-  const releases = vm.releases?.length ? vm.releases : rawRecords(record, ['releases', 'versions_data', 'version_history']);
-  const releaseHtml = releases.length ? releases.map((release) => renderRelease(release as unknown as Record<string, unknown>)).join('') : record.platform === 'curseforge'
-    ? '<div class="empty-evidence">当前快照没有完整发布记录；来源文件索引在上方单独列出。</div>'
-    : '<div class="empty-evidence">当前数据没有版本发布明细；可从下方版本详情入口查看原站记录。</div>';
-  const versionUrl = safeExternalUrl(vm.targetUrl);
   const sourceUrl = safeExternalUrl(record.url);
-  const modHtml = mods.length ? `<details class="detail-expand" open><summary>共 ${mods.length} 款</summary><div class="mod-list">${mods.map((mod) => { const url = safeExternalUrl(mod.url); return url ? `<a class="mod-chip" href="${esc(url)}" target="_blank" rel="noreferrer">${esc(String(mod.title || mod.name || '未知模组'))} ↗</a>` : `<span class="mod-chip">${esc(String(mod.title || mod.name || '未知模组'))}</span>`; }).join('')}</div></details>` : '<div class="empty-evidence">当前数据没有模组清单。</div>';
-  return `<div class="detail-backdrop" data-action="close-detail"><aside class="detail-panel" data-detail-panel>
-    <button class="icon-button close-detail" data-action="close-detail" aria-label="关闭详情">×</button>
-    <span class="eyebrow">${esc(PLATFORM_CONFIGS[record.platform].name)} · 原始来源</span><h2>${esc(record.title)}</h2><p class="detail-author">${esc(record.author)}</p>
-    ${renderMediaSection(record)}
-    ${renderPackVersionDetail(record)}
-    ${renderCurseforgeFileIndexDetail(record)}
-    <div class="detail-section"><h3>适配摘要</h3><dl><div><dt>Minecraft</dt><dd>${textOrUnknown(vm.mcVersionsList.join('、'))}</dd></div><div><dt>Loader</dt><dd>${textOrUnknown(record.loaders.join('、'))}</dd></div><div><dt>更新时间</dt><dd>${esc(formatTime(record.updatedAt))}</dd></div><div><dt>服务端</dt><dd>${esc(environmentDisplay(record))}</dd></div></dl></div>
-    <div class="detail-section"><h3>来源证据</h3><div class="evidence-list">${record.evidence.length ? record.evidence.map((item) => `<div class="evidence-item"><span>${esc(item.label)}</span><strong>${textOrUnknown(item.value)}</strong></div>`).join('') : '<div class="empty-evidence">当前数据没有提供可核对的来源字段。</div>'}</div></div>
-    ${renderDetailFacts(record)}
-    ${renderMcmodTrendDetail(record)}
-    ${renderPersonalDetail(record)}
-    ${renderDetailDownloadLinks(record)}
-    ${renderCommentSection(record)}
-    <div class="detail-section"><h3>版本详情 <span class="detail-submeta">${releases.length ? `记录数：${releases.length}` : ''}</span></h3><div class="release-list">${releaseHtml}</div></div>
-    <div class="detail-section"><h3>已收录模组</h3>${modHtml}</div>
-    <div class="detail-actions">${sourceUrl ? `<button class="button primary wide" data-action="open-source" data-url="${esc(sourceUrl)}">打开原站</button>` : '<div class="unknown-action">原站链接未知</div>'}${versionUrl && versionUrl !== sourceUrl ? `<button class="button secondary wide" data-action="open-source" data-url="${esc(versionUrl)}">打开版本详情</button>` : ''}</div>
+  const modHtml = mods.length
+    ? `<div class="detail-section"><h3>已收录模组</h3><details class="detail-expand"><summary>已收录模组（共 ${mods.length} 款，点击展开）▾</summary><div class="mod-list">${mods.map((mod) => {
+        const url = safeExternalUrl(mod.url);
+        return url
+          ? `<a class="mod-chip" href="${esc(url)}" target="_blank" rel="noreferrer">${esc(String(mod.title || mod.name || '未知模组'))} ↗</a>`
+          : `<span class="mod-chip">${esc(String(mod.title || mod.name || '未知模组'))}</span>`;
+      }).join('')}</div></details></div>`
+    : '';
+
+  const hasAuthor = Boolean(record.author && record.author.trim() !== '' && record.author.trim() !== '未知' && !record.author.includes('未知'));
+  const authorHtml = hasAuthor ? `<p class="detail-author">作者：${esc(record.author)}</p>` : '';
+  const categories = Array.isArray(record.categories) ? record.categories.filter((c) => c && c.trim() && c !== '全部') : [];
+  const mcVer = (vm.mcVersionsList.length ? vm.mcVersionsList.join('、') : record.versions.join('、')).trim();
+  const loaders = record.loaders.filter((l) => l && l !== '未知' && !l.includes('本地数据未提供')).join('、');
+
+  const metaChips: string[] = [];
+  if (mcVer && mcVer !== '未知' && !mcVer.includes('本地数据未提供')) metaChips.push(`MC ${mcVer}`);
+  if (loaders) metaChips.push(loaders);
+  metaChips.push(...categories);
+  const tagsHtml = metaChips.length ? `<div class="detail-tags-row">${metaChips.map((c) => `<span class="detail-tag-chip">${esc(c)}</span>`).join('')}</div>` : '';
+
+  const evidenceHtml = record.evidence?.length
+    ? `<details class="detail-evidence-collapsible"><summary>来源原始核验记录（共 ${record.evidence.length} 项，点击展开）▾</summary><div class="evidence-list">${record.evidence.map((item) => `<div class="evidence-item"><span>${esc(item.label)}</span><strong>${textOrUnknown(item.value)}</strong></div>`).join('')}</div></details>`
+    : '';
+
+  const sourceDynamicsHtml = renderDetailSourceDynamics(record, vm, state.biliGroups);
+
+  return `<div class="detail-backdrop" data-action="close-detail"><aside class="detail-panel" data-detail-panel onclick="event.stopPropagation()">
+    <button type="button" class="modal-close close-detail" data-action="close-detail" aria-label="关闭详情">×</button>
+    <header class="detail-header-block">
+      <span class="eyebrow">${esc(PLATFORM_CONFIGS[record.platform].name)} · 原始来源</span>
+      <h2>${esc(record.title)}</h2>
+      ${authorHtml}
+      ${tagsHtml}
+      ${renderMediaSection(record)}
+      ${renderDetailFacts(record)}
+    </header>
+    <div class="detail-columns-layout">
+      <div class="detail-col-source">
+        <details class="detail-source-fold"><summary>版本与来源动态</summary>${sourceDynamicsHtml}</details>
+        ${renderDetailDownloadLinks(record)}
+        ${renderCommentSection(record)}
+        ${modHtml}
+        ${evidenceHtml}
+      </div>
+      <div class="detail-col-personal">
+        ${renderMcmodTrendDetail(record)}
+        ${renderPersonalDetail(record)}
+        <div class="detail-actions">${sourceUrl ? `<button class="button primary wide" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(sourceUrl)}" data-title="${esc(record.title)} 原站页面">🪟 软件内小窗浏览</button><button class="button secondary wide" data-action="open-source" data-url="${esc(sourceUrl)}">外部浏览器打开 ↗</button>` : '<div class="unknown-action">原站链接未知</div>'}</div>
+      </div>
+    </div>
   </aside></div>`;
 }
 
 function imagePreviewPanel(): string {
   const preview = state.imagePreview;
   if (!preview) return '';
-  return `<div class="image-lightbox" data-action="close-image" role="dialog" aria-modal="true" aria-label="图片预览"><div class="image-lightbox-panel"><button type="button" class="icon-button image-lightbox-close" data-action="close-image" aria-label="关闭图片预览">×</button><img src="${esc(preview.url)}" alt="${esc(preview.title)}" referrerpolicy="no-referrer"><div class="image-lightbox-title">${esc(preview.title)}</div><a class="button secondary" href="${esc(preview.url)}" target="_blank" rel="noreferrer">在新标签页打开原图 ↗</a></div></div>`;
+  return `<div class="modal-backdrop image-lightbox" data-action="close-image" role="dialog" aria-modal="true" aria-label="图片预览"><div class="modal-panel image-lightbox-panel" onclick="event.stopPropagation()"><button type="button" class="modal-close image-lightbox-close" data-action="close-image" aria-label="关闭图片预览">×</button><img src="${esc(preview.url)}" alt="${esc(preview.title)}" referrerpolicy="no-referrer"><div class="image-lightbox-title">${esc(preview.title)}</div><a class="button secondary" href="${esc(preview.url)}" target="_blank" rel="noreferrer">在新标签页打开原图 ↗</a></div></div>`;
+}
+
+function safeHost(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
+
+function renderCommentPreviewModal(): string {
+  const record = state.commentPreviewRecord;
+  if (!record) return '';
+  const commentState = state.comments.sourceId === record.sourceId ? state.comments : null;
+  const isLoading = commentState?.loading;
+  const error = commentState?.error;
+  const comments = commentState?.comments || [];
+  const query = state.commentPreviewQuery.trim().toLowerCase();
+  const filtered = query
+    ? comments.filter((c) => {
+        const author = String(c.author ?? c.user ?? c.name ?? '').toLowerCase();
+        const text = String(commentBody(c)).toLowerCase();
+        return author.includes(query) || text.includes(query);
+      })
+    : comments;
+
+  const raw = (record.raw || {}) as Record<string, unknown>;
+  const metaCount = Number(raw.commentsCount ?? raw.reply ?? raw.comments ?? 0);
+  const countBadge = commentState?.pageCount
+    ? `共 ${commentState.pageCount} 条评论`
+    : comments.length
+      ? `共 ${comments.length} 条评论`
+      : metaCount > 0
+        ? `原站约 ${metaCount} 条评论`
+        : '评论详情';
+
+  const sourceUrl = getPlatformCommentWebUrl(record) || safeExternalUrl(record.url);
+
+  let bodyHtml = '';
+  if (isLoading) {
+    bodyHtml = '<div class="loading-state"><span class="pulse-indicator"></span>正在读取评论数据…</div>';
+  } else if (error) {
+    bodyHtml = `<div class="error-box">${esc(error)}</div>`;
+  } else if (!comments.length) {
+    bodyHtml = `<div class="empty-evidence comment-empty-state">
+      <div class="comment-empty-icon">💬</div>
+      <div class="comment-empty-title">暂无本地存档评论</div>
+      <p class="comment-empty-desc">
+        ${record.platform === 'mcmod'
+          ? '当前快照未收录此整合包的独立评论数据文件。'
+          : `当前本地快照未归档「${esc(PLATFORM_CONFIGS[record.platform]?.name || record.platform)}」的独立评论文本。`}
+      </p>
+      <div class="comment-empty-actions">
+        ${sourceUrl ? `<a class="button" href="${esc(sourceUrl)}" target="_blank" rel="noreferrer">外部浏览器打开 ↗</a>` : ''}
+      </div>
+    </div>`;
+  } else if (!filtered.length) {
+    bodyHtml = `<div class="empty-evidence">没有找到匹配关键词 “${esc(query)}” 的评论。</div>`;
+  } else {
+    bodyHtml = renderComments(filtered);
+  }
+
+  const toolbarHtml = `<div class="comment-preview-toolbar">
+        <input type="search" class="comment-preview-search js-comment-preview-search" placeholder="在当前整合包评论中实时搜索…" value="${esc(state.commentPreviewQuery)}" autocomplete="off">
+        ${sourceUrl ? `<a class="button secondary comment-open-source-btn" href="${esc(sourceUrl)}" target="_blank" rel="noreferrer">外部打开 ↗</a>` : ''}
+      </div>`;
+
+  return `<div class="modal-backdrop comment-preview-backdrop" data-action="close-comment-preview" role="dialog" aria-modal="true" aria-label="评论预览">
+    <section class="modal-panel comment-preview-panel" onclick="event.stopPropagation()">
+      <header class="modal-header comment-preview-header">
+        <div class="modal-title-wrap">
+          <span class="eyebrow">${esc(PLATFORM_CONFIGS[record.platform].name)} · 评论预览</span>
+          <h2>${esc(record.title)} <span class="comment-preview-badge">${esc(countBadge)}</span></h2>
+        </div>
+        <button type="button" class="modal-close" data-action="close-comment-preview" aria-label="关闭评论预览">×</button>
+      </header>
+      ${toolbarHtml}
+      <div class="comment-preview-body">
+        ${bodyHtml}
+      </div>
+      <footer class="modal-footer comment-preview-footer">
+        <span class="js-comment-count-text">${isLoading ? '正在获取评论…' : query ? `筛选出 ${filtered.length} / ${comments.length} 条评论` : comments.length ? `已展示全部 ${comments.length} 条本地评论` : '本地暂无存档评论'}</span>
+        <button type="button" class="button secondary" data-action="close-comment-preview">关闭</button>
+      </footer>
+    </section>
+  </div>`;
+}
+
+function renderInAppSourceTools(record: DesktopRecord): string {
+  return `<section class="in-app-source-tools"><h3>来源资料</h3>
+    ${renderDetailDownloadLinks(record)}
+    <details><summary>简介与分类</summary><p>${esc(record.summary || '当前快照未收录简介')}</p><p>${(record.categories || []).map((value) => esc(value)).join(' · ')}</p></details>
+    ${record.platform === 'mcmod' ? `<a class="detail-link" href="https://www.mcmod.cn/modpack/version/${encodeURIComponent(record.sourceId)}.html" target="_blank" rel="noreferrer">原站版本历史 ↗</a>` : ''}
+  </section>`;
+}
+
+export function renderInAppChangelogView(record: DesktopRecord): string {
+  const liveVersions = previewVersionCache.get(record.id)?.versions;
+  if (liveVersions?.length) record = { ...record, releases: liveVersions, raw: { ...record.raw, releases: liveVersions, versions: liveVersions, versions_data: liveVersions } };
+  const vm = buildVersionModalViewModel(record.platform, record.raw as never, record.raw);
+  const releases = vm.releases?.length ? vm.releases : (record.releases?.length ? record.releases : rawRecords(record, ['releases', 'versions_data', 'version_history']));
+  const fileIndexes = record.fileIndexes || [];
+  const visibleLimit = inAppVersionLimits.get(record.id) || 30;
+  const rawPackVersion = (record.packVersion && record.packVersion.trim() && record.packVersion !== '未知' && !record.packVersion.includes('本地数据未提供'))
+    ? record.packVersion.trim()
+    : (record.platform === 'mcmod' && vm.latestVersion && vm.latestVersion.trim() && vm.latestVersion !== '未知' && vm.latestVersion !== '最新版本' && !vm.latestVersion.includes('本地数据未提供') ? vm.latestVersion.trim() : '');
+  const packVersion = rawPackVersion && rawPackVersion !== '最新版本' ? rawPackVersion : '';
+
+  const matchingGroup = record.platform === 'bilibili' ? state.biliGroups.find((g) => g.items.some((item) => String(item.bvid) === String(record.sourceId) || String(item.id) === String(record.sourceId))) : null;
+  const relatedVideos = matchingGroup ? matchingGroup.items : [];
+  const hasReleaseNotes = releases.some((release) => {
+    const item = release as Record<string, unknown>;
+    const note = String(item.changelogMd || item.changelog || item.changelogHtml || '').trim();
+    return Boolean(note && note !== '该版本未提供更新日志说明。');
+  });
+
+  const hasData = releases.length > 0 || fileIndexes.length > 0 || Boolean(packVersion) || relatedVideos.length > 1;
+
+  if (!hasData) {
+    return `<div class="in-app-changelog-empty-compact">
+      <span class="empty-dyn-icon">📋</span>
+      <h4>当前本地快照暂无收录结构化更新日志</h4>
+      <p>【更新日志状态】：<strong>没有</strong>（快照暂未收录该整合包历史版本与日志）</p>
+      <small style="color:var(--text-muted);font-size:12px;margin-top:6px;display:block;">当前快照未收录结构化版本；可在中间网页核对原站，或切到“来源资料”查看其他内容。</small>
+      ${record.platform === 'mcmod' ? `<button type="button" class="button secondary small" data-action="switch-in-app-url" data-url="https://www.mcmod.cn/modpack/version/${encodeURIComponent(record.sourceId)}.html" data-title="${esc(record.title)} 更新日志" style="margin-top:10px;">🌐 在中间网页查看原站版本</button>` : `<button type="button" class="button secondary small" data-action="set-in-app-window-tab" data-tab="web" style="margin-top:10px;">🌐 浏览原站网页</button>`}
+    </div>`;
+  }
+
+  let contentHtml = '';
+
+  if (packVersion) {
+    contentHtml += `<div class="in-app-log-banner">
+      <span class="in-app-log-badge">当前版本摘要</span>
+      <strong>${esc(packVersion)}</strong>
+    </div>`;
+  }
+
+  if (!releases.length) {
+    contentHtml += `<p class="in-app-version-limited">当前快照仅有版本摘要，尚无可逐条展示的历史版本与更新正文。${record.platform === 'mcmod' ? `<button type="button" class="button secondary small" data-action="switch-in-app-url" data-url="https://www.mcmod.cn/modpack/version/${encodeURIComponent(record.sourceId)}.html" data-title="${esc(record.title)} 更新日志">在中间网页查看原站历史 ↗</button>` : ''}</p>`;
+  }
+
+  if (fileIndexes.length > 0) {
+    contentHtml += `<div class="in-app-log-section">
+      <div class="in-app-log-head">
+        <h4>CurseForge 文件索引快照</h4>
+        <span class="in-app-log-count">共 ${fileIndexes.length} 个文件</span>
+      </div>
+      <div class="in-app-files-table-wrap">
+        <table class="in-app-files-table">
+          <thead><tr><th>文件名</th><th>游戏版本</th><th>Loader</th><th>类型</th></tr></thead>
+          <tbody>
+            ${fileIndexes.slice(0, visibleLimit).map((file) => `<tr>
+              <td class="file-name-cell" title="${esc(file.filename)}">${file.fileId && /^\d+$/.test(String(file.fileId)) && safeExternalUrl(record.url) ? `<a href="${esc(`${record.url.replace(/\/$/, '')}/files/${file.fileId}`)}" target="_blank" rel="noreferrer">📄 ${esc(file.filename)} ↗</a>` : `📄 ${esc(file.filename)}`}</td>
+              <td>${esc(file.gameVersion || '—')}</td>
+              <td>${esc(String(file.modLoader || '—'))}</td>
+              <td><span class="release-type-badge">${esc(String(file.releaseType === 1 ? 'Release' : file.releaseType === 2 ? 'Beta' : file.releaseType === 3 ? 'Alpha' : file.releaseType || '—'))}</span></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${fileIndexes.length > visibleLimit ? `<button type="button" class="button secondary small" data-action="more-in-app-versions" data-record-id="${esc(record.id)}">再看 30 个文件（已显示 ${visibleLimit} / ${fileIndexes.length}）</button>` : ''}
+    </div>`;
+  }
+
+  if (releases.length > 0) {
+    const releaseHeading = record.platform === 'bilibili'
+      ? '视频发布记录'
+      : record.platform === 'modrinth'
+        ? (hasReleaseNotes ? 'Modrinth 版本与更新说明' : 'Modrinth 版本记录')
+        : record.platform === 'xyebbs'
+          ? (hasReleaseNotes ? '原帖版本与更新说明' : '原帖版本记录')
+          : hasReleaseNotes ? '版本与更新说明' : '版本历史记录';
+    contentHtml += `<div class="in-app-log-section">
+      <div class="in-app-log-head">
+        <h4>${releaseHeading}</h4>
+        <span class="in-app-log-count">共 ${releases.length} 条</span>
+      </div>
+      <div class="in-app-release-list">
+        ${releases.slice(0, visibleLimit).map((rel) => renderRelease(rel as unknown as Record<string, unknown>)).join('')}
+      </div>
+      ${releases.length > visibleLimit ? `<button type="button" class="button secondary small" data-action="more-in-app-versions" data-record-id="${esc(record.id)}">再看 30 个版本（已显示 ${visibleLimit} / ${releases.length}）</button>` : ''}
+    </div>`;
+  }
+
+  if (relatedVideos.length > 1) {
+    contentHtml += `<div class="in-app-log-section">
+      <div class="in-app-log-head">
+        <h4>同系列关联视频</h4>
+        <span class="in-app-log-count">共 ${relatedVideos.length} 期</span>
+      </div>
+      <div class="in-app-video-series-list">
+        ${relatedVideos.map((item) => {
+          const isCurrent = String(item.bvid) === String(record.sourceId);
+          const itemUrl = item.bvid ? `https://www.bilibili.com/video/${item.bvid}` : (item.url || '');
+          const itemDate = item.pub_time || (item as any).date || '';
+          return `<div class="in-app-video-item ${isCurrent ? 'is-current' : ''}">
+            <div class="in-app-video-meta">
+              <strong>${isCurrent ? '▶ [当前播放] ' : ''}${esc(item.title)}</strong>
+              <span>${itemDate ? `发布：${esc(itemDate)}` : ''}</span>
+            </div>
+            ${itemUrl ? `<button type="button" class="button secondary small in-app-video-switch" data-action="switch-in-app-url" data-url="${esc(itemUrl)}" data-title="${esc(item.title)} 视频页面">在中间网页打开</button>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  return `<div class="in-app-changelog-wrap">${contentHtml}</div>`;
+}
+
+export function renderInAppSideContent(record: DesktopRecord): string {
+  const versions = record.versions?.filter(Boolean) || [];
+  const loaders = record.loaders?.filter(Boolean) || [];
+  return `<div class="in-app-side-header">
+    <div class="in-app-side-plat-row">
+      <div class="in-app-side-plat">
+        <span class="in-app-side-badge" style="--plat-accent:${PLATFORM_ACCENTS[record.platform]};">${platformIcon(record.platform)} ${esc(PLATFORM_CONFIGS[record.platform].name)}</span>
+      </div>
+      <button type="button" class="in-app-pane-close-btn" data-action="toggle-in-app-personal" title="收起右侧个人区面板" aria-label="收起右侧个人区面板">▸</button>
+    </div>
+    <h3 class="in-app-side-title" title="${esc(record.title)}">${esc(record.title)}</h3>
+    ${record.author ? `<div class="in-app-side-author">作者：${esc(record.author)}</div>` : ''}
+    ${(versions.length || loaders.length) ? `
+    <div class="in-app-side-tags">
+      ${versions.slice(0, 3).map((v) => `<span class="in-app-side-tag tag-ver">${esc(v)}</span>`).join('')}
+      ${loaders.slice(0, 2).map((l) => `<span class="in-app-side-tag tag-ldr">${esc(l)}</span>`).join('')}
+    </div>` : ''}
+  </div>
+  <div class="in-app-side-scroll">
+    <div class="in-app-side-content">
+      ${renderPersonalDetail(record)}
+      ${record.platform === 'mcmod' ? renderMcmodTrendDetail(record) : ''}
+    </div>
+  </div>`;
+}
+
+function inAppWindowId(win: InAppWindowState): string {
+  if (!win.id) win.id = `web-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  return win.id;
+}
+
+function recordForInAppWindow(win: InAppWindowState): DesktopRecord | null {
+  return win.record || (win.recordId ? state.records.find((record) => record.id === win.recordId) : null)
+    || state.records.find((record) => record.url === win.url || (record.sourceId && win.url.includes(record.sourceId)))
+    || null;
+}
+
+function inAppFrameConfig(win: InAppWindowState, record: DesktopRecord | null): { restricted: boolean; frameUrl: string; sandbox: string; proxy: boolean; note: string } {
+  // Route by the actual destination: a window can outlive the current
+  // platform's record list or navigate to a different associated video.
+  const host = safeHost(win.url).toLowerCase();
+  const isHost = (domain: string) => host === domain || host.endsWith(`.${domain}`);
+  const platform = isHost('bilibili.com') ? 'bilibili'
+    : isHost('xyebbs.com') ? 'xyebbs'
+    : isHost('curseforge.com') ? 'curseforge' : record?.platform;
+  if (typeof window !== 'undefined' && !window.desktopApi?.openInAppWindow && platform === 'mcmod' && isHost('mcmod.cn') && /^\/modpack\/\d+\.html$/.test(new URL(win.url).pathname)) return {
+    restricted: false,
+    frameUrl: `/api/proxy-page?url=${encodeURIComponent(win.url)}`,
+    sandbox: 'allow-scripts allow-popups allow-popups-to-escape-sandbox',
+    proxy: true,
+    note: 'MC百科原站只读预览；左侧模组清单可定位到页面对应条目。',
+  };
+  const browserEntry = typeof window !== 'undefined' && !window.desktopApi?.openInAppWindow;
+  if (!browserEntry) return {
+    restricted: false,
+    frameUrl: win.url,
+    sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-top-navigation-by-user-activation allow-storage-access-by-user-activation',
+    proxy: false,
+    note: '原站可能限制内嵌或第三方登录。页面空白时可用“浏览器打开”。',
+  };
+  if (platform === 'curseforge') return {
+    restricted: true,
+    frameUrl: '',
+    sandbox: '',
+    proxy: false,
+    note: 'CurseForge 当前要求 Cloudflare 浏览器验证，软件内只读代理不能完成该验证。',
+  };
+  if (platform === 'bilibili') {
+    const bvid = win.url.match(/\/video\/(BV[0-9A-Za-z]+)/i)?.[1]
+      || (/^BV[0-9A-Za-z]+$/.test(record?.sourceId || '') ? record!.sourceId : '');
+    if (bvid) return {
+      restricted: false,
+      frameUrl: `https://player.bilibili.com/player.html?bvid=${encodeURIComponent(bvid)}&page=1&autoplay=0&danmaku=0`,
+      sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation',
+      proxy: false,
+      note: '⚠ B站站内打开存在已知问题，可能一直空白或等待加载。建议使用右上角“浏览器打开”。',
+    };
+  }
+
+  if (platform === 'xyebbs') return {
+    restricted: false,
+    frameUrl: `/api/proxy-page?static=1&url=${encodeURIComponent(win.url)}`,
+    sandbox: 'allow-scripts allow-popups allow-popups-to-escape-sandbox',
+    proxy: true,
+    note: 'XYEBBS 使用隔离只读预览，已停用会在本地域名报错的原站应用脚本。',
+  };
+  return {
+    restricted: false,
+    frameUrl: `/api/proxy-page?url=${encodeURIComponent(win.url)}`,
+    sandbox: 'allow-scripts allow-popups allow-popups-to-escape-sandbox',
+    proxy: true,
+    note: '浏览器入口使用隔离只读预览；登录、提交或下载请用“浏览器打开”。',
+  };
+}
+
+const previewVersionCache = new Map<string, { versions?: Record<string, unknown>[]; error?: string; loading?: boolean }>();
+const inAppVersionLimits = new Map<string, number>();
+
+async function loadPreviewVersions(record: DesktopRecord): Promise<void> {
+  if (!['mcmod', 'bbsmc', 'modrinth'].includes(record.platform) || !window.desktopApi.getPreviewVersions || previewVersionCache.has(record.id)) return;
+  const entry: { versions?: Record<string, unknown>[]; error?: string; loading?: boolean } = { loading: true };
+  previewVersionCache.set(record.id, entry);
+  try { entry.versions = (await window.desktopApi.getPreviewVersions(record.platform, record.sourceId)).versions; }
+  catch (error) { entry.error = error instanceof Error ? error.message : String(error); }
+  finally { entry.loading = false; render(); }
+}
+
+function renderInAppWebPane(win: InAppWindowState, record: DesktopRecord | null): string {
+  const tab = win.contentTab || 'web';
+  const tabs = record ? `<nav class="in-app-content-tabs" aria-label="小窗内容">${([['overview', '资料'], ['versions', '版本历史'], ['gallery', '图片'], ['web', record.platform === 'bilibili' ? '尝试播放' : '原站网页']] as const).map(([key, label]) => `<button class="button ${tab === key ? 'primary' : 'secondary'} small" data-action="in-app-content-tab" data-tab="${key}">${label}</button>`).join('')}</nav>` : '';
+  let body = '';
+  if (!record || tab === 'web') body = renderInAppRemotePane(win, record);
+  else if (tab === 'versions') {
+    const live = previewVersionCache.get(record.id);
+    body = `<div class="in-app-reader">${live?.loading ? '<p role="status">正在查询原站版本，本地记录仍可查看…</p>' : ''}${live?.error ? `<p>在线版本暂不可用：${esc(live.error)}。以下保留本地记录。</p><button class="button secondary small" data-action="retry-preview-versions">重试查询</button>` : ''}${renderInAppChangelogView(record)}</div>`;
+  } else if (tab === 'gallery') body = `<div class="in-app-reader">${renderMediaSection(record) || '<p>当前快照没有收录图片。</p>'}</div>`;
+  else {
+    const raw = record.raw as Record<string, unknown>;
+    const description = String(raw.description || raw.desc || record.summary || '当前快照没有收录简介。');
+    body = `<div class="in-app-reader"><h2>${esc(record.title)}</h2><p>${esc(PLATFORM_CONFIGS[record.platform].name)} · ${esc(record.author || '作者未收录')}</p>${record.platform === 'bilibili' ? '<p class="in-app-version-limited">B站内嵌播放器存在兼容问题；可以尝试播放，空白时请用右上角“浏览器打开”。</p>' : ''}${renderDetailFacts(record)}<h3>简介</h3><div class="in-app-reader-description">${esc(description)}</div>${renderDetailDownloadLinks(record)}${raw.pinned_comment ? `<h3>置顶评论</h3><div class="in-app-reader-description">${esc(String(raw.pinned_comment))}</div>` : ''}</div>`;
+  }
+  return `<section class="in-app-content-shell">${tabs}${body}</section>`;
+}
+
+function renderInAppRemotePane(win: InAppWindowState, record: DesktopRecord | null): string {
+  const config = inAppFrameConfig(win, record);
+  if (config.restricted) return `<div class="in-app-web-pane in-app-restricted-pane"><div class="in-app-restricted-state"><span class="in-app-restricted-icon">🛡️</span><h3>CurseForge 需要浏览器验证</h3><p>当前请求收到 Cloudflare 403 challenge。应用不会把验证页或空白页当作加载成功。</p><a class="button primary" href="${esc(win.url)}" target="_blank" rel="noreferrer">在浏览器中打开 ↗</a></div></div>`;
+  const id = inAppWindowId(win);
+  return `<div class="in-app-web-pane">
+    <div class="in-app-web-toolbar"><span class="js-in-app-loader" role="status">正在请求原站…</span><label>网页缩放 <select class="js-in-app-zoom" aria-label="网页缩放"><option value="auto">自动（保持可读）</option><option value="1">100%</option><option value="0.9">90%</option><option value="0.75">75%</option><option value="0.5">50%</option></select></label></div>
+    <div class="in-app-web-viewport"><iframe class="in-app-window-frame js-in-app-frame" data-frame-key="${esc(`${id}:${config.frameUrl}`)}" src="${esc(config.frameUrl)}" sandbox="${config.sandbox}" allow="${config.proxy ? 'fullscreen' : 'fullscreen; clipboard-read; clipboard-write'}" title="${esc(win.title)}原站网页"></iframe></div>
+  </div>`;
+}
+
+function renderInAppWindowDock(windows: InAppWindowState[]): string {
+  const minimized = windows.filter((win) => win.minimized);
+  if (!minimized.length) return '';
+  return `<aside class="in-app-window-dock" aria-label="已收起的小窗">${minimized.map((win) => `<button type="button" class="in-app-dock-item" data-action="restore-in-app-window" data-window-id="${esc(inAppWindowId(win))}" title="展开 ${esc(win.title)}"><span>🪟</span><span>${esc(win.title)}</span></button>`).join('')}</aside>`;
+}
+
+function renderInAppSplitWorkspace(windows: InAppWindowState[], dock: string): string {
+  return `<div class="modal-backdrop in-app-window-backdrop in-app-workspace-backdrop" data-action="minimize-all-in-app-windows" role="dialog" aria-modal="true" aria-label="多窗口分屏浏览">
+    <section class="in-app-workspace-panel" onclick="event.stopPropagation()">
+      <header class="in-app-workspace-header"><div><strong>分屏浏览</strong><span>${windows.length} 个页面 · 分屏时隐藏资料侧栏以保证可读性</span></div><button type="button" class="button secondary" data-action="minimize-all-in-app-windows">全部收起</button></header>
+      <div class="in-app-workspace-grid ${windows.length >= 3 ? 'is-many' : ''}">${windows.map((win) => {
+        const id = inAppWindowId(win);
+        const record = recordForInAppWindow(win);
+        return `<article class="in-app-split-window" data-window-id="${esc(id)}">
+          <header class="in-app-split-header"><div><strong title="${esc(win.title)}">${esc(win.title)}</strong><span>${esc(safeHost(win.url))}</span></div><div><button type="button" data-action="reload-in-app-window" title="刷新">↻</button><button type="button" data-action="minimize-in-app-window" title="收起到右侧">—</button><a href="${esc(win.url)}" target="_blank" rel="noreferrer" title="浏览器打开">↗</a><button type="button" data-action="close-in-app-window" title="关闭">×</button></div></header>
+          ${renderInAppWebPane(win, record)}
+        </article>`;
+      }).join('')}</div>
+    </section>
+  </div>${dock}`;
+}
+
+function renderInAppWindowModal(): string {
+  const windows = state.inAppWindows.length ? state.inAppWindows : (state.inAppWindow ? [state.inAppWindow] : []);
+  if (!windows.length) return '';
+  windows.forEach(inAppWindowId);
+  const dock = renderInAppWindowDock(windows);
+  const visible = windows.filter((win) => !win.minimized);
+  if (!visible.length) return dock;
+  if (visible.length > 1) return renderInAppSplitWorkspace(visible, dock);
+  const win = visible[0];
+  state.inAppWindow = win;
+  const parsedHost = safeHost(win.url);
+  const isMaximized = Boolean(win.maximized);
+  const record = recordForInAppWindow(win)
+    || state.inAppWindowPreviousSelected
+    || null;
+  const frameConfig = inAppFrameConfig(win, record);
+
+  let logBadgeText = '无';
+  if (record) {
+    const vm = buildVersionModalViewModel(record.platform, record.raw as never, record.raw);
+    const releases = vm.releases?.length ? vm.releases : (record.releases?.length ? record.releases : rawRecords(record, ['releases', 'versions_data', 'version_history']));
+    const fileIndexes = record.fileIndexes || [];
+    const matchingGroup = record.platform === 'bilibili' ? state.biliGroups.find((g) => g.items.some((item) => String(item.bvid) === String(record.sourceId) || String(item.id) === String(record.sourceId))) : null;
+    const relatedVideos = matchingGroup ? matchingGroup.items : [];
+    const packVersion = (record.packVersion && record.packVersion.trim() && record.packVersion !== '未知' && !record.packVersion.includes('本地数据未提供'))
+      ? record.packVersion.trim()
+      : (record.platform === 'mcmod' && vm.latestVersion && vm.latestVersion.trim() && vm.latestVersion !== '未知' && !vm.latestVersion.includes('本地数据未提供') ? vm.latestVersion.trim() : '');
+    const logCount = releases.length || fileIndexes.length || (relatedVideos.length > 1 ? relatedVideos.length : 0);
+    logBadgeText = logCount > 0 ? `${logCount}条` : (packVersion ? `v${packVersion}` : '无');
+  }
+
+  const isChangelogOpen = Boolean(record && (win.showChangelogPane !== undefined ? win.showChangelogPane : true));
+  const isPersonalOpen = Boolean(record && (win.showPersonalPane !== false));
+  const sourcePaneTab = win.sourcePaneTab === 'source' || win.sourcePaneTab === 'versions' || (record?.platform === 'mcmod' && win.sourcePaneTab === 'mods') ? win.sourcePaneTab : 'versions';
+  const modInfo = record?.platform === 'mcmod' ? mcmodTableModInfo(record) : null;
+
+  return `<div class="modal-backdrop in-app-window-backdrop" data-action="minimize-in-app-window" data-window-id="${esc(inAppWindowId(win))}" role="dialog" aria-modal="true" aria-label="软件内网页小窗">
+    <section class="modal-panel in-app-window-panel ${isMaximized ? 'is-maximized' : ''}" data-window-id="${esc(inAppWindowId(win))}" onclick="event.stopPropagation()">
+      <header class="modal-header in-app-window-header">
+        <div class="in-app-window-info">
+          <span class="in-app-window-icon">🪟</span>
+          <strong class="in-app-window-title" title="${esc(win.title)}">${esc(win.title)}</strong>
+          ${parsedHost ? `<span class="in-app-window-host">${esc(parsedHost)}</span>` : ''}
+
+        </div>
+        <div class="in-app-window-url-bar" title="${esc(win.url)}">
+          <span class="url-lock">🔒</span>
+          <span class="url-text">${esc(win.url)}</span>
+        </div>
+        ${record ? `
+        <div class="in-app-pane-toggles" role="group" aria-label="小窗栏位展开控制">
+          <button type="button" class="in-app-pane-toggle-btn ${isChangelogOpen ? 'is-active' : ''}" data-action="toggle-in-app-changelog" title="${isChangelogOpen ? '收起左侧资料面板' : '展开左侧资料面板'}">
+            <span>📋 资料与版本</span>
+            <span class="in-app-toggle-count">${esc(logBadgeText)}</span>
+          </button>
+          <button type="button" class="in-app-pane-toggle-btn ${isPersonalOpen ? 'is-active' : ''}" data-action="toggle-in-app-personal" title="${isPersonalOpen ? '收起右侧个人区面板' : '展开右侧个人区面板'}">
+            <span>👤 个人区</span>
+          </button>
+        </div>
+        ` : ''}
+        <div class="in-app-window-ctrls">
+          <button type="button" class="in-app-ctrl-btn" data-action="reload-in-app-window" title="重新载入页面">🔄 刷新</button>
+          <button type="button" class="in-app-ctrl-btn" data-action="minimize-in-app-window" title="收起到右侧悬浮栏">— 收起</button>
+          <button type="button" class="in-app-ctrl-btn" data-action="toggle-maximize-in-app-window" title="${isMaximized ? '还原窗口' : '最大化窗口'}">${isMaximized ? '❐ 还原' : '⛶ 最大化'}</button>
+          ${typeof window !== 'undefined' && window.desktopApi?.openInAppWindow ? `<button type="button" class="in-app-ctrl-btn" data-action="open-native-subwindow" data-url="${esc(win.url)}" data-title="${esc(win.title)}" title="在独立窗口中打开">🗗 独立窗口</button>` : ''}
+          <a class="in-app-ctrl-btn external-open-btn" href="${esc(win.url)}" target="_blank" rel="noreferrer" title="在系统外部浏览器中打开此网页">浏览器打开 ↗</a>
+          <button type="button" class="modal-close in-app-close-btn" data-action="close-in-app-window" aria-label="关闭小窗">✕</button>
+        </div>
+      </header>
+
+      <div class="in-app-window-body in-app-split-body ${isPersonalOpen ? 'has-side-pane' : 'no-side-pane'}">
+        ${record && isChangelogOpen ? `
+        <aside class="in-app-changelog-pane" aria-label="资料与模组面板">
+          <div class="in-app-pane-header">
+            <div class="in-app-pane-title">
+              <span class="js-in-app-source-title">${sourcePaneTab === 'mods' ? '🧩 已收录模组' : sourcePaneTab === 'source' ? '📄 来源资料' : '📋 版本历史'}</span>
+              <span class="in-app-pane-badge js-in-app-source-count">${sourcePaneTab === 'mods' ? modInfo?.count || 0 : sourcePaneTab === 'source' ? '资料' : esc(logBadgeText)}</span>
+            </div>
+            <button type="button" class="in-app-pane-close-btn" data-action="toggle-in-app-changelog" title="收起左侧资料面板" aria-label="收起左侧资料面板">◂</button>
+          </div>
+          <div class="in-app-source-tabs ${modInfo ? 'has-mods' : ''}" role="tablist" aria-label="左栏内容">
+            <button type="button" role="tab" data-action="switch-in-app-source-pane" data-source-tab="source" data-count="资料" aria-selected="${sourcePaneTab === 'source'}" class="${sourcePaneTab === 'source' ? 'is-active' : ''}">来源资料</button>
+            <button type="button" role="tab" data-action="switch-in-app-source-pane" data-source-tab="versions" data-count="${esc(logBadgeText)}" aria-selected="${sourcePaneTab === 'versions'}" class="${sourcePaneTab === 'versions' ? 'is-active' : ''}">版本历史</button>
+            ${modInfo ? `<button type="button" role="tab" data-action="switch-in-app-source-pane" data-source-tab="mods" data-count="${modInfo.count}" aria-selected="${sourcePaneTab === 'mods'}" class="${sourcePaneTab === 'mods' ? 'is-active' : ''}">包含模组 <span>${modInfo.count}</span></button>` : ''}
+          </div>
+          <div class="in-app-changelog-scroll" data-source-panel="source" ${sourcePaneTab !== 'source' ? 'hidden' : ''}>${renderInAppSourceTools(record)}</div>
+          <div class="in-app-changelog-scroll" data-source-panel="versions" ${sourcePaneTab !== 'versions' ? 'hidden' : ''}>${renderInAppChangelogView(record)}</div>
+          ${modInfo ? `<div class="in-app-changelog-scroll in-app-mods-scroll" data-source-panel="mods" ${sourcePaneTab !== 'mods' ? 'hidden' : ''}><div class="in-app-mods-intro"><strong>完整模组清单</strong><span>本地收录 ${modInfo.names.length} / 来源标记 ${modInfo.count} 款</span></div>${renderMcmodFullModList(record, 'window')}</div>` : ''}
+        </aside>
+        ` : ''}
+
+        ${renderInAppWebPane(win, record)}
+
+        ${record && isPersonalOpen ? `
+        <aside class="in-app-side-pane" aria-label="个人标记与来源">
+          ${renderInAppSideContent(record)}
+        </aside>
+        ` : ''}
+      </div>
+
+      <footer class="modal-footer in-app-window-footer">
+        <span class="in-app-footer-tip">${esc(frameConfig.note)}</span>
+        <button type="button" class="button secondary" data-action="close-in-app-window">关闭小窗</button>
+      </footer>
+    </section>
+  </div>${dock}`;
 }
 
 export function renderPersonalBackup(entries: Record<string, PersonalStatus>): string {
@@ -1562,7 +3130,9 @@ export function renderPersonalBackup(entries: Record<string, PersonalStatus>): s
       <div class="personal-profile-section-heading"><div><h3 id="personal-backup-title">资料备份</h3><p>收藏、想玩、玩过、评分、备注及保存时的来源线索仅保存在本机。</p></div></div>
       <div class="personal-profile-actions">
         <a class="detail-link" href="/api/library/export" download="personal-library.json">导出个人资料 JSON</a>
-        <label class="detail-link personal-profile-restore">恢复个人资料 JSON <input id="personal-restore-file" type="file" accept="application/json,.json"></label>
+        <label class="detail-link personal-profile-restore" for="personal-restore-file">选择备份并恢复</label>
+        <input id="personal-restore-file" class="personal-profile-file-input" type="file" accept="application/json,.json">
+        <span class="personal-profile-file-note">仅支持本应用导出的 JSON</span>
       </div>
       <p class="personal-profile-help">恢复前完整校验；已有 key 保留当前资料，备份冲突项跳过。备份不包含平台快照。</p>
     </section>
@@ -1584,9 +3154,9 @@ export function renderPersonalBackup(entries: Record<string, PersonalStatus>): s
 
 function renderPersonalProfilePanel(): string {
   if (!state.personalProfileOpen) return '';
-  return `<div class="personal-profile-backdrop" data-action="close-personal-profile" role="dialog" aria-modal="true" aria-labelledby="personal-profile-title">
-    <section class="personal-profile-panel" id="personal-profile-dialog">
-      <header class="personal-profile-header"><div><span class="eyebrow">LOCAL PERSONAL DATA</span><h2 id="personal-profile-title">个人资料</h2><p>查看收藏更新提醒、管理本机个人标记备份，并回访当前快照中缺失的来源。</p></div><button type="button" class="icon-button personal-profile-close" data-action="close-personal-profile" aria-label="关闭个人资料">×</button></header>
+  return `<div class="modal-backdrop personal-profile-backdrop" data-action="close-personal-profile" role="dialog" aria-modal="true" aria-labelledby="personal-profile-title">
+    <section class="modal-panel personal-profile-panel" id="personal-profile-dialog" onclick="event.stopPropagation()">
+      <header class="modal-header personal-profile-header"><div class="modal-title-wrap"><span class="eyebrow">LOCAL PERSONAL DATA</span><h2 id="personal-profile-title">个人资料</h2><p>查看收藏更新提醒、管理本机个人标记备份，并回访当前快照中缺失的来源。</p></div><button type="button" class="modal-close personal-profile-close" data-action="close-personal-profile" aria-label="关闭个人资料">×</button></header>
       ${state.message ? `<div class="notice personal-profile-notice" role="status">${esc(state.message)}</div>` : ''}
       ${renderFavoriteUpdatesPanel()}
       ${renderPersonalBackup(state.missingPersonalSources)}
@@ -1630,12 +3200,19 @@ function renderFavoriteUpdatesPanel(): string {
 }
 
 function replaceRootHtmlPreservingCoverImages(markup: string): void {
+  disposeInAppFrame();
   const previousImages = new Map<string, HTMLImageElement[]>();
   root.querySelectorAll<HTMLImageElement>('img[data-cover-image]').forEach((image) => {
     const key = `${image.dataset.coverKey || ''}\u0000${image.dataset.originalSrc || ''}`;
     const matching = previousImages.get(key) || [];
     matching.push(image);
     previousImages.set(key, matching);
+  });
+
+  const previousFrames = new Map<string, HTMLIFrameElement>();
+  root.querySelectorAll<HTMLIFrameElement>('iframe.js-in-app-frame').forEach((frame) => {
+    const key = frame.dataset.frameKey || frame.src;
+    previousFrames.set(key, frame);
   });
 
   const template = document.createElement('template');
@@ -1649,8 +3226,38 @@ function replaceRootHtmlPreservingCoverImages(markup: string): void {
     });
     nextImage.replaceWith(previous);
   });
+
+  const retainedFrames: Array<{ frame: HTMLIFrameElement; placeholder: Comment }> = [];
+  template.content.querySelectorAll<HTMLIFrameElement>('iframe.js-in-app-frame').forEach((nextFrame) => {
+    const key = nextFrame.dataset.frameKey || nextFrame.src;
+    const previousFrame = previousFrames.get(key);
+    if (!previousFrame) return;
+    // Moving an iframe through a detached template destroys its browsing context.
+    // Keep it connected until its destination is connected too, then use the
+    // state-preserving DOM move where supported.
+    const placeholder = document.createComment('retained web window');
+    nextFrame.replaceWith(placeholder);
+    retainedFrames.push({ frame: previousFrame, placeholder });
+  });
+
   const removedImages = [...previousImages.values()].flat();
-  root.replaceChildren(template.content);
+  const previousChildren = Array.from(root.childNodes);
+  root.append(template.content);
+  retainedFrames.forEach(({ frame, placeholder }) => {
+    const parent = placeholder.parentElement! as HTMLElement & {
+      moveBefore?: (node: Node, child: Node | null) => void;
+    };
+    if (parent.moveBefore) {
+      parent.moveBefore(frame, placeholder);
+    } else {
+      // Older engines reload on reparenting; never carry a stale success flag.
+      delete frame.dataset.loaded;
+      delete frame.dataset.requestStarted;
+      parent.insertBefore(frame, placeholder);
+    }
+    placeholder.remove();
+  });
+  previousChildren.forEach((child) => child.remove());
   removedImages.forEach((image) => releaseDetachedCoverImage(image));
   initializeCoverImages();
 }
@@ -1672,14 +3279,15 @@ function setCoverPresentation(image: HTMLImageElement, state: CoverImageState): 
   if (status) status.textContent = coverStatusText(state);
   const retry = frame.querySelector<HTMLButtonElement>('[data-action="retry-cover"]');
   if (retry) {
-    const canRetry = (state === 'error' || state === 'timeout') && imageRetryDelay(image.dataset.originalSrc || '') === 0;
+    const retryDelay = imageRetryDelay(image.dataset.originalSrc || '');
+    const canRetry = (state === 'error' || state === 'timeout') && retryDelay === 0;
     retry.hidden = state !== 'error' && state !== 'timeout';
     retry.disabled = !canRetry;
-    retry.textContent = canRetry ? '重试封面' : '稍后可重试';
+    retry.textContent = canRetry ? '重试封面' : `封面失败 · ${Math.max(1, Math.ceil(retryDelay / 1000))} 秒后可重试`;
   }
   const trigger = frame.querySelector<HTMLElement>('.image-preview-trigger');
   if (trigger) {
-    trigger.dataset.imageUrl = state === 'error' || state === 'timeout' || state === 'missing'
+    trigger.dataset.imageUrl = state === 'fallback' || state === 'error' || state === 'timeout' || state === 'missing'
       ? image.dataset.fallbackSrc || ''
       : image.dataset.originalSrc || image.dataset.fallbackSrc || '';
   }
@@ -1747,6 +3355,28 @@ function initializeCoverImages(): void {
   root.querySelectorAll<HTMLImageElement>('img[data-cover-image]').forEach((image) => {
     const currentState = (image.dataset.coverState || 'loading') as CoverImageState;
     setCoverPresentation(image, currentState);
+
+    const original = safeImageUrl(image.dataset.originalSrc);
+    if (!original) {
+      clearCoverTimer(image);
+      const fallback = safeImageUrl(image.dataset.fallbackSrc);
+      if (fallback && safeImageUrl(image.currentSrc || image.src) !== fallback) image.src = fallback;
+      setCoverPresentation(image, 'missing');
+      return;
+    }
+
+    // Reused and cached images can finish before the delegated load/error
+    // listeners see an event. Reconcile the DOM's real state here so an
+    // already visible cover cannot retain a stale failure overlay.
+    if (image.naturalWidth > 0) {
+      handleCoverImageLoad(image);
+      return;
+    }
+    if (image.complete && currentState === 'loading') {
+      handleCoverImageFailure(image, 'error');
+      return;
+    }
+
     if (currentState !== 'loading' || !image.dataset.originalSrc) {
       scheduleCoverRetry(image);
       return;
@@ -1773,16 +3403,30 @@ function initializeCoverImages(): void {
 }
 
 function handleCoverImageLoad(image: HTMLImageElement): void {
-  if (image.dataset.coverState !== 'loading') return;
+  const currentState = image.dataset.coverState as CoverImageState;
+  if (currentState !== 'loading' && currentState !== 'error' && currentState !== 'timeout') return;
   clearCoverTimer(image);
   coverRetryTickets.delete(image);
   const original = safeImageUrl(image.dataset.originalSrc);
+  const fallback = safeImageUrl(image.dataset.fallbackSrc);
+  const current = safeImageUrl(image.currentSrc || image.src);
+  if (fallback && current === fallback) {
+    setCoverPresentation(image, 'fallback');
+    return;
+  }
   finishImageLoad(original);
   setCoverPresentation(image, 'loaded');
 }
 
 function handleCoverImageFailure(image: HTMLImageElement, kind: 'error' | 'timeout'): void {
   if (image.dataset.coverState !== 'loading') return;
+  // Some remote servers finish the decodable image before closing the
+  // response. The browser can already paint it while `complete` remains
+  // false, so a timer/error at that point must not replace a usable cover.
+  if (image.naturalWidth > 0) {
+    handleCoverImageLoad(image);
+    return;
+  }
   clearCoverTimer(image);
   coverRetryTickets.delete(image);
   const original = safeImageUrl(image.dataset.originalSrc);
@@ -1836,9 +3480,25 @@ function render(): void {
   const body = (state.platform === 'all'
     ? `${renderCrossSearch()}<section class="all-platforms-grid" aria-label="六平台数据看板">${ALL_PLATFORMS.map(renderLegacyShowcaseCard).join('')}</section><div class="desktop-section-heading"><span class="eyebrow">LIVE SNAPSHOT</span><h2>当前快照浏览</h2><p>卡片、版本筛选与详情入口均来自本地快照；需要更多结果时可继续加载。</p></div>${renderResultsWorkspace(selectedName)}`
     : `${renderPlatformHero(state.platform)}${renderResultsWorkspace(selectedName)}`);
+  const snapshotStatusLabel = data?.hasData ? '快照' : '等待数据';
+  const snapshotStatusDescription = data?.hasData ? `当前快照：${data.snapshotId || '已载入'}` : '等待数据';
+  const isUpdating = state.update?.state === 'running';
+  const updateAction = `<button type="button" class="top-action-btn ${isUpdating ? 'is-running' : ''}" data-action="toggle-update" aria-label="数据更新">${isUpdating ? '<span class="pulse-indicator"></span>' : ''}数据更新</button>`;
+  const gridWrap = root?.querySelector<HTMLElement>('.picker-grid-wrap');
+  const savedGridScrollTop = gridWrap ? gridWrap.scrollTop : 0;
+  const savedUpdateScrollTop = root?.querySelector<HTMLElement>('.update-modal-panel')?.scrollTop || 0;
+  const savedLogScrollTop = root?.querySelector<HTMLElement>('.update-log-list')?.scrollTop || 0;
   replaceRootHtmlPreservingCoverImages(`<div class="desktop-app legacy-shell"><div class="bg-layer" aria-hidden="true"></div>
-    <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button><span class="data-status ${data?.hasData ? 'ready' : 'empty'}"><i></i>${data?.hasData ? `快照 ${esc(data.snapshotId || '已载入')}` : '等待数据'}</span><button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button>${personalProfileAction}<div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
-    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}${renderMcmodTrendDialog()}</div>`);
+    <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav><nav class="topbar-platform-flyout" aria-label="完整平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button>${updateAction}<button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button>${personalProfileAction}<span class="data-status ${data?.hasData ? 'ready' : 'empty'}" title="${esc(snapshotStatusDescription)}" aria-label="${esc(snapshotStatusDescription)}"><i aria-hidden="true"></i>${snapshotStatusLabel}</span><div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
+    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${renderCommentPreviewModal()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}${renderMcmodTrendDialog()}${renderUpdateModal()}${renderDataImportModal()}${renderPickerModal()}${renderInAppWindowModal()}</div>`);
+  if (savedGridScrollTop > 0) {
+    const nextGridWrap = root?.querySelector<HTMLElement>('.picker-grid-wrap');
+    if (nextGridWrap) nextGridWrap.scrollTop = savedGridScrollTop;
+  }
+  const nextUpdatePanel = root?.querySelector<HTMLElement>('.update-modal-panel');
+  if (nextUpdatePanel && savedUpdateScrollTop > 0) nextUpdatePanel.scrollTop = savedUpdateScrollTop;
+  const nextLogList = root?.querySelector<HTMLElement>('.update-log-list');
+  if (nextLogList && savedLogScrollTop > 0) nextLogList.scrollTop = savedLogScrollTop;
   bindEvents();
   const focusTarget = profileFocusAfterRender;
   profileFocusAfterRender = '';
@@ -1859,9 +3519,154 @@ function render(): void {
     search?.setSelectionRange(search.value.length, search.value.length);
   }
   platformFilterFocusAfterRender = '';
+  if (pickerFocusAfterRender === 'picker-modal-search') {
+    const search = root.querySelector<HTMLInputElement>('#picker-modal-search');
+    search?.focus();
+    search?.setSelectionRange(search.value.length, search.value.length);
+  }
+  pickerFocusAfterRender = '';
+  if (stickyFocusAfterRender === 'sticky-mod-search') {
+    const search = root.querySelector<HTMLInputElement>('#sticky-mod-search');
+    search?.focus();
+    search?.setSelectionRange(search.value.length, search.value.length);
+  } else if (stickyFocusAfterRender === 'sticky-cat-search') {
+    const search = root.querySelector<HTMLInputElement>('#sticky-cat-search');
+    search?.focus();
+    search?.setSelectionRange(search.value.length, search.value.length);
+  }
+  stickyFocusAfterRender = '';
+}
+
+let disposeInAppFrame = (): void => {};
+function bindMcmodModList(list: HTMLElement): void {
+  const input = list.querySelector<HTMLInputElement>('.js-mcmod-mod-search');
+  input?.addEventListener('input', () => {
+    const query = input.value.trim().toLocaleLowerCase();
+    let count = 0;
+    list.querySelectorAll<HTMLElement>('.mcmod-mod-group').forEach((group) => {
+      let groupCount = 0;
+      group.querySelectorAll<HTMLElement>('.mcmod-full-mod-item').forEach((item) => {
+        const match = !query || (item.dataset.modName || '').includes(query);
+        item.hidden = !match;
+        if (match) { count += 1; groupCount += 1; }
+      });
+      group.hidden = groupCount === 0;
+    });
+    const output = list.querySelector<HTMLElement>('[data-mod-match-count]');
+    if (output) output.textContent = query ? `找到 ${count} 款` : `显示全部 ${count} 款`;
+  });
+  list.querySelectorAll<HTMLButtonElement>('.js-focus-in-app-mod').forEach((button) => {
+    button.addEventListener('click', () => {
+      const frame = button.closest<HTMLElement>('.in-app-window-panel')?.querySelector<HTMLIFrameElement>('.js-in-app-frame');
+      const label = button.querySelector<HTMLElement>('.mcmod-mod-locate');
+      if (!frame?.contentWindow) { if (label) label.textContent = '原站不可定位'; return; }
+      button.classList.add('is-locating');
+      if (label) label.textContent = frame.dataset.loaded ? '定位中…' : '等待网页…';
+      const send = () => frame.contentWindow?.postMessage({ type: 'mcmod-focus-mod', name: button.dataset.modRawName || '' }, '*');
+      if (frame.dataset.loaded) send();
+      else frame.addEventListener('load', send, { once: true });
+    });
+  });
+}
+
+function bindInAppFrame(): void {
+  disposeInAppFrame();
+  const disposers: Array<() => void> = [];
+  root.querySelectorAll<HTMLIFrameElement>('.js-in-app-frame').forEach((frame) => {
+    const container = frame.closest<HTMLElement>('[data-window-id]');
+    const viewport = frame.closest<HTMLElement>('.in-app-web-viewport');
+    const pane = frame.closest<HTMLElement>('.in-app-web-pane');
+    const status = pane?.querySelector<HTMLElement>('.js-in-app-loader');
+    const zoom = pane?.querySelector<HTMLSelectElement>('.js-in-app-zoom');
+    if (!viewport || !status || !zoom) return;
+    const windowId = container?.dataset.windowId || '';
+    const windows = state.inAppWindows.length ? state.inAppWindows : (state.inAppWindow ? [state.inAppWindow] : []);
+    const win = windows.find((item) => inAppWindowId(item) === windowId) || state.inAppWindow;
+    zoom.value = win?.zoom || 'auto';
+    const resize = () => {
+      const viewportWidth = Math.max(1, viewport.clientWidth);
+      const viewportHeight = Math.max(1, viewport.clientHeight);
+      const scale = zoom.value === 'auto'
+        ? Math.max(0.85, Math.min(1, viewportWidth / 1100))
+        : Number(zoom.value);
+      const contentWidth = Math.max(1100, viewportWidth / scale);
+      frame.style.width = `${contentWidth}px`;
+      frame.style.height = `${viewportHeight / scale}px`;
+      frame.style.transform = `scale(${scale})`;
+      frame.dataset.effectiveScale = scale.toFixed(3);
+      viewport.style.overflowX = contentWidth * scale <= viewportWidth + 1 ? 'hidden' : 'auto';
+      viewport.style.overflowY = 'hidden';
+    };
+    const changed = () => { if (win) win.zoom = zoom.value; resize(); };
+    let timer: ReturnType<typeof setTimeout>;
+    const loaded = () => { clearTimeout(timer); frame.dataset.loaded = 'true'; if (frame.dataset.failed !== 'true') status.textContent = '页面已返回；若空白请切换上方资料或版本历史'; };
+    const failed = () => { clearTimeout(timer); status.textContent = '载入失败，请刷新或用浏览器打开'; };
+    if (!frame.dataset.requestStarted) frame.dataset.requestStarted = String(Date.now());
+    if (frame.dataset.loaded) loaded();
+    else timer = setTimeout(() => { status.textContent = '等待较久：原站可能限制内嵌或网络较慢'; }, Math.max(0, 12000 - (Date.now() - Number(frame.dataset.requestStarted))));
+    frame.addEventListener('load', loaded);
+    frame.addEventListener('error', failed);
+    const onMessage = (message: MessageEvent) => {
+      if (message.source !== frame.contentWindow || !win) return;
+      const data = message.data as { type?: unknown; entries?: unknown; name?: unknown; found?: unknown; ok?: boolean; url?: string } | null;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'in-app-page-state') {
+        clearTimeout(timer);
+        frame.dataset.failed = data.ok === false ? 'true' : 'false';
+        status.textContent = data.ok === true ? '只读网页已载入 · 版本与图片可在上方切换' : data.ok === false ? '原站请求失败，请切换资料或版本历史' : '正在打开链接…';
+        return;
+      }
+      if (data.type === 'mcmod-mod-index' && Array.isArray(data.entries)) {
+        const record = recordForInAppWindow(win);
+        if (record?.platform !== 'mcmod') return;
+        const entries = data.entries.slice(0, 5000).filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+          .map((item) => ({ name: String(item.name || '').slice(0, 500), url: safeExternalUrl(item.url), categoryUrl: safeExternalUrl(item.categoryUrl) }))
+          .filter((item) => item.name);
+        mcmodLiveModIndex.set(record.id, entries);
+        const oldList = container?.querySelector<HTMLElement>('.mcmod-full-mod-list.is-window');
+        if (!oldList) return;
+        const template = document.createElement('template');
+        template.innerHTML = renderMcmodFullModList(record, 'window');
+        const nextList = template.content.firstElementChild as HTMLElement | null;
+        if (nextList) { oldList.replaceWith(nextList); bindMcmodModList(nextList); }
+      } else if (data.type === 'mcmod-focus-result') {
+        const name = String(data.name || '');
+        const button = [...(container?.querySelectorAll<HTMLButtonElement>('.js-focus-in-app-mod.is-locating') || [])]
+          .find((item) => item.dataset.modRawName === name);
+        const label = button?.querySelector<HTMLElement>('.mcmod-mod-locate');
+        if (label) label.textContent = data.found === true ? '已定位 ✓' : '原站未找到';
+        button?.classList.remove('is-locating');
+      }
+    };
+    window.addEventListener('message', onMessage);
+    zoom.addEventListener('change', changed);
+    const observer = new ResizeObserver(resize);
+    observer.observe(viewport);
+    resize();
+    disposers.push(() => { clearTimeout(timer); observer.disconnect(); frame.removeEventListener('load', loaded); frame.removeEventListener('error', failed); zoom.removeEventListener('change', changed); window.removeEventListener('message', onMessage); });
+  });
+  disposeInAppFrame = () => { disposers.forEach((dispose) => dispose()); };
+}
+
+function bindTrendPreviews(): void {
+  root.querySelectorAll<HTMLElement>('.mcmod-trend-detail').forEach((container) => {
+    const trigger = container.querySelector<HTMLElement>('[data-trend-trigger]');
+    const graph = trigger?.querySelector<HTMLElement>('.mcmod-trend-sparkline');
+    const output = container.querySelector<HTMLOutputElement>('output');
+    const record = state.records.find((item) => item.id === trigger?.dataset.recordId) || state.selected || state.inAppWindowPreviousSelected;
+    if (!trigger || !graph || !output || !record) return;
+    const series = mcmodTrendSeries(record);
+    if (series.status !== 'ready') return;
+    let index = series.points.length - 1;
+    const show = () => { const point = series.points[index]; output.textContent = `${point.date} · 官方流行指数 ${point.value}`; };
+    graph.addEventListener('pointermove', (event) => { const box = graph.getBoundingClientRect(); index = Math.max(0, Math.min(series.points.length - 1, Math.round((event.clientX - box.left) / box.width * (series.points.length - 1)))); show(); });
+    trigger.addEventListener('keydown', (event) => { if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return; event.preventDefault(); index = Math.max(0, Math.min(series.points.length - 1, index + (event.key === 'ArrowRight' ? 1 : -1))); show(); });
+  });
 }
 
 function bindEvents(): void {
+  bindInAppFrame();
+  bindTrendPreviews();
   root.querySelectorAll<HTMLDetailsElement>('[data-more-filters]').forEach((details) => details.addEventListener('toggle', () => {
     state.moreFiltersOpen = details.open;
   }));
@@ -1877,11 +3682,19 @@ function bindEvents(): void {
     } catch (error) { state.message = `恢复未确认成功，请核对当前资料：${error instanceof Error ? error.message : String(error)}`; }
     render();
   });
-  root.querySelectorAll<HTMLElement>('[data-action]').forEach((element) => element.addEventListener('click', (event) => void handleAction(element, event)));
+  root.querySelectorAll<HTMLElement>('[data-action]').forEach((element) => {
+    const host = safeHost(element.dataset.url || '').toLowerCase();
+    if (element.dataset.action === 'open-in-app-window' && (host === 'bilibili.com' || host.endsWith('.bilibili.com'))) {
+      element.textContent = '⚠ B站小窗（已知问题）';
+      element.title = 'B站站内打开有问题，可能空白或一直等待，建议使用浏览器打开';
+    }
+    element.addEventListener('click', (event) => void handleAction(element, event));
+  });
   const trendPanel = root.querySelector<HTMLElement>('[data-mcmod-trend-panel]');
   trendPanel?.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       event.preventDefault();
+      event.stopPropagation();
       closeMcmodTrendChart();
     }
   });
@@ -1965,6 +3778,121 @@ function bindEvents(): void {
     state.imagePreview = null;
     void loadComments(record);
   }));
+  root.querySelectorAll<HTMLElement>('.mcmod-trend-sparkline').forEach((sparkline) => {
+    sparkline.addEventListener('mousemove', (event) => {
+      const valsStr = sparkline.dataset.trendVals || '';
+      const datesStr = sparkline.dataset.trendDates || '';
+      if (!valsStr) return;
+      const vals = valsStr.split(',').map(Number).filter((v) => !isNaN(v));
+      const dates = datesStr ? datesStr.split(',') : [];
+      if (vals.length < 2) return;
+      const rect = sparkline.getBoundingClientRect();
+      let ratio = (event.clientX - rect.left) / rect.width;
+      if (ratio < 0) ratio = 0;
+      if (ratio > 1) ratio = 1;
+      const idx = Math.min(vals.length - 1, Math.max(0, Math.round(ratio * (vals.length - 1))));
+      const val = vals[idx];
+      const date = dates[idx] || '';
+
+      const cell = sparkline.closest<HTMLElement>('.mcmod-trend-cell');
+      if (!cell) return;
+      let probe = cell.querySelector<HTMLElement>('.trend-inline-probe');
+      if (!probe) {
+        probe = document.createElement('div');
+        probe.className = 'trend-inline-probe';
+        cell.appendChild(probe);
+      }
+      const cellRect = cell.getBoundingClientRect();
+      let left = event.clientX - cellRect.left + 10;
+      let top = event.clientY - cellRect.top - 44;
+      if (left > cellRect.width - 104) left = Math.max(6, cellRect.width - 104);
+      if (top < 6) top = event.clientY - cellRect.top + 16;
+      probe.innerHTML = `<b>${val.toLocaleString()}</b>${date ? `<span>${date}</span>` : ''}`;
+      probe.style.left = `${left}px`;
+      probe.style.top = `${top}px`;
+      probe.style.display = 'block';
+    });
+    sparkline.addEventListener('mouseleave', () => {
+      const cell = sparkline.closest<HTMLElement>('.mcmod-trend-cell');
+      const probe = cell?.querySelector<HTMLElement>('.trend-inline-probe');
+      if (probe) probe.style.display = 'none';
+    });
+  });
+  root.querySelectorAll<HTMLElement>('.mcmod-mod-cell').forEach((cell) => {
+    cell.addEventListener('click', (event) => {
+      event.stopPropagation();
+    });
+  });
+  root.querySelectorAll<HTMLButtonElement>('.mod-summary-chip').forEach((btn) => {
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const catKey = btn.dataset.modCatKey;
+      if (!catKey) return;
+      const details = btn.closest<HTMLDetailsElement>('.mod-details');
+      if (details) details.open = true;
+      const section = details?.querySelector<HTMLElement>(`.mod-category-section[data-mod-cat-key="${catKey}"]`);
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        section.classList.add('is-highlighted');
+        setTimeout(() => section.classList.remove('is-highlighted'), 1500);
+      }
+    });
+  });
+  root.querySelectorAll<HTMLElement>('.tag-mod').forEach((tag) => {
+    tag.addEventListener('click', (event) => {
+      if ((event.target as HTMLElement).closest('.tag-mod-open')) {
+        event.stopPropagation();
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const modName = tag.dataset.mod;
+      if (modName) {
+        state.query = modName;
+        void loadRecords(true);
+      }
+    });
+  });
+  root.querySelector<HTMLInputElement>('.js-comment-preview-search')?.addEventListener('input', (event) => {
+    state.commentPreviewQuery = (event.target as HTMLInputElement).value;
+    const record = state.commentPreviewRecord;
+    if (!record) return;
+    const bodyEl = root.querySelector<HTMLElement>('.comment-preview-body');
+    const footerCountEl = root.querySelector<HTMLElement>('.js-comment-count-text');
+    if (bodyEl) {
+      const commentState = state.comments.sourceId === record.sourceId ? state.comments : null;
+      const comments = commentState?.comments || [];
+      const query = state.commentPreviewQuery.trim().toLowerCase();
+      const filtered = query
+        ? comments.filter((c) => {
+            const author = String(c.author ?? c.user ?? c.name ?? '').toLowerCase();
+            const text = String(commentBody(c)).toLowerCase();
+            return author.includes(query) || text.includes(query);
+          })
+        : comments;
+      if (!comments.length) {
+        const sourceUrl = record.platform === 'mcmod'
+          ? `https://www.mcmod.cn/modpack/${record.sourceId}.html#comment`
+          : safeExternalUrl(record.url);
+        bodyEl.innerHTML = `<div class="empty-evidence comment-empty-state">
+          <div class="comment-empty-icon">💬</div>
+          <div class="comment-empty-title">暂无本地存档评论</div>
+          <p class="comment-empty-desc">${record.platform === 'mcmod' ? '当前快照未收录此整合包的独立评论数据文件。' : `当前本地快照未归档「${esc(PLATFORM_CONFIGS[record.platform]?.name || record.platform)}」的独立评论文本。`}</p>
+          ${sourceUrl ? `<a class="button primary" href="${esc(sourceUrl)}" target="_blank" rel="noreferrer">前往原站查看最新评论 ↗</a>` : ''}
+        </div>`;
+      } else if (!filtered.length) {
+        bodyEl.innerHTML = `<div class="empty-evidence">没有找到匹配关键词 “${esc(query)}” 的评论。</div>`;
+      } else {
+        bodyEl.innerHTML = renderComments(filtered);
+      }
+      if (footerCountEl) {
+        footerCountEl.textContent = query
+          ? `筛选出 ${filtered.length} / ${comments.length} 条评论`
+          : `已展示全部 ${comments.length} 条本地评论`;
+      }
+    }
+  });
   root.querySelector<HTMLInputElement>('#server-only-toggle')?.addEventListener('change', (event) => {
     state.serverOnly = (event.target as HTMLInputElement).checked;
     void loadRecords(true);
@@ -1977,6 +3905,30 @@ function bindEvents(): void {
     state.gameplayCategoriesExclude = (event.target as HTMLInputElement).checked;
     void loadRecords(true);
   });
+  root.querySelector<HTMLSelectElement>('#update-mode')?.addEventListener('change', (event) => {
+    const value = (event.target as HTMLSelectElement).value;
+    if (value === 'new' || value === 'trend' || value === 'versions' || value === 'all') {
+      state.mcmodUpdateMode = value;
+      if (value === 'versions' && state.mcmodOldLimit === 50) state.mcmodOldLimit = state.data?.platforms.mcmod.count || 1484;
+      state.updateFormError = '';
+      render();
+    }
+  });
+  root.querySelectorAll<HTMLElement>('[data-mod-list]').forEach(bindMcmodModList);
+  root.querySelector<HTMLInputElement>('#update-mcmod-limit')?.addEventListener('input', (event) => {
+    state.mcmodOldLimit = Number((event.target as HTMLInputElement).value);
+  });
+  root.querySelector<HTMLInputElement>('#update-limit')?.addEventListener('input', (event) => {
+    state.updateOtherLimit = (event.target as HTMLInputElement).value;
+  });
+  root.querySelector<HTMLSelectElement>('#update-other-mode')?.addEventListener('change', (event) => {
+    state.otherUpdateMode = (event.target as HTMLSelectElement).value === 'existing' ? 'existing' : 'catalog';
+    state.updateFormError = '';
+    render();
+  });
+  root.querySelector<HTMLInputElement>('#update-pages')?.addEventListener('input', (event) => {
+    state.updateBiliPages = Number((event.target as HTMLInputElement).value);
+  });
   const includedModSearch = root.querySelector<HTMLInputElement>('#included-mod-search');
   if (includedModSearch) {
     bindCompositionAwareSearchInput(includedModSearch, (value) => {
@@ -1985,20 +3937,97 @@ function bindEvents(): void {
       platformFilterFocusAfterRender = 'included-mod-search';
       render();
     });
+    includedModSearch.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && state.includedModSearch) {
+        event.preventDefault();
+        event.stopPropagation();
+        state.includedModSearch = '';
+        platformFilterFocusAfterRender = 'included-mod-search';
+        render();
+      }
+    });
   }
-  root.querySelector<HTMLInputElement>('#pack-search')?.addEventListener('input', (event) => {
-    state.query = (event.target as HTMLInputElement).value;
-    window.clearTimeout(searchTimer);
-    searchTimer = window.setTimeout(() => void loadRecords(), 180);
+  const pickerSearch = root.querySelector<HTMLInputElement>('#picker-modal-search');
+  if (pickerSearch) {
+    bindCompositionAwareSearchInput(pickerSearch, (value) => {
+      if (state.pickerModal) {
+        state.pickerModal.search = value;
+        state.pickerModal.limit = value ? 500 : 300;
+      }
+    }, () => {
+      pickerFocusAfterRender = 'picker-modal-search';
+      render();
+    });
+    pickerSearch.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && state.pickerModal?.search) {
+        event.preventDefault();
+        event.stopPropagation();
+        state.pickerModal.search = '';
+        pickerFocusAfterRender = 'picker-modal-search';
+        render();
+      }
+    });
+  }
+  root.querySelector<HTMLSelectElement>('#picker-modal-sort')?.addEventListener('change', (event) => {
+    const val = (event.target as HTMLSelectElement).value as PickerSort;
+    if (state.pickerModal) {
+      state.pickerModal.sort = val;
+      render();
+    }
   });
-  root.querySelector<HTMLTextAreaElement>('[data-personal-note]')?.addEventListener('input', (event) => {
-    const textarea = event.target as HTMLTextAreaElement;
-    const targetRecord = state.selected;
-    if (!targetRecord || !isPersonalWritable(targetRecord)) return;
-    window.clearTimeout(personalNoteTimer);
-    personalNoteTimer = window.setTimeout(() => {
-      void savePersonalPatch(targetRecord, { note: textarea.value }, false);
-    }, 350);
+  const stickyModSearch = root.querySelector<HTMLInputElement>('#sticky-mod-search');
+  if (stickyModSearch) {
+    bindCompositionAwareSearchInput(stickyModSearch, (value) => {
+      state.stickyModSearch = value;
+    }, () => {
+      stickyFocusAfterRender = 'sticky-mod-search';
+      render();
+    });
+    stickyModSearch.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && state.stickyModSearch) {
+        event.preventDefault();
+        event.stopPropagation();
+        state.stickyModSearch = '';
+        stickyFocusAfterRender = 'sticky-mod-search';
+        render();
+      }
+    });
+  }
+  const stickyCatSearch = root.querySelector<HTMLInputElement>('#sticky-cat-search');
+  if (stickyCatSearch) {
+    bindCompositionAwareSearchInput(stickyCatSearch, (value) => {
+      state.stickyCatSearch = value;
+    }, () => {
+      stickyFocusAfterRender = 'sticky-cat-search';
+      render();
+    });
+    stickyCatSearch.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && state.stickyCatSearch) {
+        event.preventDefault();
+        event.stopPropagation();
+        state.stickyCatSearch = '';
+        stickyFocusAfterRender = 'sticky-cat-search';
+        render();
+      }
+    });
+  }
+  root.querySelectorAll<HTMLInputElement>('#pack-search, .js-pack-search').forEach((input) => {
+    input.addEventListener('input', (event) => {
+      state.query = (event.target as HTMLInputElement).value;
+      window.clearTimeout(searchTimer);
+      searchTimer = window.setTimeout(() => void loadRecords(), 180);
+    });
+  });
+  root.querySelectorAll<HTMLTextAreaElement>('[data-personal-note]').forEach((textarea) => {
+    textarea.addEventListener('input', (event) => {
+      const el = event.target as HTMLTextAreaElement;
+      const targetRecord = recordForPersonalTarget(el) || state.selected;
+      if (!targetRecord || !isPersonalWritable(targetRecord)) return;
+      window.clearTimeout(personalNoteTimer);
+      personalNoteTimer = window.setTimeout(() => {
+        void savePersonalPatch(targetRecord, { note: el.value }, false);
+      }, 350);
+    });
   });
 }
 
@@ -2007,19 +4036,52 @@ async function loadComments(record: DesktopRecord): Promise<void> {
   render();
   try {
     const result = await window.desktopApi.getPlatformComments(record.platform, record.sourceId);
-    if (state.selected?.id !== record.id) return;
+    const isTarget = state.selected?.id === record.id || state.commentPreviewRecord?.id === record.id;
+    if (!isTarget) return;
+
+    let comments = result.comments || [];
+    let pageCount = result.pageCount;
+    let available = result.available;
+
+    if ((!comments || comments.length === 0) && record.raw) {
+      const raw = record.raw as Record<string, unknown>;
+      if (typeof raw.pinned_comment === 'string' && raw.pinned_comment.trim()) {
+        comments = [{
+          author: `${record.author || 'UP主'}（置顶说明）`,
+          text: raw.pinned_comment.trim(),
+          date: String(raw.pub_time || raw.pubTime || record.updatedAt || ''),
+          likes: 0,
+        }];
+        pageCount = Math.max(pageCount, 1);
+        available = true;
+      } else if (Array.isArray(raw.comments) && raw.comments.length > 0) {
+        comments = raw.comments as DesktopComment[];
+        pageCount = Math.max(pageCount, comments.length);
+        available = true;
+      }
+    }
+
     state.comments = {
-      sourceId: result.sourceId,
+      sourceId: result.sourceId || record.sourceId,
       loading: false,
-      available: result.available,
-      pageCount: result.pageCount,
-      comments: result.comments || [],
+      available,
+      pageCount,
+      comments,
       sourceFile: result.sourceFile,
       error: result.error || '',
     };
   } catch (error) {
-    if (state.selected?.id !== record.id) return;
-    state.comments = { sourceId: record.sourceId, loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: error instanceof Error ? error.message : String(error) };
+    const isTarget = state.selected?.id === record.id || state.commentPreviewRecord?.id === record.id;
+    if (!isTarget) return;
+    state.comments = {
+      sourceId: record.sourceId,
+      loading: false,
+      available: false,
+      pageCount: 0,
+      comments: [],
+      sourceFile: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
   render();
 }
@@ -2117,6 +4179,105 @@ function closeMcmodTrendChart(): void {
   render();
 }
 
+async function loadDataLibrary(): Promise<void> {
+  state.dataLibraryLoading = true;
+  state.dataLibraryError = '';
+  render();
+  try {
+    state.dataLibrary = await window.desktopApi.getDataLibrary();
+  } catch (error) {
+    state.dataLibraryError = error instanceof Error ? error.message : String(error);
+  } finally {
+    state.dataLibraryLoading = false;
+    render();
+  }
+  if (mcmodTableFocusRecordId) {
+    const trigger = [...root.querySelectorAll<HTMLButtonElement>('[data-action="toggle-mcmod-table-mods"]')]
+      .find((element) => element.dataset.recordId === mcmodTableFocusRecordId);
+    trigger?.focus({ preventScroll: true });
+    mcmodTableFocusRecordId = '';
+  }
+}
+
+async function copyLocalPath(value: string): Promise<void> {
+  if (!value) throw new Error('当前没有可复制的目录路径');
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const input = document.createElement('textarea');
+  input.value = value;
+  input.setAttribute('readonly', '');
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand('copy');
+  input.remove();
+  if (!copied) throw new Error('浏览器拒绝了剪贴板写入');
+}
+
+async function loadSelectedDataDirectory(path?: string): Promise<void> {
+  state.message = '正在读取所选目录…';
+  render();
+  try {
+    const result = await window.desktopApi.chooseDataDirectory(path);
+    if (!result.cancelled && result.data) {
+      platformRecordCache.clear();
+      state.data = result.data;
+      state.dataImportOpen = false;
+      state.dataImportPath = '';
+      state.message = '';
+      await loadRecords(true);
+      await loadDataLibrary();
+    } else {
+      state.message = '';
+      render();
+    }
+  } catch (error) {
+    state.message = error instanceof Error ? error.message : String(error);
+    render();
+  }
+}
+
+function optionsForUpdatePlatform(platform: Platform, options: UpdateOptions): UpdateOptions {
+  return {
+    limit: platform === 'mcmod' ? options.mcmodLimit : options.limit,
+    pages: platform === 'bilibili' ? options.pages : undefined,
+    mode: platform === 'mcmod' ? options.mode : options.otherMode,
+  };
+}
+
+async function startUpdateBatchPlatform(platform: Platform): Promise<void> {
+  const batch = state.updateBatch;
+  if (!batch) return;
+  state.updatePlatform = platform;
+  try {
+    await window.desktopApi.startUpdate(platform, optionsForUpdatePlatform(platform, batch.options));
+  } catch (error) {
+    state.updateBatch = null;
+    state.message = error instanceof Error ? error.message : String(error);
+    render();
+  }
+}
+
+function inAppWindowForAction(element: HTMLElement): InAppWindowState | null {
+  const windowId = element.dataset.windowId || element.closest<HTMLElement>('[data-window-id]')?.dataset.windowId || '';
+  const windows = state.inAppWindows.length ? state.inAppWindows : (state.inAppWindow ? [state.inAppWindow] : []);
+  return windows.find((win) => inAppWindowId(win) === windowId) || state.inAppWindow;
+}
+
+function closeInAppWindow(win: InAppWindowState | null): void {
+  if (!win) return;
+  const id = inAppWindowId(win);
+  state.inAppWindows = state.inAppWindows.filter((item) => inAppWindowId(item) !== id);
+  state.inAppWindow = state.inAppWindows.find((item) => !item.minimized) || state.inAppWindows[0] || null;
+  if (!state.inAppWindows.length && state.inAppWindowPreviousSelected) {
+    state.selected = state.inAppWindowPreviousSelected;
+    state.inAppWindowPreviousSelected = null;
+  }
+}
+
 async function handleAction(element: HTMLElement, event?: Event): Promise<void> {
   const action = element.dataset.action;
   if (action === 'retry-cover') {
@@ -2166,6 +4327,91 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     state.personalProfileOpen = false;
     profileFocusAfterRender = 'trigger';
     render();
+  } else if (action === 'toggle-update') {
+    state.updateOpen = !state.updateOpen;
+    render();
+  } else if (action === 'close-update-panel') {
+    if (element.classList.contains('update-backdrop') && event && event.target !== element) return;
+    state.updateOpen = false;
+    render();
+  } else if (action === 'close-data-import') {
+    if (element.classList.contains('data-import-backdrop') && event && event.target !== element) return;
+    state.dataImportOpen = false;
+    state.dataImportPath = '';
+    state.dataNotice = '';
+    render();
+  } else if (action === 'refresh-data-library') {
+    await loadDataLibrary();
+  } else if (action === 'open-data-directory') {
+    try {
+      const result = await window.desktopApi.openDataDirectory(element.dataset.snapshotId || undefined);
+      state.message = result.opened ? '' : '无法打开数据目录。';
+      state.dataNotice = result.opened ? `系统已接受打开请求：${result.path}` : '';
+    } catch (error) {
+      state.message = error instanceof Error ? error.message : String(error);
+      state.dataNotice = '';
+    }
+    render();
+  } else if (action === 'copy-data-path') {
+    try {
+      const value = element.dataset.path || '';
+      await copyLocalPath(value);
+      state.message = '';
+      state.dataNotice = `已复制路径：${value}`;
+    } catch (error) {
+      state.message = error instanceof Error ? error.message : String(error);
+      state.dataNotice = '';
+    }
+    render();
+  } else if (action === 'export-active-data') {
+    try {
+      const result = await window.desktopApi.exportActiveData();
+      state.dataExportPath = result.path;
+      state.message = '';
+    } catch (error) {
+      state.message = error instanceof Error ? error.message : String(error);
+    }
+    render();
+  } else if (action === 'activate-data-snapshot') {
+    const snapshotId = element.dataset.snapshotId || '';
+    if (!snapshotId || snapshotId === state.data?.snapshotId) return;
+    state.message = '正在切换快照…';
+    render();
+    try {
+      const result = await window.desktopApi.activateDataSnapshot(snapshotId);
+      platformRecordCache.clear();
+      state.data = result.data;
+      state.message = '';
+      await loadRecords(true);
+      await loadDataLibrary();
+    } catch (error) {
+      state.message = error instanceof Error ? error.message : String(error);
+      render();
+    }
+  } else if (action === 'delete-data-snapshot') {
+    const snapshotId = element.dataset.snapshotId || '';
+    if (!snapshotId || snapshotId === state.data?.snapshotId) return;
+    if (!window.confirm(`删除快照 ${snapshotId}？\n\n它会被移到应用数据目录下的 trash 回收区，不会立即永久删除。`)) return;
+    try {
+      const result = await window.desktopApi.deleteDataSnapshot(snapshotId);
+      state.dataLibrary = result.library;
+      state.message = '';
+      state.dataNotice = `已移到回收区：${result.archived.recoverablePath}`;
+    } catch (error) {
+      state.message = error instanceof Error ? error.message : String(error);
+    }
+    render();
+  } else if (action === 'browse-data-import') {
+    await loadSelectedDataDirectory();
+  } else if (action === 'confirm-data-import') {
+    const input = root.querySelector<HTMLInputElement>('#data-import-path');
+    state.dataImportPath = input?.value.trim() || '';
+    if (!state.dataImportPath) {
+      state.message = '请先输入本地数据目录。';
+      render();
+      return;
+    }
+    await loadSelectedDataDirectory(state.dataImportPath);
   } else if (action === 'toggle-audit') {
     state.auditOpen = !state.auditOpen;
     if (state.auditOpen && !state.audit) await loadAudit();
@@ -2200,6 +4446,10 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   } else if (action === 'toggle-included-mods-expanded' && state.platform === 'mcmod') {
     state.includedModsExpanded = !state.includedModsExpanded;
     render();
+  } else if (action === 'clear-included-mod-search') {
+    state.includedModSearch = '';
+    platformFilterFocusAfterRender = 'included-mod-search';
+    render();
   } else if (action === 'toggle-gameplay-category' && state.platform === 'curseforge') {
     const value = element.dataset.value || '';
     if (!value) return;
@@ -2218,6 +4468,134 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
       state.gameplayCategoriesExclude = false;
     } else return;
     await loadRecords(true);
+  } else if (action === 'open-picker') {
+    const pickerType = (element.dataset.picker || 'included-mod') as PickerType;
+    state.openDropdown = '';
+    state.pickerModal = {
+      type: pickerType,
+      search: '',
+      limit: 300,
+      sort: 'count_desc',
+    };
+    pickerFocusAfterRender = 'picker-modal-search';
+    render();
+  } else if (action === 'close-picker-modal') {
+    if (element.classList.contains('picker-modal-backdrop') && event && event.target !== element) return;
+    state.pickerModal = null;
+    render();
+    await loadRecords(true);
+  } else if (action === 'clear-picker-search') {
+    if (state.pickerModal) {
+      state.pickerModal.search = '';
+      pickerFocusAfterRender = 'picker-modal-search';
+      render();
+    }
+  } else if (action === 'toggle-picker-item') {
+    if (!state.pickerModal) return;
+    const value = element.dataset.value || '';
+    if (!value) return;
+    if (state.pickerModal.type === 'included-mod') {
+      state.includedMods = state.includedMods.includes(value)
+        ? state.includedMods.filter((v) => v !== value)
+        : [...state.includedMods, value];
+      if (!state.includedMods.length) state.includedModsExclude = false;
+    } else if (state.pickerModal.type === 'gameplay-category') {
+      state.gameplayCategories = state.gameplayCategories.includes(value)
+        ? state.gameplayCategories.filter((v) => v !== value)
+        : [...state.gameplayCategories, value];
+      if (!state.gameplayCategories.length) state.gameplayCategoriesExclude = false;
+    } else if (state.pickerModal.type === 'category') {
+      state.category = state.category === value ? '' : value;
+    }
+    render();
+  } else if (action === 'picker-load-more') {
+    if (state.pickerModal) {
+      state.pickerModal.limit += 300;
+      render();
+    }
+  } else if (action === 'picker-load-all') {
+    if (state.pickerModal) {
+      state.pickerModal.limit = 999999;
+      render();
+    }
+  } else if (action === 'picker-reset-limit') {
+    if (state.pickerModal) {
+      state.pickerModal.limit = 300;
+      render();
+    }
+  } else if (action === 'set-picker-sort') {
+    if (state.pickerModal && element instanceof HTMLSelectElement) {
+      state.pickerModal.sort = element.value as PickerSort;
+      render();
+    }
+  } else if (action === 'picker-clear-selected') {
+    if (!state.pickerModal) return;
+    if (state.pickerModal.type === 'included-mod') {
+      state.includedMods = [];
+      state.includedModsExclude = false;
+    } else if (state.pickerModal.type === 'gameplay-category') {
+      state.gameplayCategories = [];
+      state.gameplayCategoriesExclude = false;
+    } else if (state.pickerModal.type === 'category') {
+      state.category = '';
+    }
+    render();
+  } else if (action === 'set-sticky-category') {
+    const cat = element.dataset.category || '';
+    if (state.category !== cat) {
+      state.category = cat;
+      void loadRecords(true);
+    } else if (cat) {
+      state.category = '';
+      void loadRecords(true);
+    }
+  } else if (action === 'toggle-sticky-gameplay-category') {
+    const cat = element.dataset.category || '';
+    if (!cat) {
+      state.gameplayCategories = [];
+      state.gameplayCategoriesExclude = false;
+    } else {
+      state.gameplayCategories = state.gameplayCategories.includes(cat)
+        ? state.gameplayCategories.filter((c) => c !== cat)
+        : [...state.gameplayCategories, cat];
+      if (!state.gameplayCategories.length) state.gameplayCategoriesExclude = false;
+    }
+    void loadRecords(true);
+  } else if (action === 'clear-gameplay-categories') {
+    state.gameplayCategories = [];
+    state.gameplayCategoriesExclude = false;
+    void loadRecords(true);
+  } else if (action === 'clear-included-mods') {
+    event?.stopPropagation();
+    state.includedMods = [];
+    state.includedModsExclude = false;
+    void loadRecords(true);
+  } else if (action === 'toggle-sticky-follow') {
+    state.stickyFollowMode = !state.stickyFollowMode;
+    render();
+  } else if (action === 'toggle-sticky-mods-expanded') {
+    state.stickyModsExpanded = !state.stickyModsExpanded;
+    if (!state.stickyModsExpanded) {
+      state.stickyModsExpandAll = false;
+    }
+    render();
+  } else if (action === 'toggle-sticky-mods-expand-all') {
+    state.stickyModsExpandAll = !state.stickyModsExpandAll;
+    state.stickyModsExpanded = state.stickyModsExpandAll;
+    render();
+  } else if (action === 'toggle-sticky-categories-expanded') {
+    state.stickyCategoriesExpanded = !state.stickyCategoriesExpanded;
+    render();
+  } else if (action === 'clear-sticky-mod-search') {
+    state.stickyModSearch = '';
+    stickyFocusAfterRender = 'sticky-mod-search';
+    render();
+  } else if (action === 'clear-sticky-cat-search') {
+    state.stickyCatSearch = '';
+    stickyFocusAfterRender = 'sticky-cat-search';
+    render();
+  } else if (action === 'scroll-to-top') {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   } else if (action === 'toggle-compare') {
     event?.stopPropagation();
     const index = Number(element.dataset.index || '-1');
@@ -2227,36 +4605,60 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     state.compareIds = state.compareIds.includes(record.id) ? state.compareIds.filter((id) => id !== record.id) : [...state.compareIds, record.id];
     render();
   } else if (action === 'set-platform') {
-    state.platform = (element.dataset.platform || 'all') as FilterPlatform;
+    const nextPlatform = (element.dataset.platform || 'all') as FilterPlatform;
+    if (state.platform === nextPlatform) return;
+    state.platform = nextPlatform;
+    state.expandedMcmodTableMods = '';
+    state.stickyModsExpanded = false;
+    state.stickyModsExpandAll = false;
+    state.stickyCategoriesExpanded = false;
+    state.stickyModSearch = '';
+    state.stickyCatSearch = '';
     state.availableIncludedMods = [];
     state.availableGameplayCategories = [];
-    if (state.platform !== 'all') state.updatePlatform = state.platform;
+    state.pickerModal = null;
+    if (state.platform !== 'all' && state.update?.state !== 'running') {
+      state.updatePlatform = state.platform;
+      state.updatePlatforms = [state.platform];
+    }
     if (state.platform === 'all') state.sort = 'updated_desc';
     if (state.platform === 'bilibili' && !['updated_desc', 'views_desc', 'likes_desc', 'favs_desc', 'coins_desc', 'share_desc', 'reply_desc', 'danmaku_desc'].includes(state.sort)) state.sort = 'updated_desc';
     if (state.platform !== 'mcmod' && state.viewMode === 'table') state.viewMode = 'cards';
     state.selected = null;
+    state.inAppWindowPreviousSelected = null;
     state.trendChart = null;
     state.imagePreview = null;
     state.compareOpen = false;
     state.comments = { sourceId: '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
-    await loadRecords(true);
-  } else if (action === 'choose-data') {
-    state.message = '正在读取所选目录…';
-    render();
-    try {
-      const result = await window.desktopApi.chooseDataDirectory();
-      if (!result.cancelled && result.data) {
-        state.data = result.data;
-        state.message = '';
-        await loadRecords(true);
-      } else {
-        state.message = '';
-        render();
-      }
-    } catch (error) {
-      state.message = error instanceof Error ? error.message : String(error);
+
+    const cached = isDefaultPlatformFilters() ? platformRecordCache.get(nextPlatform) : undefined;
+    if (cached) {
+      state.records = [...cached.records];
+      state.biliGroups = [...cached.biliGroups];
+      state.total = cached.total;
+      state.page = 1;
+      const groupedBili = nextPlatform === 'bilibili' && state.biliViewMode === 'grouped';
+      state.hasMore = groupedBili ? state.page * 48 < state.biliGroups.length : state.records.length < state.total;
+      state.availableVersions = cached.availableVersions;
+      state.availableLoaders = cached.availableLoaders;
+      state.availableCategories = cached.availableCategories;
+      state.availableCategoryCounts = cached.availableCategoryCounts || [];
+      state.availableIncludedMods = cached.availableIncludedMods;
+      state.availableGameplayCategories = cached.availableGameplayCategories;
+      state.availablePans = cached.availablePans;
+      state.loading = false;
       render();
+    } else {
+      await loadRecords(true);
     }
+  } else if (action === 'choose-data') {
+    state.dataImportOpen = true;
+    state.dataImportPath = '';
+    state.dataExportPath = '';
+    state.dataNotice = '';
+    state.message = '';
+    render();
+    await loadDataLibrary();
   } else if (action === 'toggle-dropdown') {
     const dropdown = element.dataset.dropdown as DropdownId | undefined;
     if (dropdown) state.openDropdown = state.openDropdown === dropdown ? '' : dropdown;
@@ -2280,7 +4682,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     } else if (dropdown === 'date') {
       state.dateRange = value;
       await loadRecords(true);
-    } else if (dropdown === 'sort' && state.platform !== 'all') {
+    } else if ((dropdown === 'sort' || dropdown === 'sticky-sort') && state.platform !== 'all') {
       state.sort = value;
       await loadRecords(true);
     } else if (dropdown === 'page-size' && state.platform !== 'all') {
@@ -2296,21 +4698,63 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
       state.updatePlatform = value as Platform;
       render();
     }
+  } else if (action === 'toggle-update-platform') {
+    const platform = element.dataset.platform as Platform | undefined;
+    if (!platform || !ALL_PLATFORMS.includes(platform) || state.update?.state === 'running') return;
+    state.updatePlatforms = state.updatePlatforms.includes(platform)
+      ? state.updatePlatforms.filter((item) => item !== platform)
+      : [...state.updatePlatforms, platform];
+    if (state.updatePlatforms.length) state.updatePlatform = state.updatePlatforms[0];
+    render();
+  } else if (action === 'select-all-update-platforms' && state.update?.state !== 'running') {
+    state.updatePlatforms = [...ALL_PLATFORMS];
+    render();
+  } else if (action === 'clear-update-platforms' && state.update?.state !== 'running') {
+    state.updatePlatforms = [];
+    render();
+  } else if (action === 'toggle-update-logs') {
+    state.updateLogsExpanded = !state.updateLogsExpanded;
+    render();
   } else if (action === 'start-update') {
-    const platform = state.updatePlatform;
-    const limitValue = root.querySelector<HTMLInputElement>('#update-limit')?.value.trim() || '';
-    const pagesValue = root.querySelector<HTMLInputElement>('#update-pages')?.value.trim() || '';
+    const platforms = [...state.updatePlatforms];
+    if (!platforms.length) return;
+    const validPositive = (value: string): boolean => /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 100000;
+    const oldMode = platforms.includes('mcmod') && state.mcmodUpdateMode !== 'new';
+    const oldLimit = String(state.mcmodOldLimit);
+    const otherLimit = state.updateOtherLimit.trim();
+    const pagesValue = String(state.updateBiliPages);
+    state.updateFormError = oldMode && !validPositive(oldLimit) ? 'MC百科旧包数量须为 1–100000 的整数。'
+      : platforms.some((platform) => platform !== 'mcmod') && otherLimit && !validPositive(otherLimit) ? '其他平台采集上限须为 1–100000 的整数。'
+        : platforms.includes('bilibili') && state.otherUpdateMode === 'catalog' && !validPositive(pagesValue) ? 'B站页数须为 1–100000 的整数。' : '';
+    if (state.updateFormError) { render(); return; }
     state.logs = [];
-    try {
-      await window.desktopApi.startUpdate(platform || 'bilibili', { limit: limitValue ? Number(limitValue) : undefined, pages: pagesValue ? Number(pagesValue) : undefined });
-    } catch (error) {
-      state.message = error instanceof Error ? error.message : String(error);
-      render();
-    }
+    state.updateOpen = true;
+    state.updateBatch = {
+      queue: platforms.slice(1),
+      total: platforms.length,
+      completed: 0,
+      options: {
+        limit: otherLimit ? Number(otherLimit) : undefined,
+        mcmodLimit: oldMode ? state.mcmodOldLimit : undefined,
+        pages: platforms.includes('bilibili') ? Number(pagesValue) : undefined,
+        mode: state.mcmodUpdateMode,
+        otherMode: state.otherUpdateMode === 'existing' ? 'existing' : undefined,
+      },
+      handledTaskId: '',
+    };
+    render();
+    await startUpdateBatchPlatform(platforms[0]);
   } else if (action === 'cancel-update') {
+    if (state.updateBatch) state.updateBatch.queue = [];
     await window.desktopApi.cancelUpdate();
   } else if (action === 'load-more') {
-    await loadRecords(false);
+    if (state.platform === 'bilibili' && state.biliViewMode === 'grouped') {
+      state.page += 1;
+      state.hasMore = state.page * 48 < state.biliGroups.length;
+      render();
+    } else {
+      await loadRecords(false);
+    }
   } else if (action === 'select-bili-member') {
     event?.stopPropagation();
     const record = recordForPersonalTarget(element);
@@ -2338,19 +4782,276 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     if (!record) return;
     const rating = Number(element.dataset.rating || '0');
     await savePersonalPatch(record, { rating: rating >= 1 && rating <= 5 ? rating : null });
+  } else if (action === 'open-comment-preview') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    let record: DesktopRecord | null = null;
+    const indexStr = element.dataset.index;
+    if (indexStr !== undefined && indexStr !== '') {
+      const idx = Number(indexStr);
+      if (Number.isFinite(idx)) record = state.records[idx] || null;
+    }
+    if (!record && element.dataset.mid) {
+      const mid = String(element.dataset.mid);
+      record = state.records.find((r) => r.sourceId === mid || String((r.raw as { mid?: unknown })?.mid) === mid) || null;
+    }
+    if (!record && element.dataset.recordId) {
+      record = state.records.find((r) => r.id === element.dataset.recordId) || null;
+    }
+    if (!record && element.dataset.sourceId && element.dataset.platform) {
+      record = state.records.find((r) => r.platform === element.dataset.platform && r.sourceId === element.dataset.sourceId) || null;
+    }
+    if (!record && element.dataset.sourceId) {
+      const sid = String(element.dataset.sourceId);
+      record = state.records.find((r) => r.sourceId === sid || String((r.raw as { mid?: unknown; bvid?: unknown; project_id?: unknown; slug?: unknown })?.bvid) === sid || String((r.raw as { project_id?: unknown })?.project_id) === sid || String((r.raw as { slug?: unknown })?.slug) === sid) || null;
+    }
+    if (!record) {
+      const card = element.closest<HTMLElement>('[data-index]');
+      if (card && card.dataset.index !== undefined && card.dataset.index !== '') {
+        const idx = Number(card.dataset.index);
+        if (Number.isFinite(idx)) record = state.records[idx] || null;
+      }
+    }
+    if (!record) record = state.selected;
+    if (!record) return;
+    state.commentPreviewRecord = record;
+    state.commentPreviewQuery = '';
+    state.commentPreviewTab = 'comments';
+    render();
+    await loadComments(record);
+  } else if (action === 'open-in-app-window') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const url = element.dataset.url;
+    const title = element.dataset.title || '网页小窗';
+    const recordId = element.dataset.recordId || '';
+    const foundRecord = (recordId ? state.records.find((r) => r.id === recordId) : null)
+      || state.selected
+      || (url ? state.records.find((r) => r.url === url || (r.sourceId && url.includes(r.sourceId))) : null)
+      || null;
+    if (url) {
+      if (!state.inAppWindows.length && state.inAppWindow) state.inAppWindows = [state.inAppWindow];
+      if (!state.inAppWindows.length) state.inAppWindowPreviousSelected = state.selected || foundRecord;
+      state.selected = null;
+      state.trendChart = null;
+      state.commentPreviewRecord = null;
+      const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+      const existing = state.inAppWindows.find((win) => win.url === url && win.recordId === foundRecord?.id);
+      const nextWindow: InAppWindowState = existing || {
+        id: `web-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        url,
+        title,
+        recordId: foundRecord?.id,
+        record: foundRecord || undefined,
+        contentTab: foundRecord && ['bilibili', 'curseforge'].includes(foundRecord.platform) ? 'overview' : 'web',
+        maximized: false,
+        activeTab: 'web',
+        showChangelogPane: viewportWidth >= 1420,
+        showPersonalPane: viewportWidth >= 1680,
+      };
+      nextWindow.minimized = false;
+      if (!existing) state.inAppWindows.push(nextWindow);
+      state.inAppWindow = nextWindow;
+      if (foundRecord && ['mcmod', 'bbsmc', 'modrinth'].includes(foundRecord.platform)) void loadPreviewVersions(foundRecord);
+      render();
+    }
+  } else if (action === 'set-in-app-window-tab') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const tab = element.dataset.tab as 'web' | 'changelog';
+    if (state.inAppWindow && tab) {
+      state.inAppWindow.activeTab = tab;
+      state.inAppWindow.contentTab = tab === 'changelog' ? 'versions' : 'web';
+      render();
+    }
+  } else if (action === 'in-app-content-tab' || action === 'retry-preview-versions') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const win = inAppWindowForAction(element);
+    const tab = action === 'retry-preview-versions' ? 'versions' : element.dataset.tab;
+    if (win && (tab === 'overview' || tab === 'versions' || tab === 'gallery' || tab === 'web')) {
+      win.contentTab = tab;
+      const record = recordForInAppWindow(win);
+      if (record && tab === 'versions') {
+        if (action === 'retry-preview-versions') previewVersionCache.delete(record.id);
+        void loadPreviewVersions(record);
+      }
+      render();
+    }
+  } else if (action === 'more-in-app-versions') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const recordId = element.dataset.recordId || '';
+    if (recordId) {
+      inAppVersionLimits.set(recordId, (inAppVersionLimits.get(recordId) || 30) + 30);
+      render();
+    }
+  } else if (action === 'toggle-in-app-changelog') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const win = inAppWindowForAction(element);
+    if (win) {
+      const current = win.showChangelogPane !== false;
+      win.showChangelogPane = !current;
+      render();
+    }
+  } else if (action === 'switch-in-app-source-pane') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const win = inAppWindowForAction(element);
+    const tab = element.dataset.sourceTab;
+    const pane = element.closest<HTMLElement>('.in-app-changelog-pane');
+    if (win && pane && (tab === 'source' || tab === 'versions' || (tab === 'mods' && recordForInAppWindow(win)?.platform === 'mcmod'))) {
+      win.sourcePaneTab = tab;
+      pane.querySelectorAll<HTMLElement>('[data-source-panel]').forEach((panel) => panel.toggleAttribute('hidden', panel.dataset.sourcePanel !== tab));
+      pane.querySelectorAll<HTMLButtonElement>('.in-app-source-tabs button').forEach((button) => {
+        const selected = button.dataset.sourceTab === tab;
+        button.classList.toggle('is-active', selected);
+        button.setAttribute('aria-selected', String(selected));
+      });
+      const title = pane.querySelector<HTMLElement>('.js-in-app-source-title');
+      if (title) title.textContent = tab === 'mods' ? '🧩 已收录模组' : tab === 'source' ? '📄 来源资料' : '📋 版本历史';
+      const count = pane.querySelector<HTMLElement>('.js-in-app-source-count');
+      if (count) count.textContent = pane.querySelector<HTMLElement>(`.in-app-source-tabs [data-source-tab="${tab}"]`)?.dataset.count || '';
+    }
+  } else if (action === 'toggle-in-app-personal') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const win = inAppWindowForAction(element);
+    if (win) {
+      const current = win.showPersonalPane !== false;
+      win.showPersonalPane = !current;
+      render();
+    }
+  } else if (action === 'switch-in-app-url') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const url = element.dataset.url;
+    const win = inAppWindowForAction(element);
+    const title = element.dataset.title || win?.title || '网页小窗';
+    if (url && win) {
+      win.url = url;
+      win.title = title;
+      win.activeTab = 'web';
+      win.contentTab = 'web';
+      render();
+    }
+  } else if (action === 'minimize-in-app-window') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const win = inAppWindowForAction(element);
+    if (win) {
+      win.minimized = true;
+      state.inAppWindow = state.inAppWindows.find((item) => !item.minimized) || win;
+      render();
+    }
+  } else if (action === 'restore-in-app-window') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const win = inAppWindowForAction(element);
+    if (win) {
+      win.minimized = false;
+      state.inAppWindow = win;
+      render();
+    }
+  } else if (action === 'minimize-all-in-app-windows') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    state.inAppWindows.forEach((win) => { win.minimized = true; });
+    render();
+  } else if (action === 'close-in-app-window') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (event && event.target !== element && !element.classList.contains('in-app-close-btn') && !element.classList.contains('button') && !element.classList.contains('modal-backdrop')) return;
+    closeInAppWindow(inAppWindowForAction(element));
+    render();
+    if (typeof window !== 'undefined' && window.desktopApi?.flushSession) {
+      window.desktopApi.flushSession().catch(() => {});
+    }
+  } else if (action === 'open-native-subwindow') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const win = inAppWindowForAction(element);
+    const url = element.dataset.url || win?.url;
+    const title = element.dataset.title || win?.title || '原站小窗';
+    if (url && typeof window !== 'undefined' && window.desktopApi?.openInAppWindow) {
+      window.desktopApi.openInAppWindow(url, title).catch(() => {});
+    }
+  } else if (action === 'toggle-maximize-in-app-window') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const win = inAppWindowForAction(element);
+    if (win) {
+      win.maximized = !win.maximized;
+      render();
+    }
+  } else if (action === 'reload-in-app-window') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const container = element.closest<HTMLElement>('[data-window-id]');
+    const frame = container?.querySelector<HTMLIFrameElement>('.js-in-app-frame') || root.querySelector<HTMLIFrameElement>('.js-in-app-frame');
+    if (frame) {
+      delete frame.dataset.requestStarted;
+      delete frame.dataset.loaded;
+      frame.src = frame.src;
+      bindInAppFrame();
+    }
+  } else if (action === 'close-comment-preview') {
+    if (event && event.target !== element && !element.classList.contains('modal-close') && !element.classList.contains('button')) return;
+    state.commentPreviewRecord = null;
+    state.commentPreviewQuery = '';
+    state.commentPreviewTab = 'comments';
+    render();
+  } else if (action === 'open-detail-from-mod') {
+    event?.stopPropagation();
+    const mid = element.dataset.mid;
+    const record = state.records.find((r) => r.sourceId === mid || String((r.raw as { mid?: unknown })?.mid) === mid);
+    if (record) {
+      state.selected = record;
+      state.inAppWindowPreviousSelected = null;
+      render();
+      await loadComments(record);
+    }
+  } else if (action === 'toggle-mcmod-table-mods') {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const recordId = element.dataset.recordId || '';
+    if (!recordId) return;
+    state.expandedMcmodTableMods = state.expandedMcmodTableMods === recordId ? '' : recordId;
+    mcmodTableFocusRecordId = recordId;
+    render();
+    if (state.expandedMcmodTableMods === recordId) {
+      const record = state.records.find((item) => item.id === recordId);
+      if (record?.platform === 'mcmod') {
+        void ensureMcmodModIndex(record).then(() => {
+          if (state.expandedMcmodTableMods !== recordId || !mcmodLiveModIndex.has(recordId)) return;
+          const drawer = root.querySelector<HTMLElement>('.mcmod-table-mod-drawer');
+          const oldList = drawer?.querySelector<HTMLElement>('.mcmod-full-mod-list.is-table');
+          if (!oldList) return;
+          const template = document.createElement('template');
+          template.innerHTML = renderMcmodFullModList(record, 'table');
+          const nextList = template.content.firstElementChild as HTMLElement | null;
+          if (nextList) { oldList.replaceWith(nextList); bindMcmodModList(nextList); }
+        });
+      }
+    }
   } else if (action === 'select-record') {
     const target = event?.target instanceof Element ? event.target : null;
-    if (target && target !== element && target.closest('a,button,details,summary')) return;
+    if (target && target !== element && target.closest('a,button,details,summary,.tag-mod,.mcmod-mod-cell,.mcmod-trend-trigger,.mcmod-comment-btn,.card-metric-comment,.compact-metric-comment,.bmb-comment-btn,.xyebbs-comment-btn')) return;
     const index = Number(element.dataset.index || '-1');
     state.selected = state.records[index] || null;
+    state.inAppWindowPreviousSelected = null;
     state.trendChart = null;
     state.imagePreview = null;
     state.comments = { sourceId: state.selected?.sourceId || '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
     render();
     if (state.selected) await loadComments(state.selected);
   } else if (action === 'close-detail') {
-    if (event && event.target !== element) return;
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (element.classList.contains('detail-backdrop') && event && event.target !== element) return;
     state.selected = null;
+    state.inAppWindowPreviousSelected = null;
     state.trendChart = null;
     state.imagePreview = null;
     state.comments = { sourceId: '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
@@ -2385,6 +5086,9 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     document.documentElement.dataset.theme = next;
     localStorage.setItem('mcmod-desktop-theme', next);
     render();
+  } else if (action === 'clear-query') {
+    state.query = '';
+    await loadRecords(true);
   } else if (action === 'clear-filters') {
     state.query = ''; state.version = ''; state.loader = ''; state.category = ''; state.includedMods = []; state.includedModsExclude = false; state.includedModSearch = ''; state.includedModsExpanded = false; state.gameplayCategories = []; state.gameplayCategoriesExclude = false; state.gameplayCategoriesExpanded = false; state.pan = ''; state.dateRange = ''; state.serverOnly = false; state.personalFilter = ''; state.sort = 'updated_desc'; await loadRecords(true);
   } else if (action === 'clear-filter') {
@@ -2410,6 +5114,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     const viewMode = element.dataset.viewMode;
     if (viewMode === 'cards' || viewMode === 'compact' || (viewMode === 'table' && state.platform === 'mcmod')) {
       state.viewMode = viewMode;
+      if (viewMode !== 'table') state.expandedMcmodTableMods = '';
       render();
     }
   } else if (action === 'set-bili-view-mode') {
@@ -2421,20 +5126,25 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   }
 }
 
-async function loadRecords(reset = true): Promise<void> {
+async function loadRecords(reset = true, backgroundRevalidate = false): Promise<void> {
+  const requestId = ++activeLoadRequestId;
   if (reset) {
     state.page = 1;
-    state.records = [];
-    state.biliGroups = [];
+    if (!backgroundRevalidate) {
+      state.records = [];
+      state.biliGroups = [];
+    }
   } else {
     state.page += 1;
   }
-  state.loading = true;
-  state.recordsError = '';
-  render();
+  if (!backgroundRevalidate) {
+    state.loading = true;
+    state.recordsError = '';
+    render();
+  }
   const platforms = state.platform === 'all' ? ALL_PLATFORMS : [state.platform];
   const groupedBili = state.platform === 'bilibili' && state.biliViewMode === 'grouped';
-  const requestPageSize = groupedBili ? 500 : state.platform === 'all' ? 12 : state.pageSize;
+  const requestPageSize = groupedBili ? 2000 : state.platform === 'all' ? 12 : state.pageSize;
   try {
     const getOptions = (page: number) => ({
       query: state.query,
@@ -2448,9 +5158,6 @@ async function loadRecords(reset = true): Promise<void> {
       pan: state.pan,
       dateRange: state.dateRange,
       serverOnly: state.serverOnly,
-      // Grouped Bilibili mode must receive the complete non-personal result set.
-      // Personal matching happens after all members have been grouped so an old
-      // marked video cannot disappear behind a newer unmarked representative.
       personalStatus: groupedBili ? '' : state.personalFilter,
       sort: state.platform === 'all' ? 'updated_desc' : state.sort,
       page,
@@ -2466,8 +5173,10 @@ async function loadRecords(reset = true): Promise<void> {
       const first = await requestPlatform('bilibili', 1);
       results = [first];
       const pageCount = Math.ceil(first.total / Math.max(first.pageSize, 1));
-      for (let page = 2; page <= pageCount; page += 1) {
-        results.push(await requestPlatform('bilibili', page));
+      if (pageCount > 1) {
+        const remaining = Array.from({ length: pageCount - 1 }, (_, i) => i + 2);
+        const more = await Promise.all(remaining.map((page) => requestPlatform('bilibili', page)));
+        results.push(...more);
       }
     } else {
       const settled = await Promise.allSettled(platforms.map((platform) => requestPlatform(platform, state.page)));
@@ -2478,6 +5187,7 @@ async function loadRecords(reset = true): Promise<void> {
       if (!results.length) throw new Error(failures.join('；') || '所有平台请求均失败');
       if (failures.length) state.recordsError = `部分平台加载失败；已保留其他平台结果。${failures.join('；')}`;
     }
+    if (requestId !== activeLoadRequestId) return;
     const nextRecords = results.flatMap((result) => result.records);
     state.records = reset ? nextRecords : [...state.records, ...nextRecords];
     for (const record of nextRecords) state.compareRecords[record.id] = record;
@@ -2489,13 +5199,40 @@ async function loadRecords(reset = true): Promise<void> {
     state.availableVersions = [...new Set(results.flatMap((result) => result.availableVersions || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availableLoaders = [...new Set(results.flatMap((result) => result.availableLoaders || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availableCategories = [...new Set(results.flatMap((result) => result.availableCategories || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    const catCountMap = new Map<string, number>();
+    for (const result of results) {
+      for (const item of (result.availableCategoryCounts || [])) {
+        catCountMap.set(item.value, (catCountMap.get(item.value) || 0) + (item.count ?? 0));
+      }
+    }
+    if (catCountMap.size > 0) {
+      state.availableCategoryCounts = [...catCountMap.entries()]
+        .map(([value, count]) => ({ value, count }))
+        .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, 'zh-CN'));
+    }
     state.availableIncludedMods = state.platform === 'mcmod' ? (results[0]?.availableIncludedMods || []) : [];
     state.availableGameplayCategories = state.platform === 'curseforge' ? (results[0]?.availableGameplayCategories || []) : [];
     state.availablePans = [...new Set(results.flatMap((result) => result.availablePans || []))];
-    state.hasMore = !state.recordsError && !groupedBili && state.records.length < state.total;
+    state.hasMore = !state.recordsError && (groupedBili ? state.page * 48 < state.biliGroups.length : state.records.length < state.total);
     state.loading = false;
+
+    if (reset && isDefaultPlatformFilters()) {
+      platformRecordCache.set(state.platform, {
+        records: state.records,
+        biliGroups: state.biliGroups,
+        total: state.total,
+        availableVersions: state.availableVersions,
+        availableLoaders: state.availableLoaders,
+        availableCategories: state.availableCategories,
+        availableCategoryCounts: state.availableCategoryCounts,
+        availableIncludedMods: state.availableIncludedMods,
+        availableGameplayCategories: state.availableGameplayCategories,
+        availablePans: state.availablePans,
+      });
+    }
     render();
   } catch (error) {
+    if (requestId !== activeLoadRequestId) return;
     state.loading = false;
     state.hasMore = false;
     state.recordsError = error instanceof Error ? error.message : String(error);
@@ -2538,15 +5275,105 @@ function bindDocumentEvents(): void {
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    if (state.personalProfileOpen) {
+    if (state.trendChart) {
+      closeMcmodTrendChart();
+    } else if (state.inAppWindows.some((win) => !win.minimized) || (state.inAppWindow && !state.inAppWindow.minimized)) {
+      const visible = state.inAppWindows.filter((win) => !win.minimized);
+      if (visible.length) visible.forEach((win) => { win.minimized = true; });
+      else if (state.inAppWindow) state.inAppWindow.minimized = true;
+      render();
+    } else if (state.commentPreviewRecord) {
+      state.commentPreviewRecord = null;
+      state.commentPreviewTab = 'comments';
+      render();
+    } else if (state.imagePreview) {
+      state.imagePreview = null;
+      render();
+    } else if (state.trendChart) {
+      state.trendChart = null;
+      trendFocusAfterRender = 'trigger';
+      render();
+    } else if (state.pickerModal) {
+      state.pickerModal = null;
+      render();
+      void loadRecords(true);
+    } else if (state.updateOpen) {
+      state.updateOpen = false;
+      render();
+    } else if (state.dataImportOpen) {
+      state.dataImportOpen = false;
+      state.dataImportPath = '';
+      render();
+    } else if (state.auditOpen) {
+      state.auditOpen = false;
+      render();
+    } else if (state.compareOpen) {
+      state.compareOpen = false;
+      render();
+    } else if (state.personalProfileOpen) {
       state.personalProfileOpen = false;
       profileFocusAfterRender = 'trigger';
+      render();
+    } else if (state.selected) {
+      state.selected = null;
       render();
     } else if (state.openDropdown) {
       state.openDropdown = '';
       render();
     }
   });
+  window.addEventListener('scroll', () => {
+    const bar = document.querySelector('.desktop-sticky-bar');
+    if (!bar) return;
+    const isScrolled = window.scrollY > 30;
+    if (isScrolled !== bar.classList.contains('is-scrolled')) {
+      bar.classList.toggle('is-scrolled', isScrolled);
+    }
+  }, { passive: true });
+}
+
+async function warmupPlatformCache(): Promise<void> {
+  const currentSnapshotId = state.data?.snapshotId;
+  for (const platform of ALL_PLATFORMS) {
+    if (platformRecordCache.has(platform)) continue;
+    if (state.data?.snapshotId !== currentSnapshotId) return;
+    try {
+      const groupedBili = platform === 'bilibili' && state.biliViewMode === 'grouped';
+      const requestPageSize = groupedBili ? 2000 : state.pageSize;
+      const result = await window.desktopApi.getPlatformRecords(platform, {
+        query: '',
+        version: '',
+        loader: '',
+        category: '',
+        includedMods: [],
+        includedModsExclude: false,
+        gameplayCategories: [],
+        gameplayCategoriesExclude: false,
+        pan: '',
+        dateRange: '',
+        serverOnly: false,
+        personalStatus: '',
+        sort: 'updated_desc',
+        page: 1,
+        pageSize: requestPageSize,
+      });
+      if (result.records && !result.error && state.data?.snapshotId === currentSnapshotId) {
+        const biliGroups = groupedBili ? buildBilibiliGroups(result.records) : [];
+        platformRecordCache.set(platform, {
+          records: result.records,
+          biliGroups,
+          total: result.total,
+          availableVersions: result.availableVersions || [],
+          availableLoaders: result.availableLoaders || [],
+          availableCategories: result.availableCategories || [],
+          availableCategoryCounts: result.availableCategoryCounts || [],
+          availableIncludedMods: result.availableIncludedMods || [],
+          availableGameplayCategories: result.availableGameplayCategories || [],
+          availablePans: result.availablePans || [],
+        });
+      }
+    } catch {}
+  }
 }
 
 export async function initDesktopShell(): Promise<void> {
@@ -2563,6 +5390,7 @@ export async function initDesktopShell(): Promise<void> {
     await loadPersonalLibrary();
     await loadFavoriteUpdates(false);
     await loadRecords();
+    void warmupPlatformCache();
   } catch (error) {
     state.loading = false;
     state.message = error instanceof Error ? error.message : String(error);
@@ -2574,7 +5402,26 @@ export async function initDesktopShell(): Promise<void> {
     state.logs = update.logs || state.logs;
     render();
     if (update.state === 'success') {
-      void window.desktopApi.getState().then(async (next) => { state.data = next.data; await loadPersonalLibrary(); await loadFavoriteUpdates(false); await loadRecords(true); });
+      let nextPlatform: Platform | undefined;
+      const batch = state.updateBatch;
+      if (batch && update.taskId && batch.handledTaskId !== update.taskId) {
+        batch.handledTaskId = update.taskId;
+        batch.completed += 1;
+        nextPlatform = batch.queue.shift();
+        if (!nextPlatform) state.updateBatch = null;
+      }
+      platformRecordCache.clear();
+      void window.desktopApi.getState().then(async (next) => {
+        state.data = next.data;
+        await loadPersonalLibrary();
+        await loadFavoriteUpdates(false);
+        await loadRecords(true);
+        void warmupPlatformCache();
+      });
+      if (nextPlatform) window.setTimeout(() => void startUpdateBatchPlatform(nextPlatform!), 0);
+    } else if ((update.state === 'failed' || update.state === 'cancelled') && state.updateBatch) {
+      state.updateBatch = null;
+      render();
     }
   });
   window.desktopApi.onUpdateLog((line) => {
@@ -2582,7 +5429,12 @@ export async function initDesktopShell(): Promise<void> {
     render();
   });
   window.desktopApi.onDataChanged((data) => {
+    platformRecordCache.clear();
     state.data = data;
-    void loadPersonalLibrary().then(async () => { await loadFavoriteUpdates(false); await loadRecords(true); });
+    void loadPersonalLibrary().then(async () => {
+      await loadFavoriteUpdates(false);
+      await loadRecords(true);
+      void warmupPlatformCache();
+    });
   });
 }

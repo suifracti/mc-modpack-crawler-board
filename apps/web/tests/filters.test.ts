@@ -109,9 +109,18 @@ describe('Filter Subsystem', () => {
       expect(resLoader[0].bvid).toBe('BV2');
     });
 
-    it('translates Modrinth and CurseForge category labels', () => {
+    it('translates Modrinth and CurseForge category labels with case insensitivity', () => {
       expect(getCategoryLabel('multiplayer')).toBe('多人游戏');
+      expect(getCategoryLabel('Multiplayer')).toBe('多人游戏');
+      expect(getCategoryLabel('optimization')).toBe('性能优化');
+      expect(getCategoryLabel('Optimization')).toBe('性能优化');
+      expect(getCategoryLabel('technology')).toBe('科技');
       expect(getCategoryLabel('Exploration')).toBe('探索');
+      expect(getCategoryLabel('exploration')).toBe('探索');
+      expect(getCategoryLabel('Adventure and RPG')).toBe('冒险与RPG');
+      expect(getCategoryLabel('adventure and rpg')).toBe('冒险与RPG');
+      expect(getCategoryLabel('Tech')).toBe('科技');
+      expect(getCategoryLabel('tech')).toBe('科技');
       expect(getCategoryLabel('unknown_custom')).toBe('unknown_custom');
     });
 

@@ -15,7 +15,7 @@ export function adaptCurseforgeToVersionModal(
 ): VersionModalViewModel {
   const p = pack || {};
   const slug = p.slug || String(p.id || (p as any).project_id || (extra?.id as string) || '');
-  const filesList = ((p as unknown as { files?: Array<Record<string, unknown>> }).files || (extra?.files as any[]) || []);
+  const filesList = [(p as unknown as { files?: Array<Record<string, unknown>> }).files, extra?.files].find((list) => Array.isArray(list) && list.length > 0) as any[] || [];
   const targetUrl = p.url || (extra?.url as string) || `https://www.curseforge.com/minecraft/modpacks/${slug}`;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

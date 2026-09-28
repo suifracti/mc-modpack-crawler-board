@@ -15,7 +15,7 @@ export function adaptXyebbsToVersionModal(
 ): VersionModalViewModel {
   const p = pack || {};
   const id = p.id || (p as any).project_id || (extra?.id as string) || '';
-  const releasesList = p.releases || (extra?.releases_data as any[]) || [];
+  const releasesList = [p.releases, extra?.releases_data].find((list) => Array.isArray(list) && list.length > 0) as any[] || [];
   const targetUrl = p.url || (extra?.url as string) || `https://xyebbs.com/thread-${id}-1-1.html`;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

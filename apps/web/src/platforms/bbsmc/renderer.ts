@@ -42,9 +42,6 @@ export function renderBbsmcCard(p: BbsmcPack): string {
   if (p.has_server) {
     tagsHtml += '<span class="badge-env badge-env-server" title="有服务端运行线索">🖳 有服务端运行线索</span>';
   }
-  if (p.mc_version && p.mc_version !== '未知') {
-    tagsHtml += '<span class="bbsmc-badge-ver">🎮 ' + escHtml(p.mc_version) + '</span>';
-  }
   if (p.loaders && Array.isArray(p.loaders)) {
     p.loaders.forEach((l) => { tagsHtml += '<span class="bbsmc-badge-loader">' + escHtml(loaderLabel(l)) + '</span>'; });
   }
@@ -63,7 +60,7 @@ export function renderBbsmcCard(p: BbsmcPack): string {
     galleryHtml += '</div>';
   }
 
-  let dlZoneHtml = '<div class="bbsmc-download-zone">';
+  let dlZoneHtml = '<div class="bbsmc-download-zone platform-card-actions">';
   const links = p.download_links || [];
   const seenUrls: Record<string, boolean> = {};
   const uniqueLinks: Array<{ name?: string; url: string; version?: string }> = [];
@@ -117,27 +114,29 @@ export function renderBbsmcCard(p: BbsmcPack): string {
 
   dlZoneHtml += '<div class="card-action-bar">' +
     '<button type="button" class="card-action-btn btn-vmodal js-open-plat-version-modal" data-platform="bbsmc" data-vkey="' + escHtml(p.url || '') + '" data-title="' + safeTitle + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" data-url="' + escHtml(p.url || '') + '" data-author="' + safeAuthor + '" data-downloads="' + dlStr + '">📜 完整版本与更新日志 ↗</button>' +
+    (p.url ? '<button type="button" class="card-action-btn btn-inapp-win" data-action="open-in-app-window" data-url="' + escHtml(p.url) + '" data-title="' + safeTitle + ' 原站页面" title="软件内小窗直接浏览">🪟 小窗浏览</button>' : '') +
     '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="card-action-btn">🔗 原站 ↗</a>' +
     '</div></div>';
 
-  return '<div class="bbsmc-pack-card">' +
+  return '<div class="bbsmc-pack-card platform-pack-card">' +
     '<div class="cover-media cover-media-rich" data-cover-frame data-cover-state="' + cover.state + '">' +
     '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="bbsmc-card-cover">' +
-    cover.image + cover.status +
+    cover.image + cover.status + '</a>' +
     '<div class="bbsmc-card-stats">' +
     '<span>📥 ' + dlStr + '</span>' +
     '<span>⭐ ' + flStr + '</span>' +
+    (p.url ? '<button type="button" class="bbsmc-stat-btn bbsmc-comment-btn" data-action="open-comment-preview" data-platform="bbsmc" data-source-id="' + escHtml(p.url) + '" title="在小窗中预览原站讨论与评论">💬 讨论</button>' : '') +
     '</div>' +
-    (p.mc_version ? '<span class="bbsmc-card-ver-badge">' + escHtml(p.mc_version) + '</span>' : '') +
-    '</a>' + cover.retryButton + '</div>' +
-    '<div class="bbsmc-card-body">' +
-    '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="bbsmc-card-title js-open-unified-preview" data-platform="bbsmc" data-full-title="' + safeTitle + '" data-desc="' + safeDesc + '" data-cover="' + escHtml(coverImg) + '" data-author="' + safeAuthor + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" title="' + safeTitle + '">' + safeTitle + '</a>' +
-    '<div class="bbsmc-card-meta">' +
+    (p.mc_version ? '<span class="bbsmc-card-ver-badge" title="Minecraft 版本；更多支持版本见详情">MC ' + escHtml(p.mc_version) + ((p.mc_versions?.length || 0) > 1 ? ' +' + String((p.mc_versions?.length || 1) - 1) : '') + '</span>' : '') +
+    cover.retryButton + '</div>' +
+    '<div class="bbsmc-card-body platform-card-body">' +
+    '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="bbsmc-card-title platform-card-title js-open-unified-preview" data-platform="bbsmc" data-full-title="' + safeTitle + '" data-desc="' + safeDesc + '" data-cover="' + escHtml(coverImg) + '" data-author="' + safeAuthor + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" title="' + safeTitle + '">' + safeTitle + '</a>' +
+    '<div class="bbsmc-card-meta platform-card-meta">' +
     '<span>作者: <b class="bbsmc-author-tag">' + safeAuthor + '</b></span>' +
     (p.date_modified ? '<span>· 更新: ' + escHtml(p.date_modified.substring(0, 10)) + '</span>' : '') +
     '</div>' +
-    (safeDesc ? '<div class="bbsmc-card-desc" title="' + safeDesc + '">' + safeDesc + '</div>' : '') +
-    (tagsHtml ? '<div class="bbsmc-card-tags">' + tagsHtml + '</div>' : '') +
+    (safeDesc ? '<div class="bbsmc-card-desc platform-card-summary" title="' + safeDesc + '">' + safeDesc + '</div>' : '<div class="platform-card-summary is-empty">暂无简介</div>') +
+    (tagsHtml ? '<div class="bbsmc-card-tags platform-card-tags">' + tagsHtml + '</div>' : '<div class="platform-card-tags" aria-hidden="true"></div>') +
     galleryHtml +
     dlZoneHtml +
     '</div>' +

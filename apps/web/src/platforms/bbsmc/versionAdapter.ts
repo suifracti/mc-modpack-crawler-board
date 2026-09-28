@@ -15,7 +15,7 @@ export function adaptBbsmcToVersionModal(
 ): VersionModalViewModel {
   const p = pack || {};
   const id = p.id || (p as any).project_id || (extra?.id as string) || '';
-  const versions = p.versions || (extra?.versions_data as any[]) || [];
+  const versions = [p.versions, extra?.versions_data].find((list) => Array.isArray(list) && list.length > 0) as any[] || [];
   const targetUrl = p.url || (extra?.url as string) || `https://bbsmc.net/modpack/${id}`;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

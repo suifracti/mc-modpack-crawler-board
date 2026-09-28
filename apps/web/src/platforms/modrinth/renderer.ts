@@ -30,9 +30,6 @@ export function renderModrinthCard(p: ModrinthPack): string {
   } else if (p.has_server) {
     tagsHtml += '<span class="badge-env badge-env-server" title="有服务端运行线索">🖳 有服务端运行线索</span>';
   }
-  if (p.mc_version && p.mc_version !== '未知') {
-    tagsHtml += '<span class="modrinth-badge-ver">🎮 ' + escHtml(p.mc_version) + '</span>';
-  }
   if (p.loaders && Array.isArray(p.loaders)) {
     p.loaders.forEach((l) => { tagsHtml += '<span class="modrinth-badge-loader">' + escHtml(loaderLabel(l)) + '</span>'; });
   }
@@ -40,7 +37,7 @@ export function renderModrinthCard(p: ModrinthPack): string {
     p.categories.slice(0, 4).forEach((c) => { tagsHtml += '<span class="modrinth-badge-cat" title="' + escHtml(c) + '">' + escHtml(getCategoryLabel(c)) + '</span>'; });
   }
 
-  let dlZoneHtml = '<div class="xyebbs-download-zone">';
+  let dlZoneHtml = '<div class="xyebbs-download-zone platform-card-actions">';
   const links = p.download_links || [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   links.forEach((l: any) => {
@@ -51,26 +48,30 @@ export function renderModrinthCard(p: ModrinthPack): string {
     }
   });
   dlZoneHtml += '<button type="button" class="bili-pan-btn pan-btn-other js-open-plat-version-modal" data-platform="modrinth" data-vkey="' + escHtml(p.url || '') + '" data-title="' + safeTitle + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" data-url="' + escHtml(p.url || '#') + '" data-author="' + safeAuthor + '" data-downloads="' + dlStr + '" style="font-size:0.8rem; background:color-mix(in srgb,var(--plat-modrinth) 12%,var(--bg-surface)); color:color-mix(in srgb,var(--plat-modrinth) 72%,var(--text-primary)); border-color:color-mix(in srgb,var(--plat-modrinth) 32%,transparent); margin-top:4px;">📜 版本详情 ↗</button>';
+  if (p.url) {
+    dlZoneHtml += '<button type="button" class="bili-pan-btn pan-btn-other btn-inapp-win" data-action="open-in-app-window" data-url="' + escHtml(p.url) + '" data-title="' + safeTitle + ' Modrinth页面" style="font-size:0.8rem; margin-top:4px;">🪟 小窗浏览</button>';
+  }
   dlZoneHtml += '</div>';
 
-  return '<div class="modrinth-pack-card">' +
+  return '<div class="modrinth-pack-card platform-pack-card">' +
     '<div class="cover-media cover-media-rich" data-cover-frame data-cover-state="' + cover.state + '">' +
     '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="xyebbs-card-cover">' +
     cover.image + cover.status +
     '<div class="xyebbs-card-stats">' +
     '<span>📥 ' + dlStr + '</span>' +
     '<span>⭐ ' + flStr + '</span>' +
+    (p.url ? '<button type="button" class="modrinth-comment-btn" data-action="open-comment-preview" data-platform="modrinth" data-source-id="' + escHtml(String(p.project_id || p.slug || p.url || '')) + '" title="在小窗中预览原站与动态" style="cursor:pointer; background:none; border:none; color:inherit; font-size:inherit;">💬 动态</button>' : '') +
     '</div>' +
-    (p.mc_version ? '<span class="xyebbs-card-ver-badge" style="background:color-mix(in srgb,var(--plat-modrinth) 78%,var(--text-primary)); color:var(--text-inverse);">' + escHtml(p.mc_version) + '</span>' : '') +
+    (p.mc_version ? '<span class="xyebbs-card-ver-badge" title="Minecraft 版本；更多支持版本见标签或详情" style="background:color-mix(in srgb,var(--plat-modrinth) 78%,var(--text-primary)); color:var(--text-inverse);">MC ' + escHtml(p.mc_version) + ((p.mc_versions?.length || 0) > 1 ? ' +' + String((p.mc_versions?.length || 1) - 1) : '') + '</span>' : '') +
     '</a>' + cover.retryButton + '</div>' +
-    '<div class="xyebbs-card-body">' +
-    '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="xyebbs-card-title js-open-unified-preview" data-platform="modrinth" data-full-title="' + safeTitle + '" data-desc="' + safeDesc + '" data-cover="' + escHtml(coverImg) + '" data-author="' + safeAuthor + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" title="' + safeTitle + '">' + safeTitle + '</a>' +
-    '<div class="xyebbs-card-meta">' +
+    '<div class="xyebbs-card-body platform-card-body">' +
+    '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="xyebbs-card-title platform-card-title js-open-unified-preview" data-platform="modrinth" data-full-title="' + safeTitle + '" data-desc="' + safeDesc + '" data-cover="' + escHtml(coverImg) + '" data-author="' + safeAuthor + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" title="' + safeTitle + '">' + safeTitle + '</a>' +
+    '<div class="xyebbs-card-meta platform-card-meta">' +
     '<span>作者: <b style="color:color-mix(in srgb,var(--plat-modrinth) 72%,var(--text-primary));">' + safeAuthor + '</b></span>' +
     (p.date_modified ? '<span>· 更新: ' + escHtml(p.date_modified.substring(0, 10)) + '</span>' : '') +
     '</div>' +
-    (safeDesc ? '<div class="xyebbs-card-desc" title="' + safeDesc + '">' + safeDesc + '</div>' : '') +
-    (tagsHtml ? '<div class="xyebbs-card-tags">' + tagsHtml + '</div>' : '') +
+    (safeDesc ? '<div class="xyebbs-card-desc platform-card-summary" title="' + safeDesc + '">' + safeDesc + '</div>' : '<div class="platform-card-summary is-empty">暂无简介</div>') +
+    (tagsHtml ? '<div class="xyebbs-card-tags platform-card-tags">' + tagsHtml + '</div>' : '<div class="platform-card-tags" aria-hidden="true"></div>') +
     dlZoneHtml +
     '</div>' +
     '</div>';

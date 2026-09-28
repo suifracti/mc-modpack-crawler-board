@@ -55,12 +55,17 @@ export function renderBiliGroupedCard(g: BiliGroup): string {
     tagsHtml += '<span class="badge-env badge-env-server" title="有服务端运行线索">🖳 有服务端运行线索</span>';
   }
   if (g.pack_version || latest.pack_version) {
-    tagsHtml += '<span class="bili-pack-ver-tag">📦 v' + escHtml(g.pack_version || latest.pack_version) + '</span>';
+    const packVersion = String(g.pack_version || latest.pack_version).trim();
+    const packVersionLabel = /^v?\d/i.test(packVersion) ? 'v' + packVersion.replace(/^v/i, '') : packVersion;
+    tagsHtml += '<span class="bili-pack-ver-tag">📦 ' + escHtml(packVersionLabel) + '</span>';
   }
   if (g.desc_updated_at || latest.desc_updated_at) {
     tagsHtml += '<span class="bili-desc-updated-tag" title="UP主于简介或置顶评论更新版本：' + escHtml(g.desc_updated_at || latest.desc_updated_at) + '">🔄 简介更新: ' + escHtml(g.desc_updated_at || latest.desc_updated_at) + '</span>';
   }
-  vers.forEach((v) => { tagsHtml += '<span class="bili-tag-mc">🎮 ' + escHtml(v) + '</span>'; });
+  if (vers.length) {
+    tagsHtml += '<span class="bili-tag-mc" title="来自标题或简介的版本线索，未必是 Minecraft 版本">版本线索 ' + vers.slice(0, 2).map((v) => escHtml(v)).join(' / ') + '</span>';
+    if (vers.length > 2) tagsHtml += '<details class="card-extra-tags"><summary>+' + (vers.length - 2) + ' 个版本</summary><div>' + vers.slice(2).map((v) => '<span>' + escHtml(v) + '</span>').join('') + '</div></details>';
+  }
   loaders.forEach((l) => { tagsHtml += '<span class="bili-tag-loader">' + escHtml(l) + '</span>'; });
   cats.forEach((c) => { tagsHtml += '<span class="bili-tag-cat">' + escHtml(c) + '</span>'; });
 
@@ -83,7 +88,7 @@ export function renderBiliGroupedCard(g: BiliGroup): string {
     groupVerBannerHtml = '<div class="bili-group-ver-banner">👥 <strong>群内有最新版本</strong>：' + escHtml(gNote) + (qGroup ? (' (Q群: <b>' + escHtml(qGroup) + '</b>)') : '') + '</div>';
   }
 
-  let dlZoneHtml = '<div class="bili-dl-zone">';
+  let dlZoneHtml = '<div class="bili-dl-zone platform-card-actions">';
   const dlMap: Record<string, boolean> = {};
   g.allLinks.forEach((l) => {
     if (l && l.url && !dlMap[l.url]) {
@@ -140,7 +145,7 @@ export function renderBiliGroupedCard(g: BiliGroup): string {
     versionsHtml += '</div></details>';
   }
 
-  return '<div class="bili-pack-card" data-key="' + g.key + '">' +
+  return '<div class="bili-pack-card platform-pack-card" data-key="' + g.key + '">' +
     '<div class="cover-media cover-media-rich" data-cover-frame data-cover-state="' + cover.state + '">' +
     '<a href="' + latest.url + '" target="_blank" rel="noreferrer" class="bili-card-cover">' +
     cover.image + cover.status +
@@ -151,14 +156,14 @@ export function renderBiliGroupedCard(g: BiliGroup): string {
     '<span>📺 ' + danmakuStr + '</span>' +
     '</div>' +
     '</a>' + cover.retryButton + '</div>' +
-    '<div class="bili-card-body">' +
-    '<a href="' + latest.url + '" target="_blank" rel="noreferrer" class="bili-card-title js-open-unified-preview" data-platform="bilibili" data-full-title="' + escHtml(latest.title) + '" data-desc="' + escHtml(fullDesc || pinned || latest.title) + '" data-cover="' + coverImg + '" data-author="' + escHtml(latest.author) + '" data-ver="' + escHtml(vers.join(', ')) + '" data-date="' + escHtml(g.latestPubTime) + '" title="' + escHtml(latest.title) + '">' + escHtml(latest.title) + '</a>' +
-    '<div class="bili-card-meta">' +
+    '<div class="bili-card-body platform-card-body">' +
+    '<a href="' + latest.url + '" target="_blank" rel="noreferrer" class="bili-card-title platform-card-title js-open-unified-preview" data-platform="bilibili" data-full-title="' + escHtml(latest.title) + '" data-desc="' + escHtml(fullDesc || pinned || latest.title) + '" data-cover="' + coverImg + '" data-author="' + escHtml(latest.author) + '" data-ver="' + escHtml(vers.join(', ')) + '" data-date="' + escHtml(g.latestPubTime) + '" title="' + escHtml(latest.title) + '">' + escHtml(latest.title) + '</a>' +
+    '<div class="bili-card-meta platform-card-meta">' +
     '<span>UP: <b class="bili-author-tag">' + escHtml(latest.author) + '</b></span>' +
     '<span>·</span>' +
     '<span>最新: ' + escHtml(g.latestPubTime) + '</span>' +
     '</div>' +
-    (tagsHtml ? '<div class="bili-card-tags">' + tagsHtml + '</div>' : '') +
+    (tagsHtml ? '<div class="bili-card-tags platform-card-tags">' + tagsHtml + '</div>' : '<div class="platform-card-tags" aria-hidden="true"></div>') +
     groupVerBannerHtml +
     '<div class="bili-metrics-bar">' +
     '<span class="bmb-item" title="总播放量">👁️ <strong>' + viewsStr + '</strong></span>' +
@@ -166,11 +171,11 @@ export function renderBiliGroupedCard(g: BiliGroup): string {
     '<span class="bmb-item" title="总点赞数">👍 <strong>' + likesStr + '</strong></span>' +
     '<span class="bmb-item" title="总投币数">🪙 <strong>' + coinsStr + '</strong></span>' +
     '<span class="bmb-item" title="总收藏数">⭐ <strong>' + favsStr + '</strong></span>' +
-    '<span class="bmb-item" title="总评论数">💬 <strong>' + replyStr + '</strong></span>' +
+    '<button type="button" class="bmb-item bmb-comment-btn" data-action="open-comment-preview" data-platform="bilibili" data-source-id="' + escHtml(latest.bvid) + '" title="总评论数 / 点击预览评论区">💬 <strong>' + replyStr + '</strong></button>' +
+    '<button type="button" class="bmb-item bmb-inapp-btn" data-action="open-in-app-window" data-url="' + escHtml(latest.url) + '" data-title="' + escHtml(latest.title) + ' 视频页面" title="软件内小窗浏览视频与讨论">🪟 小窗</button>' +
     '<span class="bmb-item" title="总分享数">🔁 <strong>' + shareStr + '</strong></span>' +
     '</div>' +
-    dlZoneHtml +
-    versionsHtml +
+    '<details class="platform-card-disclosure"><summary>下载、简介与关联视频（' + g.items.length + '）</summary>' + dlZoneHtml + versionsHtml + '</details>' +
     '</div>' +
     '</div>';
 }
@@ -184,12 +189,14 @@ export function renderBiliFlatCard(p: BilibiliPack): string {
     tagsHtml += '<span class="badge-env badge-env-server" title="有服务端运行线索">🖳 有服务端运行线索</span>';
   }
   if (p.pack_version) {
-    tagsHtml += '<span class="bili-pack-ver-tag">📦 v' + escHtml(p.pack_version) + '</span>';
+    const packVersion = String(p.pack_version).trim();
+    const packVersionLabel = /^v?\d/i.test(packVersion) ? 'v' + packVersion.replace(/^v/i, '') : packVersion;
+    tagsHtml += '<span class="bili-pack-ver-tag">📦 ' + escHtml(packVersionLabel) + '</span>';
   }
   if (p.desc_updated_at) {
     tagsHtml += '<span class="bili-desc-updated-tag" title="UP主于简介或置顶评论更新版本：' + escHtml(p.desc_updated_at) + '">🔄 简介更新: ' + escHtml(p.desc_updated_at) + '</span>';
   }
-  if (p.mc_version && p.mc_version !== '未知') tagsHtml += '<span class="bili-tag-mc">🎮 ' + escHtml(p.mc_version) + '</span>';
+  if (p.mc_version && p.mc_version !== '未知') tagsHtml += '<span class="bili-tag-mc" title="来自标题或简介的版本线索，未必是 Minecraft 版本">🔎 版本线索 ' + escHtml(p.mc_version) + '</span>';
   if (p.loaders && Array.isArray(p.loaders)) {
     p.loaders.forEach((l) => { tagsHtml += '<span class="bili-tag-loader">' + escHtml(l) + '</span>'; });
   }
@@ -214,7 +221,7 @@ export function renderBiliFlatCard(p: BilibiliPack): string {
     groupVerBannerHtml = '<div class="bili-group-ver-banner">👥 <strong>群内有最新版本</strong>：' + escHtml(gNote) + (p.qq_group ? (' (Q群: <b>' + escHtml(p.qq_group) + '</b>)') : '') + '</div>';
   }
 
-  let dlZoneHtml = '<div class="bili-dl-zone">';
+  let dlZoneHtml = '<div class="bili-dl-zone platform-card-actions">';
   if (p.download_links && p.download_links.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (p.download_links as any[]).forEach((l: any) => {
@@ -246,7 +253,7 @@ export function renderBiliFlatCard(p: BilibiliPack): string {
 
   dlZoneHtml += '</div>';
 
-  return '<div class="bili-pack-card">' +
+  return '<div class="bili-pack-card platform-pack-card">' +
     '<div class="cover-media cover-media-rich" data-cover-frame data-cover-state="' + cover.state + '">' +
     '<a href="' + p.url + '" target="_blank" rel="noreferrer" class="bili-card-cover">' +
     cover.image + cover.status +
@@ -256,14 +263,14 @@ export function renderBiliFlatCard(p: BilibiliPack): string {
     '<span>📺 ' + danmakuStr + '</span>' +
     '</div>' +
     '</a>' + cover.retryButton + '</div>' +
-    '<div class="bili-card-body">' +
-    '<a href="' + p.url + '" target="_blank" rel="noreferrer" class="bili-card-title" title="' + escHtml(p.title) + '">' + escHtml(p.title) + '</a>' +
-    '<div class="bili-card-meta">' +
+    '<div class="bili-card-body platform-card-body">' +
+    '<a href="' + p.url + '" target="_blank" rel="noreferrer" class="bili-card-title platform-card-title" title="' + escHtml(p.title) + '">' + escHtml(p.title) + '</a>' +
+    '<div class="bili-card-meta platform-card-meta">' +
     '<span>UP: <b class="bili-author-tag">' + escHtml(p.author) + '</b></span>' +
     '<span>·</span>' +
     '<span>' + escHtml(p.pub_time) + '</span>' +
     '</div>' +
-    (tagsHtml ? '<div class="bili-card-tags">' + tagsHtml + '</div>' : '') +
+    (tagsHtml ? '<div class="bili-card-tags platform-card-tags">' + tagsHtml + '</div>' : '<div class="platform-card-tags" aria-hidden="true"></div>') +
     groupVerBannerHtml +
     '<div class="bili-metrics-bar">' +
     '<span class="bmb-item" title="播放量">👁️ <strong>' + viewsStr + '</strong></span>' +
@@ -271,10 +278,11 @@ export function renderBiliFlatCard(p: BilibiliPack): string {
     '<span class="bmb-item" title="点赞数">👍 <strong>' + likesStr + '</strong></span>' +
     '<span class="bmb-item" title="投币数">🪙 <strong>' + coinsStr + '</strong></span>' +
     '<span class="bmb-item" title="收藏数">⭐ <strong>' + favsStr + '</strong></span>' +
-    '<span class="bmb-item" title="评论数">💬 <strong>' + replyStr + '</strong></span>' +
+    '<button type="button" class="bmb-item bmb-comment-btn" data-action="open-comment-preview" data-platform="bilibili" data-source-id="' + escHtml(p.bvid) + '" title="评论数 / 点击预览评论区">💬 <strong>' + replyStr + '</strong></button>' +
+    '<button type="button" class="bmb-item bmb-inapp-btn" data-action="open-in-app-window" data-url="' + escHtml(p.url) + '" data-title="' + escHtml(p.title) + ' 视频页面" title="软件内小窗浏览视频与讨论">🪟 小窗</button>' +
     '<span class="bmb-item" title="分享数">🔁 <strong>' + shareStr + '</strong></span>' +
     '</div>' +
-    dlZoneHtml +
+    '<details class="platform-card-disclosure"><summary>下载与视频简介</summary>' + dlZoneHtml + '</details>' +
     '</div>' +
     '</div>';
 }
