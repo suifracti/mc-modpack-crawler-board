@@ -1,4 +1,6 @@
 import json
+import io
+from contextlib import redirect_stdout
 import os
 import subprocess
 import sys
@@ -27,8 +29,8 @@ class StubResponse:
         self.status = status
         self._payload = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
-    def read(self):
-        return self._payload
+    def read(self, limit=-1):
+        return self._payload if limit < 0 else self._payload[:limit]
 
     def __enter__(self):
         return self
@@ -67,7 +69,7 @@ class ControlledRequests:
                     "server_side": "optional",
                 }],
             })
-        if "api.curse.tools/v1/cf/mods/search" in url:
+        if "api.curseforge.com/v1/mods/search" in url:
             return StubResponse({
                 "data": [{
                     "id": 42,
@@ -146,6 +148,107 @@ def write_sidecar(path: Path, global_name: str, value) -> None:
 
 
 class CollectorWorkerIntegrationTest(unittest.TestCase):
+    def test_cfwidget_known_pack_cache_preserves_newer_history_and_stops_on_refusal(self):
+        import curseforge_cfwidget as widget
+        from curseforge_api_config import metadata_provider
+        import existing_version_crawler as existing
+        project={'id':42,'game':'minecraft','type':'Modpacks','title':'Cached title',
+            'urls':{'curseforge':'https://www.curseforge.com/minecraft/modpacks/known-pack'},
+            'downloads':{'total':150},'files':[{'id':7,'display':'Older known release',
+                'uploaded_at':'2026-09-01T00:00:00Z','versions':['1.20.1','Forge']}]}
+        latest={'version_number':'Newer stored release','date_published':'2026-10-03T00:00:00Z','changelog':'Keep details'}
+        old={'project_id':'42','url':project['urls']['curseforge'],'title':'Known title','downloads':200,
+             'date_modified':'2026-10-03 00:00:00','releases':[latest]}
+        observation={'provider':'cfwidget','fetchedAt':'2026-10-04T00:00:00Z','providerLastFetch':None,'sha256':'fixture'}
+        with patch.dict(os.environ,{'CURSEFORGE_API_KEY':'','CF_API_KEY':'','CURSEFORGE_API_KEY_FILE':'','CURSEFORGE_PROVIDER':''}):
+            self.assertEqual(metadata_provider(),'cfwidget')
+            with patch.object(existing,'get_widget_project',return_value=(project,observation)),patch.object(existing,'request_cf_json') as official:
+                releases=existing.fetch_releases('curseforge','42');official.assert_not_called()
+            self.assertEqual(releases[0]['files'][0]['url'],project['urls']['curseforge']+'/files/7')
+            self.assertEqual(releases[0]['game_versions'],['1.20.1'])
+        updated=widget.merge_project(old,project,observation)
+        self.assertEqual(updated['downloads'],200);self.assertEqual(updated['title'],'Known title')
+        self.assertEqual(updated['date_modified'],old['date_modified']);self.assertEqual(updated['releases'][0],latest)
+        self.assertEqual(len(updated['releases']),2);self.assertIn('未提供',updated['acquisition_note'])
+        for wrong in ({**project,'id':99},{**project,'game':'wow'},{**project,'type':'Mods'}):
+            with self.assertRaises(ValueError):widget.merge_project(old,wrong,observation)
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);raw=root/'raw.json';sidecar=root/'data.js'
+            raw.write_text(json.dumps([old,{'project_id':'99','title':'Retain'}]),encoding='utf-8');sidecar.write_bytes(b'keep original sidecar')
+            original=(raw.read_bytes(),sidecar.read_bytes())
+            responses=[subprocess.CompletedProcess([],0,b'User-agent: *\nAllow: /\n__CFW_STATUS__:200',b''),subprocess.CompletedProcess([],0,b'\n__CFW_STATUS__:403',b'')]
+            with patch.object(widget,'STOP',None),patch.object(widget,'ROBOTS',None),patch.object(widget,'LAST_REQUEST',0),patch.object(widget.shutil,'which',return_value='fixture-curl'),patch.object(widget.subprocess,'run',side_effect=responses) as request,patch.object(widget.time,'sleep'),patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(root/'result.json')}),redirect_stdout(io.StringIO()):
+                result=widget.refresh_known(raw,sidecar,2)
+                with self.assertRaises(widget.WidgetRefusal):widget.get_project('99')
+                self.assertEqual(request.call_count,2)
+                self.assertTrue(all('x-api-key' not in ' '.join(call.args[0]).lower() for call in request.call_args_list))
+            self.assertEqual(result['fetchedCount'],0);self.assertEqual((raw.read_bytes(),sidecar.read_bytes()),original)
+
+    def test_curseforge_refusal_stops_source_and_keeps_cached_bytes(self):
+        cf = curseforge_full_crawler
+        for code, body in ((302,b''),(401,b''),(403,b''),(412,b''),(200,b'<html><title>Security verification</title></html>')):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                raw = root / 'raw.json';sidecar = root / 'data.js'
+                raw.write_bytes(b'[{"project_id":"old","title":"keep","downloads":1}]')
+                sidecar.write_bytes(b'window.curseforgeModpacksData = [{"project_id":"old","title":"keep","downloads":1}];')
+                original = (raw.read_bytes(),sidecar.read_bytes())
+                result = subprocess.CompletedProcess([],0,body+b'\n__CF_STATUS__:'+str(code).encode(),b'')
+                with patch.object(cf,'OUTPUT_JSON',str(raw)),patch.object(cf,'OUTPUT_JS',str(sidecar)),patch.object(cf,'CURL_BIN','fixture-curl'),patch.object(cf,'ACCESS_STOP',None),patch.object(cf,'REQUEST_STATS',{'requests':0,'successful':0,'failed':0,'errors':[]}),patch.object(cf.subprocess,'run',return_value=result) as request,patch.dict(os.environ,{'CURSEFORGE_API_KEY':'fixture-api-key','MC_DESKTOP_COLLECTION_RESULT':str(root/'result.json')}),redirect_stdout(io.StringIO()):
+                    cf.main(recent_pages=1)
+                    cf.fetch_slice_page(50)
+                    self.assertEqual(request.call_count,1)
+                    self.assertEqual(cf.REQUEST_STATS['requests'],1)
+                    self.assertEqual(cf.REQUEST_STATS['failed'],1)
+                    self.assertTrue(cf.ACCESS_STOP)
+                self.assertEqual((raw.read_bytes(),sidecar.read_bytes()),original)
+        payload={'data':[{'id':42,'summary':'A pack explaining captcha blocks and <html> examples'}]}
+        response=subprocess.CompletedProcess([],0,json.dumps(payload).encode()+b'\n__CF_STATUS__:200',b'')
+        with patch.object(cf,'CURL_BIN','fixture-curl'),patch.object(cf,'ACCESS_STOP',None),patch.object(cf.subprocess,'run',return_value=response),patch.dict(os.environ,{'CURSEFORGE_API_KEY':'fixture-api-key'}):
+            self.assertEqual(cf.request_api_json('https://api.curseforge.com/v1/mods/search'),payload)
+
+    def test_curseforge_official_configuration_and_metadata_preserve_history(self):
+        cf=curseforge_full_crawler
+        for url, key in (('https://api.curseforge.com/v1/mods/search',''),('https://api.curse.tools/v1/cf/mods/search','fixture-api-key')):
+            with patch.dict(os.environ,{'CURSEFORGE_API_KEY':key,'CF_API_KEY':'','CURSEFORGE_API_KEY_FILE':''}),patch.object(cf,'ACCESS_STOP',None),patch.object(cf.subprocess,'run') as request:
+                with self.assertRaises(cf.AccessRefusal):cf.request_api_json(url)
+                request.assert_not_called()
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);raw=root/'raw.json';sidecar=root/'sidecar.js';keyfile=root/'key.txt'
+            old=[{'project_id':'42','title':'old','downloads':0,'releases':[{'version_number':'old release','date_published':'2026-09-01'}],'version_checked_at':'2026-09-30'},{'project_id':'99','title':'retain other pack','downloads':0}]
+            raw.write_text(json.dumps(old),encoding='utf-8');keyfile.write_text('fixture-local-key\n',encoding='utf-8')
+            payload={'data':[{'id':42,'name':'Updated pack','slug':'updated-pack','downloadCount':12,'gameId':432,'classId':4471,'dateCreated':'2026-09-01T00:00:00Z','dateModified':'2026-10-04T00:00:00Z'}],'pagination':{'totalCount':1}}
+            response=subprocess.CompletedProcess([],0,json.dumps(payload).encode()+b'\n__CF_STATUS__:200',b'')
+            with patch.dict(os.environ,{'CURSEFORGE_API_KEY':'','CF_API_KEY':'','CURSEFORGE_API_KEY_FILE':str(keyfile),'MC_DESKTOP_COLLECTION_RESULT':str(root/'result.json')}),patch.object(cf,'ACCESS_STOP',None),patch.object(cf,'OUTPUT_JSON',str(raw)),patch.object(cf,'OUTPUT_JS',str(sidecar)),patch.object(cf,'CURL_BIN','fixture-curl'),patch.object(cf,'REQUEST_STATS',{'requests':0,'successful':0,'failed':0,'errors':[]}),patch.object(cf.subprocess,'run',return_value=response) as request,redirect_stdout(io.StringIO()):
+                cf.main(recent_pages=1)
+                args,kwargs=request.call_args
+                self.assertNotIn('fixture-local-key',' '.join(args[0]))
+                self.assertEqual(kwargs['input'],b'x-api-key: fixture-local-key\n')
+                self.assertTrue(args[0][-1].startswith('https://api.curseforge.com/v1/mods/search?'))
+            rows={row['project_id']:row for row in json.loads(raw.read_text(encoding='utf-8'))}
+            self.assertEqual(rows['42']['title'],'Updated pack');self.assertEqual(rows['42']['releases'],old[0]['releases']);self.assertEqual(rows['42']['version_checked_at'],'2026-09-30');self.assertEqual(rows['99'],old[1])
+
+    def test_curseforge_existing_files_use_official_offset_pagination(self):
+        import existing_version_crawler as existing
+        responses=[{'data':[{'id':i,'displayName':f'Release {i}','fileDate':'2026-09-01T00:00:00Z'} for i in range(50)],'pagination':{'totalCount':51}},{'data':[{'id':50,'displayName':'Last release','fileDate':'2026-10-04T00:00:00Z'}],'pagination':{'totalCount':51}}]
+        with patch.object(existing,'metadata_provider',return_value='official'), patch.object(existing,'request_cf_json',side_effect=responses) as request:
+            releases=existing.fetch_releases('curseforge','42')
+        self.assertEqual([call.args[0] for call in request.call_args_list],['https://api.curseforge.com/v1/mods/42/files?index=0&pageSize=50','https://api.curseforge.com/v1/mods/42/files?index=50&pageSize=50'])
+        self.assertEqual(len(releases),51);self.assertEqual(releases[-1]['date_published'],'2026-10-04T00:00:00Z')
+
+    def test_curseforge_existing_refusal_does_not_rewrite_or_try_next_pack(self):
+        import existing_version_crawler as existing
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);raw=root/'crawler_output/curseforge_modpacks.json';sidecar=root/'converted_output/data/curseforge_data.js'
+            raw.parent.mkdir();sidecar.parent.mkdir(parents=True)
+            rows=[{'project_id':'42','title':'keep'},{'project_id':'99','title':'retain'}]
+            raw.write_text(json.dumps(rows),encoding='utf-8');sidecar.write_text('window.curseforgeModpacksData = '+json.dumps(rows)+';',encoding='utf-8')
+            before=(raw.read_bytes(),sidecar.read_bytes())
+            with patch.object(sys,'argv',['existing','--platform','curseforge','--limit','2']),patch.object(existing,'metadata_provider',return_value='official'),patch.dict(os.environ,{'MC_DESKTOP_WORKSPACE':temp,'MC_DESKTOP_COLLECTION_RESULT':str(root/'result.json')}),patch.object(existing,'request_cf_json',side_effect=curseforge_full_crawler.AccessRefusal('HTTP 403')) as request,redirect_stdout(io.StringIO()):
+                existing.main()
+                self.assertEqual(request.call_count,1)
+            self.assertEqual((raw.read_bytes(),sidecar.read_bytes()),before)
+
     def test_curseforge_file_indexes_flow_from_producer_sidecar_to_desktop_api(self):
         expected_categories = [f"Fixture category {index}" for index in range(10)]
         expected_versions = [f"1.20.{minor}" for minor in range(1, 16)]

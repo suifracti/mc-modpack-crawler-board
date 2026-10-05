@@ -665,6 +665,9 @@ class DataStore {
     const isPartial = contract.outcome === 'partial_update';
     if (isPartial && (!(contract.partialScope === 'existing' && platform !== 'mcmod')
         && !(contract.partialScope === 'catalog' && ['bilibili', 'curseforge'].includes(platform))
+        && !(contract.partialScope === 'public-video-html-bounded' && platform === 'bilibili'
+          && contract.crawlerResult?.details?.coverage === 'public-video-html-bounded'
+          && contract.crawlerResult?.fetchedCount > 0)
         && !(contract.partialScope === 'mcmod_refresh' && platform === 'mcmod')
         || contract.crawlerResult?.status !== 'partial'
         || !contract.previousIdsPreserved

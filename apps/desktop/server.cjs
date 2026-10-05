@@ -106,10 +106,14 @@ function pythonCommand(explicit) {
   return process.platform === 'win32' ? 'python' : 'python3';
 }
 
-function makeRunner({ platform, options, workspace, onLine, sourceRoot = repoRoot, python }) {
+function makeRunner({ platform, options, workspace, onLine, sourceRoot = repoRoot, python, htmlState }) {
   if (!fs.existsSync(workerSource)) throw new Error(`采集 worker 未找到: ${workerSource}`);
   const command = pythonCommand(python);
   const args = [workerSource, '--platform', platform, '--workspace', workspace, '--source-root', sourceRoot];
+  if (platform === 'bilibili') {
+    if (!htmlState) throw new Error('B站公开网页采集缺少共享状态文件，拒绝从空账本重试');
+    args.push('--html-state', htmlState);
+  }
   if (options.mode) args.push('--mode', String(options.mode));
   if (options.limit) args.push('--limit', String(options.limit));
   if (options.coverOffset !== undefined && options.coverOffset !== null) args.push('--cover-offset', String(options.coverOffset));
@@ -193,7 +197,8 @@ function createBrowserService(options = {}) {
 
   const updateManager = options.updateManager || new UpdateManager({
     store,
-    runnerFactory: (runnerOptions) => makeRunner({ ...runnerOptions, sourceRoot, python: options.python }),
+    runnerFactory: (runnerOptions) => makeRunner({ ...runnerOptions, sourceRoot, python: options.python,
+      htmlState: path.join(dataRoot, 'collector-state', 'bilibili-public-html-state.json') }),
     logger: (line) => { void logger(line).catch(() => {}); },
     onSnapshotActivated: async ({ platform }) => {
       const result = await favoriteUpdates.processSuccessfulRefresh(

@@ -2,7 +2,7 @@
  * CurseForge Platform Card Renderer (Architecture V2 — Phase 3C).
  */
 import type { CurseforgePack } from '../../types/legacy/curseforge';
-import { escHtml } from '../../utils/html';
+import { escHtml, safeExternalHref } from '../../utils/html';
 import { loaderLabel } from '../../domain/minecraft';
 import { getCategoryLabel } from '../../filters/platformFilters';
 import { recordRendererDebug } from '../../debug';
@@ -39,10 +39,11 @@ export function renderCurseforgeCard(p: CurseforgePack): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   links.forEach((l: any) => {
     const urlStr = String(l?.url || '');
-    if (urlStr.startsWith('http://') || urlStr.startsWith('https://')) {
+    const href = safeExternalHref(urlStr);
+    if (href !== '#') {
       const lClass = 'pan-btn-other';
       const icon = '🔗';
-      dlZoneHtml += '<a href="' + urlStr + '" target="_blank" rel="noreferrer" class="bili-pan-btn ' + lClass + '" style="font-size:0.8rem;" title="' + escHtml(l.name || '') + '">' + icon + ' ' + escHtml(l.label || '官网直达') + ' ↗</a>';
+      dlZoneHtml += '<a href="' + href + '" target="_blank" rel="noreferrer" class="bili-pan-btn ' + lClass + '" style="font-size:0.8rem;" title="' + escHtml(l.name || '') + '">' + icon + ' ' + escHtml(l.label || '官网直达') + ' ↗</a>';
     }
   });
   dlZoneHtml += '<button type="button" class="bili-pan-btn pan-btn-other js-open-plat-version-modal" data-platform="curseforge" data-vkey="' + escHtml(p.url || '') + '" data-title="' + safeTitle + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" data-url="' + escHtml(p.url || '#') + '" data-author="' + safeAuthor + '" data-downloads="' + dlStr + '" style="font-size:0.8rem; background:color-mix(in srgb,var(--plat-curse) 12%,var(--bg-surface)); color:color-mix(in srgb,var(--plat-curse) 72%,var(--text-primary)); border-color:color-mix(in srgb,var(--plat-curse) 32%,transparent); margin-top:4px;">📜 版本详情 ↗</button>';
@@ -53,7 +54,7 @@ export function renderCurseforgeCard(p: CurseforgePack): string {
 
   return '<div class="curseforge-pack-card platform-pack-card">' +
     '<div class="cover-media cover-media-rich" data-cover-frame data-cover-state="' + cover.state + '">' +
-    '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="xyebbs-card-cover">' +
+    '<a href="' + safeExternalHref(p.url) + '" target="_blank" rel="noreferrer" class="xyebbs-card-cover">' +
     cover.image + cover.status +
     '<div class="xyebbs-card-stats">' +
     '<span>📥 ' + dlStr + '</span>' +
@@ -63,7 +64,7 @@ export function renderCurseforgeCard(p: CurseforgePack): string {
     (p.mc_version ? '<span class="xyebbs-card-ver-badge" title="Minecraft 版本；更多支持版本见标签或详情" style="background:color-mix(in srgb,var(--plat-curse) 78%,var(--text-primary)); color:var(--text-inverse);">MC ' + escHtml(p.mc_version) + ((p.mc_versions?.length || 0) > 1 ? ' +' + String((p.mc_versions?.length || 1) - 1) : '') + '</span>' : '') +
     '</a>' + cover.retryButton + '</div>' +
     '<div class="xyebbs-card-body platform-card-body">' +
-    '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="xyebbs-card-title platform-card-title js-open-unified-preview" data-platform="curseforge" data-full-title="' + safeTitle + '" data-desc="' + safeDesc + '" data-cover="' + escHtml(coverImg) + '" data-author="' + safeAuthor + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" title="' + safeTitle + '">' + safeTitle + '</a>' +
+    '<a href="' + safeExternalHref(p.url) + '" target="_blank" rel="noreferrer" class="xyebbs-card-title platform-card-title js-open-unified-preview" data-platform="curseforge" data-full-title="' + safeTitle + '" data-desc="' + safeDesc + '" data-cover="' + escHtml(coverImg) + '" data-author="' + safeAuthor + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.date_modified || '') + '" title="' + safeTitle + '">' + safeTitle + '</a>' +
     '<div class="xyebbs-card-meta platform-card-meta">' +
     '<span>作者: <b style="color:color-mix(in srgb,var(--plat-curse) 72%,var(--text-primary));">' + safeAuthor + '</b></span>' +
     (p.date_modified ? '<span>· 更新: ' + escHtml(p.date_modified.substring(0, 10)) + '</span>' : '') +

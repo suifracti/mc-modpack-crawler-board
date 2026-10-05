@@ -3,7 +3,7 @@
  * Pure TypeScript functions rendering DOM strings from structured data.
  * ZERO server-side Python rendering.
  */
-import { escHtml, escAttrJs } from '../../utils/html';
+import { escHtml, escAttrJs, safeExternalHref } from '../../utils/html';
 import { generateSparklineSvg } from './sparkline';
 import type { McmodStructuredItem, McmodPreviewModItem } from './types';
 import { recordRendererDebug } from '../../debug';
@@ -179,13 +179,13 @@ export function renderModsCell(pack: McmodStructuredItem): string {
       return (
         `<span class="tag-mod" role="button" tabindex="0" title="${escAttrJs(titleBits.join(' · '))}" data-mod="${escAttrJs(mName)}" data-mod-cat="${escAttrJs(c.categoryName)}" data-mod-url="${escAttrJs(mUrl)}">` +
         `<span class="tag-mod-name">${escHtml(mName)}</span>${verHtml}` +
-        `<a class="tag-mod-open" href="${escAttrJs(mUrl)}" target="_blank" title="打开 MC百科模组页">↗</a></span>`
+        `<a class="tag-mod-open" href="${safeExternalHref(mUrl)}" target="_blank" title="打开 MC百科模组页">↗</a></span>`
       );
     });
 
     const catLabel = escHtml(c.categoryName);
     const catHead = c.categoryUrl
-      ? `<a class="mod-category-link" href="${escAttrJs(c.categoryUrl)}" target="_blank">${catLabel}</a>`
+      ? `<a class="mod-category-link" href="${safeExternalHref(c.categoryUrl)}" target="_blank">${catLabel}</a>`
       : `<span>${catLabel}</span>`;
 
     modSections.push(

@@ -1,6 +1,7 @@
 import { ALL_PLATFORMS, PLATFORM_CONFIGS } from './data/platformRegistry';
 import { groupBilibiliPacks } from './domain/bilibiliGrouping';
 import type { Platform } from './domain/types';
+import type { RecordPreview } from './domain/recordPreview';
 import { getCategoryLabel } from './filters/platformFilters';
 import { buildVersionModalViewModel } from './modals/version/buildViewModel';
 import { generateSparklineSvg } from './platforms/mcmod/sparkline';
@@ -54,8 +55,11 @@ import {
   findCrossPlatformAssociations,
   renderCardLinkageCapsule,
   renderDrawerLinkageSection,
+  publicAssociationScope,
 } from './domain/crossPlatformLinkage';
+import { classifyBilibiliContent } from '../../shared/bilibili-content.cjs';
 import { formatDisplayDate } from './utils/format';
+import { STATIC_PLATFORM_ICONS } from './utils/platformIcons';
 
 export interface DesktopRecord {
   packVersion?: string;
@@ -203,6 +207,7 @@ export interface DesktopDataLibrary {
 }
 
 export interface DesktopRecordQuery {
+  bilibiliContent?: 'candidates' | 'all' | 'excluded';
   query?: string;
   version?: string;
   loader?: string;
@@ -241,7 +246,7 @@ export interface DesktopUpdateStatus {
 }
 
 export interface DesktopApi {
-  getPreviewVersions?: (platform: string, sourceId: string) => Promise<{ versions: Record<string, unknown>[]; fetchedAt: string }>;
+  getPreviewVersions?: (platform: string, sourceId: string) => Promise<{ versions: Record<string, unknown>[]; fetchedAt: string; preview?: RecordPreview; provider?: string; providerLastFetch?: string | null }>;
   nativeDataDirectoryPicker?: boolean;
   getState: () => Promise<{ data: DesktopDataState; update: DesktopUpdateStatus }>;
   getPersonalLibrary: () => Promise<{ schema: number; entries: Record<string, PersonalStatus> }>;
@@ -251,7 +256,7 @@ export interface DesktopApi {
   restorePersonalLibrary: (payload: unknown) => Promise<{ restored: number; 'skipped-conflict': number; invalid: number }>;
   updatePersonalStatus: (platform: Platform, sourceId: string, patch: Partial<Pick<PersonalStatus, 'favorite' | 'wantToPlay' | 'played' | 'rating' | 'note'>>) => Promise<{ key: string; status: PersonalStatus }>;
   getAuditDiff: () => Promise<DesktopAuditResult>;
-  getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availableCategoryCounts?: DesktopFilterOption[]; availableIncludedMods: DesktopFilterOption[]; availableGameplayCategories: DesktopFilterOption[]; availablePans: string[]; error?: string | null }>;
+  getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ bilibiliCounts?: { all: number; candidates: number; excluded: number }; platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availableCategoryCounts?: DesktopFilterOption[]; availableIncludedMods: DesktopFilterOption[]; availableGameplayCategories: DesktopFilterOption[]; availablePans: string[]; error?: string | null }>;
   getPlatformComments: (platform: Platform, sourceId: string) => Promise<DesktopCommentsResult>;
   getDataLibrary: () => Promise<DesktopDataLibrary>;
   chooseDataDirectory: (path?: string) => Promise<{ cancelled: boolean; data?: DesktopDataState }>;
@@ -292,7 +297,7 @@ interface UpdateBatchState {
 
 interface InAppWindowState {
   record?: DesktopRecord;
-  contentTab?: 'web' | 'overview' | 'versions' | 'gallery';
+  contentTab?: 'web' | 'overview' | 'versions' | 'gallery' | 'linkage';
   id?: string;
   url: string;
   title: string;
@@ -348,7 +353,7 @@ const PLATFORM_ACCENTS: Record<Platform, string> = {
 
 const PLATFORM_TAGLINES: Record<Platform, string> = {
   mcmod: '权威词条、版本适配与模组组成',
-  bilibili: 'UP 主自制发布、版本流与下载线索',
+  bilibili: 'UP 主视频、简介与发布线索',
   bbsmc: '社区资源、作者信息与开源发布',
   xyebbs: '论坛发布、版本标签与渠道信息',
   modrinth: '官方项目、版本与 Loader 契约',
@@ -400,6 +405,8 @@ const state = {
   v2SortCol: 'default' as 'default' | 'updatedAt' | 'title' | 'downloads',
   v2SortDir: 'desc' as 'desc' | 'asc',
   biliViewMode: 'grouped' as BiliViewMode,
+  bilibiliContent: 'candidates' as 'candidates' | 'all' | 'excluded',
+  bilibiliCounts: { all: 0, candidates: 0, excluded: 0 },
   biliGroups: [] as BiliGroup[],
   records: [] as DesktopRecord[],
   total: 0,
@@ -413,6 +420,8 @@ const state = {
   page: 1,
   pageSize: 24,
   hasMore: false,
+  pagesExtraFiltersOpen: false,
+  pagesDetailGalleryOpen: false,
   openDropdown: '' as DropdownId | '',
   updatePlatform: 'bilibili' as Platform,
   updatePlatforms: ['bilibili'] as Platform[],
@@ -465,9 +474,16 @@ const state = {
   pickerModal: null as PickerModalState | null,
 };
 
+function isStaticSite(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.dataset.staticSite === 'true';
+}
+
 let root: HTMLElement;
 let searchTimer: number | undefined;
-let personalNoteTimer: number | undefined;
+let mainSearchCompositionInput: HTMLInputElement | null = null;
+let mainSearchRenderPending = false;
+let detailFocusAfterRender = false;
+const personalNoteTimers = new Map<string, number>();
 let profileFocusAfterRender: 'close' | 'trigger' | '' = '';
 let platformFilterFocusAfterRender: 'included-mod-search' | '' = '';
 let pickerFocusAfterRender: 'picker-modal-search' | '' = '';
@@ -476,10 +492,31 @@ let trendFocusAfterRender: 'close' | 'trigger' | '' = '';
 let trendReturnRecordId = '';
 let mcmodTableFocusRecordId = '';
 let activeLoadRequestId = 0;
+const pagesLoadProgress = new Map<Platform, { phase: string; completed: number; total: number }>();
+function isStaticOverview(): boolean {
+  return isStaticSite() && state.platform === 'all' && !state.query.trim()
+    && !state.version && !state.loader && !state.category
+    && state.includedMods.length === 0 && state.gameplayCategories.length === 0
+    && !state.pan && !state.dateRange && !state.serverOnly && !state.personalFilter;
+}
+function pagesSourceLoadLabel(platform: Platform): string {
+  const progress = pagesLoadProgress.get(platform);
+  if (!progress) return '未加载';
+  if (progress.phase === 'ready') return '已加载';
+  if (progress.phase === 'failed') return '加载失败';
+  return progress.total ? `加载中 ${progress.completed} / ${progress.total}` : '加载中…';
+}
+function pagesLoadingMessage(): string {
+  const pending = [...pagesLoadProgress.values()].filter((item) => item.phase === 'loading');
+  const total = pending.reduce((sum, item) => sum + item.total, 0);
+  const completed = pending.reduce((sum, item) => sum + item.completed, 0);
+  return total ? `正在加载公开记录：已读取 ${completed} / ${total} 个数据分片…` : '正在准备公开记录…';
+}
 const mcmodLiveModIndex = new Map<string, Array<{ name: string; url: string; categoryUrl: string }>>();
 const mcmodModIndexRequests = new Map<string, Promise<void>>();
 
 function ensureMcmodModIndex(record: DesktopRecord): Promise<void> {
+  if (isStaticSite()) return Promise.resolve();
   if (mcmodLiveModIndex.has(record.id) || !/^\d+$/.test(record.sourceId)) return Promise.resolve();
   const existing = mcmodModIndexRequests.get(record.id);
   if (existing) return existing;
@@ -508,6 +545,7 @@ function ensureMcmodModIndex(record: DesktopRecord): Promise<void> {
 }
 
 interface PlatformCacheEntry {
+  bilibiliCounts?: { all: number; candidates: number; excluded: number };
   records: DesktopRecord[];
   biliGroups: BiliGroup[];
   total: number;
@@ -523,7 +561,7 @@ interface PlatformCacheEntry {
 const platformRecordCache = new Map<string, PlatformCacheEntry>();
 
 function isDefaultPlatformFilters(): boolean {
-  return !state.query
+  return (!isStaticSite() || state.bilibiliContent === 'candidates') && !state.query
     && !state.version
     && !state.loader
     && !state.category
@@ -554,6 +592,22 @@ function formatTime(value: string | null | undefined): string {
   if (clean) return clean;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? UNKNOWN_LOCAL_TEXT : date.toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function formatPublicTime(value: string | null | undefined): string {
+  if (!value) return '时间未提供';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '时间未提供' : `${date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}（北京时间）`;
+}
+
+function sourceRefreshStopReason(refresh: { reason?: string | null; previousStopAt?: string }): string {
+  if (refresh.previousStopAt) return '沿用此前停止记录，本轮未请求来源；旧数据保留';
+  const reason = refresh.reason || '';
+  const code = reason.match(/\bHTTP\s+(\d{3})\b/i)?.[1];
+  if (code?.startsWith('3')) return `HTTP ${code} 跳转，已停止对应采集路径`;
+  if (code === '403' || code === '412') return `HTTP ${code} 访问拒绝，已停止对应采集路径`;
+  if (/redirect|跳转/i.test(reason)) return '访问跳转，已停止对应采集路径';
+  return code ? `HTTP ${code}，本轮未更新，旧数据保留` : '本轮未更新，保留旧数据；具体原因见采集范围';
 }
 
 function currentRecords(): DesktopRecord[] {
@@ -607,9 +661,14 @@ function environmentDisplay(record: DesktopRecord): string {
   return `有服务端运行线索（${record.environment.label}）`;
 }
 
-function renderPersonalCardActions(record: DesktopRecord, index: number): string {
+function renderRecordDetailsButton(record: DesktopRecord, index: number): string {
+  return `<button type="button" class="personal-favorite-button record-detail-button" data-action="select-record" data-index="${index}" aria-label="查看${esc(record.title)}详情">查看详情</button>`;
+}
+
+function renderPersonalCardActions(record: DesktopRecord, index: number, includeDetails = true): string {
+  const details = includeDetails ? renderRecordDetailsButton(record, index) : '';
   if (!isPersonalWritable(record)) {
-    return `<div class="personal-card-actions personal-unavailable" title="${esc(personalUnavailableReason(record))}"><span>个人标记不可保存：缺少稳定来源 ID</span></div>`;
+    return `<div class="personal-card-actions personal-unavailable" title="${esc(personalUnavailableReason(record))}">${details}<span>个人标记不可保存：缺少稳定来源 ID</span></div>`;
   }
   const status = personalStatus(record);
   const labels = [
@@ -622,7 +681,7 @@ function renderPersonalCardActions(record: DesktopRecord, index: number): string
   const title = record.platform === 'bilibili'
     ? (status.favorite ? '取消当前视频收藏' : '收藏当前视频')
     : (status.favorite ? '取消收藏' : '加入收藏');
-  return `<div class="personal-card-actions"><button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${index}" ${personalTargetAttributes(record)} aria-pressed="${status.favorite}" title="${title}">${label}</button>${status.rating ? `<span class="personal-rating-mini">★ ${status.rating}/5</span>` : ''}${labels}</div>`;
+  return `<div class="personal-card-actions">${details}<button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${index}" ${personalTargetAttributes(record)} aria-pressed="${status.favorite}" title="${title}">${label}</button>${status.rating ? `<span class="personal-rating-mini">★ ${status.rating}/5</span>` : ''}${labels}</div>`;
 }
 
 function renderPersonalCardZone(content: string, className = ''): string {
@@ -639,7 +698,7 @@ function renderPersonalDetail(record: DesktopRecord): string {
   const currentVideoLabels = record.platform === 'bilibili'
     ? { favorite: status.favorite ? '★ 已收藏当前视频' : '☆ 收藏当前视频', wantToPlay: status.wantToPlay ? '取消想玩当前视频' : '加入想玩（保存视频线索）' }
     : { favorite: status.favorite ? '★ 已收藏' : '☆ 收藏', wantToPlay: '🎯 想玩' };
-  return `<div class="detail-section personal-detail-section"><div class="personal-detail-heading"><div><h3>我的整合包库</h3><span class="detail-submeta">仅保存在本机，不会写入平台采集数据</span></div><button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${state.records.indexOf(record)}" ${personalTargetAttributes(record)} aria-pressed="${status.favorite}">${currentVideoLabels.favorite}</button></div><div class="personal-flag-row"><button type="button" class="personal-flag-button ${status.wantToPlay ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="wantToPlay" ${personalTargetAttributes(record)} aria-pressed="${status.wantToPlay}">${currentVideoLabels.wantToPlay}</button><button type="button" class="personal-flag-button ${status.played ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="played" ${personalTargetAttributes(record)} aria-pressed="${status.played}">✓ 玩过</button></div><div class="personal-rating-row"><span>个人评分</span><div class="personal-rating-buttons">${ratingButtons.replaceAll('data-action="set-personal-rating"', `data-action="set-personal-rating" ${personalTargetAttributes(record)}`)}<button type="button" class="personal-rating-clear" data-action="set-personal-rating" data-rating="0" ${personalTargetAttributes(record)}>清除</button></div></div><label class="personal-note-label" for="personal-note">个人备注</label><textarea id="personal-note" class="personal-note-input" data-personal-note ${personalTargetAttributes(record)} maxlength="20000" placeholder="写下安装、游玩或更新备注…">${esc(status.note)}</textarea><span class="personal-note-hint">停止输入后自动保存</span></div>`;
+  return `<div class="detail-section personal-detail-section"><div class="personal-detail-heading"><div><h3>我的整合包库</h3><span class="detail-submeta">仅保存在本机，不会写入平台采集数据</span></div><button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${state.records.indexOf(record)}" ${personalTargetAttributes(record)} aria-pressed="${status.favorite}">${currentVideoLabels.favorite}</button></div><div class="personal-flag-row"><button type="button" class="personal-flag-button ${status.wantToPlay ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="wantToPlay" ${personalTargetAttributes(record)} aria-pressed="${status.wantToPlay}">${currentVideoLabels.wantToPlay}</button><button type="button" class="personal-flag-button ${status.played ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="played" ${personalTargetAttributes(record)} aria-pressed="${status.played}">✓ 玩过</button></div><div class="personal-rating-row"><span>个人评分</span><div class="personal-rating-buttons">${ratingButtons.replaceAll('data-action="set-personal-rating"', `data-action="set-personal-rating" ${personalTargetAttributes(record)}`)}<button type="button" class="personal-rating-clear" data-action="set-personal-rating" data-rating="0" ${personalTargetAttributes(record)}>清除</button></div></div><label class="personal-note-label" for="personal-note">个人备注</label><textarea id="personal-note" class="personal-note-input" data-personal-note ${personalTargetAttributes(record)} maxlength="20000" placeholder="写下安装、游玩或更新备注…">${esc(status.note)}</textarea><span class="personal-note-hint">${document.documentElement.dataset.staticSite === 'true' ? '输入即保存在此浏览器' : '停止输入后自动保存'}</span></div>`;
 }
 
 function existingSearchText(record: DesktopRecord): string {
@@ -864,13 +923,16 @@ function renderBilibiliGroupPersonalActions(group: BiliGroup): string {
   const latest = group.items[0];
   const record = latest ? recordForBilibiliPack(latest) : null;
   if (!record || !latest) return '';
+  const index = state.records.indexOf(record);
+  const details = (index >= 0 ? renderRecordDetailsButton(record, index) : '')
+    + (isStaticSite() ? renderRecordWindowAction(record, 'card-inapp-btn') : '');
   const status = personalStatus(record);
   const target = personalTargetAttributes(record);
   const targetLabel = `<span class="bili-personal-target" title="${esc(record.title)}">保存至当前视频 · ${esc(record.sourceId)}</span>`;
   if (!isPersonalWritable(record)) {
-    return `<div class="bili-personal-actions personal-unavailable">${targetLabel}<span>${esc(personalUnavailableReason(record))}</span></div>`;
+    return `<div class="bili-personal-actions personal-unavailable">${details}${targetLabel}<span>${esc(personalUnavailableReason(record))}</span></div>`;
   }
-  return `<div class="bili-personal-actions">${targetLabel}<button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" ${target} aria-pressed="${status.favorite}">${status.favorite ? '★ 取消收藏当前视频' : '☆ 收藏当前视频'}</button><button type="button" class="personal-flag-button ${status.wantToPlay ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="wantToPlay" ${target} aria-pressed="${status.wantToPlay}">${status.wantToPlay ? '取消想玩当前视频' : '加入想玩（保存视频线索）'}</button></div>`;
+  return `<div class="bili-personal-actions">${details}${targetLabel}<button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" ${target} aria-pressed="${status.favorite}">${status.favorite ? '★ 取消收藏当前视频' : '☆ 收藏当前视频'}</button><button type="button" class="personal-flag-button ${status.wantToPlay ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="wantToPlay" ${target} aria-pressed="${status.wantToPlay}">${status.wantToPlay ? '取消想玩当前视频' : '加入想玩（保存视频线索）'}</button></div>`;
 }
 
 function renderBilibiliGroupPersonalSummary(group: BiliGroup): string {
@@ -1375,6 +1437,7 @@ function recordMetricItems(record: DesktopRecord): DesktopMetricItem[] {
 }
 
 function renderQuickDownloadLinks(record: DesktopRecord): string {
+  if (isStaticSite()) return '';
   const links = rawRecords(record, ['download_links']).filter((item) => safeExternalUrl(item.url));
   if (!links.length) return '';
   const visible = links.slice(0, 3);
@@ -1392,26 +1455,26 @@ function renderRecord(record: DesktopRecord, index: number): string {
     <button type="button" class="pack-card-cover image-preview-trigger" data-action="open-image" data-image-url="${esc(cover.source)}" data-image-title="${esc(record.title)}封面" aria-label="查看${esc(record.title)}封面">
       ${cover.image}${cover.status}
     </button>
-    ${packVer ? `<span class="cover-pack-ver-badge" title="整合包版本：${esc(packVer)}">🏷️ v${esc(packVer.replace(/^[vV]/, ''))}</span>` : ''}
+    ${!isStaticSite() && packVer ? `<span class="cover-pack-ver-badge" title="整合包版本：${esc(packVer)}">🏷️ v${esc(packVer.replace(/^[vV]/, ''))}</span>` : ''}
     ${cover.retryButton}
   </div>`;
   const metrics = recordMetricItems(record);
   const association = findCrossPlatformAssociations(record, state.records, state.biliGroups);
-  const linkageHtml = renderCardLinkageCapsule(association);
+  const linkageHtml = renderCardLinkageCapsule(association, record);
   const displayTime = formatDisplayDate(record.updatedAt) || '暂无更新时间';
 
   return `<article class="pack-card platform-pack-card v2-pack-card" data-action="select-record" data-index="${index}" data-search-text="${esc(searchContractText)}">
     ${coverMarkup}
     <div class="card-top">
       <span class="platform-badge">${platformIcon(record.platform)} ${config.name}</span>
-      ${packVer ? `<span class="card-pack-ver-pill" title="整合包版本：${esc(packVer)}">🏷️ v${esc(packVer.replace(/^[vV]/, ''))}</span>` : ''}
+      ${packVer ? `<span class="card-pack-ver-pill" title="整合包版本：${esc(packVer)}">整合包 v${esc(packVer.replace(/^[vV]/, ''))}</span>` : ''}
       <span class="card-time" title="最后更新时间：${esc(displayTime)}">🕒 ${esc(displayTime)}</span>
     </div>
     <h3 class="platform-card-title">${esc(record.title)}</h3>
-    <p class="author platform-card-meta">${esc(record.author || '未知作者')}</p>
-    <p class="summary platform-card-summary">${textOrUnknown(record.summary)}</p>
+    ${record.author && !record.author.includes('未知') ? `<p class="author platform-card-meta">${esc(record.author)}</p>` : ''}
+    ${record.summary && !record.summary.includes('本地数据未提供') && record.summary !== '未知' ? `<p class="summary platform-card-summary">${esc(record.summary)}</p>` : ''}
     <div class="chips platform-card-tags">
-      ${record.versions.slice(0, 4).map((value, versionIndex) => `<span>${versionIndex === 0 ? 'MC ' : ''}${esc(value)}</span>`).join('')}
+      ${record.versions.slice(0, 4).map((value) => `<span>MC ${esc(value)}</span>`).join('')}
       ${record.loaders.slice(0, 3).map((value) => `<span>${esc(value)}</span>`).join('')}
       ${!record.versions.length && !record.loaders.length ? '<span class="muted-chip">兼容信息未知</span>' : ''}
     </div>
@@ -1421,11 +1484,11 @@ function renderRecord(record: DesktopRecord, index: number): string {
     ).join('')}</div>` : ''}
     ${linkageHtml}
     ${renderQuickDownloadLinks(record)}
-    ${renderPersonalCardZone(renderPersonalCardActions(record, index), 'pack-card-personal-zone')}
+    ${isStaticSite() ? '' : renderPersonalCardZone(renderPersonalCardActions(record, index), 'pack-card-personal-zone')}
     <div class="card-footer platform-card-actions">
-      <span class="card-footer-view-link">查看详情与生态 ➔</span>
-      <div class="card-footer-right-actions" onclick="event.stopPropagation()">
-        ${safeExternalUrl(record.url) ? `<button type="button" class="card-inapp-btn" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(record.url)}" data-title="${esc(record.title)}" title="在软件内小窗浏览">🪟 小窗</button>` : ''}
+      ${isStaticSite() ? `<button type="button" class="card-detail-primary" data-action="select-record" data-index="${index}" aria-label="查看${esc(record.title)}详情">查看详情</button><div class="card-personal-inline">${renderPersonalCardActions(record, index, false)}</div>` : '<span class="card-footer-view-link">查看详情与生态 ➔</span>'}
+      <div class="card-footer-right-actions card-secondary-actions" onclick="event.stopPropagation()">
+        ${renderRecordWindowAction(record, 'card-inapp-btn')}
         <button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">
           ${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比
         </button>
@@ -1434,10 +1497,10 @@ function renderRecord(record: DesktopRecord, index: number): string {
   </article>`;
 }
 
-function renderRecordWindowAction(record: DesktopRecord): string {
+function renderRecordWindowAction(record: DesktopRecord, className = 'mcmod-comment-link inapp-compact-link'): string {
   const url = safeExternalUrl(record.url) || (record.platform === 'mcmod' ? `https://www.mcmod.cn/modpack/${encodeURIComponent(record.sourceId)}.html` : '');
   if (!url) return '';
-  return `<button type="button" class="mcmod-comment-link inapp-compact-link" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(url)}" data-title="${esc(record.title)}">🪟 小窗</button>`;
+  return `<button type="button" class="${esc(className)}" data-action="open-in-app-window" data-card-window="true" data-record-id="${esc(record.id)}" data-url="${esc(url)}" data-title="${esc(record.title)}" title="小窗浏览 · 左侧资料与版本 · 右侧个人区">🪟 小窗打开</button>`;
 }
 
 function renderCompactRecord(record: DesktopRecord, index: number): string {
@@ -1449,7 +1512,7 @@ function renderCompactRecord(record: DesktopRecord, index: number): string {
   const authorText = record.author && record.author !== '未知' ? esc(record.author) : '';
   const packVer = record.packVersion && record.packVersion.trim() && record.packVersion !== '未知' && !record.packVersion.includes('本地数据未提供') ? record.packVersion.trim() : null;
   const association = findCrossPlatformAssociations(record, state.records, state.biliGroups);
-  const linkageHtml = renderCardLinkageCapsule(association);
+  const linkageHtml = renderCardLinkageCapsule(association, record);
   const displayTime = formatDisplayDate(record.updatedAt) || '暂无更新时间';
   let summaryText = record.summary ? record.summary.trim() : '';
   if (!summaryText || summaryText === '未知' || summaryText.includes('本地数据未提供')) {
@@ -1574,7 +1637,7 @@ function renderMcmodFullModList(record: DesktopRecord, context: 'table' | 'windo
     <div class="mcmod-full-mod-toolbar"><input type="search" class="js-mcmod-mod-search" placeholder="搜索 ${info.names.length} 款模组…" aria-label="搜索已收录模组" autocomplete="off"><span data-mod-match-count>显示全部 ${info.names.length} 款</span></div>
     <div class="mcmod-full-mod-items" aria-label="完整已收录模组清单">${orderedGroups.map(([category, mods]) => `<section class="mcmod-mod-group"><h4>${esc(category)} <span>${mods.length}</span></h4><div class="mcmod-mod-group-grid">${mods.map(({ name, index, url }) => {
       const label = `<span class="mcmod-mod-index">${index + 1}</span><span class="mcmod-mod-name">${esc(name)}</span>`;
-      if (context === 'window') return `<button type="button" class="mcmod-full-mod-item js-focus-in-app-mod" data-mod-name="${esc(name.toLocaleLowerCase())}" data-mod-raw-name="${esc(name)}" title="在中间网页定位 ${esc(name)}">${label}<span class="mcmod-mod-locate">定位 ↘</span></button>`;
+      if (context === 'window' && !isStaticSite()) return `<button type="button" class="mcmod-full-mod-item js-focus-in-app-mod" data-mod-name="${esc(name.toLocaleLowerCase())}" data-mod-raw-name="${esc(name)}" title="在中间网页定位 ${esc(name)}">${label}<span class="mcmod-mod-locate">定位 ↘</span></button>`;
       return url ? `<a class="mcmod-full-mod-item" href="${esc(url)}" target="_blank" rel="noreferrer" data-mod-name="${esc(name.toLocaleLowerCase())}">${label}<span aria-hidden="true">↗</span></a>` : `<span class="mcmod-full-mod-item" data-mod-name="${esc(name.toLocaleLowerCase())}">${label}</span>`;
     }).join('')}</div></section>`).join('')}</div>
   </div>`;
@@ -1690,22 +1753,23 @@ function renderBilibiliGroupedWorkspace(): string {
     const latest = group.items[0];
     const index = latest ? (recordIndexBySourceId.get(latest.bvid) ?? -1) : -1;
     const personalZone = renderPersonalCardZone(`${renderBilibiliGroupPersonalActions(group)}${renderBilibiliGroupPersonalSummary(group)}`, 'is-bilibili');
-    return `<article class="desktop-rich-card" data-action="select-record" data-index="${index}" data-bili-group-key="${esc(group.key)}">${renderBiliGroupedCard(group)}${personalZone}</article>`;
+    const record = state.records[index];
+    return `<article class="desktop-rich-card" data-action="select-record" data-index="${index}" data-bili-group-key="${esc(group.key)}">${renderBiliGroupedCard(group, { staticMode: isStaticSite() })}${record && isStaticSite() ? renderBiliDecision(record) + renderCardLinkageCapsule(findCrossPlatformAssociations(record, state.records, state.biliGroups), record) : ''}${personalZone}</article>`;
   }).join('');
   const noteCount = visibleGroups.length < groups.length
     ? `已显示 ${formatCount(visibleGroups.length)} / ${formatCount(groups.length)} 款独立整合包 · 关联视频、统计、网盘与历史版本均保留`
     : `${formatCount(groups.length)} 款独立整合包 · 关联视频、统计、网盘与历史版本均保留`;
-  return `<div class="bili-legacy-mode-note"><strong>✨ 同名整合包智能聚合</strong><span>${noteCount}</span></div><div class="bili-cards-grid desktop-bili-grid">${cards}</div>`;
+  return `<div class="bili-legacy-mode-note"><strong>同名视频聚合</strong><span>${isStaticSite() ? '按名称整理视频线索；个人标记保存至具体视频，新视频不代表整合包新版本。' : noteCount}</span></div><div class="bili-cards-grid desktop-bili-grid">${cards}</div>`;
 }
 
 function renderBilibiliFlatWorkspace(records: DesktopRecord[]): string {
   if (!records.length) return '<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的视频</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>';
-  const cards = records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderBiliFlatCard(toBilibiliPack(record))}${renderPersonalCardZone(renderPersonalCardActions(record, index), 'is-bilibili')}</article>`).join('');
+  const cards = records.map((record, index) => `<article class="desktop-rich-card" data-action="select-record" data-index="${index}">${renderBiliFlatCard(toBilibiliPack(record), { staticMode: isStaticSite() })}${isStaticSite() ? renderBiliDecision(record) + renderCardLinkageCapsule(findCrossPlatformAssociations(record, state.records, state.biliGroups), record) : ''}${renderPersonalCardZone(renderPersonalCardActions(record, index) + (isStaticSite() ? renderRecordWindowAction(record, 'card-inapp-btn') : ''), 'is-bilibili')}</article>`).join('');
   return `<div class="bili-legacy-mode-note"><strong>视频平铺</strong><span>当前展示 ${formatCount(records.length)} / ${formatCount(state.total)} 条视频，可继续加载</span></div><div class="bili-cards-grid desktop-bili-grid">${cards}</div>`;
 }
 
 function platformIcon(platform: Platform): string {
-  const src = PLATFORM_SITE_ICONS[platform];
+  const src = isStaticSite() ? STATIC_PLATFORM_ICONS[platform] : PLATFORM_SITE_ICONS[platform];
   const short = platform === 'mcmod' ? 'MC' : platform === 'bilibili' ? 'B' : platform === 'bbsmc' ? 'BBS' : platform === 'xyebbs' ? 'XYE' : platform === 'modrinth' ? 'MR' : 'CF';
   if (!src) return `<span class="platform-icon-wrap"><span class="platform-icon-fallback">${short}</span></span>`;
   return `<span class="platform-icon-wrap"><img class="platform-site-icon" src="${esc(src)}" alt="${esc(PLATFORM_CONFIGS[platform].name)}图标" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true;this.nextElementSibling.hidden=false;"><span class="platform-icon-fallback" hidden>${short}</span></span>`;
@@ -1721,21 +1785,48 @@ function renderLegacyShowcaseCard(platform: Platform): string {
   const records = state.records.filter((record) => record.platform === platform);
   const samples = records.slice(0, 3);
   const count = platformState?.count ?? 0;
-  const updateTime = platformState?.available && state.data?.updatedAt ? `快照更新时间：${formatTime(state.data.updatedAt)}` : '等待本地快照';
+  const platformTime = (state.data as (DesktopDataState & { sourceTimes?: Record<string, string> }) | null)?.sourceTimes?.[platform];
+  const refresh = (state.data as (DesktopDataState & { sourceRefresh?: Record<string, { status: string; coverage: string; new: number; updated: number; reason?: string | null; previousStopAt?: string; knownUnavailableCount?: number; unverifiedCount?: number; htmlRefresh?: { observedCount: number; newCount: number; updatedCount: number; observedAt: string; newerPublicationCount?: number } }> }) | null)?.sourceRefresh?.[platform];
+  const recoveredHistoricalData = refresh?.status === 'recovered-existing-local-snapshot';
+  const htmlRefresh = refresh?.htmlRefresh;
+  const refreshLabel = recoveredHistoricalData ? htmlRefresh ? '恢复9月28日本地较新数据；官方网页分批局部更新' : '恢复9月28日本地较新数据，本轮未在线刷新' : refresh?.status === 'retained-old' ? '本轮未更新，保留旧完整数据' : refresh?.status === 'partial' ? '本轮局部刷新' : refresh ? '本轮增量范围已验证' : '';
+  const refreshCounts = refresh && refresh.status !== 'retained-old' ? `；新增 ${refresh.new}，展示字段更新 ${refresh.updated}` : '';
+  const updateTime = isStaticSite() ? `${refreshLabel ? refreshLabel + '；' : ''}${recoveredHistoricalData ? '历史最后检查时间' : refresh && refresh.status !== 'retained-old' ? '增量核验时间' : '源文件更新时间'}：${formatPublicTime(platformTime)}${refreshCounts}${recoveredHistoricalData ? `；${refresh?.knownUnavailableCount || 0}条来源确认不可用，${refresh?.unverifiedCount || 0}条历史未成功检查` : ''}${htmlRefresh ? `；累计HTML分批核验 ${htmlRefresh.observedCount} 条：新增 ${htmlRefresh.newCount} 条（历史漏收 ${htmlRefresh.newCount - (htmlRefresh.newerPublicationCount || 0)}、近期发布介绍视频 ${htmlRefresh.newerPublicationCount || 0}），更新 ${htmlRefresh.updatedCount} 条旧记录；最新核验时间 ${formatPublicTime(htmlRefresh.observedAt)}${htmlRefresh.newerPublicationCount ? "；包首次发布及版本更新未核验" : ""}` : ''}` : platformState?.available && state.data?.updatedAt ? `快照更新时间：${formatTime(state.data.updatedAt)}` : '等待本地快照';
   const tags = [...new Set(samples.flatMap((record) => [...record.versions, ...record.loaders, ...record.categories]).filter(Boolean))].slice(0, 5);
   const sampleHtml = samples.length
     ? samples.map((record, index) => {
       const recordIndex = state.records.indexOf(record);
       return `<button type="button" class="featured-item" data-action="select-record" data-index="${recordIndex}" title="打开 ${esc(record.title)} 详情"><span class="featured-rank">${index + 1}</span><span class="featured-name">${esc(record.title)}</span><span class="featured-meta">${esc(record.author || '作者未知')}</span></button>`;
     }).join('')
-    : '<div class="showcase-empty">当前筛选页没有可展示记录。</div>';
+    : isStaticSite() && (isStaticOverview() || state.loading)
+      ? `<div class="showcase-empty"><span data-pages-source-state="${platform}">${esc(pagesSourceLoadLabel(platform))}</span>。打开此来源后展示代表记录。</div>`
+      : '<div class="showcase-empty">当前筛选页没有可展示记录。</div>';
   const tagHtml = tags.length
     ? tags.map((tag) => `<button type="button" class="showcase-tag-chip" data-action="quick-search" data-query="${esc(tag)}">${esc(tag)}</button>`).join('')
-    : '<span class="showcase-tag-chip muted-chip">暂无版本或标签</span>';
+    : `<span class="showcase-tag-chip muted-chip">${isStaticSite() && (isStaticOverview() || state.loading) ? '加载记录后显示版本和标签' : '暂无版本或标签'}</span>`;
+  if (isStaticSite()) {
+    const isRetained = refresh?.status === 'retained-old';
+    const isPartial = !isRetained && (refresh?.status === 'partial' || Boolean(htmlRefresh));
+    const isVerified = refresh?.status === 'success';
+    const statusClass = isVerified ? 'is-verified' : isPartial ? 'is-limited' : 'is-retained';
+    const statusLabel = isVerified ? '增量已核验' : isPartial ? '局部核验' : '保留历史数据';
+    const scope = isRetained
+      ? sourceRefreshStopReason(refresh!)
+      : refresh ? `本轮新增 ${formatCount(refresh.new)} 条 · 元数据更新 ${formatCount(refresh.updated)} 条` : '尚未进行本轮在线核验';
+    const timeLabel = isPartial ? '最近局部核验' : isVerified ? '增量数据时间' : '历史数据时间';
+    const details = `${updateTime}。${refresh?.reason ? `采集原因：${refresh.reason}。` : ''}${platform === 'bilibili' ? isRetained ? '本轮未请求B站；累计HTML分批核验属于此前的历史观察，API与搜索仍受限。' : '本轮仅覆盖已观察的视频网页及其官方合集候选；API与搜索受限，新视频不代表包的新版本。' : '此状态仅指已验证的增量窗口，不表示全站重新抓取。'}`;
+    return `<article class="platform-showcase-card pages-source-card" style="--card-accent:${PLATFORM_ACCENTS[platform]}; --card-glow:${PLATFORM_ACCENTS[platform]}33;">
+      <div class="showcase-header"><div class="showcase-icon" style="background:${PLATFORM_ACCENTS[platform]}22; color:${PLATFORM_ACCENTS[platform]};">${platformIcon(platform)}</div><div><h3 class="showcase-title">${esc(config.name)}</h3><span class="showcase-badge">${esc(PLATFORM_TAGLINES[platform])}</span></div></div>
+      <div class="showcase-metrics"><div><div class="smetric-val">${formatCount(count)}</div><div class="smetric-lbl">公开记录</div></div><div><span class="pages-source-status ${statusClass}">${esc(statusLabel)}</span><div class="smetric-lbl">核验状态</div></div></div>
+      <p class="showcase-source-summary">${esc(scope)}<br>${timeLabel}：${esc(formatPublicTime(platformTime))}</p>
+      <details class="showcase-source-details"><summary>查看采集范围与限制</summary><p>${esc(details)}</p></details>
+      <button type="button" class="showcase-btn" data-action="set-platform" data-platform="${platform}">浏览${esc(config.name)} ↗</button>
+    </article>`;
+  }
   return `<article class="platform-showcase-card" style="--card-accent:${PLATFORM_ACCENTS[platform]}; --card-glow:${PLATFORM_ACCENTS[platform]}33;">
     <div class="showcase-header"><div class="showcase-icon" style="background:${PLATFORM_ACCENTS[platform]}22; color:${PLATFORM_ACCENTS[platform]};">${platformIcon(platform)}</div><div><h3 class="showcase-title">${esc(config.name)}数据看板</h3><span class="showcase-badge" style="background:${PLATFORM_ACCENTS[platform]}22; color:${PLATFORM_ACCENTS[platform]};">${esc(PLATFORM_TAGLINES[platform])}</span></div></div>
-    <div class="showcase-metrics"><div><div class="smetric-val">${formatCount(count)}</div><div class="smetric-lbl">当前快照记录</div></div><div><div class="smetric-val">${records.length ? formatCount(records.length) : '—'}</div><div class="smetric-lbl">当前页可浏览</div></div><div><div class="smetric-val">${platformState?.available ? '已载入' : '未载入'}</div><div class="smetric-lbl">本地状态</div></div></div>
-    <div class="showcase-featured-box"><div class="showcase-box-header"><span>📌 当前快照代表</span><span>点击直达</span></div>${sampleHtml}</div>
+    <div class="showcase-metrics"><div><div class="smetric-val">${formatCount(count)}</div><div class="smetric-lbl">${isStaticSite() ? platform === 'bilibili' ? '视频存档（含待核验）' : '公开采集记录' : '当前快照记录'}</div></div><div><div class="smetric-val">${records.length ? formatCount(records.length) : '—'}</div><div class="smetric-lbl">当前页可浏览</div></div><div><div class="smetric-val">${isStaticSite() ? `<span data-pages-source-state="${platform}">${esc(pagesSourceLoadLabel(platform))}</span>` : platformState?.available ? '已载入' : '未载入'}</div><div class="smetric-lbl">${isStaticSite() ? '记录加载状态' : '本地状态'}</div></div></div>
+    <div class="showcase-featured-box"><div class="showcase-box-header"><span>📌 ${isStaticSite() ? '公开记录代表' : '当前快照代表'}</span><span>点击直达</span></div>${sampleHtml}</div>
     <div class="showcase-tags-box">${tagHtml}</div>
     <div class="showcase-source-meta">${esc(updateTime)}</div>
     <button type="button" class="showcase-btn" style="background:linear-gradient(135deg, ${PLATFORM_ACCENTS[platform]}, ${PLATFORM_ACCENTS[platform]}cc);" data-action="set-platform" data-platform="${platform}">浏览全部 ${formatCount(count)} 条${esc(config.name)}记录</button>
@@ -1747,7 +1838,7 @@ function renderCrossSearch(): string {
   const versionChips = ['1.20.1', '1.16.5', '1.12.2', '1.7.10', '1.21', '1.19.2'].map((value) => `<button type="button" class="hot-chip chip-ver" data-action="quick-search" data-query="${value}">${value}</button>`).join('');
   const themeChips = ['机械动力', '拔刀剑', '宝可梦', '科技', '魔法', 'Fabulously Optimized', '空岛', 'RLCraft'].map((value) => `<button type="button" class="hot-chip chip-theme" data-action="quick-search" data-query="${esc(value)}">${esc(value)}</button>`).join('');
   return `<section class="cross-search-section" aria-labelledby="cross-search-title">
-    <div class="csearch-top-row"><div><h2 id="cross-search-title" class="csearch-heading">跨平台检索总览</h2><p class="csearch-sub">每个平台独立在完整本地数据上搜索、筛选并按平台内规则排序；每轮每个平台最多 12 条。字段覆盖因平台而异，MC百科额外支持模组名检索。</p></div><div class="csearch-platforms-hint">${platformPills}</div></div>
+    <div class="csearch-top-row"><div><h2 id="cross-search-title" class="csearch-heading">搜索整合包</h2><p class="csearch-sub">${isStaticSite() ? '在六个来源已收录的公开记录中搜索；每轮每个来源最多12条。MC百科支持模组名检索，收藏和备注保存在当前浏览器。' : '每个平台独立在完整本地数据上搜索、筛选并按平台内规则排序；每轮每个平台最多12条。MC百科支持模组名检索。'}</p></div>${isStaticSite() ? '' : `<div class="csearch-platforms-hint">${platformPills}</div>`}</div>
     <div class="cross-search-input-wrap"><span class="cross-search-icon">🔍</span><input id="pack-search" class="cross-search-input js-pack-search" value="${esc(state.query)}" placeholder="${esc(getDesktopSearchPlaceholder('all'))}" autocomplete="off"><div class="cross-search-kbd"><kbd>Ctrl</kbd><kbd>K</kbd></div></div>
     <div class="cross-chips-deck"><div class="chip-deck-row"><span class="deck-row-lbl">🎮 核心版本：</span><div class="deck-chips-group">${versionChips}</div></div><div class="chip-deck-row"><span class="deck-row-lbl">🔥 常用关键词：</span><div class="deck-chips-group">${themeChips}</div></div></div>
     ${renderCrossResults()}
@@ -1755,7 +1846,10 @@ function renderCrossSearch(): string {
 }
 
 function renderCrossResults(): string {
+  if (isStaticSite()) return '';
   if (!state.query.trim()) return '';
+  if (isStaticSite() && state.loading) return `<div class="loading-state pages-loading-progress" role="status">${esc(pagesLoadingMessage())}</div>`;
+  if (isStaticSite() && state.recordsError && !state.records.length) return '';
   const groups = ALL_PLATFORMS.map((platform) => {
     const records = state.records.filter((record) => record.platform === platform).slice(0, 4);
     if (!records.length) return '';
@@ -1844,7 +1938,7 @@ function auditRows(audit: DesktopAuditResult): string {
       </div>
       <div class="audit-row-actions">
         ${matchedRecord ? `<button type="button" class="button primary small" data-action="audit-select-record" data-record-id="${esc(matchedRecord.id)}">📦 详情抽屉</button>` : ''}
-        ${safeUrl ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-url="${esc(safeUrl)}" data-title="${esc(title)}">🪟 小窗</button><a class="button ghost small" href="${esc(safeUrl)}" target="_blank" rel="noreferrer">原站 ↗</a>` : ''}
+        ${safeUrl ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-url="${esc(safeUrl)}" data-title="${esc(title)}">${isStaticSite() ? '原站 ↗' : '🪟 小窗'}</button><a class="button ghost small" href="${esc(safeUrl)}" target="_blank" rel="noreferrer">原站 ↗</a>` : ''}
       </div>
     </article>`;
   }).join('');
@@ -1952,8 +2046,8 @@ function renderComparePanel(): string {
         <strong class="compare-pack-title" title="${esc(record.title)}">${esc(record.title)}</strong>
         <div class="compare-pack-actions">
           <button type="button" class="button primary small" data-action="compare-select-record" data-record-id="${esc(record.id)}" title="打开详情抽屉">📋 详情</button>
-          ${safeExternalUrl(record.url) ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(record.url)}" data-title="${esc(record.title)}">🪟 小窗</button>` : ''}
-          ${isDirectDownloadable ? `<button type="button" class="button secondary small" data-action="copy-launcher-link" data-record-id="${esc(record.id)}" title="复制启动器直链">🚀 直通</button>` : ''}
+          ${safeExternalUrl(record.url) ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(record.url)}" data-title="${esc(record.title)}">${isStaticSite() ? '原站 ↗' : '🪟 小窗'}</button>` : ''}
+          ${!isStaticSite() && isDirectDownloadable ? `<button type="button" class="button secondary small" data-action="copy-launcher-link" data-record-id="${esc(record.id)}" title="复制启动器直链">🚀 直通</button>` : ''}
         </div>
       </div>`;
     }).join('')}
@@ -2000,7 +2094,7 @@ function renderComparePanel(): string {
   </div>`;
 
   const linkageRow = `<div class="compare-row">
-    <span class="compare-field-label">🔗 全网多端联动</span>
+    <span class="compare-field-label">其他来源线索</span>
     ${entries.map((record) => {
       const assoc = findCrossPlatformAssociations(record, state.records, state.biliGroups);
       if (assoc.totalMatches === 0) return `<span style="color:var(--text-muted);font-size:12px;">暂无其他端同名关联</span>`;
@@ -2036,7 +2130,7 @@ function renderComparePanel(): string {
 function renderPlatformHero(platform: Platform): string {
   const config = PLATFORM_CONFIGS[platform];
   const count = state.data?.platforms[platform]?.count ?? 0;
-  return `<section class="channel-hero ${platform}-channel-hero"><div class="channel-hero-left"><span class="channel-badge-tag">${platformIcon(platform)} ${esc(config.name)}</span><div class="channel-title">${esc(config.name)}资料看板</div><div class="channel-desc">${esc(PLATFORM_TAGLINES[platform])}。详情页保留版本、模组、评论和原始来源入口。</div></div><div class="channel-quick-stats"><div class="cstat-item"><span class="cs-num">${formatCount(count)}</span><span class="cs-lbl">当前快照记录</span></div><div class="cstat-item"><span class="cs-num">${state.loading ? '…' : formatCount(state.total)}</span><span class="cs-lbl">当前结果总数</span></div></div></section>`;
+  return `<section class="channel-hero ${platform}-channel-hero"><div class="channel-hero-left"><span class="channel-badge-tag">${platformIcon(platform)} ${esc(config.name)}</span><div class="channel-title">${esc(config.name)}资料看板</div><div class="channel-desc">${esc(PLATFORM_TAGLINES[platform])}。详情页保留版本、模组、评论和原始来源入口。</div></div><div class="channel-quick-stats"><div class="cstat-item"><span class="cs-num">${formatCount(count)}</span><span class="cs-lbl">${isStaticSite() ? platform === 'bilibili' ? '视频存档（含待核验）' : '公开采集记录' : '当前快照记录'}</span></div>${state.loading || state.total !== count ? `<div class="cstat-item"><span class="cs-num">${state.loading ? '…' : formatCount(state.total)}</span><span class="cs-lbl">筛选结果</span></div>` : ''}</div></section>`;
 }
 
 function getCategoryOptionsWithCounts(): Array<{ value: string; count: number }> {
@@ -2141,7 +2235,7 @@ export function renderStickyFollowBar(): string {
     </div>
     <div class="sticky-toolbar-right">
       <div class="desktop-view-toggle" role="group" aria-label="结果视图">${viewButtons}</div>
-      ${activeResetHtml}
+      ${isStaticSite() ? '' : activeResetHtml}
       <span class="sticky-separator" aria-hidden="true"></span>
       ${followBtnHtml}
       ${topBtnHtml}
@@ -2389,11 +2483,15 @@ export function renderStickyFollowBar(): string {
     ? `<div class="sticky-bar-row sticky-active-filters-row">${activeFiltersHtml}</div>`
     : '';
 
+  const sourceFiltersHtml = `${state.platform === 'curseforge' ? '' : categoryRowHtml}${row3Html}${hotKeywordsHtml}`;
+  const sourceFilterCount = isCurseforge ? state.gameplayCategories.length : (state.category ? 1 : 0) + (isMcmod ? state.includedMods.length : 0);
+  const extraFiltersHtml = isStaticSite()
+    ? `<details class="pages-extra-filters" data-pages-extra-filters ${state.pagesExtraFiltersOpen ? 'open' : ''}><summary><span>${isMcmod ? '分类、模组与常用搜索' : isCurseforge ? '玩法与常用搜索' : '分类与常用搜索'}</span><span class="pages-filter-summary-hint">${sourceFilterCount ? `已选 ${sourceFilterCount} 项` : '按需展开'}</span></summary><div class="pages-extra-filters-body">${sourceFiltersHtml}</div></details>`
+    : `${hotKeywordsHtml}${state.platform === 'curseforge' ? '' : categoryRowHtml}${row3Html}`;
+
   return `<nav class="desktop-sticky-bar ${state.stickyFollowMode ? 'is-sticky' : ''}" aria-label="跟随屏幕快捷筛选与排序导航">
     ${toolbarRowHtml}
-    ${hotKeywordsHtml}
-    ${categoryRowHtml}
-    ${row3Html}
+    ${extraFiltersHtml}
     ${activeFiltersRowHtml}
   </nav>`;
 }
@@ -2468,7 +2566,8 @@ function renderUniversalTable(records: DesktopRecord[]): string {
     return state.v2SortDir === 'asc' ? ' ↑' : ' ↓';
   };
 
-  const rows = list.map((record, index) => {
+  const rows = list.map((record) => {
+    const recordIndex = state.records.indexOf(record);
     const originalCoverUrl = recordRealCoverUrl(record);
     const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
     const cover = renderCoverImage({ url: originalCoverUrl, fallback: fallbackUrl, alt: `${record.title}封面`, key: record.id, className: 'table-thumb' });
@@ -2487,7 +2586,7 @@ function renderUniversalTable(records: DesktopRecord[]): string {
       ? `<span class="table-linkage-pill" style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:10px;background:rgba(16,185,129,0.12);color:var(--status-success);font-size:11px;font-weight:600;" title="已关联 ${assoc.totalMatches} 处多端资源">🔗 ${assoc.totalMatches} 处</span>`
       : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
 
-    return `<tr data-action="select-record" data-index="${index}">
+    return `<tr data-action="select-record" data-index="${recordIndex}">
       <td style="width: 50px;"><div class="cover-media cover-media-table" data-cover-frame data-cover-state="${cover.state}">${cover.image}</div></td>
       <td class="table-title-cell">
         <div class="table-title-text" title="${esc(record.title)}">${esc(record.title)}</div>
@@ -2502,10 +2601,10 @@ function renderUniversalTable(records: DesktopRecord[]): string {
       <td>${linkageBrief}</td>
       <td>
         <div class="table-actions" onclick="event.stopPropagation()">
-          <button type="button" class="table-action-btn" data-action="select-record" data-index="${index}" title="展开侧边资料抽屉">📋 详情</button>
-          ${safeExternalUrl(record.url) ? `<button type="button" class="table-action-btn" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(record.url)}" data-title="${esc(record.title)}">🪟 小窗</button>` : ''}
-          <button type="button" class="table-action-btn compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button>
-          ${isDirectDownloadable ? `<button type="button" class="table-action-btn launcher-btn" data-action="copy-launcher-link" data-record-id="${esc(record.id)}" title="复制启动器直链 (PCL2/HMCL/Prism)">🚀 直通</button>` : ''}
+          <button type="button" class="table-action-btn" data-action="select-record" data-index="${recordIndex}" title="展开侧边资料抽屉">📋 详情</button>
+          ${renderRecordWindowAction(record, 'table-action-btn')}
+          <button type="button" class="table-action-btn compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${recordIndex}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button>
+          ${!isStaticSite() && isDirectDownloadable ? `<button type="button" class="table-action-btn launcher-btn" data-action="copy-launcher-link" data-record-id="${esc(record.id)}" title="复制启动器直链 (PCL2/HMCL/Prism)">🚀 直通</button>` : ''}
         </div>
       </td>
     </tr>`;
@@ -2523,7 +2622,7 @@ function renderUniversalTable(records: DesktopRecord[]): string {
           <th>Loader</th>
           <th class="sortable" data-action="sort-table-col" data-col="downloads">下载/热度${sortArrow('downloads')}</th>
           <th class="sortable" data-action="sort-table-col" data-col="updatedAt">更新时间${sortArrow('updatedAt')}</th>
-          <th>全网联动</th>
+          <th>其他来源</th>
           <th style="width: 190px;">快捷操作</th>
         </tr>
       </thead>
@@ -2563,7 +2662,7 @@ function renderV2BottomPagination(
       </div>`
     : `<div class="v2-progress-row">
         <div class="v2-progress-summary">
-          <span>已查看 <strong>${formatCount(displayedCount)}</strong> / <strong>${formatCount(totalCount)}</strong> 款整合包</span>
+          <span>已查看 <strong>${formatCount(displayedCount)}</strong> / <strong>${formatCount(totalCount)}</strong> ${state.platform === 'bilibili' ? (isBiliGrouped ? '组视频线索' : '条视频') : '款整合包'}</span>
           <span class="v2-progress-percent">(${percent}%)</span>
         </div>
         <div class="v2-progress-track" title="当前加载进度 ${percent}%">
@@ -2593,8 +2692,7 @@ function renderV2BottomPagination(
     </div>`;
   } else {
     actionsSection = `<div class="v2-all-loaded-banner">
-      <span>🎉 已加载当前全部 ${formatCount(totalCount)} 款整合包</span>
-      <button type="button" class="v2-back-to-top-btn" data-action="scroll-to-top" title="返回页面顶部"><span>↑ 回到顶部</span></button>
+      <span>🎉 已加载当前全部 ${formatCount(totalCount)} ${state.platform === 'bilibili' ? (isBiliGrouped ? '组视频线索' : '条视频') : '款整合包'}</span>
     </div>`;
   }
 
@@ -2632,7 +2730,21 @@ export function findCrossPlatformInsights(record: DesktopRecord): { biliCount: n
   return { biliCount, biliSampleUrl, mcmodUrl };
 }
 
+function renderBiliDecision(record: DesktopRecord): string {
+  const decision = classifyBilibiliContent(record);
+  return `<p class="pages-bili-decision ${decision.candidate ? 'is-candidate' : 'is-excluded'}"><strong>${esc(decision.label)}</strong><span>${esc(decision.reason)}</span></p>`;
+}
+
+function renderBiliContentControls(): string {
+  if (!isStaticSite() || state.platform !== 'bilibili') return '';
+  return `<section class="pages-bili-content-controls" aria-label="B站内容筛选"><div>${([['candidates','发布 / 介绍线索'],['excluded','已过滤 / 待核验'],['all','全部存档']] as const).map(([key,label]) => `<button type="button" class="button ${state.bilibiliContent === key ? 'primary' : 'secondary'} small" data-action="set-bili-content" data-content="${key}">${label}${state.bilibiliCounts.all ? ' ' + formatCount(state.bilibiliCounts[key]) : ''}</button>`).join('')}</div><p>需同时有MC身份、整合包对象和发布/介绍依据；实况、教程、单模组、材质光影、其他游戏及导流待核验记录另列。依据已有标题、简介与已观测标签，无法确认不新增入库；旧存档全部保留。视频新发不代表整合包新版本。</p></section>`;
+}
+
 function renderResultsWorkspace(selectedName: string): string {
+  if (isStaticOverview()) {
+    return `<p class="results-scope-hint" data-pages-summary-ready="${Boolean(state.data?.hasData)}">${state.data?.hasData ? '选择来源后加载对应记录；各来源的更新时间与采集范围分别列出。' : '正在读取公开目录…'}</p>`;
+  }
+
   const records = currentRecords();
   const data = state.data;
   const hasPlatformFilter = state.platform === 'mcmod' ? state.includedMods.length > 0 : state.platform === 'curseforge' ? state.gameplayCategories.length > 0 : false;
@@ -2650,8 +2762,9 @@ function renderResultsWorkspace(selectedName: string): string {
       : `<div class="empty-state compact-empty"><div class="empty-icon">⌕</div><h3>没有匹配的整合包</h3><p>换一个关键词或清除筛选条件。</p><button class="button secondary" data-action="clear-filters">清除筛选</button></div>`;
   const displayedCount = isBili && state.biliViewMode === 'grouped' ? Math.min(state.page * 48, state.biliGroups.length) : records.length;
   const totalLabel = isBili && state.biliViewMode === 'grouped' ? state.biliGroups.length : state.total;
-  const resultHeading = isAllPlatform ? '分平台结果' : state.loading ? '正在读取数据…' : hasFilter ? '筛选结果' : '最近可用数据';
-  const resultCount = isAllPlatform ? `${formatCount(displayedCount)} 条已加载 · 每个平台最多 12 条/轮` : `${formatCount(displayedCount)} / ${formatCount(totalLabel)}`;
+  const resultHeading = isAllPlatform ? '分平台结果' : state.loading ? '正在读取数据…' : hasFilter ? '筛选结果' : isBili ? '视频线索' : '整合包目录';
+  const resultUnit = isBili ? state.biliViewMode === 'grouped' ? '组视频线索' : '条视频' : '条记录';
+  const resultCount = isAllPlatform ? `${formatCount(displayedCount)} 条已显示 · 每个平台最多 12 条/轮` : `已显示 ${formatCount(displayedCount)} · 共 ${formatCount(totalLabel)} ${resultUnit}`;
   const loadMoreLabel = isAllPlatform
     ? `各平台继续加载（当前第 ${state.page} 轮）`
     : isBili && state.biliViewMode === 'grouped'
@@ -2661,16 +2774,16 @@ function renderResultsWorkspace(selectedName: string): string {
   const recordsBody = !data?.hasData
     ? `<div class="empty-state"><div class="empty-icon">◌</div><h3>还没有本地数据快照</h3><p>选择现有的 <code>converted_output</code>、<code>build/frontend_preview</code> 或其 <code>data</code> 目录。应用不会把空数据伪装成成功。</p><button class="button primary" data-action="choose-data">选择数据目录</button></div>`
     : state.loading
-      ? '<div class="loading-state">正在读取当前快照…</div>'
+      ? isStaticSite() ? `<div class="loading-state pages-loading-progress" role="status">${esc(pagesLoadingMessage())}</div>` : '<div class="loading-state">正在读取当前快照…</div>'
       : state.recordsError && !records.length
         ? recordsFailure
         : `${state.recordsError ? recordsFailure : ''}${resultBody}${records.length ? renderV2BottomPagination(displayedCount, totalLabel, isAllPlatform, state.hasMore, loadMoreLabel) : ''}`;
-  return `<div class="content-grid"><section class="results-column">${renderStickyFollowBar()}${renderV2ViewToolbar(Boolean(hasFilter))}<div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : state.recordsError && !records.length ? '加载失败' : resultHeading}</h2></div><span class="result-count">${state.loading || (state.recordsError && !records.length) ? '' : resultCount}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${recordsBody}</section></div>`;
+  return `<div class="content-grid"><section class="results-column">${renderStickyFollowBar()}${isStaticSite() ? '' : renderV2ViewToolbar(Boolean(hasFilter))}<div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : state.recordsError && !records.length ? '加载失败' : resultHeading}</h2>${isStaticSite() ? `<p class="results-scope-hint">${esc(publicAssociationScope())}</p>` : ''}</div><span class="result-count">${state.loading || (state.recordsError && !records.length) ? '' : resultCount}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${renderBiliContentControls()}${recordsBody}</section></div>`;
 }
 
 function renderRelease(release: Record<string, unknown>): string {
   const downloads = Array.isArray(release.downloads) ? release.downloads : Array.isArray(release.download_links) ? release.download_links : Array.isArray(release.files) ? release.files : Array.isArray(release.links) ? release.links : [];
-  const links = downloads.map((download) => {
+  const links = isStaticSite() ? '' : downloads.map((download) => {
     const item = (download || {}) as Record<string, unknown>;
     const url = safeExternalUrl(item.url);
     const code = item.code || item.info ? ` (${esc(String(item.code || item.info))})` : '';
@@ -2758,6 +2871,7 @@ function renderDetailFacts(record: DesktopRecord): string {
 }
 
 function renderDetailDownloadLinks(record: DesktopRecord): string {
+  if (isStaticSite()) return '';
   const links = rawRecords(record, ['download_links']).filter((item) => safeExternalUrl(item.url));
   if (!links.length) return '';
   return `<div class="detail-section"><h3>下载与渠道 <span class="detail-submeta">${links.length} 个入口</span></h3><div class="release-links">${links.map((link) => `<a class="detail-link" href="${esc(safeExternalUrl(link.url))}" target="_blank" rel="noreferrer">${esc(String(link.name || link.type || '下载入口'))} ↗</a>`).join('')}</div></div>`;
@@ -3127,9 +3241,9 @@ export function renderDetailSourceDynamics(
   // 1. MCMod (MC百科)
   if (record.platform === 'mcmod') {
     const hasPackVersion = Boolean(record.packVersion && record.packVersion.trim() && record.packVersion !== '未知' && !record.packVersion.includes('本地数据未提供'));
-    const packVersionHtml = hasPackVersion ? renderPackVersionDetail(record) : '';
+    const packVersionHtml = hasPackVersion && !isStaticSite() ? renderPackVersionDetail(record) : '';
     const emptyBox = !releases.length && sourceUrl
-      ? emptyDynamicsBox('📋 来源更新日志', '本地快照暂未收录更新日志，点击下方可在软件内小窗直接翻看原站', '🪟 软件内查看原站更新')
+      ? emptyDynamicsBox('来源更新日志', isStaticSite() ? '公开记录暂未收录更新日志，可到原站查看发布说明。' : '本地快照暂未收录更新日志，点击下方可在软件内小窗直接翻看原站', isStaticSite() ? '查看原站更新 ↗' : '🪟 软件内查看原站更新')
       : '';
     return releaseHtml ? `${packVersionHtml}${releaseHtml}` : `${packVersionHtml}${emptyBox}`;
   }
@@ -3139,13 +3253,13 @@ export function renderDetailSourceDynamics(
     const live = previewVersionCache.get(record.id);
     let liveActionHtml = '';
     if (live?.loading) {
-      liveActionHtml = '<div class="notice" role="status" style="margin-bottom:10px;">⚡ 正在通过 API 查询完整历史文件与直链下载…</div>';
+      liveActionHtml = '<div class="notice" role="status" style="margin-bottom:10px;">正在查询可用版本资料与原始发布页…</div>';
     } else if (live?.error) {
       liveActionHtml = `<div class="notice error" style="margin-bottom:10px;">在线查询失败：${esc(live.error)} <button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}" style="margin-left:8px;">重试查询</button></div>`;
     } else if (live?.versions?.length) {
-      liveActionHtml = `<div class="notice" style="color:var(--accent-green);font-size:12px;margin-bottom:10px;">⚡ 已通过 API 载入全部 ${live.versions.length} 个历史文件与直链下载 <button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}" style="margin-left:8px;">刷新</button></div>`;
+      liveActionHtml = `<div class="notice" style="color:var(--accent-green);font-size:12px;margin-bottom:10px;">已载入 ${live.versions.length} 条版本资料${live.provider === 'cfwidget' ? '（CFWidget缓存，上游抓取时间' + esc(live.providerLastFetch || '未知') + '）' : '（官方接口当前返回范围）'} <button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}" style="margin-left:8px;">刷新</button></div>`;
     } else {
-      liveActionHtml = `<div style="margin-bottom:10px;"><button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}">⚡ 在线查询全部历史版本与直链下载</button></div>`;
+      liveActionHtml = `<div style="margin-bottom:10px;"><button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}">查询可用版本资料</button></div>`;
     }
 
     const hasFileIndexes = Array.isArray(record.fileIndexes) && record.fileIndexes.length > 0;
@@ -3195,7 +3309,7 @@ export function renderDetailSourceDynamics(
       </div>`;
     }
 
-    const descUpdated = raw.desc_updated_at ? `<div class="bili-dyn-notice">🔄 <strong>简介更新时间：</strong>${esc(String(raw.desc_updated_at))}</div>` : '';
+    const descUpdated = raw.desc_updated_at ? `<div class="bili-dyn-notice"><strong>简介核查时间：</strong>${esc(formatTime(String(raw.desc_updated_at)))}</div>` : '';
     const groupVer = raw.has_group_version ? `<div class="bili-dyn-notice bili-group-notice">👥 <strong>群内版本提示：</strong>${esc(String(raw.group_version_note || 'UP主提示最新版本在交流群内发布'))}</div>` : '';
 
     if (groupHtml) {
@@ -3279,26 +3393,26 @@ function detailPanel(): string {
   const association = findCrossPlatformAssociations(activeRecord, state.records, state.biliGroups);
   const crossPlatformHtml = (association.totalMatches > 0) ? `<div class="cross-platform-callout">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-      <h4 style="margin:0;">💡 全网多平台联动发现（已匹配 ${association.totalMatches} 处关联资源）</h4>
-      <button type="button" class="button secondary small" data-action="set-v2-drawer-tab" data-tab="linkage">查看全网生态 ➔</button>
+      <h4 style="margin:0;">其他来源线索（${association.totalMatches} 条名称匹配）</h4>
+      <button type="button" class="button secondary small" data-action="set-v2-drawer-tab" data-tab="linkage">查看来源线索 ➔</button>
     </div>
-    <p>我们在其他平台为您关联到了该整合包的汉化、百科词条或海外官方发布：</p>
+    <p>以下为按名称匹配的已收录记录，请到原站确认是否为同一整合包：</p>
     <div class="cross-platform-links">
       ${association.biliVideos.length ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-url="${esc(association.biliVideos[0].url)}" data-title="${esc(activeRecord.title)} B站视频">📺 B站相关实况/教程（共 ${association.biliVideos.length} 期）↗</button>` : ''}
       ${association.links.find((l) => l.platform === 'mcmod') ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-url="${esc(association.links.find((l) => l.platform === 'mcmod')!.url)}" data-title="${esc(activeRecord.title)} MC百科词条">📖 MC百科中文介绍与长评 ↗</button>` : ''}
-      ${association.links.find((l) => l.isOrigin) ? `<a class="button secondary small" href="${esc(association.links.find((l) => l.isOrigin)!.url)}" target="_blank" rel="noreferrer">📦 官方原版发布 (${association.links.find((l) => l.isOrigin)!.platform}) ↗</a>` : ''}
-      ${association.links.find((l) => l.platform === 'bbsmc' || l.platform === 'xyebbs') ? `<a class="button secondary small" href="${esc(association.links.find((l) => l.platform === 'bbsmc' || l.platform === 'xyebbs')!.url)}" target="_blank" rel="noreferrer">📜 中文论坛与网盘直链 ↗</a>` : ''}
+      ${association.links.find((l) => l.isOrigin) ? `<a class="button secondary small" href="${esc(association.links.find((l) => l.isOrigin)!.url)}" target="_blank" rel="noreferrer">📦 原站项目 (${association.links.find((l) => l.isOrigin)!.platform}) ↗</a>` : ''}
+      ${association.links.find((l) => l.platform === 'bbsmc' || l.platform === 'xyebbs') ? `<a class="button secondary small" href="${esc(association.links.find((l) => l.platform === 'bbsmc' || l.platform === 'xyebbs')!.url)}" target="_blank" rel="noreferrer">📜 论坛原帖 ↗</a>` : ''}
     </div>
   </div>` : '';
 
   const isDirectDownloadable = ['curseforge', 'modrinth'].includes(activeRecord.platform);
-  const launcherHeroAction = isDirectDownloadable ? `<div style="margin: 10px 0;"><button type="button" class="button primary wide" data-action="copy-launcher-link" data-record-id="${esc(activeRecord.id)}" style="background:var(--status-success);border-color:var(--status-success);">🚀 一键复制启动器直链 (PCL2 / HMCL / Prism)</button></div>` : '';
+  const launcherHeroAction = !isStaticSite() && isDirectDownloadable ? `<div style="margin: 10px 0;"><button type="button" class="button primary wide" data-action="copy-launcher-link" data-record-id="${esc(activeRecord.id)}" style="background:var(--status-success);border-color:var(--status-success);">🚀 一键复制启动器直链 (PCL2 / HMCL / Prism)</button></div>` : '';
 
   const drawerTab = state.v2DrawerTab || 'overview';
   const linkageCountBadge = association.totalMatches > 0 ? ` (${association.totalMatches})` : '';
   const drawerTabsNav = `<nav class="drawer-tabs-nav" aria-label="抽屉内容分类">
-    <button type="button" class="drawer-tab-btn ${drawerTab === 'overview' ? 'is-active' : ''}" data-action="set-v2-drawer-tab" data-tab="overview">📌 概览与下载</button>
-    <button type="button" class="drawer-tab-btn ${drawerTab === 'linkage' ? 'is-active' : ''}" data-action="set-v2-drawer-tab" data-tab="linkage">🌐 全网跨平台联动${linkageCountBadge}</button>
+    <button type="button" class="drawer-tab-btn ${drawerTab === 'overview' ? 'is-active' : ''}" data-action="set-v2-drawer-tab" data-tab="overview">${isStaticSite() ? '📌 概览与来源' : '📌 概览与下载'}</button>
+    <button type="button" class="drawer-tab-btn ${drawerTab === 'linkage' ? 'is-active' : ''}" data-action="set-v2-drawer-tab" data-tab="linkage">其他来源线索${linkageCountBadge}</button>
     <button type="button" class="drawer-tab-btn ${drawerTab === 'mods' ? 'is-active' : ''}" data-action="set-v2-drawer-tab" data-tab="mods">📦 收录模组 (${mods.length})</button>
     <button type="button" class="drawer-tab-btn ${drawerTab === 'meta' ? 'is-active' : ''}" data-action="set-v2-drawer-tab" data-tab="meta">🔍 原始数据与趋势</button>
   </nav>`;
@@ -3317,7 +3431,7 @@ function detailPanel(): string {
     }).join('')}</div>
   </div>`;
 
-  const tabLinkageHtml = renderDrawerLinkageSection(association, activeRecord);
+  const tabLinkageHtml = `${isStaticSite() ? `<p class="notice">${esc(publicAssociationScope())}</p>` : ''}${renderDrawerLinkageSection(association, activeRecord)}`;
 
   const tabMetaHtml = `<div>
     ${renderMcmodTrendDetail(activeRecord)}
@@ -3332,18 +3446,24 @@ function detailPanel(): string {
         ? tabModsHtml
         : tabMetaHtml;
 
+  const mediaHtml = renderMediaSection(record);
+  const sourceActionHtml = sourceUrl
+    ? `<button type="button" class="button primary" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(sourceUrl)}" data-title="${esc(record.title)} 原站页面">打开${esc(PLATFORM_CONFIGS[record.platform].name)}原页面 ↗</button>`
+    : '<span class="unknown-action">来源链接未提供</span>';
+
   return `<div class="detail-backdrop" data-action="close-detail"><aside class="detail-panel" data-detail-panel onclick="event.stopPropagation()">
     <button type="button" class="modal-close close-detail" data-action="close-detail" aria-label="关闭详情">×</button>
     <header class="detail-header-block">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px;flex-wrap:wrap;">
         <span class="eyebrow">${esc(PLATFORM_CONFIGS[record.platform].name)} · 原始来源</span>
-        ${activeRecord.packVersion ? `<span class="detail-pack-ver-badge">🏷️ 整合包版本：<strong>${esc(activeRecord.packVersion)}</strong></span>` : ''}
+        ${!isStaticSite() && activeRecord.packVersion ? `<span class="detail-pack-ver-badge">🏷️ 整合包版本：<strong>${esc(activeRecord.packVersion)}</strong></span>` : ''}
       </div>
       <h2>${esc(record.title)}</h2>
       ${authorHtml}
       ${tagsHtml}
-      ${renderMediaSection(record)}
-      ${renderDetailFacts(record)}
+      ${isStaticSite() ? `<div class="pages-detail-primary-action">${sourceActionHtml}<p>在原发布页面查看完整介绍与版本信息。</p></div>` : ''}
+      ${isStaticSite() ? renderDetailFacts(record) : mediaHtml}
+      ${isStaticSite() ? mediaHtml ? `<details class="pages-detail-gallery" data-pages-detail-gallery ${state.pagesDetailGalleryOpen ? 'open' : ''}><summary>查看来源图片与预览</summary>${mediaHtml}</details>` : '' : renderDetailFacts(record)}
     </header>
     ${drawerTabsNav}
     <div class="detail-columns-layout">
@@ -3352,7 +3472,7 @@ function detailPanel(): string {
       </div>
       <div class="detail-col-personal">
         ${renderPersonalDetail(activeRecord)}
-        <div class="detail-actions">${sourceUrl ? `<button class="button primary wide" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(sourceUrl)}" data-title="${esc(record.title)} 原站页面">🪟 软件内小窗浏览</button><button class="button secondary wide" data-action="open-source" data-url="${esc(sourceUrl)}">外部浏览器打开 ↗</button>` : '<div class="unknown-action">原站链接未知</div>'}</div>
+        ${isStaticSite() ? '' : `<div class="detail-actions">${sourceUrl ? `<button class="button primary wide" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(sourceUrl)}" data-title="${esc(record.title)} 原站页面">🪟 软件内小窗浏览</button><button class="button secondary wide" data-action="open-source" data-url="${esc(sourceUrl)}">外部浏览器打开 ↗</button>` : '<div class="unknown-action">原站链接未知</div>'}</div>`}
       </div>
     </div>
   </aside></div>`;
@@ -3480,13 +3600,24 @@ export function renderInAppChangelogView(record: DesktopRecord): string {
 
   const hasData = releases.length > 0 || fileIndexes.length > 0 || Boolean(packVersion) || relatedVideos.length > 1;
 
+  if (isStaticSite()) {
+    const sourceUrl = safeExternalUrl(record.url);
+    return `<div class="in-app-changelog-wrap">
+      ${packVersion ? `<div class="in-app-log-banner"><span class="in-app-log-badge">已收录版本摘要</span><strong>${esc(packVersion)}</strong></div>` : ''}
+      ${releases.length ? `<section class="in-app-log-section"><h4>${record.platform === 'bilibili' ? '视频发布记录' : '已收录版本与更新说明'} · ${releases.length} 条</h4><div class="in-app-release-list">${releases.slice(0, visibleLimit).map((release) => renderRelease(release as unknown as Record<string, unknown>)).join('')}</div>${releases.length > visibleLimit ? `<button type="button" class="button secondary small" data-action="more-in-app-versions" data-record-id="${esc(record.id)}">再看 30 条（已显示 ${visibleLimit} / ${releases.length}）</button>` : ''}</section>` : '<p class="in-app-version-limited">公开记录暂未收录结构化版本日志，可到原站核对。</p>'}
+      ${fileIndexes.length ? `<section class="in-app-log-section"><h4>已收录文件元数据 · ${fileIndexes.length} 条</h4>${fileIndexes.slice(0, visibleLimit).map((file) => `<p>${esc(file.filename)} · MC ${esc(file.gameVersion || '未知')} · ${esc(String(file.modLoader || 'Loader未知'))}</p>`).join('')}</section>` : ''}
+      ${relatedVideos.length > 1 ? `<section class="in-app-log-section"><h4>关联视频 · ${relatedVideos.length} 期</h4><p>新视频不代表整合包新版本。</p>${relatedVideos.map((item) => `<p><a class="detail-link" href="${esc(safeExternalUrl(item.url) || `https://www.bilibili.com/video/${encodeURIComponent(item.bvid)}`)}" target="_blank" rel="noreferrer">${esc(item.title)} ↗</a></p>`).join('')}</section>` : ''}
+      ${sourceUrl ? `<a class="button secondary small" href="${esc(sourceUrl)}" target="_blank" rel="noreferrer">原站版本与发布信息 ↗</a>` : ''}
+    </div>`;
+  }
+
   if (!hasData) {
     return `<div class="in-app-changelog-empty-compact">
       <span class="empty-dyn-icon">📋</span>
       <h4>当前本地快照暂无收录结构化更新日志</h4>
       <p>【更新日志状态】：<strong>没有</strong>（快照暂未收录该整合包历史版本与日志）</p>
       <small style="color:var(--text-muted);font-size:12px;margin-top:6px;display:block;">当前快照未收录结构化版本；可在中间网页核对原站，或切到“来源资料”查看其他内容。</small>
-      ${record.platform === 'mcmod' ? `<button type="button" class="button secondary small" data-action="switch-in-app-url" data-url="https://www.mcmod.cn/modpack/version/${encodeURIComponent(record.sourceId)}.html" data-title="${esc(record.title)} 更新日志" style="margin-top:10px;">🌐 在中间网页查看原站版本</button>` : record.platform === 'curseforge' ? `<button type="button" class="button primary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}" style="margin-top:10px;">⚡ 在线查询原站全部文件与直链</button>` : `<button type="button" class="button secondary small" data-action="set-in-app-window-tab" data-tab="web" style="margin-top:10px;">🌐 浏览原站网页</button>`}
+      ${record.platform === 'mcmod' ? `<button type="button" class="button secondary small" data-action="switch-in-app-url" data-url="https://www.mcmod.cn/modpack/version/${encodeURIComponent(record.sourceId)}.html" data-title="${esc(record.title)} 更新日志" style="margin-top:10px;">🌐 在中间网页查看原站版本</button>` : record.platform === 'curseforge' ? `<button type="button" class="button primary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}" style="margin-top:10px;">查询可用版本资料</button>` : `<button type="button" class="button secondary small" data-action="set-in-app-window-tab" data-tab="web" style="margin-top:10px;">🌐 浏览原站网页</button>`}
       ${record.platform === 'xyebbs' ? `<button type="button" class="button primary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}" style="margin-top:6px;">⚡ 在线查询原站最新版本与下载</button>` : ''}
     </div>`;
   }
@@ -3502,7 +3633,7 @@ export function renderInAppChangelogView(record: DesktopRecord): string {
 
   if (!releases.length) {
     const cfPrompt = (['curseforge', 'xyebbs'].includes(record.platform) && !liveVersions?.length)
-      ? ` <button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}">⚡ 在线查询全部历史版本与直链下载</button>`
+      ? ` <button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}">${record.platform === 'curseforge' ? '查询可用版本资料' : '⚡ 在线查询全部历史版本与直链下载'}</button>`
       : '';
     contentHtml += `<p class="in-app-version-limited">当前快照仅有版本摘要，尚无可逐条展示的历史版本与更新正文。${record.platform === 'mcmod' ? `<button type="button" class="button secondary small" data-action="switch-in-app-url" data-url="https://www.mcmod.cn/modpack/version/${encodeURIComponent(record.sourceId)}.html" data-title="${esc(record.title)} 更新日志">在中间网页查看原站历史 ↗</button>` : ''}${cfPrompt}</p>`;
   }
@@ -3513,7 +3644,7 @@ export function renderInAppChangelogView(record: DesktopRecord): string {
         <h4>CurseForge 文件索引快照</h4>
         <span class="in-app-log-count">共 ${fileIndexes.length} 个文件</span>
       </div>
-      <div style="margin: 6px 0 10px 0;"><button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}">⚡ 在线查询全部历史版本与直链下载</button></div>
+      <div style="margin: 6px 0 10px 0;"><button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}">查询可用版本资料</button></div>
       <div class="in-app-files-table-wrap">
         <table class="in-app-files-table">
           <thead><tr><th>文件名</th><th>游戏版本</th><th>Loader</th><th>类型</th></tr></thead>
@@ -3616,12 +3747,25 @@ function inAppWindowId(win: InAppWindowState): string {
 }
 
 function recordForInAppWindow(win: InAppWindowState): DesktopRecord | null {
-  return win.record || (win.recordId ? state.records.find((record) => record.id === win.recordId) : null)
+  const record = win.record || (win.recordId ? state.records.find((record) => record.id === win.recordId) : null)
     || state.records.find((record) => record.url === win.url || (record.sourceId && win.url.includes(record.sourceId)))
     || null;
+  if (!record || !isStaticSite()) return record;
+  const cached = previewVersionCache.get(record.id);
+  const preview = cached?.preview;
+  if (!preview) return record;
+  const currentDescription = String(record.raw.description || record.raw.desc || record.summary || '').trim();
+  const description = preview.description.length > currentDescription.length ? preview.description : currentDescription;
+  return { ...record, releases: cached?.versions || record.releases, raw: { ...record.raw,
+    description, intro_images: [...new Set([...imageValueUrls(record.raw.intro_images), ...preview.images])],
+    gallery: [...new Set([...imageValueUrls(record.raw.gallery), ...preview.images])],
+    ...(preview.includedMods ? { includedMods: preview.includedMods } : {}),
+    releases: cached?.versions || record.releases, previewArchiveAt: preview.archivedAt,
+  } };
 }
 
 function inAppFrameConfig(win: InAppWindowState, record: DesktopRecord | null): { restricted: boolean; frameUrl: string; sandbox: string; proxy: boolean; note: string } {
+  if (isStaticSite()) return { restricted: false, frameUrl: '', sandbox: '', proxy: false, note: '小窗展示已收录资料，版本与视频时间分别保留；完整网页请用“浏览器打开”。' };
   // Route by the actual destination: a window can outlive the current
   // platform's record list or navigate to a different associated video.
   const host = safeHost(win.url).toLowerCase();
@@ -3679,36 +3823,48 @@ function inAppFrameConfig(win: InAppWindowState, record: DesktopRecord | null): 
   };
 }
 
-const previewVersionCache = new Map<string, { versions?: Record<string, unknown>[]; error?: string; loading?: boolean }>();
+const previewVersionCache = new Map<string, { versions?: Record<string, unknown>[]; preview?: RecordPreview; provider?: string; providerLastFetch?: string | null; error?: string; loading?: boolean }>();
 const inAppVersionLimits = new Map<string, number>();
 
 async function loadPreviewVersions(record: DesktopRecord): Promise<void> {
-  if (!['mcmod', 'bbsmc', 'modrinth', 'curseforge', 'xyebbs'].includes(record.platform) || !window.desktopApi?.getPreviewVersions || previewVersionCache.has(record.id)) return;
-  const entry: { versions?: Record<string, unknown>[]; error?: string; loading?: boolean } = { loading: true };
+  if ((!isStaticSite() && !['mcmod', 'bbsmc', 'modrinth', 'curseforge', 'xyebbs'].includes(record.platform)) || !window.desktopApi?.getPreviewVersions || previewVersionCache.has(record.id)) return;
+  const entry: { versions?: Record<string, unknown>[]; preview?: RecordPreview; provider?: string; providerLastFetch?: string | null; error?: string; loading?: boolean } = { loading: true };
   previewVersionCache.set(record.id, entry);
-  try { entry.versions = (await window.desktopApi.getPreviewVersions(record.platform, record.sourceId)).versions; }
+  try {
+    const result = await window.desktopApi.getPreviewVersions(record.platform, record.sourceId);
+    entry.versions = result.versions;
+    entry.preview = result.preview;
+    entry.provider = result.provider;
+    entry.providerLastFetch = result.providerLastFetch;
+  }
   catch (error) { entry.error = error instanceof Error ? error.message : String(error); }
   finally { entry.loading = false; render(); }
 }
 
 function renderInAppWebPane(win: InAppWindowState, record: DesktopRecord | null): string {
   const tab = win.contentTab || 'web';
-  const tabs = record ? `<nav class="in-app-content-tabs" aria-label="小窗内容">${([['overview', '资料'], ['versions', '版本历史'], ['gallery', '图片'], ['web', record.platform === 'bilibili' ? '尝试播放' : '原站网页']] as const).map(([key, label]) => `<button class="button ${tab === key ? 'primary' : 'secondary'} small" data-action="in-app-content-tab" data-tab="${key}">${label}</button>`).join('')}</nav>` : '';
+  const tabs = record ? `<nav class="in-app-content-tabs" aria-label="小窗内容">${([['overview', '资料'], ['versions', record.platform === 'bilibili' && isStaticSite() ? '发布线索' : '版本历史'], ['gallery', '图片'], ['linkage', '其他来源'], ['web', isStaticSite() ? '原站入口' : record.platform === 'bilibili' ? '尝试播放' : '原站网页']] as const).map(([key, label]) => `<button class="button ${tab === key ? 'primary' : 'secondary'} small" data-action="in-app-content-tab" data-tab="${key}">${label}</button>`).join('')}</nav>` : '';
   let body = '';
   if (!record || tab === 'web') body = renderInAppRemotePane(win, record);
   else if (tab === 'versions') {
     const live = previewVersionCache.get(record.id);
     body = `<div class="in-app-reader">${live?.loading ? '<p role="status">正在查询原站版本，本地记录仍可查看…</p>' : ''}${live?.error ? `<p>在线版本暂不可用：${esc(live.error)}。以下保留本地记录。</p><button class="button secondary small" data-action="retry-preview-versions">重试查询</button>` : ''}${renderInAppChangelogView(record)}</div>`;
-  } else if (tab === 'gallery') body = `<div class="in-app-reader">${renderMediaSection(record) || '<p>当前快照没有收录图片。</p>'}</div>`;
+  } else if (tab === 'linkage') body = `<div class="in-app-reader"><p class="results-scope-hint">${esc(publicAssociationScope())}</p>${renderDrawerLinkageSection(findCrossPlatformAssociations(record, state.records, state.biliGroups), record)}</div>`;
+  else if (tab === 'gallery') body = `<div class="in-app-reader">${renderMediaSection(record) || '<p>当前快照没有收录图片。</p>'}</div>`;
   else {
     const raw = record.raw as Record<string, unknown>;
     const description = String(raw.description || raw.desc || record.summary || '当前快照没有收录简介。');
-    body = `<div class="in-app-reader"><h2>${esc(record.title)}</h2><p>${esc(PLATFORM_CONFIGS[record.platform].name)} · ${esc(record.author || '作者未收录')}</p>${record.platform === 'bilibili' ? '<p class="in-app-version-limited">B站内嵌播放器存在兼容问题；可以尝试播放，空白时请用右上角“浏览器打开”。</p>' : ''}${renderDetailFacts(record)}<h3>简介</h3><div class="in-app-reader-description">${esc(description)}</div>${renderDetailDownloadLinks(record)}${raw.pinned_comment ? `<h3>置顶评论</h3><div class="in-app-reader-description">${esc(String(raw.pinned_comment))}</div>` : ''}</div>`;
+    const preview = previewVersionCache.get(record.id);
+    const archive = raw.previewArchiveAt ? `<p class="pages-preview-provenance">正文、图片和补充版本来自 ${esc(formatPublicTime(String(raw.previewArchiveAt)))} 的已有存档，未重新抓取外站。</p>` : '';
+    const loading = isStaticSite() && preview?.loading ? '<p role="status">正在加载正文、图片与版本存档…</p>' : '';
+    const error = isStaticSite() && preview?.error ? `<p role="alert">${esc(preview.error)}。当前条目仍可查看。</p><button type="button" class="button secondary small" data-action="retry-preview-versions" data-tab="overview">重试加载存档</button>` : '';
+    body = `<div class="in-app-reader"><h2>${esc(record.title)}</h2><p>${esc(PLATFORM_CONFIGS[record.platform].name)} · ${esc(record.author && record.author !== '未知' ? record.author : '作者未收录')}</p>${archive}${loading}${error}${record.platform === 'bilibili' ? isStaticSite() ? '<p class="in-app-version-limited">视频发布线索，新视频不代表整合包新版本。播放与完整讨论请到B站原页。</p>' : '<p class="in-app-version-limited">B站内嵌播放器存在兼容问题；可以尝试播放，空白时请用右上角“浏览器打开”。</p>' : ''}${renderDetailFacts(record)}<h3>简介</h3><div class="in-app-reader-description">${esc(description)}</div>${isStaticSite() ? renderMediaSection(record) : ''}${renderDetailDownloadLinks(record)}${raw.pinned_comment ? `<h3>置顶评论</h3><div class="in-app-reader-description">${esc(String(raw.pinned_comment))}</div>` : ''}</div>`;
   }
   return `<section class="in-app-content-shell">${tabs}${body}</section>`;
 }
 
 function renderInAppRemotePane(win: InAppWindowState, record: DesktopRecord | null): string {
+  if (isStaticSite()) return `<div class="in-app-reader"><h2>查看原始发布页面</h2><p>静态站的小窗保留已收录资料、版本与个人标记。完整网页、视频播放和最新讨论由原站提供。</p><a class="button primary" href="${esc(win.url)}" target="_blank" rel="noreferrer">浏览器打开 ↗</a></div>`;
   const config = inAppFrameConfig(win, record);
   if (config.restricted) return `<div class="in-app-web-pane in-app-restricted-pane"><div class="in-app-restricted-state"><span class="in-app-restricted-icon">🛡️</span><h3>CurseForge 需要浏览器验证</h3><p>当前请求收到 Cloudflare 403 challenge。应用不会把验证页或空白页当作加载成功。</p><a class="button primary" href="${esc(win.url)}" target="_blank" rel="noreferrer">在浏览器中打开 ↗</a></div></div>`;
   const id = inAppWindowId(win);
@@ -3801,7 +3957,7 @@ function renderInAppWindowModal(): string {
         </div>
         ` : ''}
         <div class="in-app-window-ctrls">
-          <button type="button" class="in-app-ctrl-btn" data-action="reload-in-app-window" title="重新载入页面">🔄 刷新</button>
+          ${isStaticSite() ? '' : '<button type="button" class="in-app-ctrl-btn" data-action="reload-in-app-window" title="重新载入页面">🔄 刷新</button>'}
           <button type="button" class="in-app-ctrl-btn" data-action="minimize-in-app-window" title="收起到右侧悬浮栏">— 收起</button>
           <button type="button" class="in-app-ctrl-btn" data-action="toggle-maximize-in-app-window" title="${isMaximized ? '还原窗口' : '最大化窗口'}">${isMaximized ? '❐ 还原' : '⛶ 最大化'}</button>
           ${typeof window !== 'undefined' && window.desktopApi?.openInAppWindow ? `<button type="button" class="in-app-ctrl-btn" data-action="open-native-subwindow" data-url="${esc(win.url)}" data-title="${esc(win.title)}" title="在独立窗口中打开">🗗 独立窗口</button>` : ''}
@@ -3942,6 +4098,13 @@ function replaceRootHtmlPreservingCoverImages(markup: string): void {
 
   const template = document.createElement('template');
   template.innerHTML = markup;
+  if (isStaticSite()) template.content.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((anchor) => {
+    const href = anchor.getAttribute('href') || '';
+    if (href.startsWith('#')) return;
+    const url = safeExternalUrl(href);
+    if (url) anchor.setAttribute('href', url);
+    else anchor.removeAttribute('href');
+  });
   template.content.querySelectorAll<HTMLImageElement>('img[data-cover-image]').forEach((nextImage) => {
     const key = `${nextImage.dataset.coverKey || ''}\u0000${nextImage.dataset.originalSrc || ''}`;
     const previous = previousImages.get(key)?.shift();
@@ -4184,8 +4347,23 @@ function retryCoverImage(button: HTMLButtonElement): void {
 }
 
 function render(): void {
+  if (mainSearchCompositionInput?.isConnected) {
+    mainSearchRenderPending = true;
+    return;
+  }
+  const active = document.activeElement;
+  const searchFocus = active instanceof HTMLInputElement && active.matches('#pack-search, .js-pack-search')
+    ? { start: active.selectionStart, end: active.selectionEnd, direction: active.selectionDirection } : null;
+  const detailFocus = active instanceof HTMLElement && active.closest('.detail-panel')
+    ? { action: active.dataset.action, rating: active.dataset.rating, id: active.id,
+        value: active instanceof HTMLTextAreaElement ? active.value : null,
+        start: active instanceof HTMLTextAreaElement ? active.selectionStart : null,
+        end: active instanceof HTMLTextAreaElement ? active.selectionEnd : null,
+        recordId: state.selected?.id } : null;
   const data = state.data;
   const availableCount = data ? Object.values(data.platforms).filter((item) => item.available).length : 0;
+  const publicTimes = (data as (DesktopDataState & { sourceTimes?: Record<string, string> }) | null)?.sourceTimes;
+  const publicTimeMarkup = publicTimes ? `<details><summary>各平台数据时间</summary>${Object.entries(publicTimes).map(([platform, time]) => `<div>${esc(PLATFORM_CONFIGS[platform as Platform]?.name || platform)}：${esc(formatPublicTime(time))}</div>`).join('')}<small>各平台并非同批抓取。刷新成功仅覆盖本轮增量范围；保留旧数据的来源仍显示原文件时间。</small></details>` : '';
   const selectedName = state.platform === 'all' ? '全部平台' : PLATFORM_CONFIGS[state.platform].name;
   const totalCount = data ? ALL_PLATFORMS.reduce((sum, platform) => sum + (data.platforms[platform]?.count || 0), 0) : 0;
   const theme = document.documentElement.dataset.theme || 'light';
@@ -4202,10 +4380,13 @@ function render(): void {
     missingPersonalCount ? `<span class="personal-profile-count">缺源 ${missingPersonalCount}</span>` : '',
   ].filter(Boolean).join('');
   const personalProfileAction = `<button type="button" class="top-action-btn personal-profile-trigger" data-action="open-personal-profile" aria-haspopup="dialog" aria-label="打开个人资料${unreadFavoriteUpdates ? `，${unreadFavoriteUpdates} 条收藏更新未读` : ''}${missingPersonalCount ? `，${missingPersonalCount} 条缺源回访` : ''}">个人资料${personalBadges}</button>`;
+  const sourceCardsHtml = state.platform === 'all' ? `<section class="all-platforms-grid" aria-label="六平台数据看板">${ALL_PLATFORMS.map(renderLegacyShowcaseCard).join('')}</section>` : '';
   const body = (state.platform === 'all'
-    ? `${renderCrossSearch()}<section class="all-platforms-grid" aria-label="六平台数据看板">${ALL_PLATFORMS.map(renderLegacyShowcaseCard).join('')}</section><div class="desktop-section-heading"><span class="eyebrow">LIVE SNAPSHOT</span><h2>当前快照浏览</h2><p>卡片、版本筛选与详情入口均来自本地快照；需要更多结果时可继续加载。</p></div>${renderResultsWorkspace(selectedName)}`
+    ? isStaticSite() && !isStaticOverview()
+      ? `<details class="pages-source-overview-fold"><summary>六个来源的数据时间与核验范围</summary>${sourceCardsHtml}</details>${renderResultsWorkspace(selectedName)}`
+      : `${renderCrossSearch()}${sourceCardsHtml}${isStaticSite() ? '' : '<div class="desktop-section-heading"><span class="eyebrow">当前快照</span><h2>当前快照浏览</h2><p>卡片、版本筛选与详情入口来自本地快照。</p></div>'}${renderResultsWorkspace(selectedName)}`
     : `${renderPlatformHero(state.platform)}${renderResultsWorkspace(selectedName)}`);
-  const snapshotStatusLabel = data?.hasData ? '快照' : '等待数据';
+  const snapshotStatusLabel = isStaticSite() ? '静态展示' : data?.hasData ? '快照' : '等待数据';
   const snapshotStatusDescription = data?.hasData ? `当前快照：${data.snapshotId || '已载入'}` : '等待数据';
   const isUpdating = state.update?.state === 'running';
   const updateAction = `<button type="button" class="top-action-btn ${isUpdating ? 'is-running' : ''}" data-action="toggle-update" aria-label="数据更新" aria-expanded="${state.updateOpen}">${isUpdating ? '<span class="pulse-indicator"></span>' : ''}数据更新</button>`;
@@ -4214,8 +4395,8 @@ function render(): void {
   const savedUpdateScrollTop = root?.querySelector<HTMLElement>('.update-modal-panel')?.scrollTop || 0;
   const savedLogScrollTop = root?.querySelector<HTMLElement>('.update-log-list')?.scrollTop || 0;
   replaceRootHtmlPreservingCoverImages(`${renderV2Toast()}<div class="desktop-app legacy-shell"><div class="bg-layer" aria-hidden="true"></div>
-    <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav><nav class="topbar-platform-flyout" aria-label="完整平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button>${updateAction}<button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button>${personalProfileAction}<span class="data-status ${data?.hasData ? 'ready' : 'empty'}" title="${esc(snapshotStatusDescription)}" aria-label="${esc(snapshotStatusDescription)}"><i aria-hidden="true"></i>${snapshotStatusLabel}</span><div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
-    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span class="footer-sep">·</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span><span class="footer-sep">·</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main><button type="button" class="update-task-dock" data-action="toggle-update" hidden><span class="pulse-indicator" aria-hidden="true"></span><span class="update-task-copy"><strong class="update-task-title"></strong><small class="update-task-detail"></small></span><span class="update-task-track" aria-hidden="true"><span></span></span></button>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${renderCommentPreviewModal()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}${renderMcmodTrendDialog()}${renderUpdateModal()}${renderDataImportModal()}${renderPickerModal()}${renderInAppWindowModal()}</div>`);
+    <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条${isStaticSite() ? '公开记录' : '本地记录'}` : isStaticSite() ? '正在读取公开目录…' : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav><nav class="topbar-platform-flyout" aria-label="完整平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button>${updateAction}<button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button>${personalProfileAction}<span class="data-status ${data?.hasData ? 'ready' : 'empty'}" title="${esc(snapshotStatusDescription)}" aria-label="${esc(snapshotStatusDescription)}"><i aria-hidden="true"></i>${snapshotStatusLabel}</span><div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
+    <main class="main-content">${body}<footer class="workspace-footer">${publicTimeMarkup}<span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span class="footer-sep">·</span><span>${data?.updatedAt ? `${isStaticSite() ? '最近局部核验' : '快照更新时间'}：${esc(isStaticSite() ? formatPublicTime(data.updatedAt) : formatTime(data.updatedAt))}` : '数据不会自动编造'}</span><span class="footer-sep">·</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : isStaticSite() ? '<span>静态站不采集、不管理服务；各平台数据时间见说明</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main><button type="button" class="update-task-dock" data-action="toggle-update" hidden><span class="pulse-indicator" aria-hidden="true"></span><span class="update-task-copy"><strong class="update-task-title"></strong><small class="update-task-detail"></small></span><span class="update-task-track" aria-hidden="true"><span></span></span></button>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${renderCommentPreviewModal()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}${renderMcmodTrendDialog()}${renderUpdateModal()}${renderDataImportModal()}${renderPickerModal()}${renderInAppWindowModal()}</div>`);
   if (savedGridScrollTop > 0) {
     const nextGridWrap = root?.querySelector<HTMLElement>('.picker-grid-wrap');
     if (nextGridWrap) nextGridWrap.scrollTop = savedGridScrollTop;
@@ -4225,6 +4406,26 @@ function render(): void {
   const nextLogList = root?.querySelector<HTMLElement>('.update-log-list');
   if (nextLogList && savedLogScrollTop > 0) nextLogList.scrollTop = savedLogScrollTop;
   bindEvents();
+  if (searchFocus) {
+    const search = root.querySelector<HTMLInputElement>('#pack-search');
+    search?.focus({ preventScroll: true });
+    if (search && searchFocus.start !== null && searchFocus.end !== null) {
+      search.setSelectionRange(searchFocus.start, searchFocus.end, searchFocus.direction || 'none');
+    }
+  }
+  if (detailFocusAfterRender) {
+    root.querySelector<HTMLButtonElement>('.detail-panel [data-action="close-detail"]')?.focus({ preventScroll: true });
+    detailFocusAfterRender = false;
+  } else if (detailFocus && detailFocus.recordId === state.selected?.id) {
+    const selector = detailFocus.id ? `#${CSS.escape(detailFocus.id)}` : detailFocus.action
+      ? `[data-action="${CSS.escape(detailFocus.action)}"]${detailFocus.rating ? `[data-rating="${CSS.escape(detailFocus.rating)}"]` : ''}` : '';
+    const control = selector ? root.querySelector<HTMLElement>(`.detail-panel ${selector}`) : null;
+    if (control instanceof HTMLTextAreaElement && detailFocus.value !== null) {
+      control.value = detailFocus.value;
+      control.setSelectionRange(detailFocus.start, detailFocus.end);
+    }
+    control?.focus({ preventScroll: true });
+  }
   refreshUpdateDock();
   const focusTarget = profileFocusAfterRender;
   profileFocusAfterRender = '';
@@ -4422,6 +4623,12 @@ function bindEvents(): void {
   root.querySelectorAll<HTMLDetailsElement>('[data-more-filters]').forEach((details) => details.addEventListener('toggle', () => {
     state.moreFiltersOpen = details.open;
   }));
+  root.querySelector<HTMLDetailsElement>('[data-pages-extra-filters]')?.addEventListener('toggle', (event) => {
+    if (event.currentTarget instanceof HTMLDetailsElement) state.pagesExtraFiltersOpen = event.currentTarget.open;
+  });
+  root.querySelector<HTMLDetailsElement>('[data-pages-detail-gallery]')?.addEventListener('toggle', (event) => {
+    if (event.currentTarget instanceof HTMLDetailsElement) state.pagesDetailGalleryOpen = event.currentTarget.open;
+  });
   root.querySelector<HTMLInputElement>('#personal-restore-file')?.addEventListener('change', async (event) => {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
@@ -4436,7 +4643,7 @@ function bindEvents(): void {
   });
   root.querySelectorAll<HTMLElement>('[data-action]').forEach((element) => {
     const host = safeHost(element.dataset.url || '').toLowerCase();
-    if (element.dataset.action === 'open-in-app-window' && (host === 'bilibili.com' || host.endsWith('.bilibili.com'))) {
+    if (!isStaticSite() && element.dataset.action === 'open-in-app-window' && (host === 'bilibili.com' || host.endsWith('.bilibili.com'))) {
       element.textContent = '⚠ B站小窗（已知问题）';
       element.title = 'B站站内打开有问题，可能空白或一直等待，建议使用浏览器打开';
     }
@@ -4764,10 +4971,22 @@ function bindEvents(): void {
     });
   }
   root.querySelectorAll<HTMLInputElement>('#pack-search, .js-pack-search').forEach((input) => {
-    input.addEventListener('input', (event) => {
-      state.query = (event.target as HTMLInputElement).value;
+    input.addEventListener('compositionstart', () => {
+      mainSearchCompositionInput = input;
+      window.clearTimeout(searchTimer);
+    });
+    bindCompositionAwareSearchInput(input, (value) => {
+      state.query = value;
+    }, () => {
       window.clearTimeout(searchTimer);
       searchTimer = window.setTimeout(() => void loadRecords(), 180);
+    });
+    input.addEventListener('compositionend', () => {
+      if (mainSearchCompositionInput === input) mainSearchCompositionInput = null;
+      if (mainSearchRenderPending) {
+        mainSearchRenderPending = false;
+        render();
+      }
     });
   });
   root.querySelectorAll<HTMLTextAreaElement>('[data-personal-note]').forEach((textarea) => {
@@ -4775,10 +4994,18 @@ function bindEvents(): void {
       const el = event.target as HTMLTextAreaElement;
       const targetRecord = recordForPersonalTarget(el) || state.selected;
       if (!targetRecord || !isPersonalWritable(targetRecord)) return;
-      window.clearTimeout(personalNoteTimer);
-      personalNoteTimer = window.setTimeout(() => {
-        void savePersonalPatch(targetRecord, { note: el.value }, false);
-      }, 350);
+      const key = personalKey(targetRecord);
+      const note = el.value;
+      window.clearTimeout(personalNoteTimers.get(key));
+      if (document.documentElement.dataset.staticSite === 'true') {
+        // Pages persists localStorage synchronously before its API promise returns.
+        void savePersonalPatch(targetRecord, { note }, false);
+        return;
+      }
+      personalNoteTimers.set(key, window.setTimeout(() => {
+        personalNoteTimers.delete(key);
+        void savePersonalPatch(targetRecord, { note }, false);
+      }, 350));
     });
   });
 }
@@ -5032,6 +5259,13 @@ function closeInAppWindow(win: InAppWindowState | null): void {
 
 async function handleAction(element: HTMLElement, event?: Event): Promise<void> {
   const action = element.dataset.action;
+  if (isStaticSite() && ['open-in-app-window', 'open-native-subwindow'].includes(action || '') && element.dataset.cardWindow !== 'true') {
+    event?.preventDefault(); event?.stopPropagation();
+    const url = safeExternalUrl(element.dataset.url);
+    if (url) await window.desktopApi.openExternal(url);
+    return;
+  }
+  if (isStaticSite() && ['toggle-update', 'start-update', 'cancel-update', 'choose-data', 'toggle-audit', 'open-personal-profile', 'fetch-live-versions', 'copy-launcher-link'].includes(action || '')) return;
   if (action === 'retry-cover') {
     event?.preventDefault();
     event?.stopPropagation();
@@ -5417,11 +5651,12 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     state.compareOpen = false;
     state.comments = { sourceId: '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
 
-    const cached = isDefaultPlatformFilters() ? platformRecordCache.get(nextPlatform) : undefined;
+    const cached = !isStaticOverview() && isDefaultPlatformFilters() ? platformRecordCache.get(nextPlatform) : undefined;
     if (cached) {
       state.records = [...cached.records];
       state.biliGroups = [...cached.biliGroups];
       state.total = cached.total;
+      if (cached.bilibiliCounts) state.bilibiliCounts = cached.bilibiliCounts;
       state.page = 1;
       const groupedBili = nextPlatform === 'bilibili' && state.biliViewMode === 'grouped';
       state.hasMore = groupedBili ? state.page * 48 < state.biliGroups.length : state.records.length < state.total;
@@ -5670,7 +5905,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
       || null;
     if (url) {
       if (!state.inAppWindows.length && state.inAppWindow) state.inAppWindows = [state.inAppWindow];
-      if (!state.inAppWindows.length) state.inAppWindowPreviousSelected = state.selected || foundRecord;
+      if (!state.inAppWindows.length) state.inAppWindowPreviousSelected = isStaticSite() ? state.selected : state.selected || foundRecord;
       state.selected = null;
       state.trendChart = null;
       state.commentPreviewRecord = null;
@@ -5682,16 +5917,17 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
         title,
         recordId: foundRecord?.id,
         record: foundRecord || undefined,
-        contentTab: foundRecord && ['bilibili', 'curseforge', 'xyebbs'].includes(foundRecord.platform) ? 'overview' : 'web',
+        contentTab: isStaticSite() || foundRecord && ['bilibili', 'curseforge', 'xyebbs'].includes(foundRecord.platform) ? 'overview' : 'web',
         maximized: false,
         activeTab: 'web',
-        showChangelogPane: viewportWidth >= 1420,
-        showPersonalPane: viewportWidth >= 1680,
+        showChangelogPane: viewportWidth >= (isStaticSite() ? 1100 : 1420),
+        showPersonalPane: viewportWidth >= (isStaticSite() ? 1100 : 1680),
       };
       nextWindow.minimized = false;
+      if (element.dataset.inAppTab === 'linkage') nextWindow.contentTab = 'linkage';
       if (!existing) state.inAppWindows.push(nextWindow);
       state.inAppWindow = nextWindow;
-      if (foundRecord && ['mcmod', 'bbsmc', 'modrinth', 'curseforge', 'xyebbs'].includes(foundRecord.platform)) void loadPreviewVersions(foundRecord);
+      if (foundRecord && (isStaticSite() || ['mcmod', 'bbsmc', 'modrinth', 'curseforge', 'xyebbs'].includes(foundRecord.platform))) void loadPreviewVersions(foundRecord);
       render();
     }
   } else if (action === 'set-in-app-window-tab') {
@@ -5707,11 +5943,11 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     event?.preventDefault();
     event?.stopPropagation();
     const win = inAppWindowForAction(element);
-    const tab = action === 'retry-preview-versions' ? 'versions' : element.dataset.tab;
-    if (win && (tab === 'overview' || tab === 'versions' || tab === 'gallery' || tab === 'web')) {
+    const tab = action === 'retry-preview-versions' ? element.dataset.tab || 'versions' : element.dataset.tab;
+    if (win && (tab === 'overview' || tab === 'versions' || tab === 'gallery' || tab === 'web' || tab === 'linkage')) {
       win.contentTab = tab;
       const record = recordForInAppWindow(win);
-      if (record && tab === 'versions') {
+      if (record && (tab === 'versions' || action === 'retry-preview-versions')) {
         if (action === 'retry-preview-versions') previewVersionCache.delete(record.id);
         void loadPreviewVersions(record);
       }
@@ -5761,12 +5997,19 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     event?.stopPropagation();
     state.v2DrawerTab = (element.dataset.tab || 'overview') as 'overview' | 'linkage' | 'mods' | 'meta';
     render();
+  } else if (action === 'set-bili-content' && isStaticSite()) {
+    const mode = element.dataset.content;
+    if (mode === 'all' || mode === 'excluded' || mode === 'candidates') {
+      state.bilibiliContent = mode;
+      await loadRecords(true);
+    }
   } else if (action === 'search-modpack-all') {
     event?.preventDefault();
     event?.stopPropagation();
     state.platform = 'all';
     state.query = element.dataset.query || '';
     state.selected = null;
+    state.inAppWindows.forEach(win => { win.minimized = true; });
     await loadRecords(true);
   } else if (action === 'switch-to-record') {
     event?.preventDefault();
@@ -5811,7 +6054,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
       }
       if (targetLink) {
         void navigator.clipboard.writeText(targetLink);
-        showV2Toast('🚀 已复制整合包链接！在 PCL2 / HMCL / Prism 中粘贴即可自动安装。');
+        showV2Toast(record.platform === 'curseforge' ? '已复制原站发布页链接，可在原站核对版本。' : '🚀 已复制整合包链接！在 PCL2 / HMCL / Prism 中粘贴即可自动安装。');
       } else {
         showV2Toast('⚠️ 未找到可用的下载或导入链接');
       }
@@ -5990,6 +6233,8 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     if (target && target !== element && target.closest('a,button,details,summary,.tag-mod,.mcmod-mod-cell,.mcmod-trend-trigger,.mcmod-comment-btn,.card-metric-comment,.compact-metric-comment,.bmb-comment-btn,.xyebbs-comment-btn')) return;
     const index = Number(element.dataset.index || '-1');
     state.selected = state.records[index] || null;
+    state.pagesDetailGalleryOpen = false;
+    detailFocusAfterRender = Boolean(state.selected);
     state.inAppWindowPreviousSelected = null;
     state.trendChart = null;
     state.imagePreview = null;
@@ -6078,6 +6323,24 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
 
 async function loadRecords(reset = true, backgroundRevalidate = false): Promise<void> {
   const requestId = ++activeLoadRequestId;
+  if (isStaticOverview()) {
+    state.page = 1;
+    state.records = [];
+    state.biliGroups = [];
+    state.total = ALL_PLATFORMS.reduce((sum, platform) => sum + (state.data?.platforms[platform]?.count || 0), 0);
+    state.hasMore = false;
+    state.loading = false;
+    state.recordsError = '';
+    state.availableVersions = [];
+    state.availableLoaders = [];
+    state.availableCategories = [];
+    state.availableCategoryCounts = [];
+    state.availableIncludedMods = [];
+    state.availableGameplayCategories = [];
+    state.availablePans = [];
+    render();
+    return;
+  }
   if (reset) {
     state.page = 1;
     if (!backgroundRevalidate) {
@@ -6109,6 +6372,7 @@ async function loadRecords(reset = true, backgroundRevalidate = false): Promise<
       dateRange: state.dateRange,
       serverOnly: state.serverOnly,
       personalStatus: groupedBili ? '' : state.personalFilter,
+      bilibiliContent: isStaticSite() ? state.bilibiliContent : undefined,
       sort: state.platform === 'all' ? 'updated_desc' : state.sort,
       page,
       pageSize: requestPageSize,
@@ -6138,6 +6402,8 @@ async function loadRecords(reset = true, backgroundRevalidate = false): Promise<
       if (failures.length) state.recordsError = `部分平台加载失败；已保留其他平台结果。${failures.join('；')}`;
     }
     if (requestId !== activeLoadRequestId) return;
+    const counts = results.find(result => result.bilibiliCounts)?.bilibiliCounts;
+    if (counts) state.bilibiliCounts = counts;
     const nextRecords = results.flatMap((result) => result.records);
     state.records = reset ? nextRecords : [...state.records, ...nextRecords];
     for (const record of nextRecords) state.compareRecords[record.id] = record;
@@ -6168,6 +6434,7 @@ async function loadRecords(reset = true, backgroundRevalidate = false): Promise<
 
     if (reset && isDefaultPlatformFilters()) {
       platformRecordCache.set(state.platform, {
+        bilibiliCounts: state.bilibiliCounts,
         records: state.records,
         biliGroups: state.biliGroups,
         total: state.total,
@@ -6195,6 +6462,13 @@ let documentEventsBound = false;
 function bindDocumentEvents(): void {
   if (documentEventsBound) return;
   documentEventsBound = true;
+  if (isStaticSite()) document.addEventListener('mc-pages-load-progress', (event) => {
+    const detail = (event as CustomEvent<{ platform: Platform; phase: string; completed: number; total: number }>).detail;
+    if (!detail || !ALL_PLATFORMS.includes(detail.platform)) return;
+    pagesLoadProgress.set(detail.platform, detail);
+    root.querySelectorAll<HTMLElement>(`[data-pages-source-state="${detail.platform}"]`).forEach((element) => { element.textContent = pagesSourceLoadLabel(detail.platform); });
+    root.querySelectorAll<HTMLElement>('.pages-loading-progress').forEach((element) => { element.textContent = pagesLoadingMessage(); });
+  });
   document.addEventListener('load', (event) => {
     const image = event.target instanceof HTMLImageElement ? event.target : null;
     if (!image || image.dataset.coverImage !== 'true') return;
@@ -6283,6 +6557,7 @@ function bindDocumentEvents(): void {
 }
 
 async function warmupPlatformCache(): Promise<void> {
+  if (isStaticSite()) return;
   const currentSnapshotId = state.data?.snapshotId;
   for (const platform of ALL_PLATFORMS) {
     if (platformRecordCache.has(platform)) continue;

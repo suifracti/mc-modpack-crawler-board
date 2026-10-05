@@ -1,6 +1,7 @@
 import { ALL_PLATFORMS, PLATFORM_CONFIGS } from './data/platformRegistry';
 import { groupBilibiliPacks } from './domain/bilibiliGrouping';
 import type { Platform } from './domain/types';
+import type { RecordPreview } from './domain/recordPreview';
 import { getCategoryLabel } from './filters/platformFilters';
 import { buildVersionModalViewModel } from './modals/version/buildViewModel';
 import { generateSparklineSvg } from './platforms/mcmod/sparkline';
@@ -198,6 +199,7 @@ export interface DesktopDataLibrary {
 }
 
 export interface DesktopRecordQuery {
+  bilibiliContent?: 'candidates' | 'all' | 'excluded';
   query?: string;
   version?: string;
   loader?: string;
@@ -236,7 +238,7 @@ export interface DesktopUpdateStatus {
 }
 
 export interface DesktopApi {
-  getPreviewVersions?: (platform: string, sourceId: string) => Promise<{ versions: Record<string, unknown>[]; fetchedAt: string }>;
+  getPreviewVersions?: (platform: string, sourceId: string) => Promise<{ versions: Record<string, unknown>[]; fetchedAt: string; preview?: RecordPreview; provider?: string; providerLastFetch?: string | null }>;
   nativeDataDirectoryPicker?: boolean;
   getState: () => Promise<{ data: DesktopDataState; update: DesktopUpdateStatus }>;
   getPersonalLibrary: () => Promise<{ schema: number; entries: Record<string, PersonalStatus> }>;
@@ -246,7 +248,7 @@ export interface DesktopApi {
   restorePersonalLibrary: (payload: unknown) => Promise<{ restored: number; 'skipped-conflict': number; invalid: number }>;
   updatePersonalStatus: (platform: Platform, sourceId: string, patch: Partial<Pick<PersonalStatus, 'favorite' | 'wantToPlay' | 'played' | 'rating' | 'note'>>) => Promise<{ key: string; status: PersonalStatus }>;
   getAuditDiff: () => Promise<DesktopAuditResult>;
-  getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availableCategoryCounts?: DesktopFilterOption[]; availableIncludedMods: DesktopFilterOption[]; availableGameplayCategories: DesktopFilterOption[]; availablePans: string[]; error?: string | null }>;
+  getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ bilibiliCounts?: { all: number; candidates: number; excluded: number }; platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availableCategoryCounts?: DesktopFilterOption[]; availableIncludedMods: DesktopFilterOption[]; availableGameplayCategories: DesktopFilterOption[]; availablePans: string[]; error?: string | null }>;
   getPlatformComments: (platform: Platform, sourceId: string) => Promise<DesktopCommentsResult>;
   getDataLibrary: () => Promise<DesktopDataLibrary>;
   chooseDataDirectory: (path?: string) => Promise<{ cancelled: boolean; data?: DesktopDataState }>;
@@ -451,9 +453,16 @@ const state = {
   pickerModal: null as PickerModalState | null,
 };
 
+function isStaticSite(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.dataset.staticSite === 'true';
+}
+
 let root: HTMLElement;
 let searchTimer: number | undefined;
-let personalNoteTimer: number | undefined;
+let mainSearchCompositionInput: HTMLInputElement | null = null;
+let mainSearchRenderPending = false;
+let detailFocusAfterRender = false;
+const personalNoteTimers = new Map<string, number>();
 let profileFocusAfterRender: 'close' | 'trigger' | '' = '';
 let platformFilterFocusAfterRender: 'included-mod-search' | '' = '';
 let pickerFocusAfterRender: 'picker-modal-search' | '' = '';
@@ -462,10 +471,31 @@ let trendFocusAfterRender: 'close' | 'trigger' | '' = '';
 let trendReturnRecordId = '';
 let mcmodTableFocusRecordId = '';
 let activeLoadRequestId = 0;
+const pagesLoadProgress = new Map<Platform, { phase: string; completed: number; total: number }>();
+function isStaticOverview(): boolean {
+  return isStaticSite() && state.platform === 'all' && !state.query.trim()
+    && !state.version && !state.loader && !state.category
+    && state.includedMods.length === 0 && state.gameplayCategories.length === 0
+    && !state.pan && !state.dateRange && !state.serverOnly && !state.personalFilter;
+}
+function pagesSourceLoadLabel(platform: Platform): string {
+  const progress = pagesLoadProgress.get(platform);
+  if (!progress) return '未加载';
+  if (progress.phase === 'ready') return '已加载';
+  if (progress.phase === 'failed') return '加载失败';
+  return progress.total ? `加载中 ${progress.completed} / ${progress.total}` : '加载中…';
+}
+function pagesLoadingMessage(): string {
+  const pending = [...pagesLoadProgress.values()].filter((item) => item.phase === 'loading');
+  const total = pending.reduce((sum, item) => sum + item.total, 0);
+  const completed = pending.reduce((sum, item) => sum + item.completed, 0);
+  return total ? `正在加载公开记录：已读取 ${completed} / ${total} 个数据分片…` : '正在准备公开记录…';
+}
 const mcmodLiveModIndex = new Map<string, Array<{ name: string; url: string; categoryUrl: string }>>();
 const mcmodModIndexRequests = new Map<string, Promise<void>>();
 
 function ensureMcmodModIndex(record: DesktopRecord): Promise<void> {
+  if (isStaticSite()) return Promise.resolve();
   if (mcmodLiveModIndex.has(record.id) || !/^\d+$/.test(record.sourceId)) return Promise.resolve();
   const existing = mcmodModIndexRequests.get(record.id);
   if (existing) return existing;
@@ -591,9 +621,14 @@ function environmentDisplay(record: DesktopRecord): string {
   return `有服务端运行线索（${record.environment.label}）`;
 }
 
+function renderRecordDetailsButton(record: DesktopRecord, index: number): string {
+  return `<button type="button" class="personal-favorite-button record-detail-button" data-action="select-record" data-index="${index}" aria-label="查看${esc(record.title)}详情">查看详情</button>`;
+}
+
 function renderPersonalCardActions(record: DesktopRecord, index: number): string {
+  const details = renderRecordDetailsButton(record, index);
   if (!isPersonalWritable(record)) {
-    return `<div class="personal-card-actions personal-unavailable" title="${esc(personalUnavailableReason(record))}"><span>个人标记不可保存：缺少稳定来源 ID</span></div>`;
+    return `<div class="personal-card-actions personal-unavailable" title="${esc(personalUnavailableReason(record))}">${details}<span>个人标记不可保存：缺少稳定来源 ID</span></div>`;
   }
   const status = personalStatus(record);
   const labels = [
@@ -606,7 +641,7 @@ function renderPersonalCardActions(record: DesktopRecord, index: number): string
   const title = record.platform === 'bilibili'
     ? (status.favorite ? '取消当前视频收藏' : '收藏当前视频')
     : (status.favorite ? '取消收藏' : '加入收藏');
-  return `<div class="personal-card-actions"><button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${index}" ${personalTargetAttributes(record)} aria-pressed="${status.favorite}" title="${title}">${label}</button>${status.rating ? `<span class="personal-rating-mini">★ ${status.rating}/5</span>` : ''}${labels}</div>`;
+  return `<div class="personal-card-actions">${details}<button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${index}" ${personalTargetAttributes(record)} aria-pressed="${status.favorite}" title="${title}">${label}</button>${status.rating ? `<span class="personal-rating-mini">★ ${status.rating}/5</span>` : ''}${labels}</div>`;
 }
 
 function renderPersonalCardZone(content: string, className = ''): string {
@@ -623,7 +658,7 @@ function renderPersonalDetail(record: DesktopRecord): string {
   const currentVideoLabels = record.platform === 'bilibili'
     ? { favorite: status.favorite ? '★ 已收藏当前视频' : '☆ 收藏当前视频', wantToPlay: status.wantToPlay ? '取消想玩当前视频' : '加入想玩（保存视频线索）' }
     : { favorite: status.favorite ? '★ 已收藏' : '☆ 收藏', wantToPlay: '🎯 想玩' };
-  return `<div class="detail-section personal-detail-section"><div class="personal-detail-heading"><div><h3>我的整合包库</h3><span class="detail-submeta">仅保存在本机，不会写入平台采集数据</span></div><button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${state.records.indexOf(record)}" ${personalTargetAttributes(record)} aria-pressed="${status.favorite}">${currentVideoLabels.favorite}</button></div><div class="personal-flag-row"><button type="button" class="personal-flag-button ${status.wantToPlay ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="wantToPlay" ${personalTargetAttributes(record)} aria-pressed="${status.wantToPlay}">${currentVideoLabels.wantToPlay}</button><button type="button" class="personal-flag-button ${status.played ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="played" ${personalTargetAttributes(record)} aria-pressed="${status.played}">✓ 玩过</button></div><div class="personal-rating-row"><span>个人评分</span><div class="personal-rating-buttons">${ratingButtons.replaceAll('data-action="set-personal-rating"', `data-action="set-personal-rating" ${personalTargetAttributes(record)}`)}<button type="button" class="personal-rating-clear" data-action="set-personal-rating" data-rating="0" ${personalTargetAttributes(record)}>清除</button></div></div><label class="personal-note-label" for="personal-note">个人备注</label><textarea id="personal-note" class="personal-note-input" data-personal-note ${personalTargetAttributes(record)} maxlength="20000" placeholder="写下安装、游玩或更新备注…">${esc(status.note)}</textarea><span class="personal-note-hint">停止输入后自动保存</span></div>`;
+  return `<div class="detail-section personal-detail-section"><div class="personal-detail-heading"><div><h3>我的整合包库</h3><span class="detail-submeta">仅保存在本机，不会写入平台采集数据</span></div><button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" data-index="${state.records.indexOf(record)}" ${personalTargetAttributes(record)} aria-pressed="${status.favorite}">${currentVideoLabels.favorite}</button></div><div class="personal-flag-row"><button type="button" class="personal-flag-button ${status.wantToPlay ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="wantToPlay" ${personalTargetAttributes(record)} aria-pressed="${status.wantToPlay}">${currentVideoLabels.wantToPlay}</button><button type="button" class="personal-flag-button ${status.played ? 'is-active' : ''}" data-action="set-personal-flag" data-personal-field="played" ${personalTargetAttributes(record)} aria-pressed="${status.played}">✓ 玩过</button></div><div class="personal-rating-row"><span>个人评分</span><div class="personal-rating-buttons">${ratingButtons.replaceAll('data-action="set-personal-rating"', `data-action="set-personal-rating" ${personalTargetAttributes(record)}`)}<button type="button" class="personal-rating-clear" data-action="set-personal-rating" data-rating="0" ${personalTargetAttributes(record)}>清除</button></div></div><label class="personal-note-label" for="personal-note">个人备注</label><textarea id="personal-note" class="personal-note-input" data-personal-note ${personalTargetAttributes(record)} maxlength="20000" placeholder="写下安装、游玩或更新备注…">${esc(status.note)}</textarea><span class="personal-note-hint">${document.documentElement.dataset.staticSite === 'true' ? '输入即保存在此浏览器' : '停止输入后自动保存'}</span></div>`;
 }
 
 function existingSearchText(record: DesktopRecord): string {
@@ -848,13 +883,15 @@ function renderBilibiliGroupPersonalActions(group: BiliGroup): string {
   const latest = group.items[0];
   const record = latest ? recordForBilibiliPack(latest) : null;
   if (!record || !latest) return '';
+  const index = state.records.indexOf(record);
+  const details = index >= 0 ? renderRecordDetailsButton(record, index) : '';
   const status = personalStatus(record);
   const target = personalTargetAttributes(record);
   const targetLabel = `<span class="bili-personal-target" title="${esc(record.title)}">保存至当前视频 · ${esc(record.sourceId)}</span>`;
   if (!isPersonalWritable(record)) {
-    return `<div class="bili-personal-actions personal-unavailable">${targetLabel}<span>${esc(personalUnavailableReason(record))}</span></div>`;
+    return `<div class="bili-personal-actions personal-unavailable">${details}${targetLabel}<span>${esc(personalUnavailableReason(record))}</span></div>`;
   }
-  return `<div class="bili-personal-actions">${targetLabel}<button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" ${target} aria-pressed="${status.favorite}">${status.favorite ? '★ 取消收藏当前视频' : '☆ 收藏当前视频'}</button><button type="button" class="personal-flag-button ${status.wantToPlay ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="wantToPlay" ${target} aria-pressed="${status.wantToPlay}">${status.wantToPlay ? '取消想玩当前视频' : '加入想玩（保存视频线索）'}</button></div>`;
+  return `<div class="bili-personal-actions">${details}${targetLabel}<button type="button" class="personal-favorite-button ${status.favorite ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="favorite" ${target} aria-pressed="${status.favorite}">${status.favorite ? '★ 取消收藏当前视频' : '☆ 收藏当前视频'}</button><button type="button" class="personal-flag-button ${status.wantToPlay ? 'is-active' : ''}" data-action="toggle-personal" data-personal-field="wantToPlay" ${target} aria-pressed="${status.wantToPlay}">${status.wantToPlay ? '取消想玩当前视频' : '加入想玩（保存视频线索）'}</button></div>`;
 }
 
 function renderBilibiliGroupPersonalSummary(group: BiliGroup): string {
@@ -1103,6 +1140,7 @@ function renderActiveFilters(): string {
 function renderUpdateModal(): string {
   if (!state.updateOpen) return '';
   const update = state.update;
+  const coverageResult = update?.result as (DesktopUpdateStatus['result'] & { coverage?: string; observedCount?: number; newCount?: number; updatedCount?: number; failedCount?: number; failedRequests?: number }) | undefined;
   const running = update?.state === 'running';
   const selectedPlatforms = state.updatePlatforms;
   const batch = state.updateBatch;
@@ -1145,13 +1183,13 @@ function renderUpdateModal(): string {
       }).join('')}</div>
       <div class="update-section-head"><div><strong>2 · 更新范围</strong><span>按平台分别生效</span></div></div>
       ${selectedPlatforms.includes('mcmod') ? `<div class="update-scope-card"><label class="field-label" for="update-mode">MC百科 · 新包与旧包</label><select id="update-mode" class="field" ${running ? 'disabled' : ''}><option value="new" ${state.mcmodUpdateMode === 'new' ? 'selected' : ''}>只探测新包（推荐日常使用）</option><option value="versions" ${state.mcmodUpdateMode === 'versions' ? 'selected' : ''}>补抓全部旧包版本历史</option><option value="trend" ${state.mcmodUpdateMode === 'trend' ? 'selected' : ''}>只更新旧包走势、版本与缺失封面</option><option value="all" ${state.mcmodUpdateMode === 'all' ? 'selected' : ''}>新包 + 旧包指标、走势、版本与封面</option></select><p class="update-scope-help">${modeText}</p>${state.mcmodUpdateMode !== 'new' ? `<label class="field-label" for="update-mcmod-limit">本次最多检查多少个旧包</label><input id="update-mcmod-limit" class="field" type="number" min="1" max="100000" step="1" value="${state.mcmodOldLimit}" ${running ? 'disabled' : ''}><p class="update-scope-help">${state.mcmodUpdateMode === 'versions' ? `当前快照已收录 ${formatCount(state.data?.platforms.mcmod.count || 0)} 个 MC百科包；会检查尚未核实的版本页，完成后才切换快照。` : `当前快照已收录 ${formatCount(state.data?.platforms.mcmod.count || 0)} 个 MC百科包。默认最多 50 个走势/版本候选，另检查最多同数的缺失封面候选；近期确认原站无封面的包 30 天内不重复请求。仅新包模式按连续 8 个缺失 ID 自动停止，不受此数量限制。`}</p>` : ''}</div>` : ''}
-      ${otherPlatforms.length ? `<div class="update-scope-card"><label class="field-label" for="update-other-mode">其他五站 · 更新内容</label><select id="update-other-mode" class="field" ${running ? 'disabled' : ''}><option value="catalog" ${state.otherUpdateMode === 'catalog' ? 'selected' : ''}>刷新平台列表与新包</option><option value="existing" ${state.otherUpdateMode === 'existing' ? 'selected' : ''}>复查已收录旧包版本／B站简介</option></select><label class="field-label" for="update-limit">${state.otherUpdateMode === 'existing' ? '每个平台本次复查旧包数' : '每个平台采集上限'}</label><input id="update-limit" class="field" type="number" min="1" max="100000" step="1" placeholder="${state.otherUpdateMode === 'existing' ? '留空：每站轮流复查 50 个' : '留空：沿用各平台默认策略'}" value="${esc(state.updateOtherLimit)}" ${running ? 'disabled' : ''}><p class="update-scope-help">${state.otherUpdateMode === 'existing' ? '按最久未核对优先；B站检查旧视频简介与置顶，其他四站读取项目版本接口。大库建议分批执行，失败时不切换当前快照。' : '列表模式更新项目概要，但不代表逐个旧包的完整版本历史已复查。'} ${esc(otherPlatforms.map((id) => PLATFORM_CONFIGS[id].name).join('、'))}</p>${selectedPlatforms.includes('bilibili') && state.otherUpdateMode === 'catalog' ? `<label class="field-label" for="update-pages">B站检索页数</label><input id="update-pages" class="field" type="number" min="1" max="100000" step="1" value="${state.updateBiliPages}" ${running ? 'disabled' : ''}>` : ''}</div>` : ''}
+      ${otherPlatforms.length ? `<div class="update-scope-card"><label class="field-label" for="update-other-mode">其他五站 · 更新内容</label><select id="update-other-mode" class="field" ${running ? 'disabled' : ''}><option value="catalog" ${state.otherUpdateMode === 'catalog' ? 'selected' : ''}>刷新平台列表／B站有限发现</option><option value="existing" ${state.otherUpdateMode === 'existing' ? 'selected' : ''}>复查旧包版本／B站公开页</option></select><label class="field-label" for="update-limit">${state.otherUpdateMode === 'existing' ? '每个平台本次复查旧包数' : '每个平台采集上限'}</label><input id="update-limit" class="field" type="number" min="1" max="100000" step="1" placeholder="${state.otherUpdateMode === 'existing' ? selectedPlatforms.includes('bilibili') ? '留空：B站最多30个，其他站50个' : '留空：每站轮流复查50个' : '留空：沿用各平台默认策略'}" value="${esc(state.updateOtherLimit)}" ${running ? 'disabled' : ''}><p class="update-scope-help">${state.otherUpdateMode === 'existing' ? '按最久未核对优先；其他四站读取项目版本接口。B站仅观察已收录视频的主站公开HTML，更新实际可见字段；未观察到的置顶、字幕和下载线索保留旧值。B站每次最多30页、当天累计最多30个候选；无登录，不调用业务API。失败时保留旧数据。' : '列表模式更新项目概要。B站从已知视频的合集读取候选，再逐页确认，仅代表局部发现。每次最多30页、当天累计最多30个候选；无登录，不调用业务API。'} ${esc(otherPlatforms.map((id) => PLATFORM_CONFIGS[id].name).join('、'))}</p></div>` : ''}
       ${state.updateFormError ? `<p class="update-form-error" role="alert">${esc(state.updateFormError)}</p>` : ''}
       <div class="update-actions"><button class="button primary" data-action="start-update" ${running || !selectedPlatforms.length ? 'disabled' : ''}>${running ? '更新进行中' : `开始更新${selectedPlatforms.length > 1 ? `（${selectedPlatforms.length} 个平台）` : ''}`}</button>${running ? '<button class="button danger" data-action="cancel-update">取消本批任务</button>' : ''}</div>
       <div class="update-section-head"><div><strong>3 · 执行状态</strong><span>${batch ? `批次 ${Math.min(batch.completed + 1, batch.total)}/${batch.total}` : update && update.state !== 'idle' ? '上次任务' : '等待开始'}</span></div></div>
-      <div class="update-status ${update?.state || 'idle'}" role="status"><div class="status-line"><strong>${esc(!update?.phase || update.phase === 'idle' ? '等待开始' : update.phase)}</strong><span>${update?.platform ? esc(PLATFORM_CONFIGS[update.platform]?.name || update.platform) : ''}</span></div>${progress === null ? (running ? '<div class="status-meta">处理总量暂未确定</div>' : '') : `<div class="progress-track"><span style="width:${progress}%"></span></div><div class="status-meta">${progress}% · ${update?.processed}/${update?.total}</div>`}${update?.error ? `<div class="error-box">${esc(update.error)}</div>` : ''}</div>
+      <div class="update-status ${update?.state || 'idle'}" role="status"><div class="status-line"><strong>${esc(!update?.phase || update.phase === 'idle' ? '等待开始' : update.phase)}</strong><span>${update?.platform ? esc(PLATFORM_CONFIGS[update.platform]?.name || update.platform) : ''}</span></div>${progress === null ? (running ? '<div class="status-meta">处理总量暂未确定</div>' : '') : `<div class="progress-track"><span style="width:${progress}%"></span></div><div class="status-meta">${progress}% · ${update?.processed}/${update?.total}</div>`}${coverageResult?.coverage === 'public-video-html-bounded' ? `<div class="status-meta">B站主站HTML局部覆盖 · 观察 ${Number(coverageResult.observedCount || 0)} 页 · 新增 ${Number(coverageResult.newCount || 0)} 条 · 更新 ${Number(coverageResult.updatedCount || 0)} 条 · 失败 ${Number(coverageResult.failedCount ?? coverageResult.failedRequests ?? 0)} 次</div>` : ''}${update?.error ? `<div class="error-box">${esc(update.error)}</div>` : ''}</div>
       <div class="update-log-head"><strong>${batch || running || !update || update.state === 'idle' ? '任务日志' : '上次任务日志'} <span>${logLines.length} 条</span></strong><button type="button" class="button secondary small" data-action="toggle-update-logs" aria-expanded="${state.updateLogsExpanded}">${state.updateLogsExpanded ? '收起' : '查看全部'}</button></div>
-      <div class="update-log-list" role="log" aria-label="数据更新任务日志">${visibleLogs.length ? visibleLogs.map((line) => `<div class="update-log-line ${/失败|错误|error|failed/i.test(line) ? 'is-error' : ''}">${esc(formatLog(line))}</div>`).join('') : '<p>开始更新后显示任务进度与日志。</p>'}</div>
+      <div class="update-log-list" role="log" aria-label="数据更新任务日志">${visibleLogs.length ? visibleLogs.map((line) => `<div class="update-log-line ${(line.startsWith('B站主站HTML局部覆盖：') ? /失败 [1-9]\d* 次/.test(line) : /失败|错误|error|failed/i.test(line)) ? 'is-error' : ''}">${esc(formatLog(line))}</div>`).join('') : '<p>开始更新后显示任务进度与日志。</p>'}</div>
     </section>
   </div>`;
 }
@@ -1269,14 +1307,14 @@ function renderRecord(record: DesktopRecord, index: number): string {
     ).join('')}</div>` : ''}
     ${renderQuickDownloadLinks(record)}
     ${renderPersonalCardZone(renderPersonalCardActions(record, index), 'pack-card-personal-zone')}
-    <div class="card-footer platform-card-actions"><span>查看详情与来源证据</span><button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div>
+    <div class="card-footer platform-card-actions"><button type="button" class="compare-star ${state.compareIds.includes(record.id) ? 'is-selected' : ''}" data-action="toggle-compare" data-index="${index}" title="${state.compareIds.includes(record.id) ? '移出对比' : '加入对比'}">${state.compareIds.includes(record.id) ? '✓' : '＋'} 对比</button></div>
   </article>`;
 }
 
 function renderMcmodWindowAction(record: DesktopRecord): string {
   if (record.platform !== 'mcmod') return '';
   const url = safeExternalUrl(record.url) || `https://www.mcmod.cn/modpack/${encodeURIComponent(record.sourceId)}.html`;
-  return `<button type="button" class="mcmod-comment-link" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(url)}" data-title="${esc(record.title)}">▣ 小窗浏览</button>`;
+  return `<button type="button" class="mcmod-comment-link" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(url)}" data-title="${esc(record.title)}">${isStaticSite() ? '原站链接 ↗' : '▣ 小窗浏览'}</button>`;
 }
 
 function renderCompactRecord(record: DesktopRecord, index: number): string {
@@ -1538,7 +1576,7 @@ function renderBilibiliFlatWorkspace(records: DesktopRecord[]): string {
 }
 
 function platformIcon(platform: Platform): string {
-  const src = PLATFORM_SITE_ICONS[platform];
+  const src = isStaticSite() ? '' : PLATFORM_SITE_ICONS[platform];
   const short = platform === 'mcmod' ? 'MC' : platform === 'bilibili' ? 'B' : platform === 'bbsmc' ? 'BBS' : platform === 'xyebbs' ? 'XYE' : platform === 'modrinth' ? 'MR' : 'CF';
   if (!src) return `<span class="platform-icon-wrap"><span class="platform-icon-fallback">${short}</span></span>`;
   return `<span class="platform-icon-wrap"><img class="platform-site-icon" src="${esc(src)}" alt="${esc(PLATFORM_CONFIGS[platform].name)}图标" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true;this.nextElementSibling.hidden=false;"><span class="platform-icon-fallback" hidden>${short}</span></span>`;
@@ -1554,21 +1592,29 @@ function renderLegacyShowcaseCard(platform: Platform): string {
   const records = state.records.filter((record) => record.platform === platform);
   const samples = records.slice(0, 3);
   const count = platformState?.count ?? 0;
-  const updateTime = platformState?.available && state.data?.updatedAt ? `快照更新时间：${formatTime(state.data.updatedAt)}` : '等待本地快照';
+  const platformTime = (state.data as (DesktopDataState & { sourceTimes?: Record<string, string> }) | null)?.sourceTimes?.[platform];
+  const refresh = (state.data as (DesktopDataState & { sourceRefresh?: Record<string, { status: string; coverage: string; new: number; updated: number; knownUnavailableCount?: number; unverifiedCount?: number; htmlRefresh?: { observedCount: number; newCount: number; updatedCount: number; observedAt: string; newerPublicationCount?: number } }> }) | null)?.sourceRefresh?.[platform];
+  const recoveredHistoricalData = refresh?.status === 'recovered-existing-local-snapshot';
+  const htmlRefresh = refresh?.htmlRefresh;
+  const refreshLabel = recoveredHistoricalData ? htmlRefresh ? '恢复9月28日本地较新数据；官方网页分批局部更新' : '恢复9月28日本地较新数据，本轮未在线刷新' : refresh?.status === 'retained-old' ? '本轮未更新，保留旧完整数据' : refresh?.status === 'partial' ? '本轮局部刷新' : refresh ? '本轮增量范围已验证' : '';
+  const refreshCounts = refresh && refresh.status !== 'retained-old' ? `；新增 ${refresh.new}，展示字段更新 ${refresh.updated}` : '';
+  const updateTime = isStaticSite() ? `${refreshLabel ? refreshLabel + '；' : ''}${recoveredHistoricalData ? '历史最后检查时间' : refresh && refresh.status !== 'retained-old' ? '刷新验证时间' : '源文件更新时间'}：${formatTime(platformTime || '')}${refreshCounts}${recoveredHistoricalData ? `；${refresh?.knownUnavailableCount || 0}条来源确认不可用，${refresh?.unverifiedCount || 0}条历史未成功检查` : ''}${htmlRefresh ? `；累计HTML分批核验 ${htmlRefresh.observedCount} 条：新增 ${htmlRefresh.newCount} 条（历史漏收 ${htmlRefresh.newCount - (htmlRefresh.newerPublicationCount || 0)}、近期发布介绍视频 ${htmlRefresh.newerPublicationCount || 0}），更新 ${htmlRefresh.updatedCount} 条旧记录；最新核验时间 ${formatTime(htmlRefresh.observedAt)}${htmlRefresh.newerPublicationCount ? "；包首次发布及版本更新未核验" : ""}` : ''}` : platformState?.available && state.data?.updatedAt ? `快照更新时间：${formatTime(state.data.updatedAt)}` : '等待本地快照';
   const tags = [...new Set(samples.flatMap((record) => [...record.versions, ...record.loaders, ...record.categories]).filter(Boolean))].slice(0, 5);
   const sampleHtml = samples.length
     ? samples.map((record, index) => {
       const recordIndex = state.records.indexOf(record);
       return `<button type="button" class="featured-item" data-action="select-record" data-index="${recordIndex}" title="打开 ${esc(record.title)} 详情"><span class="featured-rank">${index + 1}</span><span class="featured-name">${esc(record.title)}</span><span class="featured-meta">${esc(record.author || '作者未知')}</span></button>`;
     }).join('')
-    : '<div class="showcase-empty">当前筛选页没有可展示记录。</div>';
+    : isStaticSite() && (isStaticOverview() || state.loading)
+      ? `<div class="showcase-empty"><span data-pages-source-state="${platform}">${esc(pagesSourceLoadLabel(platform))}</span>。打开此来源后展示代表记录。</div>`
+      : '<div class="showcase-empty">当前筛选页没有可展示记录。</div>';
   const tagHtml = tags.length
     ? tags.map((tag) => `<button type="button" class="showcase-tag-chip" data-action="quick-search" data-query="${esc(tag)}">${esc(tag)}</button>`).join('')
-    : '<span class="showcase-tag-chip muted-chip">暂无版本或标签</span>';
+    : `<span class="showcase-tag-chip muted-chip">${isStaticSite() && (isStaticOverview() || state.loading) ? '加载记录后显示版本和标签' : '暂无版本或标签'}</span>`;
   return `<article class="platform-showcase-card" style="--card-accent:${PLATFORM_ACCENTS[platform]}; --card-glow:${PLATFORM_ACCENTS[platform]}33;">
     <div class="showcase-header"><div class="showcase-icon" style="background:${PLATFORM_ACCENTS[platform]}22; color:${PLATFORM_ACCENTS[platform]};">${platformIcon(platform)}</div><div><h3 class="showcase-title">${esc(config.name)}数据看板</h3><span class="showcase-badge" style="background:${PLATFORM_ACCENTS[platform]}22; color:${PLATFORM_ACCENTS[platform]};">${esc(PLATFORM_TAGLINES[platform])}</span></div></div>
-    <div class="showcase-metrics"><div><div class="smetric-val">${formatCount(count)}</div><div class="smetric-lbl">当前快照记录</div></div><div><div class="smetric-val">${records.length ? formatCount(records.length) : '—'}</div><div class="smetric-lbl">当前页可浏览</div></div><div><div class="smetric-val">${platformState?.available ? '已载入' : '未载入'}</div><div class="smetric-lbl">本地状态</div></div></div>
-    <div class="showcase-featured-box"><div class="showcase-box-header"><span>📌 当前快照代表</span><span>点击直达</span></div>${sampleHtml}</div>
+    <div class="showcase-metrics"><div><div class="smetric-val">${formatCount(count)}</div><div class="smetric-lbl">${isStaticSite() ? '公开采集记录' : '当前快照记录'}</div></div><div><div class="smetric-val">${records.length ? formatCount(records.length) : '—'}</div><div class="smetric-lbl">当前页可浏览</div></div><div><div class="smetric-val">${isStaticSite() ? `<span data-pages-source-state="${platform}">${esc(pagesSourceLoadLabel(platform))}</span>` : platformState?.available ? '已载入' : '未载入'}</div><div class="smetric-lbl">${isStaticSite() ? '记录加载状态' : '本地状态'}</div></div></div>
+    <div class="showcase-featured-box"><div class="showcase-box-header"><span>📌 ${isStaticSite() ? '公开记录代表' : '当前快照代表'}</span><span>点击直达</span></div>${sampleHtml}</div>
     <div class="showcase-tags-box">${tagHtml}</div>
     <div class="showcase-source-meta">${esc(updateTime)}</div>
     <button type="button" class="showcase-btn" style="background:linear-gradient(135deg, ${PLATFORM_ACCENTS[platform]}, ${PLATFORM_ACCENTS[platform]}cc);" data-action="set-platform" data-platform="${platform}">浏览全部 ${formatCount(count)} 条${esc(config.name)}记录</button>
@@ -1589,6 +1635,8 @@ function renderCrossSearch(): string {
 
 function renderCrossResults(): string {
   if (!state.query.trim()) return '';
+  if (isStaticSite() && state.loading) return `<div class="loading-state pages-loading-progress" role="status">${esc(pagesLoadingMessage())}</div>`;
+  if (isStaticSite() && state.recordsError && !state.records.length) return '';
   const groups = ALL_PLATFORMS.map((platform) => {
     const records = state.records.filter((record) => record.platform === platform).slice(0, 4);
     if (!records.length) return '';
@@ -1646,7 +1694,7 @@ function renderComparePanel(): string {
 function renderPlatformHero(platform: Platform): string {
   const config = PLATFORM_CONFIGS[platform];
   const count = state.data?.platforms[platform]?.count ?? 0;
-  return `<section class="channel-hero ${platform}-channel-hero"><div class="channel-hero-left"><span class="channel-badge-tag">${platformIcon(platform)} ${esc(config.name)}</span><div class="channel-title">${esc(config.name)}资料看板</div><div class="channel-desc">${esc(PLATFORM_TAGLINES[platform])}。详情页保留版本、模组、评论和原始来源入口。</div></div><div class="channel-quick-stats"><div class="cstat-item"><span class="cs-num">${formatCount(count)}</span><span class="cs-lbl">当前快照记录</span></div><div class="cstat-item"><span class="cs-num">${state.loading ? '…' : formatCount(state.total)}</span><span class="cs-lbl">当前结果总数</span></div></div></section>`;
+  return `<section class="channel-hero ${platform}-channel-hero"><div class="channel-hero-left"><span class="channel-badge-tag">${platformIcon(platform)} ${esc(config.name)}</span><div class="channel-title">${esc(config.name)}资料看板</div><div class="channel-desc">${esc(PLATFORM_TAGLINES[platform])}。详情页保留版本、模组、评论和原始来源入口。</div></div><div class="channel-quick-stats"><div class="cstat-item"><span class="cs-num">${formatCount(count)}</span><span class="cs-lbl">${isStaticSite() ? '公开采集记录' : '当前快照记录'}</span></div><div class="cstat-item"><span class="cs-num">${state.loading ? '…' : formatCount(state.total)}</span><span class="cs-lbl">当前结果总数</span></div></div></section>`;
 }
 
 function getCategoryOptionsWithCounts(): Array<{ value: string; count: number }> {
@@ -2020,6 +2068,9 @@ export function setStickyFollowStateForTest(params: {
 }
 
 function renderResultsWorkspace(selectedName: string): string {
+  if (isStaticOverview()) {
+    return `<section class="notice" data-pages-summary-ready="${Boolean(state.data?.hasData)}"><h2>${state.data?.hasData ? '选择来源，开始浏览' : '正在读取公开目录…'}</h2><p>上方数量与更新时间来自公开目录，记录尚未全部加载。打开一个来源只加载该来源；输入关键词后在六平台完整数据中搜索。代表记录在加载后展示。</p></section>`;
+  }
   const records = currentRecords();
   const data = state.data;
   const hasPlatformFilter = state.platform === 'mcmod' ? state.includedMods.length > 0 : state.platform === 'curseforge' ? state.gameplayCategories.length > 0 : false;
@@ -2050,7 +2101,7 @@ function renderResultsWorkspace(selectedName: string): string {
   const recordsBody = !data?.hasData
     ? `<div class="empty-state"><div class="empty-icon">◌</div><h3>还没有本地数据快照</h3><p>选择现有的 <code>converted_output</code>、<code>build/frontend_preview</code> 或其 <code>data</code> 目录。应用不会把空数据伪装成成功。</p><button class="button primary" data-action="choose-data">选择数据目录</button></div>`
     : state.loading
-      ? '<div class="loading-state">正在读取当前快照…</div>'
+      ? isStaticSite() ? `<div class="loading-state pages-loading-progress" role="status">${esc(pagesLoadingMessage())}</div>` : '<div class="loading-state">正在读取当前快照…</div>'
       : state.recordsError && !records.length
         ? recordsFailure
         : `${state.recordsError ? recordsFailure : ''}${resultBody}${state.hasMore ? `<div class="load-more"><button class="button secondary" data-action="load-more">${loadMoreLabel}</button></div>` : ''}`;
@@ -2109,7 +2160,7 @@ function renderCommentSection(record: DesktopRecord): string {
   const hasComments = Boolean(pinned || (commentState?.available && commentState.comments?.length) || commentState?.loading || commentState?.error);
   const webCommentUrl = getPlatformCommentWebUrl(record);
   const webCommentAction = webCommentUrl
-    ? `<div class="detail-comment-web-entry"><button type="button" class="button secondary wide" data-action="open-comment-preview" data-record-id="${esc(record.id)}">💬 软件内小窗浏览「${esc(PLATFORM_CONFIGS[record.platform]?.name || '')}」原站讨论与评论</button></div>`
+    ? `<div class="detail-comment-web-entry"><button type="button" class="button secondary wide" data-action="open-comment-preview" data-record-id="${esc(record.id)}">💬 ${isStaticSite() ? '查看已采集评论与来源' : '软件内小窗浏览'}「${esc(PLATFORM_CONFIGS[record.platform]?.name || '')}」原站讨论与评论</button></div>`
     : '';
 
   if (!hasComments) {
@@ -2576,7 +2627,7 @@ export function renderDetailSourceDynamics(
                 <span class="detail-submeta">${itemDate ? `发布：${esc(itemDate)}` : ''}${itemViews ? ` · 播放：${itemViews}` : ''}</span>
               </div>
               <div class="bili-related-video-actions">
-                ${itemUrl ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(itemUrl)}" data-title="${esc(item.title)} 视频页面">🪟 小窗浏览</button>` : ''}
+                ${itemUrl ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(itemUrl)}" data-title="${esc(item.title)} 视频页面">${isStaticSite() ? '打开原站 ↗' : '🪟 小窗浏览'}</button>` : ''}
               </div>
             </div>`;
           }).join('')}
@@ -2691,7 +2742,7 @@ function detailPanel(): string {
       <div class="detail-col-personal">
         ${renderMcmodTrendDetail(record)}
         ${renderPersonalDetail(record)}
-        <div class="detail-actions">${sourceUrl ? `<button class="button primary wide" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(sourceUrl)}" data-title="${esc(record.title)} 原站页面">🪟 软件内小窗浏览</button><button class="button secondary wide" data-action="open-source" data-url="${esc(sourceUrl)}">外部浏览器打开 ↗</button>` : '<div class="unknown-action">原站链接未知</div>'}</div>
+        <div class="detail-actions">${sourceUrl ? `<button class="button primary wide" data-action="open-in-app-window" data-record-id="${esc(record.id)}" data-url="${esc(sourceUrl)}" data-title="${esc(record.title)} 原站页面">${isStaticSite() ? '打开原站 ↗' : '🪟 软件内小窗浏览'}</button><button class="button secondary wide" data-action="open-source" data-url="${esc(sourceUrl)}">外部浏览器打开 ↗</button>` : '<div class="unknown-action">原站链接未知</div>'}</div>
       </div>
     </div>
   </aside></div>`;
@@ -3523,8 +3574,23 @@ function retryCoverImage(button: HTMLButtonElement): void {
 }
 
 function render(): void {
+  if (mainSearchCompositionInput?.isConnected) {
+    mainSearchRenderPending = true;
+    return;
+  }
+  const active = document.activeElement;
+  const searchFocus = active instanceof HTMLInputElement && active.matches('#pack-search, .js-pack-search')
+    ? { start: active.selectionStart, end: active.selectionEnd, direction: active.selectionDirection } : null;
+  const detailFocus = active instanceof HTMLElement && active.closest('.detail-panel')
+    ? { action: active.dataset.action, rating: active.dataset.rating, id: active.id,
+        value: active instanceof HTMLTextAreaElement ? active.value : null,
+        start: active instanceof HTMLTextAreaElement ? active.selectionStart : null,
+        end: active instanceof HTMLTextAreaElement ? active.selectionEnd : null,
+        recordId: state.selected?.id } : null;
   const data = state.data;
   const availableCount = data ? Object.values(data.platforms).filter((item) => item.available).length : 0;
+  const publicTimes = (data as (DesktopDataState & { sourceTimes?: Record<string, string> }) | null)?.sourceTimes;
+  const publicTimeMarkup = publicTimes ? `<details><summary>各平台数据时间</summary>${Object.entries(publicTimes).map(([platform, time]) => `<div>${esc(PLATFORM_CONFIGS[platform as Platform]?.name || platform)}：${esc(formatTime(time))}</div>`).join('')}<small>各平台并非同批抓取。刷新成功仅覆盖本轮增量范围；保留旧数据的来源仍显示原文件时间。</small></details>` : '';
   const selectedName = state.platform === 'all' ? '全部平台' : PLATFORM_CONFIGS[state.platform].name;
   const totalCount = data ? ALL_PLATFORMS.reduce((sum, platform) => sum + (data.platforms[platform]?.count || 0), 0) : 0;
   const theme = document.documentElement.dataset.theme || 'light';
@@ -3542,9 +3608,9 @@ function render(): void {
   ].filter(Boolean).join('');
   const personalProfileAction = `<button type="button" class="top-action-btn personal-profile-trigger" data-action="open-personal-profile" aria-haspopup="dialog" aria-label="打开个人资料${unreadFavoriteUpdates ? `，${unreadFavoriteUpdates} 条收藏更新未读` : ''}${missingPersonalCount ? `，${missingPersonalCount} 条缺源回访` : ''}">个人资料${personalBadges}</button>`;
   const body = (state.platform === 'all'
-    ? `${renderCrossSearch()}<section class="all-platforms-grid" aria-label="六平台数据看板">${ALL_PLATFORMS.map(renderLegacyShowcaseCard).join('')}</section><div class="desktop-section-heading"><span class="eyebrow">LIVE SNAPSHOT</span><h2>当前快照浏览</h2><p>卡片、版本筛选与详情入口均来自本地快照；需要更多结果时可继续加载。</p></div>${renderResultsWorkspace(selectedName)}`
+    ? `${renderCrossSearch()}<section class="all-platforms-grid" aria-label="六平台数据看板">${ALL_PLATFORMS.map(renderLegacyShowcaseCard).join('')}</section><div class="desktop-section-heading"><span class="eyebrow">LIVE SNAPSHOT</span><h2>${isStaticSite() ? '公开数据浏览' : '当前快照浏览'}</h2><p>${isStaticSite() ? '浏览已抓取的六平台公开数据；收藏、评分和备注仅保存在当前浏览器。' : '卡片、版本筛选与详情入口均来自本地快照；需要更多结果时可继续加载。'}</p></div>${renderResultsWorkspace(selectedName)}`
     : `${renderPlatformHero(state.platform)}${renderResultsWorkspace(selectedName)}`);
-  const snapshotStatusLabel = data?.hasData ? '快照' : '等待数据';
+  const snapshotStatusLabel = isStaticSite() ? '静态展示' : data?.hasData ? '快照' : '等待数据';
   const snapshotStatusDescription = data?.hasData ? `当前快照：${data.snapshotId || '已载入'}` : '等待数据';
   const isUpdating = state.update?.state === 'running';
   const updateAction = `<button type="button" class="top-action-btn ${isUpdating ? 'is-running' : ''}" data-action="toggle-update" aria-label="数据更新" aria-expanded="${state.updateOpen}">${isUpdating ? '<span class="pulse-indicator"></span>' : ''}数据更新</button>`;
@@ -3553,8 +3619,8 @@ function render(): void {
   const savedUpdateScrollTop = root?.querySelector<HTMLElement>('.update-modal-panel')?.scrollTop || 0;
   const savedLogScrollTop = root?.querySelector<HTMLElement>('.update-log-list')?.scrollTop || 0;
   replaceRootHtmlPreservingCoverImages(`<div class="desktop-app legacy-shell"><div class="bg-layer" aria-hidden="true"></div>
-    <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条本地记录` : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav><nav class="topbar-platform-flyout" aria-label="完整平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button>${updateAction}<button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button>${personalProfileAction}<span class="data-status ${data?.hasData ? 'ready' : 'empty'}" title="${esc(snapshotStatusDescription)}" aria-label="${esc(snapshotStatusDescription)}"><i aria-hidden="true"></i>${snapshotStatusLabel}</span><div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
-    <main class="main-content">${body}<footer class="workspace-footer"><span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main><button type="button" class="update-task-dock" data-action="toggle-update" hidden><span class="pulse-indicator" aria-hidden="true"></span><span class="update-task-copy"><strong class="update-task-title"></strong><small class="update-task-detail"></small></span><span class="update-task-track" aria-hidden="true"><span></span></span></button>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${renderCommentPreviewModal()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}${renderMcmodTrendDialog()}${renderUpdateModal()}${renderDataImportModal()}${renderPickerModal()}${renderInAppWindowModal()}</div>`);
+    <header class="topbar"><div class="topbar-inner"><div class="topbar-left"><button type="button" class="topbar-brand" data-action="set-platform" data-platform="all" title="返回全平台总览"><span class="brand-cube">⛏️</span><span class="brand-title">我的世界整合包聚合</span><span class="brand-badge">${totalCount ? `${formatCount(totalCount)} 条${isStaticSite() ? '公开记录' : '本地记录'}` : isStaticSite() ? '正在读取公开目录…' : '本地快照工作台'}</span></button></div><div class="topbar-center"><nav class="topbar-platform-nav" aria-label="全端聚合多平台导航">${topNav}</nav><nav class="topbar-platform-flyout" aria-label="完整平台导航">${topNav}</nav></div><div class="topbar-actions"><button type="button" class="top-action-btn" data-action="toggle-audit">变动审计${auditCount(state.audit) ? ` <span class="audit-count-badge">${auditCount(state.audit)}</span>` : ''}</button>${updateAction}<button type="button" class="top-action-btn" data-action="choose-data">${data?.hasData ? '更换数据' : '选择数据'}</button>${personalProfileAction}<span class="data-status ${data?.hasData ? 'ready' : 'empty'}" title="${esc(snapshotStatusDescription)}" aria-label="${esc(snapshotStatusDescription)}"><i aria-hidden="true"></i>${snapshotStatusLabel}</span><div class="top-theme-pills" role="radiogroup" aria-label="切换主题">${themeButtons}</div></div></div></header>
+    <main class="main-content">${body}<footer class="workspace-footer">${publicTimeMarkup}<span>${availableCount ? `${availableCount}/6 个平台已有数据` : '数据来源未知'}</span><span>${data?.updatedAt ? `快照更新时间：${esc(formatTime(data.updatedAt))}` : '数据不会自动编造'}</span>${data?.canonicalReady ? '<span class="canonical-ok">Canonical 已校验</span>' : isStaticSite() ? '<span>静态站不采集、不管理服务；各平台数据时间见说明</span>' : '<span>局部导入或原始数据不足，Canonical 状态未知</span>'}</footer></main><button type="button" class="update-task-dock" data-action="toggle-update" hidden><span class="pulse-indicator" aria-hidden="true"></span><span class="update-task-copy"><strong class="update-task-title"></strong><small class="update-task-detail"></small></span><span class="update-task-track" aria-hidden="true"><span></span></span></button>${renderCompareTray()}${detailPanel()}${imagePreviewPanel()}${renderCommentPreviewModal()}${auditPanel()}${renderComparePanel()}${renderPersonalProfilePanel()}${renderMcmodTrendDialog()}${renderUpdateModal()}${renderDataImportModal()}${renderPickerModal()}${renderInAppWindowModal()}</div>`);
   if (savedGridScrollTop > 0) {
     const nextGridWrap = root?.querySelector<HTMLElement>('.picker-grid-wrap');
     if (nextGridWrap) nextGridWrap.scrollTop = savedGridScrollTop;
@@ -3564,6 +3630,26 @@ function render(): void {
   const nextLogList = root?.querySelector<HTMLElement>('.update-log-list');
   if (nextLogList && savedLogScrollTop > 0) nextLogList.scrollTop = savedLogScrollTop;
   bindEvents();
+  if (searchFocus) {
+    const search = root.querySelector<HTMLInputElement>('#pack-search');
+    search?.focus({ preventScroll: true });
+    if (search && searchFocus.start !== null && searchFocus.end !== null) {
+      search.setSelectionRange(searchFocus.start, searchFocus.end, searchFocus.direction || 'none');
+    }
+  }
+  if (detailFocusAfterRender) {
+    root.querySelector<HTMLButtonElement>('.detail-panel [data-action="close-detail"]')?.focus({ preventScroll: true });
+    detailFocusAfterRender = false;
+  } else if (detailFocus && detailFocus.recordId === state.selected?.id) {
+    const selector = detailFocus.id ? `#${CSS.escape(detailFocus.id)}` : detailFocus.action
+      ? `[data-action="${CSS.escape(detailFocus.action)}"]${detailFocus.rating ? `[data-rating="${CSS.escape(detailFocus.rating)}"]` : ''}` : '';
+    const control = selector ? root.querySelector<HTMLElement>(`.detail-panel ${selector}`) : null;
+    if (control instanceof HTMLTextAreaElement && detailFocus.value !== null) {
+      control.value = detailFocus.value;
+      control.setSelectionRange(detailFocus.start, detailFocus.end);
+    }
+    control?.focus({ preventScroll: true });
+  }
   refreshUpdateDock();
   const focusTarget = profileFocusAfterRender;
   profileFocusAfterRender = '';
@@ -4077,10 +4163,22 @@ function bindEvents(): void {
     });
   }
   root.querySelectorAll<HTMLInputElement>('#pack-search, .js-pack-search').forEach((input) => {
-    input.addEventListener('input', (event) => {
-      state.query = (event.target as HTMLInputElement).value;
+    input.addEventListener('compositionstart', () => {
+      mainSearchCompositionInput = input;
+      window.clearTimeout(searchTimer);
+    });
+    bindCompositionAwareSearchInput(input, (value) => {
+      state.query = value;
+    }, () => {
       window.clearTimeout(searchTimer);
       searchTimer = window.setTimeout(() => void loadRecords(), 180);
+    });
+    input.addEventListener('compositionend', () => {
+      if (mainSearchCompositionInput === input) mainSearchCompositionInput = null;
+      if (mainSearchRenderPending) {
+        mainSearchRenderPending = false;
+        render();
+      }
     });
   });
   root.querySelectorAll<HTMLTextAreaElement>('[data-personal-note]').forEach((textarea) => {
@@ -4088,10 +4186,18 @@ function bindEvents(): void {
       const el = event.target as HTMLTextAreaElement;
       const targetRecord = recordForPersonalTarget(el) || state.selected;
       if (!targetRecord || !isPersonalWritable(targetRecord)) return;
-      window.clearTimeout(personalNoteTimer);
-      personalNoteTimer = window.setTimeout(() => {
-        void savePersonalPatch(targetRecord, { note: el.value }, false);
-      }, 350);
+      const key = personalKey(targetRecord);
+      const note = el.value;
+      window.clearTimeout(personalNoteTimers.get(key));
+      if (document.documentElement.dataset.staticSite === 'true') {
+        // Pages persists localStorage synchronously before its API promise returns.
+        void savePersonalPatch(targetRecord, { note }, false);
+        return;
+      }
+      personalNoteTimers.set(key, window.setTimeout(() => {
+        personalNoteTimers.delete(key);
+        void savePersonalPatch(targetRecord, { note }, false);
+      }, 350));
     });
   });
 }
@@ -4308,7 +4414,7 @@ async function loadSelectedDataDirectory(path?: string): Promise<void> {
 function optionsForUpdatePlatform(platform: Platform, options: UpdateOptions): UpdateOptions {
   return {
     limit: platform === 'mcmod' ? options.mcmodLimit : options.limit,
-    pages: platform === 'bilibili' ? options.pages : undefined,
+    pages: undefined,
     mode: platform === 'mcmod' ? options.mode : options.otherMode,
   };
 }
@@ -4345,6 +4451,12 @@ function closeInAppWindow(win: InAppWindowState | null): void {
 
 async function handleAction(element: HTMLElement, event?: Event): Promise<void> {
   const action = element.dataset.action;
+  if (isStaticSite() && ['open-in-app-window', 'open-native-subwindow'].includes(action || '')) {
+    event?.preventDefault(); event?.stopPropagation();
+    const url = element.dataset.url;
+    if (url) await window.desktopApi.openExternal(url);
+    return;
+  }
   if (action === 'retry-cover') {
     event?.preventDefault();
     event?.stopPropagation();
@@ -4699,7 +4811,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     state.compareOpen = false;
     state.comments = { sourceId: '', loading: false, available: false, pageCount: 0, comments: [], sourceFile: null, error: '' };
 
-    const cached = isDefaultPlatformFilters() ? platformRecordCache.get(nextPlatform) : undefined;
+    const cached = !isStaticOverview() && isDefaultPlatformFilters() ? platformRecordCache.get(nextPlatform) : undefined;
     if (cached) {
       state.records = [...cached.records];
       state.biliGroups = [...cached.biliGroups];
@@ -4790,10 +4902,8 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     const oldMode = platforms.includes('mcmod') && state.mcmodUpdateMode !== 'new';
     const oldLimit = String(state.mcmodOldLimit);
     const otherLimit = state.updateOtherLimit.trim();
-    const pagesValue = String(state.updateBiliPages);
     state.updateFormError = oldMode && !validPositive(oldLimit) ? 'MC百科旧包数量须为 1–100000 的整数。'
-      : platforms.some((platform) => platform !== 'mcmod') && otherLimit && !validPositive(otherLimit) ? '其他平台采集上限须为 1–100000 的整数。'
-        : platforms.includes('bilibili') && state.otherUpdateMode === 'catalog' && !validPositive(pagesValue) ? 'B站页数须为 1–100000 的整数。' : '';
+      : platforms.some((platform) => platform !== 'mcmod') && otherLimit && !validPositive(otherLimit) ? '其他平台采集上限须为 1–100000 的整数。' : '';
     if (state.updateFormError) { render(); return; }
     state.logs = [];
     state.updateOpen = true;
@@ -4804,7 +4914,6 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
       options: {
         limit: otherLimit ? Number(otherLimit) : undefined,
         mcmodLimit: oldMode ? state.mcmodOldLimit : undefined,
-        pages: platforms.includes('bilibili') ? Number(pagesValue) : undefined,
         mode: state.mcmodUpdateMode,
         otherMode: state.otherUpdateMode === 'existing' ? 'existing' : undefined,
       },
@@ -5124,6 +5233,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     if (target && target !== element && target.closest('a,button,details,summary,.tag-mod,.mcmod-mod-cell,.mcmod-trend-trigger,.mcmod-comment-btn,.card-metric-comment,.compact-metric-comment,.bmb-comment-btn,.xyebbs-comment-btn')) return;
     const index = Number(element.dataset.index || '-1');
     state.selected = state.records[index] || null;
+    detailFocusAfterRender = Boolean(state.selected);
     state.inAppWindowPreviousSelected = null;
     state.trendChart = null;
     state.imagePreview = null;
@@ -5212,6 +5322,24 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
 
 async function loadRecords(reset = true, backgroundRevalidate = false): Promise<void> {
   const requestId = ++activeLoadRequestId;
+  if (isStaticOverview()) {
+    state.page = 1;
+    state.records = [];
+    state.biliGroups = [];
+    state.total = ALL_PLATFORMS.reduce((sum, platform) => sum + (state.data?.platforms[platform]?.count || 0), 0);
+    state.hasMore = false;
+    state.loading = false;
+    state.recordsError = '';
+    state.availableVersions = [];
+    state.availableLoaders = [];
+    state.availableCategories = [];
+    state.availableCategoryCounts = [];
+    state.availableIncludedMods = [];
+    state.availableGameplayCategories = [];
+    state.availablePans = [];
+    render();
+    return;
+  }
   if (reset) {
     state.page = 1;
     if (!backgroundRevalidate) {
@@ -5329,6 +5457,13 @@ let documentEventsBound = false;
 function bindDocumentEvents(): void {
   if (documentEventsBound) return;
   documentEventsBound = true;
+  if (isStaticSite()) document.addEventListener('mc-pages-load-progress', (event) => {
+    const detail = (event as CustomEvent<{ platform: Platform; phase: string; completed: number; total: number }>).detail;
+    if (!detail || !ALL_PLATFORMS.includes(detail.platform)) return;
+    pagesLoadProgress.set(detail.platform, detail);
+    root.querySelectorAll<HTMLElement>(`[data-pages-source-state="${detail.platform}"]`).forEach((element) => { element.textContent = pagesSourceLoadLabel(detail.platform); });
+    root.querySelectorAll<HTMLElement>('.pages-loading-progress').forEach((element) => { element.textContent = pagesLoadingMessage(); });
+  });
   document.addEventListener('load', (event) => {
     const image = event.target instanceof HTMLImageElement ? event.target : null;
     if (!image || image.dataset.coverImage !== 'true') return;
@@ -5417,6 +5552,7 @@ function bindDocumentEvents(): void {
 }
 
 async function warmupPlatformCache(): Promise<void> {
+  if (isStaticSite()) return;
   const currentSnapshotId = state.data?.snapshotId;
   for (const platform of ALL_PLATFORMS) {
     if (platformRecordCache.has(platform)) continue;

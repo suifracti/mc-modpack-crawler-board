@@ -2,10 +2,26 @@ const https = require('node:https');
 const path = require('node:path');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
+const { readCurseforgeApiKey, getCurseforgeMetadataProvider } = require('./curseforge-api-config.cjs');
 
 const origins = { bbsmc: 'https://api.bbsmc.net/v2', modrinth: 'https://api.modrinth.com/v2' };
 const cache = new Map();
 const execFileAsync = promisify(execFile);
+let curseforgeStop = null;
+
+async function getWidgetVersions(sourceId) {
+  // Reuse the guarded Python reader (robots, native Windows TLS, one request
+  // per second). It has no credential headers and cannot request download URLs.
+  const python = process.env.MC_DESKTOP_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
+  const repo = path.resolve(__dirname, '..', '..', '..');
+  const { stdout } = await execFileAsync(python, [path.join(__dirname,'read-cfwidget-versions.py'), String(sourceId)], {
+    cwd: repo, windowsHide: true, timeout: 35000, maxBuffer: 8 * 1024 * 1024,
+  });
+  const result = JSON.parse(stdout);
+  if (result.sourceStopped) curseforgeStop = result.error;
+  if (result.error) throw new Error(result.error);
+  return result;
+}
 
 async function getMcmodVersions(sourceId) {
   if (!/^\d{1,8}$/.test(String(sourceId))) throw new Error('MC百科整合包编号无效');
@@ -24,10 +40,18 @@ async function getMcmodVersions(sourceId) {
 
 async function getCurseforgeVersions(sourceId) {
   if (!/^\d+$/.test(String(sourceId))) throw new Error('CurseForge 项目编号无效');
+  if (curseforgeStop) throw new Error(curseforgeStop);
+  if (getCurseforgeMetadataProvider() === 'cfwidget') return getWidgetVersions(sourceId);
+  const apiKey = readCurseforgeApiKey();
   return new Promise((resolve, reject) => {
-    const url = `https://api.curse.tools/v1/mods/${encodeURIComponent(sourceId)}/files?pageSize=50`;
-    const request = https.get(url, { headers: { 'User-Agent': 'MCModpackBoard/0.1 (local project reader)', Accept: 'application/json' } }, (response) => {
-      if (response.statusCode !== 200) { response.resume(); reject(new Error(`CurseForge 接口返回 HTTP ${response.statusCode}`)); return; }
+    const url = `https://api.curseforge.com/v1/mods/${encodeURIComponent(sourceId)}/files?index=0&pageSize=50`;
+    const request = https.get(url, { headers: { 'User-Agent': 'MCModpackBoard/0.1 (local project reader)', Accept: 'application/json', 'x-api-key': apiKey } }, (response) => {
+      if (response.statusCode !== 200) {
+        response.resume();
+        const reason = `CurseForge 官方接口返回 HTTP ${response.statusCode}`;
+        if ((response.statusCode >= 300 && response.statusCode < 400) || [401,403,412,429].includes(response.statusCode)) curseforgeStop = reason + '，已停止该来源；请核对Key权限或官方服务状态后重启服务。';
+        reject(new Error(curseforgeStop || reason)); return;
+      }
       const chunks = [];
       let bytes = 0;
       response.on('data', (chunk) => {
@@ -38,8 +62,18 @@ async function getCurseforgeVersions(sourceId) {
       response.on('error', reject);
       response.on('end', () => {
         try {
-          const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-          const files = Array.isArray(payload?.data) ? payload.data : [];
+          const text = Buffer.concat(chunks).toString('utf8');
+          if (/^\s*<(?:!doctype\s+html|html|head|body)\b/i.test(text)) {
+            curseforgeStop = 'CurseForge 官方接口返回验证页面，已停止该来源；请在原站查看。';
+            throw new Error(curseforgeStop);
+          }
+          const payload = JSON.parse(text);
+          if (/captcha|验证码|安全验证|Access Denied/i.test([payload?.message,payload?.error,payload?.msg].filter(Boolean).join(' '))) {
+            curseforgeStop = 'CurseForge 官方接口要求访问验证，已停止该来源。';
+            throw new Error(curseforgeStop);
+          }
+          if (!Array.isArray(payload?.data)) throw new Error('CurseForge 官方文件接口未返回列表');
+          const files = payload.data;
           const versions = files.map((file) => ({
             id: file.id,
             displayName: file.displayName || file.fileName || 'Release',
@@ -127,7 +161,7 @@ async function getXyebbsVersions(sourceId) {
 
 async function getPreviewVersions(platform, sourceId) {
   if ((!origins[platform] && platform !== 'mcmod' && platform !== 'curseforge' && platform !== 'xyebbs') || !/^[A-Za-z0-9_-]+$/.test(String(sourceId))) throw new Error('该来源不支持在线版本读取');
-  const key = `${platform}:${sourceId}`;
+  const key = `${platform}:${sourceId}:${platform === 'curseforge' ? getCurseforgeMetadataProvider() : ''}`;
   const cached = cache.get(key);
   if (cached && Date.now() - cached.time < 5 * 60 * 1000) return cached.promise;
   const promise = platform === 'mcmod'

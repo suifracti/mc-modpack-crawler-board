@@ -47,6 +47,7 @@ function makeRunner({ platform, options, workspace, onLine }) {
   const script = workerScript();
   if (!fs.existsSync(script)) throw new Error(`采集 worker 未找到: ${script}`);
   const args = [script, '--platform', platform, '--workspace', workspace, '--source-root', sourceRoot()];
+  if (platform === 'bilibili') args.push('--html-state', path.join(dataRoot, 'collector-state', 'bilibili-public-html-state.json'));
   if (options.mode) args.push('--mode', String(options.mode));
   if (options.limit) args.push('--limit', String(options.limit));
   if (options.coverOffset !== undefined && options.coverOffset !== null) args.push('--cover-offset', String(options.coverOffset));

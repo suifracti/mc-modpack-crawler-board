@@ -2,7 +2,7 @@
  * XYEBBS Platform Card Renderer (Architecture V2 — Phase 3C).
  */
 import type { XyebbsPack } from '../../types/legacy/xyebbs';
-import { escHtml } from '../../utils/html';
+import { escHtml, safeExternalHref } from '../../utils/html';
 import { loaderLabel } from '../../domain/minecraft';
 import { recordRendererDebug } from '../../debug';
 import { renderCoverImage } from '../../utils/coverImage';
@@ -68,7 +68,7 @@ export function renderXyebbsCard(p: XyebbsPack): string {
         lClass = 'pan-btn-lanzou';
       }
       const codeStr = l.code ? (' 提取码: ' + l.code) : '';
-      dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="card-dl-btn ' + lClass + '" title="' + escHtml(lName + codeStr, true) + '">💾 ' + escHtml(lName) + ' ↗</a>';
+      dlZoneHtml += '<a href="' + safeExternalHref(l.url) + '" target="_blank" rel="noreferrer" class="card-dl-btn ' + lClass + '" title="' + escHtml(lName + codeStr, true) + '">💾 ' + escHtml(lName) + ' ↗</a>';
     });
     dlZoneHtml += '</div>';
   }
@@ -77,7 +77,7 @@ export function renderXyebbsCard(p: XyebbsPack): string {
     dlZoneHtml += '<details class="card-more-details"><summary class="card-more-summary">展开更多网盘下载 (' + hiddenLinks.length + ') ▾</summary><div class="card-more-chips">';
     hiddenLinks.forEach((l) => {
       const lName = (l.name || '直接下载').trim();
-      dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="card-dl-btn pan-btn-other" style="font-size:0.73rem;" title="' + escHtml(lName, true) + '">💾 ' + escHtml(lName) + ' ↗</a>';
+      dlZoneHtml += '<a href="' + safeExternalHref(l.url) + '" target="_blank" rel="noreferrer" class="card-dl-btn pan-btn-other" style="font-size:0.73rem;" title="' + escHtml(lName, true) + '">💾 ' + escHtml(lName) + ' ↗</a>';
     });
     dlZoneHtml += '</div></details>';
   }
@@ -85,12 +85,12 @@ export function renderXyebbsCard(p: XyebbsPack): string {
   dlZoneHtml += '<div class="card-action-bar">' +
     '<button type="button" class="card-action-btn btn-vmodal js-open-plat-version-modal" data-platform="xyebbs" data-vkey="' + escHtml(p.url || '') + '" data-title="' + safeTitle + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.created_date || '') + '" data-url="' + escHtml(p.url || '') + '" data-author="' + safeAuthor + '" data-downloads="' + dlStr + '">📜 完整版本与更新日志 ↗</button>' +
     (p.url ? '<button type="button" class="card-action-btn btn-inapp-win" data-action="open-in-app-window" data-url="' + escHtml(p.url) + '" data-title="' + safeTitle + ' 原帖页面" title="软件内小窗直接浏览">🪟 小窗浏览</button>' : '') +
-    '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="card-action-btn">🔗 原帖 ↗</a>' +
+    '<a href="' + safeExternalHref(p.url) + '" target="_blank" rel="noreferrer" class="card-action-btn">🔗 原帖 ↗</a>' +
     '</div></div>';
 
   return '<div class="xyebbs-pack-card platform-pack-card">' +
     '<div class="cover-media cover-media-rich" data-cover-frame data-cover-state="' + cover.state + '">' +
-    '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="xyebbs-card-cover">' +
+    '<a href="' + safeExternalHref(p.url) + '" target="_blank" rel="noreferrer" class="xyebbs-card-cover">' +
     cover.image + cover.status +
     '<div class="xyebbs-card-stats">' +
     '<span>📥 ' + dlStr + '</span>' +
@@ -100,7 +100,7 @@ export function renderXyebbsCard(p: XyebbsPack): string {
     (p.mc_version ? '<span class="xyebbs-card-ver-badge" title="Minecraft 版本；更多支持版本见详情">MC ' + escHtml(p.mc_version) + ((p.mc_versions?.length || 0) > 1 ? ' +' + String((p.mc_versions?.length || 1) - 1) : '') + '</span>' : '') +
     '</a>' + cover.retryButton + '</div>' +
     '<div class="xyebbs-card-body platform-card-body">' +
-    '<a href="' + escHtml(p.url || '#') + '" target="_blank" rel="noreferrer" class="xyebbs-card-title platform-card-title js-open-unified-preview" data-platform="xyebbs" data-full-title="' + safeTitle + '" data-desc="' + safeDesc + '" data-cover="' + escHtml(coverImg) + '" data-author="' + safeAuthor + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.created_date || '') + '" title="' + safeTitle + '">' + safeTitle + '</a>' +
+    '<a href="' + safeExternalHref(p.url) + '" target="_blank" rel="noreferrer" class="xyebbs-card-title platform-card-title js-open-unified-preview" data-platform="xyebbs" data-full-title="' + safeTitle + '" data-desc="' + safeDesc + '" data-cover="' + escHtml(coverImg) + '" data-author="' + safeAuthor + '" data-ver="' + escHtml(p.mc_version || '') + '" data-date="' + escHtml(p.created_date || '') + '" title="' + safeTitle + '">' + safeTitle + '</a>' +
     '<div class="xyebbs-card-meta platform-card-meta">' +
     '<span>作者: <b class="xyebbs-author-tag">' + safeAuthor + '</b></span>' +
     (p.created_date ? '<span>· 发布: ' + escHtml(p.created_date.substring(0, 10)) + '</span>' : '') +

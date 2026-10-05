@@ -49,6 +49,21 @@ export interface CrossPlatformAssociation {
   suggestedSearchQuery: string;
 }
 
+type PublicLinkIndex = {
+  schema: number;
+  catalogCount: number;
+  records: Record<string, { platform: Platform; sourceId: string; title: string; url: string; author?: string; packVersion?: string }>;
+  links: Record<string, Array<{ id: string; reason: string }>>;
+};
+let publicIndex: PublicLinkIndex | undefined;
+export function installPublicAssociations(index: PublicLinkIndex): void {
+  if (index.schema !== 1 || !index.records || !index.links) throw new Error('跨来源索引格式不匹配');
+  publicIndex = index;
+}
+export function publicAssociationScope(): string {
+  return publicIndex ? `关联检查覆盖 ${publicIndex.catalogCount.toLocaleString('zh-CN')} 条公开记录；同名或原页指向均为线索，版本与作者需到原站核对。` : '关联索引尚未加载，以下仅扫描当前已加载记录。';
+}
+
 const GENERIC_CHINESE_WORDS = new Set([
   '整合包', '模组包', '我的世界', '汉化版', '汉化', '发布', '更新', '搬运',
   '自制', '官方', '原版', '客户端', '开黑', '联机', '超难', '低配', '高配',
@@ -205,6 +220,17 @@ export function findCrossPlatformAssociations(
   biliGroups: BiliGroup[] = [],
 ): CrossPlatformAssociation {
   const features = extractPackFeatures(record.title, record.raw);
+  if (publicIndex) {
+    const links: CrossPlatformLink[] = [], biliVideos: CrossPlatformAssociation['biliVideos'] = [];
+    for (const match of publicIndex.links[record.id] || []) {
+      const row = publicIndex.records[match.id];
+      const url = safeExternalUrl(row?.url);
+      if (!row || !url || row.platform === record.platform) continue;
+      if (row.platform === 'bilibili') biliVideos.push({ bvid: row.sourceId, title: row.title, uploader: row.author || 'UP主未收录', url });
+      else links.push({ ...row, url, meta: `${match.reason}${row.author ? ' · ' + row.author : ''}`, isOrigin: row.platform === 'curseforge' || row.platform === 'modrinth' });
+    }
+    return { features, links, biliVideos, totalMatches: links.length + biliVideos.length, platforms: [...new Set([...links.map(l => l.platform), ...(biliVideos.length ? ['bilibili' as Platform] : [])])], suggestedSearchQuery: features.suggestedSearchQuery };
+  }
   const links: CrossPlatformLink[] = [];
   const platformsSeen = new Set<Platform>();
 
@@ -225,7 +251,7 @@ export function findCrossPlatformAssociations(
         meta = [mods, votes, '百科词条'].filter(Boolean).join(' · ');
       } else if (other.platform === 'curseforge' || other.platform === 'modrinth') {
         const dls = other.evidence.find((e) => e.label.includes('下载') || e.label.includes('热度'))?.value || '';
-        meta = [dls, other.packVersion ? `版本 ${other.packVersion}` : '', '官方原版'].filter(Boolean).join(' · ');
+        meta = [dls, other.packVersion ? `版本 ${other.packVersion}` : '', '原站项目线索'].filter(Boolean).join(' · ');
       } else if (other.platform === 'bbsmc' || other.platform === 'xyebbs') {
         meta = [other.author ? `作者: ${other.author}` : '', other.packVersion ? `v${other.packVersion}` : '', '国内论坛与网盘'].filter(Boolean).join(' · ');
       }
@@ -287,14 +313,14 @@ export function findCrossPlatformAssociations(
 /**
  * Renders an inline linkage badge bar for Modpack Cards.
  */
-export function renderCardLinkageCapsule(association: CrossPlatformAssociation): string {
+export function renderCardLinkageCapsule(association: CrossPlatformAssociation, record?: DesktopRecord): string {
   if (association.totalMatches === 0) return '';
 
   const badges: string[] = [];
 
   // Bilibili
   if (association.biliVideos.length > 0) {
-    badges.push(`<span class="linkage-pill linkage-bili" title="已找到 ${association.biliVideos.length} 条 B 站汉化/发布/实况视频">📺 B站 (${association.biliVideos.length})</span>`);
+    badges.push(`<span class="linkage-pill linkage-bili" title="按名称找到 ${association.biliVideos.length} 条相关视频线索">📺 B站 (${association.biliVideos.length})</span>`);
   }
 
   // MCMod
@@ -306,19 +332,19 @@ export function renderCardLinkageCapsule(association: CrossPlatformAssociation):
   // Overseas Origin (CurseForge / Modrinth)
   const originLink = association.links.find((l) => l.isOrigin);
   if (originLink) {
-    badges.push(`<span class="linkage-pill linkage-origin" title="官方原版发布：${escHtml(originLink.title)}">📦 官方原版</span>`);
+    badges.push(`<span class="linkage-pill linkage-origin" title="原站项目线索：${escHtml(originLink.title)}">📦 原站项目</span>`);
   }
 
   // Domestic Forum (BBSMC / XYEBBS)
   const forumLink = association.links.find((l) => l.platform === 'bbsmc' || l.platform === 'xyebbs');
   if (forumLink) {
-    badges.push(`<span class="linkage-pill linkage-forum" title="中文论坛与网盘：${escHtml(forumLink.title)}">📜 论坛/网盘</span>`);
+    badges.push(`<span class="linkage-pill linkage-forum" title="论坛帖子线索：${escHtml(forumLink.title)}">📜 论坛帖子</span>`);
   }
 
   if (badges.length === 0) return '';
 
-  return `<div class="card-linkage-row" title="跨平台关联线索，点击卡片展开详情查看联动生态">
-    <span class="linkage-label">🔗 全网联动</span>
+  return `<div class="card-linkage-row" title="${escHtml(publicIndex ? publicAssociationScope() : '根据已加载记录的名称匹配，打开详情后到原站确认')}">
+    ${record ? `<button type="button" class="linkage-pill linkage-open" data-action="open-in-app-window" data-card-window="true" data-in-app-tab="linkage" data-url="${escHtml(safeExternalUrl(record.url) || '')}" data-title="${escHtml(record.title)}" data-record-id="${escHtml(record.id)}">查看其他来源</button>` : '<span class="linkage-label">其他来源</span>'}
     ${badges.join('')}
   </div>`;
 }
@@ -331,15 +357,15 @@ export function renderDrawerLinkageSection(
   _currentRecord: DesktopRecord,
 ): string {
   const query = escHtml(association.suggestedSearchQuery);
-  const searchBtn = `<button type="button" class="linkage-search-btn" data-action="search-modpack-all" data-query="${query}" title="在 6 个平台聚合搜索 “${query}”">🔍 一键在全网 6 平台聚合搜索 “${query}” ↗</button>`;
+  const searchBtn = `<button type="button" class="linkage-search-btn" data-action="search-modpack-all" data-query="${query}" title="搜索六个来源已收录的记录">🔍 搜索已收录记录：“${query}”</button>`;
 
   if (association.totalMatches === 0) {
     return `<div class="detail-section linkage-section">
       <div class="dynamics-header">
-        <h3>🌐 全网多平台关联生态</h3>
+        <h3>其他来源线索</h3>
       </div>
       <div class="linkage-empty-box">
-        <p>当前本地聚合库中暂未检测到其他平台的直接同名/汉化收录。</p>
+        <p>${publicIndex ? '公开目录中' : '当前已加载记录中'}未找到可确认名称或原页指向的其他来源线索。可继续搜索已收录的公开记录。</p>
         ${searchBtn}
       </div>
     </div>`;
@@ -374,7 +400,7 @@ export function renderDrawerLinkageSection(
 
   const biliHtml = association.biliVideos.length > 0
     ? `<div class="linkage-bili-group">
-        <h4>📺 Bilibili 关联汉化与实况视频 (${association.biliVideos.length} 期)</h4>
+        <h4>📺 Bilibili 相关视频 (${association.biliVideos.length} 条)</h4>
         <div class="linkage-bili-list">
           ${association.biliVideos.map((v) => `
             <a href="${escHtml(v.url)}" target="_blank" rel="noreferrer" class="linkage-bili-card">
@@ -391,7 +417,7 @@ export function renderDrawerLinkageSection(
 
   return `<div class="detail-section linkage-section">
     <div class="dynamics-header">
-      <h3>🌐 全网多平台关联生态 <span class="detail-submeta">找到 ${association.totalMatches} 处相关资源</span></h3>
+      <h3>其他来源线索 <span class="detail-submeta">${association.totalMatches} 条名称匹配，需确认是否为同一整合包</span></h3>
     </div>
     <div class="linkage-cards-grid">
       ${linksHtml}

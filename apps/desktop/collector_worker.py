@@ -41,20 +41,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--until", default=None)
     parser.add_argument("--mode", default=None)
     parser.add_argument("--cover-offset", type=int, default=None)
+    parser.add_argument("--bv", default=None)
+    parser.add_argument("--html-state", default=None)
     return parser.parse_args()
 
 
 def build_script_args(platform: str, args: argparse.Namespace) -> list[str]:
     limit = args.limit
-    if getattr(args, "mode", None) == "existing" and platform != "mcmod":
-        if platform == "bilibili":
-            return ["--mode", "sync-desc", "--max", str(limit or 50)]
-        return ["--platform", platform, "--limit", str(limit or 50)]
     if platform == "bilibili":
-        result = ["--mode", "crawl", "--pages", str(args.pages), "--max", str(limit or 20)]
-        if args.until:
+        result = ["--mode", "existing" if getattr(args, "mode", None) == "existing" else "new",
+                  "--limit", str(min(limit or 3, 30)), "--html-state", str(args.html_state)]
+        if getattr(args, "bv", None):
+            result.extend(["--bv", args.bv])
+        if getattr(args, "until", None):
             result.extend(["--until", args.until])
         return result
+    if getattr(args, "mode", None) == "existing" and platform != "mcmod":
+        return ["--platform", platform, "--limit", str(limit or 50)]
     if platform == "mcmod":
         mode = getattr(args, "mode", None) or "new"
         result = ["--mode", mode]
@@ -204,6 +207,12 @@ def collect_output_contract(
     failure_reason = None
     try:
         if crawler_error:
+            if platform == "bilibili" and result_state["exists"] and result_touched:
+                attempted = read_collection_result(result_path)
+                if (attempted.get("details") or {}).get("coverage") == "public-video-html-bounded":
+                    crawler_result = attempted
+                    reasons = attempted.get("errors") or []
+                    raise ValueError("HTML局部更新未完成：" + "; ".join(str(value) for value in reasons or [crawler_error]))
             raise ValueError(f"crawler 执行失败: {crawler_error}")
         if not result_state["exists"] or not result_touched:
             raise ValueError("本轮没有生成 crawler 采集结果合同")
@@ -245,7 +254,9 @@ def collect_output_contract(
         failure_reason = str(error)
 
     changed = any(before[name].get("sha256") != after.get("sha256") for name, after in {"raw": raw_state, "sidecar": sidecar_state}.items())
-    outcome = ("partial_update" if not failure_reason and changed and crawler_result and crawler_result.get("status") == "partial"
+    html_partial = bool(platform == "bilibili" and crawler_result and
+                        (crawler_result.get("details") or {}).get("coverage") == "public-video-html-bounded")
+    outcome = ("partial_update" if not failure_reason and (changed or html_partial) and crawler_result and crawler_result.get("status") == "partial"
                else "success_update" if not failure_reason and changed else "success_no_change" if not failure_reason else "failed")
     return {
         "schema": 1,
@@ -265,7 +276,7 @@ def collect_output_contract(
         "sidecarCount": sidecar_count,
         "changed": changed,
         "outcome": outcome,
-        "partialScope": ("mcmod_refresh" if allow_mcmod_partial else "existing" if allow_existing_partial else "catalog") if outcome == "partial_update" else None,
+        "partialScope": ("public-video-html-bounded" if html_partial else "mcmod_refresh" if allow_mcmod_partial else "existing" if allow_existing_partial else "catalog") if outcome == "partial_update" else None,
         "error": failure_reason,
     }
 
@@ -275,6 +286,10 @@ def run_selected_collector(args: argparse.Namespace) -> None:
     source_root = Path(args.source_root).resolve()
     config = PLATFORMS[args.platform]
     source_name = "existing_version_crawler.py" if args.mode == "existing" and args.platform not in ("mcmod", "bilibili") else config["script"]
+    if args.platform == "bilibili":
+        source_name = "bilibili_public_html_collector.py"
+        if not getattr(args, "html_state", None):
+            args.html_state = str(workspace.parent.parent / "collector-state" / "bilibili-public-html-state.json")
     source_script = source_root / source_name
     if not source_script.exists():
         raise FileNotFoundError(f"collector source not found: {source_script}")
@@ -287,6 +302,21 @@ def run_selected_collector(args: argparse.Namespace) -> None:
     if not helper_source.exists():
         raise FileNotFoundError(f"collector contract helper not found: {helper_source}")
     shutil.copy2(helper_source, isolated_script.parent / helper_source.name)
+    if source_name == "existing_version_crawler.py":
+        # Existing-version CF requests share the source-wide refusal guard.
+        shutil.copy2(source_root / "curseforge_full_crawler.py", isolated_script.parent / "curseforge_full_crawler.py")
+    if source_name in {"existing_version_crawler.py", "curseforge_full_crawler.py"}:
+        shutil.copy2(source_root / "curseforge_api_config.py", isolated_script.parent / "curseforge_api_config.py")
+        shutil.copy2(source_root / "curseforge_cfwidget.py", isolated_script.parent / "curseforge_cfwidget.py")
+
+    if args.platform == "bilibili":
+        for helper in ("bilibili_html_adapter.py", "bilibili_html_extract.py"):
+            shutil.copy2(source_root / helper, isolated_script.parent / helper)
+        # Keep the same content policy in the isolated HTML worker as public browsing.
+        rules = source_root / "bilibili-content-rules.json"
+        if not rules.is_file():
+            rules = source_root / "apps" / "shared" / "bilibili-content-rules.json"
+        shutil.copy2(rules, isolated_script.parent / "bilibili-content-rules.json")
 
     script_args = build_script_args(args.platform, args)
     emit(platform=args.platform, phase="采集", processed=0, total=None)
@@ -336,9 +366,9 @@ def run_selected_collector(args: argparse.Namespace) -> None:
         else:
             os.environ["MC_DESKTOP_COLLECTION_RESULT"] = previous_result_path
 
-    if crawler_error is None and old_records and args.mode != "existing" and args.platform != "mcmod":
+    if crawler_error is None and old_records and args.mode != "existing" and args.platform not in {"mcmod", "bilibili"}:
         merge_catalog_with_existing(workspace, args.platform, old_records)
-    previous_ids_preserved = False
+    previous_ids_preserved = not old_records
     if old_records:
         key = "bvid" if args.platform == "bilibili" else "project_id"
         with output_paths["raw"].open(encoding="utf-8") as handle:
@@ -375,6 +405,10 @@ def run_selected_collector(args: argparse.Namespace) -> None:
 
 
 def main() -> int:
+    # Both desktop runners decode stdout as UTF-8, independent of Windows locale.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     args = parse_args()
     try:
         run_selected_collector(args)

@@ -9,6 +9,9 @@ import urllib.request
 from datetime import datetime, timezone
 
 from desktop_collection_contract import write_collection_result
+from curseforge_full_crawler import request_api_json as request_cf_json, AccessRefusal
+from curseforge_api_config import api_url as cf_api_url, metadata_provider
+from curseforge_cfwidget import get_project as get_widget_project, project_releases, merge_releases, WidgetRefusal
 
 
 CONFIG = {
@@ -104,9 +107,14 @@ def fetch_releases(platform, project_id):
                            for file in item.get("files") or [] if file.get("url")]}
                 for item in data]
     releases = []
+    if metadata_provider() == 'cfwidget':
+        project, observation = get_widget_project(project_id)
+        return [{**release, 'provider_fetched_at': observation['fetchedAt'],
+                 'provider_last_fetch': observation.get('providerLastFetch')}
+                for release in project_releases(project)]
     page = 0
     while True:
-        data = request_json(f"https://api.curse.tools/v1/cf/mods/{ident}/files?pageIndex={page}&pageSize=50")
+        data = request_cf_json(cf_api_url(f'/v1/mods/{ident}/files', {'index':page * 50,'pageSize':50}), headers=HEADERS)
         files = data.get("data") if isinstance(data, dict) else None
         if not isinstance(files, list):
             raise ValueError("CurseForge 文件接口未返回列表")
@@ -184,7 +192,8 @@ def main():
     # Unchecked records first; among equally unchecked records, review recently
     # modified projects first so a bounded run catches likely new releases.
     candidates.sort(key=lambda item: item.get("version_checked_at") or "")
-    candidates = candidates[:args.limit]
+    free_cf = args.platform == 'curseforge' and metadata_provider() == 'cfwidget'
+    candidates = candidates[:min(args.limit, 50) if free_cf else args.limit]
     checked = 0
     with_history = 0
     errors = []
@@ -202,10 +211,11 @@ def main():
                 stamp = datetime.now(timezone.utc).isoformat()
                 for target in (item, by_id[ident]):
                     if releases or not target.get("releases"):
-                        target["releases"] = releases
+                        target["releases"] = (merge_releases(target.get('releases'), releases)
+                            if args.platform == 'curseforge' and metadata_provider() == 'cfwidget' else releases)
                     target["version_checked_at"] = stamp
-                    if releases:
-                        target["latest_version"] = releases[0]["version_number"]
+                    if target.get('releases'):
+                        target["latest_version"] = target['releases'][0]["version_number"]
                 if journal is not None:
                     payload = {key: item[key] for key in ("releases", "version_checked_at", "latest_version") if key in item}
                     journal.execute("INSERT OR REPLACE INTO completed (project_id, payload) VALUES (?, ?)",
@@ -215,6 +225,9 @@ def main():
                     with_history += 1
             except sqlite3.Error:
                 raise
+            except (AccessRefusal, WidgetRefusal) as error:
+                errors.append(f"{ident}: {error}")
+                break
             except Exception as error:
                 errors.append(f"{ident}: {error}")
             if index % 20 == 0 or index == len(candidates):
@@ -222,7 +235,7 @@ def main():
                 checkpoint()
             time.sleep(0.25)
         complete = not errors and checked == len(candidates)
-        if journal is not None:
+        if journal is not None and checked + replayed:
             checkpoint()
             atomic_json(raw_path, json.dumps(raw, ensure_ascii=False, indent=2) + "\n")
             atomic_json(sidecar_path, prefix + json.dumps(sidecar, ensure_ascii=False, separators=(",", ":")) + ";\n")
@@ -231,7 +244,9 @@ def main():
                                 status="success" if complete and checked + replayed else "success_no_change" if complete else "partial",
                                 no_change_confirmed=complete and checked + replayed == 0,
                                 details={"mode": "existing", "targets": len(candidates), "withHistory": with_history,
-                                         "replayedFromCheckpoint": replayed})
+                                         "replayedFromCheckpoint": replayed,
+                                         **({'apiProvider': 'cfwidget', 'coverage': 'known-project-cached-metadata-only',
+                                             'newDiscoveryCount': 0} if free_cf else {})})
     finally:
         checkpoint()
         if journal is not None:

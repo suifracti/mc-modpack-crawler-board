@@ -13,14 +13,17 @@ import os
 import sys
 import json
 import time
+import re
 import shutil
 import subprocess
 import urllib.request
+import urllib.error
 import urllib.parse
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 from desktop_collection_contract import write_collection_result
+from curseforge_api_config import api_url, validate_api_url, read_api_key, metadata_provider, ApiConfigurationError
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
@@ -40,28 +43,80 @@ HEADERS = {
 
 REQUEST_STATS = {"requests": 0, "successful": 0, "failed": 0, "errors": []}
 CURL_BIN = shutil.which("curl.exe") if os.name == "nt" else None
+ACCESS_LOCK = Lock()
+ACCESS_STOP = None
 
 
-def request_api_json(url):
-    # Windows' system TLS client succeeds on api.curse.tools when Python's
-    # OpenSSL connection intermittently stalls on the same machine.
-    if CURL_BIN:
-        command = [CURL_BIN, "--silent", "--show-error", "--location", "--max-redirs", "5",
-                   "--max-time", "12", "--write-out", "\n__CF_STATUS__:%{http_code}"]
-        for key, value in HEADERS.items():
-            command.extend(["--header", f"{key}: {value}"])
-        result = subprocess.run([*command, url], capture_output=True, timeout=15, check=False)
-        if result.returncode:
-            raise OSError(f"curl {result.returncode}: {result.stderr.decode('utf-8', errors='replace').strip()}")
-        body, marker, status = result.stdout.rpartition(b"\n__CF_STATUS__:")
-        if not marker or status.strip() != b"200":
-            raise ValueError(f"CurseForge API HTTP {status.decode('ascii', errors='replace').strip() or 'unknown'}")
-        return json.loads(body.decode("utf-8"))
-    request = urllib.request.Request(url, headers=HEADERS)
-    with urllib.request.urlopen(request, timeout=12) as response:
-        if response.status != 200:
-            raise ValueError(f"CurseForge API HTTP {response.status}")
-        return json.load(response)
+class AccessRefusal(RuntimeError):
+    def __init__(self, message, *, requested=True):
+        super().__init__(message)
+        self.requested = requested
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise AccessRefusal(f"CurseForge API HTTP {code}: redirect not followed")
+
+
+def request_api_json(url, *, headers=None):
+    global ACCESS_STOP
+    # Serialize this source so queued slices cannot issue requests after a
+    # refusal. Retain the established TLS client and request headers.
+    with ACCESS_LOCK:
+        if ACCESS_STOP:
+            raise AccessRefusal(ACCESS_STOP, requested=False)
+        try:
+            try:
+                validate_api_url(url)
+                api_key = read_api_key()
+            except ApiConfigurationError as error:
+                raise AccessRefusal(str(error), requested=False) from None
+            REQUEST_STATS["requests"] += 1
+            request_headers = {**(HEADERS if headers is None else headers)}
+            # Never accept an upstream header containing a different credential.
+            request_headers = {k:v for k,v in request_headers.items() if k.lower() != 'x-api-key'}
+            if CURL_BIN:
+                command = [CURL_BIN, "--silent", "--show-error", "--max-time", "12",
+                           "--max-filesize", "12582912", "--write-out", "\n__CF_STATUS__:%{http_code}"]
+                for key, value in request_headers.items():
+                    command.extend(["--header", f"{key}: {value}"])
+                # Send the key through stdin, so it cannot appear in process
+                # arguments or TimeoutExpired command diagnostics.
+                command.extend(['--header', '@-'])
+                result = subprocess.run([*command, url], input=('x-api-key: '+api_key+'\n').encode('ascii'), capture_output=True, timeout=15, check=False)
+                if result.returncode:
+                    raise OSError(f"CurseForge transport error (curl {result.returncode})")
+                body, marker, code = result.stdout.rpartition(b"\n__CF_STATUS__:")
+                status = int(code.strip()) if marker and code.strip().isdigit() else 0
+            else:
+                request = urllib.request.Request(url, headers={**request_headers,'x-api-key':api_key})
+                opener = urllib.request.build_opener(NoRedirect())
+                try:
+                    with opener.open(request, timeout=12) as response:
+                        status = response.status
+                        body = response.read(12582913)
+                except urllib.error.HTTPError as error:
+                    status = error.code
+                    error.close()
+                    body = b""
+            if 300 <= status < 400 or status in (401, 403, 412, 429):
+                raise AccessRefusal(f"CurseForge API HTTP {status}: source stopped without redirect or retry")
+            if status != 200:
+                raise ValueError(f"CurseForge API HTTP {status or 'unknown'}")
+            if len(body) > 12582912:
+                raise AccessRefusal("CurseForge response exceeds bounded size")
+            text = body.decode("utf-8-sig")
+            if re.match(r'\s*<(?:!doctype\s+html|html|head|body)\b', text, re.I):
+                raise AccessRefusal("CurseForge HTML response or access gate: source stopped")
+            value = json.loads(text)
+            if isinstance(value,dict):
+                message = ' '.join(str(value.get(key) or '') for key in ('message','error','msg'))
+                if re.search(r'captcha|验证码|安全验证|Access Denied', message, re.I):
+                    raise AccessRefusal("CurseForge access challenge: source stopped")
+            return value
+        except AccessRefusal as error:
+            ACCESS_STOP = str(error)
+            raise
 
 LOADER_TYPE_MAP = {
     1: "Forge",
@@ -139,15 +194,20 @@ def fetch_slice_page(index, category_id=None, game_version=None, mod_loader_type
     if mod_loader_type:
         params["modLoaderType"] = mod_loader_type
 
-    qs = urllib.parse.urlencode(params)
-    url = f"https://api.curse.tools/v1/cf/mods/search?{qs}"
+    url = api_url('/v1/mods/search', params)
 
     for attempt in range(retries):
+        if ACCESS_STOP:
+            return None
         try:
-            REQUEST_STATS["requests"] += 1
             value = request_api_json(url)
             REQUEST_STATS["successful"] += 1
             return value
+        except AccessRefusal as error:
+            REQUEST_STATS["errors"].append(f"index={index}: {error}")
+            if error.requested:
+                REQUEST_STATS["failed"] += 1
+            return None
         except Exception as error:
             if attempt < retries - 1:
                 time.sleep(1)
@@ -273,6 +333,9 @@ def save_current_state(global_packs, max_total=0):
         f.write("window.curseforgeModpacksData = " + json.dumps(final_list, ensure_ascii=False) + ";\n")
 
 def main(max_total=0, recent_pages=0):
+    if metadata_provider() == 'cfwidget':
+        from curseforge_cfwidget import refresh_known
+        return refresh_known(OUTPUT_JSON, OUTPUT_JS, limit=max_total or 20)
     print("=" * 70)
     print("  🚀 CurseForge 超级全量切片深挖爬虫 (全版本 × 全分类 × 全Loader)")
     print("  目标：完全抓完 CurseForge 存世所有 Minecraft 整合包！")
@@ -456,7 +519,9 @@ def main(max_total=0, recent_pages=0):
                     if pid:
                         is_new = pid not in global_packs
                         pack = standardize_pack(item)
-                        global_packs[pid] = pack
+                        # Catalog metadata must retain previously collected
+                        # version histories and other richer per-project fields.
+                        global_packs[pid] = {**global_packs.get(pid, {}), **pack}
                         if is_new:
                             slice_new_count += 1
                         if max_total and len(global_packs) >= max_total:
@@ -526,9 +591,10 @@ def main(max_total=0, recent_pages=0):
     print(f"  [{coverage}] 本地去重 {len(final_list):,} 款 CurseForge 整合包 (耗时 {elapsed:.1f} 秒；失败切片 {failed_slices}；截断={truncated})")
     print("=" * 70)
 
-    save_current_state(global_packs, max_total=max_total)
-    print(f"  [OK] 全量 JSON 已持久化: {OUTPUT_JSON} ({os.path.getsize(OUTPUT_JSON) / 1024 / 1024:.2f} MB)")
-    print(f"  [OK] 全量 JS 数据源已更新: {OUTPUT_JS} ({os.path.getsize(OUTPUT_JS) / 1024 / 1024:.2f} MB)")
+    if fetched_count:
+        save_current_state(global_packs, max_total=max_total)
+        print(f"  [OK] JSON 已持久化: {OUTPUT_JSON} ({os.path.getsize(OUTPUT_JSON) / 1024 / 1024:.2f} MB)")
+        print(f"  [OK] JS 数据源已更新: {OUTPUT_JS} ({os.path.getsize(OUTPUT_JS) / 1024 / 1024:.2f} MB)")
 
     write_collection_result(
         "curseforge",
@@ -540,7 +606,9 @@ def main(max_total=0, recent_pages=0):
         errors=REQUEST_STATS["errors"],
         status=status,
         details={"completedSlices": completed_slices, "totalSlices": total_slices, "uniqueOutputCount": len(final_list),
-                 "requestedLimit": max_total or None, "recentWindow": recent_pages * PAGE_SIZE if recent_pages else None},
+                 "requestedLimit": max_total or None, "recentWindow": recent_pages * PAGE_SIZE if recent_pages else None,
+                 "sourceStop": ACCESS_STOP, "apiProvider": "official-curseforge",
+                 "requests": REQUEST_STATS["requests"]},
     )
 
 if __name__ == "__main__":
