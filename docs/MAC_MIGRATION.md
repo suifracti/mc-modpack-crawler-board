@@ -1,5 +1,7 @@
 # MC Mac 接手说明
 
+2026-10-05分支整合补充：最终接手分支为 `codex/mac-integration-20261005`，从已推送的 `codex/mac-migration-20261005@6a2516054e337c0ffb9795df999f56ea511b7b6b` 建立。本轮仅更新三份交接/状态文档；运行源码、数据格式、依赖和两个数据ZIP内容未改变。完整分支处理结果见 [BRANCH_INTEGRATION_20261005.md](BRANCH_INTEGRATION_20261005.md)。最终整合SHA另见私下交接记录，尚未获得新整合分支的推送批准；不要把旧迁移分支当作最终整合版本。
+
 2026-10-05。用户已指定本轮负责迁移整理；53个源码、测试与必要源资源按当前工作树保存。迁移仅本地提交，推送另待用户确认；没有合并、部署或删除原目录，全部11个worktree保留。
 
 ## 仓库、分支与成果归属
@@ -24,12 +26,12 @@
 - 老统一采集器的 Playwright、旧登录二维码 qrcode 属于可选历史路径，不是启动浏览器工作台的前提。本次不安装，不把受限B站API/登录路径作为恢复方案。
 - Chrome 或其他现代浏览器；Mac `open`、Python SSL/CA、文件系统权限等仍须在 Mac 核对。不可通过禁用证书校验修网络问题。
 
-在迁移分支获准推送后，Mac 执行：
+在最终整合分支获准推送、远端完整SHA核实后，Mac 执行：
 
 ```sh
 git clone https://github.com/suifracti/mc-modpack-crawler-board.git
 cd mc-modpack-crawler-board
-git switch --track origin/codex/mac-migration-20261005
+git switch --track origin/codex/mac-integration-20261005
 git rev-parse HEAD # 与最终交接的迁移提交SHA核对
 node --version
 python3 --version
@@ -78,7 +80,7 @@ Windows既有证据：10月2日运行包51文件一致性与空目录启动，�
 3. 从单独传输的生产数据副本导入，核对六源可读、一条详情和个人状态；记录数据口径，不把线上计数当导入基准。原Windows指针及私人资料哈希保持不变。
 4. 拒绝账本完整转移后，需要采集时才做一个有界来源动作；如果 Mac 取消/进程信号路径有真实问题，仅测取消→下次恢复。不要默认重跑GUI矩阵、全源采集、网页回放或冻结包。
 
-待完成：用户确认具体分支与提交后才推送；Mac取得源码和私下交付数据，完成上述最小验证。Windows全历史快照尚未迁至Mac。此前不删除Windows目录或worktree。
+待完成：用户确认最终整合分支与提交后才推送；Mac取得最终整合源码和私下交付数据，完成上述最小验证。Windows全历史快照尚未迁至Mac，按用户要求不计入迁移必需完成项。此前不删除Windows目录或worktree。
 
 ## 实际取得非Git数据
 
@@ -109,4 +111,6 @@ python3 -m unittest discover -s apps/desktop/test -p test_bilibili_public_html_c
 
 该测试仅在显式提供样本目录时验证保存样本；不提供时此样本项明确skip，其余行为用例仍执行。迁移只移除测试中的本机绝对路径和文档中的个人凭据路径示例，未修改采集行为。本轮未重跑全套测试、GUI或旧ZIP。
 
-必需原数据清单合计994,403,159字节，另附342,886字节保存HTML样本。ZIP最终大小与校验见单独交付的transfer-packages.json与SHA256SUMS.txt。可重建canonical.db不在ZIP；Windows约48.9GB全历史目录不在本次默认迁移包，原文件全部保留。
+必需原数据清单合计994,403,159字节，另附342,886字节保存HTML样本。ZIP最终大小与校验见单独交付的transfer-packages.json与SHA256SUMS.txt；此次仅文档整合，内容与校验值沿用已生成包，不重打包。可重建canonical.db不在ZIP；Windows约48.9GB全历史目录不在本次默认迁移包，原文件全部保留，也不计入迁移必需完成项。
+
+Mac接手开始后，Windows冻结最终整合基线，不同时继续改其源码。两个项目由各自对话维护：本仓库只整合MC，测速分支和单独保留的旧README由测速负责人交付；不将它们复制进MC仓库。

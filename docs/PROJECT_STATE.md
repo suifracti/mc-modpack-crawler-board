@@ -1,23 +1,21 @@
 # 当前实施状态
 
-更新：2026-09-23。本页记录 Phase 2 完成后的维护状态及正式工作区入口；历史项目状态仍见 [PROJECT_STATUS.md](PROJECT_STATUS.md)。
+更新：2026-10-05。当前迁移与分支整合状态见本页及 [BRANCH_INTEGRATION_20261005.md](BRANCH_INTEGRATION_20261005.md)；历史项目状态仍见 [PROJECT_STATUS.md](PROJECT_STATUS.md)。
 
-## 正式工作区与启动入口
+## 当前迁移与整合入口
 
-- 用户长期主工作区：`D:\ai\work\我的世界整合包获取`。
-- PR #10 收口时 D 盘曾快进到 `c6ea9f935acdf8e5ba6af1910e2a8c7e5a58dbf7`；截至 PR #12 收口，已安全快进至 `24c8f88d7125fe9392ae5cf0219334cf4f2f5c29`。D 盘当前分支为 `master`，HEAD 与远端 `master` 一致。
-- 正式入口：`D:\ai\work\我的世界整合包获取\start_browser_service.cmd`。此前已从 D 盘实际完成构建并启动 `http://127.0.0.1:8765/`，返回 HTTP 200；PR #10 收口未重复构建或启动服务。
-- `C:\Users\Administrator\.codex\worktrees\...` 仅为 Codex 开发临时 worktree，不是用户长期启动入口；暂不删除。
-- `converted_output`、`crawler_output`、`build` 及 D 盘现有用户文档/生成资料未删除、未覆盖、未迁移。
+- 用户已确认迁移源码基线 `codex/mac-migration-20261005@6a2516054e337c0ffb9795df999f56ea511b7b6b`，该完整SHA已推送并核实。
+- 当前独立整合分支为 `codex/mac-integration-20261005`。普通历史功能已进入基线，本轮仅补入适用的历史收口事实、分支盘点和Mac交接说明，没有采用PR #21或A/B候选，也没有更新采集数据、数据格式或依赖。
+- Mac以最终整合提交为接手版本；取得方式、明确的V2构建/本机启动命令及独立数据目录见 [MAC_MIGRATION.md](MAC_MIGRATION.md)。旧启动脚本构建V1，不再将其描述为当前Mac入口。
+- Windows原目录、11个worktree、全部旧分支、生产active pointer和个人库保留；数据包另行私有交付。约48.9GB全历史留在Windows，不是本次迁移必需完成项。
+- 不在Windows和Mac同时修改同一整合基线。Mac尚未拉取/构建/导入验收，不将历史证据记成Mac通过。
 
-## 当前状态：维护观察
+## 当前状态与历史维护记录
 
-- 状态：`MAINTENANCE / OBSERVE / NO_ACTIVE_IMPLEMENTATION_TASK`。
-- Phase 2 / Mature Personal Product 已完成；PR #8 已进入 master，合并后仅追加本状态文档提交。
-- 当前 master / D 盘主工作区 head：`24c8f88d7125fe9392ae5cf0219334cf4f2f5c29`。
-- PR #11 暗色主题修复与 PR #12 筛选区/个人资料入口布局均已合并；D 盘 master 已安全快进到 PR #12 merge SHA `24c8f88d7125fe9392ae5cf0219334cf4f2f5c29`。
-- 没有 AGENTS.md，不增建规则体系。Phase 3 不主动启动。
-- 只有真实启动故障、更新故障、snapshot / 磁盘压力、数据损坏或保护问题，或修改更新链时触及 canonical gating，才重新建立实施任务。
+- 当前仅执行用户指定的迁移与分支整理；没有后台新开发、全源重抓或自动发布。
+- 2026-09-23的历史维护收口曾记录 `master@24c8f88d7125fe9392ae5cf0219334cf4f2f5c29`。下方PR #5—12的验证与运行状态均保留当时范围，不代表今天的HEAD或全量验收。
+- 2026-10-05核实远端master为 `42251392a44edb1eab6285c810fae3ee69b19292`；它不是本次Mac接手基线。其独有的PR #18收口文档事实本轮择取，未整分支倒灌旧壳层。
+- A候选的独立安全审计仍为BLOCKED；B候选缺production_state、未做生产切换；PR #21仍OPEN且无检查记录，但其顶部短标签/title/aria行为已由迁移基线工作树修改纳入V1/V2。分支未合并与功能已纳入分开记录，具体失败和未验项见分支盘点。
 
 ## 当前交付
 
@@ -35,6 +33,14 @@
 | PR #10 `codex/fix-curseforge-images` | head `d74112b108c8a91de3853c8d4494744d928b84e2`；base `cecb00cc709d12e2968c216b7e1004f590326d4b`；merge `c6ea9f935acdf8e5ba6af1910e2a8c7e5a58dbf7` | MERGED |
 | PR #11 `codex/dark-theme-consistency` | head `b29ea045e5bfdd56d69ec5faf98b043c8fe8ab58`；base `c6ea9f935acdf8e5ba6af1910e2a8c7e5a58dbf7`；merge `57a6cc6802629458b3569ed3a7e792e3b1b25dcb` | MERGED |
 | PR #12 `codex/filter-profile-layout` | head `faef0f4c5234a85a9d44d950321a265b8067641b`；base `57a6cc6802629458b3569ed3a7e792e3b1b25dcb`；merge `24c8f88d7125fe9392ae5cf0219334cf4f2f5c29` | MERGED |
+| PR #18 `codex/integrate-browser-ui` | 最终PR head `f2096c93bbc43b554c9255c34967f38909712faa`；merge `85b95f2c72dd00606b6e5363c49659bf428e4b86`，2026-10-05重新只读核实GitHub状态为MERGED | MERGED |
+
+## PR #18 历史收口事实（从4225139择取）
+
+- 最终业务diff为 `desktopShell.ts`、`desktopShell.css`、`platformRenderers.test.ts`；head `f2096c93bbc43b554c9255c34967f38909712faa` 已在当前迁移基线祖先中，不重复应用。
+- 原验证为platformRenderers 12/12、web typecheck、desktop build通过；PR合并后未机械重跑。
+- 当时GUI smoke因 `nodeRepl.fetch request failed` 未完成，保留为该历史版本的未验项，不记为GUI PASS。本轮没有重做这项历史验收。
+- 个人库旧worktree文档的PR #5最终head/merge事实也已在当前代码和历史说明中；“当时origin/master=f0c9f9f”不用于今天的入口或版本判断。
 
 ## PR #10 收口
 
@@ -180,10 +186,10 @@
 - PR [#17](https://github.com/suifracti/mc-modpack-crawler-board/pull/17) 已合并，审核 head `931bc05b89d28d008eea18b42fa0a81b2b3a4f13` 未变化；实际 merge SHA / D 盘 `master` head 均为 `9aeed3760de268f259487aa3444c56300dd0d246`。工作区通过 `origin/master` 快进同步，原有未提交 `docs/PROJECT_STATE.md` 修改与三个未跟踪报告保留；未使用 reset/clean。
 - MC百科表格趋势缩略图和详情完整走势图已恢复，使用已有官方流行指数历史点。7/30/60 天范围以数据中最新日期为终点，不表示历史已更新至今天；统计随所选范围计算。异常或少于两个有效历史点明确提示，不错位配对，也不合成曲线。
 - 复用审核 head 已通过的定向趋势用例 15/15、TypeScript 检查和 desktop build 证据；复用其构建产物。未追加构建、测试或 GUI 检查；真实 GUI 尚未验证。
-- 只重启已确认属于本项目的正式服务，沿用原用户数据根目录 `C:\Users\Administrator\AppData\Roaming\MCModpackBoard\data`。入口 `http://127.0.0.1:8765/` 返回 HTTP 200。按后台启动限制，使用可见的 Codex 管理命令会话运行 `npm --prefix apps/desktop run start:no-open` 并保持该会话，不使用隐藏后台启动。未采集、导入或回填，也未修改真实 active pointer、快照或个人资料。
+- 当时只重启已确认属于本项目的正式服务，沿用Windows用户AppData内原MCModpackBoard数据根目录。入口 `http://127.0.0.1:8765/` 返回 HTTP 200。当时使用可见的 Codex 管理命令会话运行 `npm --prefix apps/desktop run start:no-open` 并保持该会话，不使用隐藏后台启动。未采集、导入或回填，也未修改真实 active pointer、快照或个人资料。
 - 封面外部图片的真实显示效果仍待用户反馈，未随 PR #17 关闭。当前交付无阻塞项；GUI 未验收为已知验证限制。
 
-## PR #18 正式浏览页面整合修复待审（2026-09-23）
+## PR #18 正式浏览页面整合修复待审（2026-09-23历史记录，现已合并）
 
 - [PR #18](https://github.com/suifracti/mc-modpack-crawler-board/pull/18) 基于 `master@9aeed3760de268f259487aa3444c56300dd0d246`，branch `codex/integrate-browser-ui`，head `451dbad68687e88a143def3bb31e71b4396841e2`，保持待审，未合并、未重启正式服务。
 - 卡片结构根因是个人操作／B站组摘要位于网格直接子项中的视觉卡片之前，旧平台内层卡片同时被强制 `height: 100%`，使操作看似漂浮并额外撑高。现改为单一视觉卡片外壳，平台内容在前、同记录的“我的状态”页脚在后；B站当前视频与成员摘要仍按明确 BVID 保存，不生成组级收藏。个人操作继续由 `platform + sourceId` 定位，索引只作旧节点回退。
