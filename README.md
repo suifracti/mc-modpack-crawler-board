@@ -80,7 +80,7 @@ node apps/desktop/server.cjs --host 127.0.0.1 --port 8765 \
   --python "$(command -v python3)" --no-open
 ```
 
-浏览器打开 **http://127.0.0.1:8765/**。保留服务终端，按 `Ctrl+C` 停止。Linux 可把 `MC_DATA_DIR` 改为仓库外的 `"$HOME/.local/share/MCModpackBoard/data"`；Windows 的参数、数据位置见 [本地服务说明](apps/desktop/README.md)。
+浏览器打开 **[本地 V2 页面](http://127.0.0.1:8765/)**。保留服务终端，按 `Ctrl+C` 停止。Linux 可把 `MC_DATA_DIR` 改为仓库外的 `"$HOME/.local/share/MCModpackBoard/data"`；Windows 的参数、数据位置见 [本地服务说明](apps/desktop/README.md)。
 
 Git clone 只取得源码，**不会附带已采集数据、私人收藏或完整历史快照**。没有本地资料时会显示空数据状态；已有资料通过“选择数据／更换数据”导入，或按恢复指引使用完整副本。不要用 Windows 的路径或 active 指针直接替代当前机器的数据目录。
 
