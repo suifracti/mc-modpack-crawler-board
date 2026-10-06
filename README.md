@@ -1,88 +1,223 @@
-# Minecraft Modpack Board
+# 我的世界整合包聚合
 
-当前 Mac 开发主线为 **master**，已验基线为 `644d9e290dc29d8fb82e29108a876d4f80424465`。固定 Mac 目录、V2 构建与本机启动见 [Mac 接手说明](docs/MAC_MIGRATION.md)，已验范围和保留缺口见 [当前实施状态](docs/PROJECT_STATE.md)。迁移/整合分支不再作为后续默认开发入口；私人数据保持在仓库外，站点发布分支 `gh-pages` 保留。
+**把六个来源的 Minecraft 整合包资料放在一个工作台里：搜索、筛选、查看版本与模组、比较来源，保存自己的游玩计划，并追踪每次更新的具体变化。**
 
-[中文](README_CN.md) · [Current status](docs/PROJECT_STATUS.md) · [Development](docs/DEVELOPMENT.md) · [Desktop task](docs/DESKTOP_TASK.md)
+[在线浏览](https://suifracti.github.io/mc-modpack-crawler-board/) · [本地 V2 启动](#启动本地-v2) · [数据更新](#六站统一更新) · [变动审计](#每次更新变了什么) · [开发文档](#开发与交付文档)
 
-A local Minecraft modpack discovery tool with collectors for **MCMod, Bilibili, BBSMC, XYEBBS, Modrinth and CurseForge**. Search and filter local records, inspect versions/mods/source information and follow links to the original platforms.
+Python 负责采集和数据整理，TypeScript / Vite 提供界面，Node.js 提供本地服务。当前默认开发分支是 **`master`**，网页发布分支是 **`gh-pages`**；当前交付形态为浏览器工作台，不交付 Electron / EXE 安装包。
 
-The application consists of a **Python data pipeline, TypeScript/Vite web frontend and cross-platform local browser service**. The service serves the dashboard on localhost and keeps collection/update work in the existing Python worker; no desktop executable is part of the current delivery path.
+![六平台公开资料总览](docs/images/overview-20261006.jpg)
 
-For a one-click start, double-click `start_browser_service.cmd` on Windows, or `start_browser_service.command` on macOS. On Linux, run `start_browser_service.sh` from a terminal or mark it executable in the file manager. The launcher builds the browser frontend, starts the local service and opens the default browser.
+*2026-10-06 实际线上截图。各站计数、观察时间和覆盖范围独立显示；打开页面不会自动抓取新数据。*
 
-## Open an existing dashboard
+## 可以做什么
 
-When a complete `converted_output/index.html`, `assets/` and `data/` already exist, run from the repository root:
+- **查找整合包**：跨来源搜索，按 Minecraft 版本、Loader、分类和个人状态筛选；MC百科还支持按收录模组检索。提供卡片、紧凑和表格视图。
+- **查看已有资料**：详情抽屉和小窗展示保存的正文、图片、版本说明、模组及原站入口，左右资料面板可收起，小窗可最小化或最大化。
+- **核对其他来源**：查看名称匹配和原页链接形成的关联线索，保留每条记录的平台身份；同名线索不自动认定为同一个整合包。
+- **整理个人库**：收藏、想玩、玩过、评分和备注；本地服务支持个人资料备份与恢复，个人状态与公开采集记录分开保存。
+- **统一更新六站**：在同一更新中心选择日常增量、旧包资料补全或目录核对，任务按站串行执行，每站结果独立保存。
+- **逐次检查变化**：每次保存的更新与紧邻的前置快照比较，查看新增条目、内容或指标变化、版本与链接补充、本地移除，以及具体字段前后值。
+- **查看历史趋势**：MC百科有真实历史序列的项目可从卡片或详情打开走势图，按时间范围查看指数与区间统计。
 
-```powershell
-python -m http.server 8765 --bind 127.0.0.1 --directory converted_output
+功能是否有内容，取决于对应来源和本地存档。没有保存的作者、正文、评论、版本或历史点会保持缺失，不用推测值填充。
+
+## 线上站与本地服务
+
+| 能力 | GitHub Pages 在线站 | 本地 V2 服务 |
+| --- | --- | --- |
+| 浏览与搜索六站资料 | 发布时的公开资料 | 当前本地快照 |
+| 正文、图片、版本、关联来源与已有趋势 | 已导出的公开存档 | 已保存的本地资料 |
+| 收藏、评分、游玩状态和备注 | 当前访问者浏览器 localStorage | 仓库外的本地个人库 |
+| 执行采集更新与查看队列结果 | 不提供 | 提供 |
+| 逐次快照变动审计 | 不提供 | 提供 |
+| 导入资料、切换快照、个人库备份恢复 | 不提供 | 提供 |
+
+在线站是静态资料展示。网站发布不会上传维护者的个人库，也不会在 GitHub Pages 上运行爬虫或本地服务。原站访问和远程图片是否可用仍取决于来源网站。
+
+## 六个来源与当前资料
+
+以下为 **2026-10-06 已发布快照**，合计 **131,721 条来源记录**。计数包含历史存档和待核验记录，各平台分别计数，不能解释为去重后的整合包总数或全站实时覆盖。
+
+| 来源 | 记录数 | 主要资料 | 当前更新范围 |
+| --- | ---: | --- | --- |
+| MC百科 | 1,507 | 词条、版本适配、模组组成、流行指数历史 | 最新一轮新增 ID 探测得到 9 条；未刷新所有旧项目指标 |
+| 哔哩哔哩 | 1,867 | 视频简介、UP 主、发布线索和可见指标 | 最近一轮核验 30 个已存公开视频，0 次请求失败；仍有待核验存档 |
+| BBSMC | 1,875 | 社区项目、版本与作者资料 | 已完成近期增量更新 |
+| XYEBBS | 5,181 | 论坛发布、版本标签与来源链接 | 已完成近期增量更新 |
+| Modrinth | 18,757 | 项目、版本、Loader 与图库 | 已完成近期增量更新 |
+| CurseForge | 102,534 | 历史项目档案、文件元数据及第三方公开资料 | 已核对第三方目录；最新一轮为近期 2 页及对应详情，非官方全历史 |
+
+来源时间、采集观察时间和快照保存时间含义不同。请以更新中心、变动审计和线上站的各站范围说明为准；旧资料在新快照中保留，不代表当天重新核验过。
+
+### B站与 CurseForge 的更新方式
+
+**B站**通过主站公开 HTML 核验已存视频，保留原始身份和旧资料。日常任务轮换核验最多 30 个候选，目录核对最多 5,000 个已有视频 ID，跳过当天已尝试和已确认不可用项。它不通过受限关键词 API 执行全站搜索；视频新发也不等于整合包新版本。访问拒绝和验证页会停止任务，单个确认不可见的视频保留记录并隔离，拒绝账本不会为重试而清空。
+
+**CurseForge**在没有官方 Key 时，目录更新使用 Modpacks.ch 第三方公开目录：日常读取近期 2 页，目录核对遍历该提供方返回的页数，项目正文和图片随详情保存。旧包文件资料另有 CFWidget 已知 ID 缓存路径；这些缓存和目录都不等同于官方完整版本历史。有自己的官方 Key 时可配置官方元数据接口，Key 留在本机。提供方配置和边界见 [CurseForge 说明](docs/CURSEFORGE_API.md)。
+
+## 启动本地 V2
+
+### 环境
+
+需要 Git、Node.js、npm、Python 3 和现代浏览器。当前 Mac 实测环境为 **Node.js 24.18.0 / npm 11.16.0 / Python 3.14.6**。桌面服务及当前 B站公开 HTML、CF 元数据路径使用 Python 标准库；旧采集脚本的可选依赖见 [开发说明](docs/DEVELOPMENT.md)。
+
+### 新建源码目录并启动
+
+下面是 macOS / Linux 的显式 V2 入口。已有工作目录时直接进入该目录，先检查未提交修改，不重复 clone 或覆盖已有数据。
+
+```sh
+git clone --branch master https://github.com/suifracti/mc-modpack-crawler-board.git
+cd mc-modpack-crawler-board
+
+npm --prefix apps/web ci
+npm --prefix apps/web run build:desktop-v2
+
+MC_DATA_DIR="$HOME/Library/Application Support/MCModpackBoard/data"
+node apps/desktop/server.cjs --host 127.0.0.1 --port 8765 \
+  --frontend-root "$PWD/build/desktop-v2/frontend" \
+  --data-root "$MC_DATA_DIR" \
+  --python "$(command -v python3)" --no-open
 ```
 
-Open <http://127.0.0.1:8765/>. Keep the output directory together. The modern frontend uses JavaScript modules and should be served over local HTTP.
+浏览器打开 **http://127.0.0.1:8765/**。保留服务终端，按 `Ctrl+C` 停止。Linux 可把 `MC_DATA_DIR` 改为仓库外的 `"$HOME/.local/share/MCModpackBoard/data"`；Windows 的参数、数据位置见 [本地服务说明](apps/desktop/README.md)。
 
-A fresh clone contains source code, not collected datasets or a prebuilt dashboard. See [development instructions](docs/DEVELOPMENT.md) for collection and staging.
+Git clone 只取得源码，**不会附带已采集数据、私人收藏或完整历史快照**。没有本地资料时会显示空数据状态；已有资料通过“选择数据／更换数据”导入，或按恢复指引使用完整副本。不要用 Windows 的路径或 active 指针直接替代当前机器的数据目录。
 
-## Repository map
+服务当前没有登录保护；本机使用时保持上面的 `--host 127.0.0.1`。仅用 `python -m http.server` 能展示生成网页，但不能提供更新、审计和个人库 API。
 
-| Path | Purpose |
+### 已恢复 Mac 环境的固定入口
+
+本项目当前维护环境继续使用以下位置，目录名虽然保留迁移日期，开发分支已经是 `master`：
+
+| 项目 | 位置 |
 | --- | --- |
-| `多平台聚合爬虫_v1.0.py` and platform crawlers | Collection entry point and six collectors |
-| `pipeline/` | Canonical SQLite model, adapters, exporters and staging/release tools |
-| `apps/web/` | Modern frontend and unit tests |
-| `web/`, `多平台聚合转换器_v1.0.py` | Shared styles and still-used legacy conversion compatibility |
-| `tests/`, `pipeline/tests/` | Python checks; some require local datasets |
-| `docs/` | Current status, contracts, development and historical evidence |
-| `feedback/` | Optional feedback service templates |
+| 源码 | `$HOME/backup/ai/work/zhenghebao/mac-integration-20261005` |
+| 运行数据 | `$HOME/Library/Application Support/MCModpackBoard-migration-20261006/data` |
+| 本机启动器 | `$HOME/backup/ai/work/zhenghebao/start-mc-v2.command` |
 
-Datasets, generated dashboards, build outputs, browser sessions and credentials stay local.
+启动器在仓库外，只在已恢复的 Mac 上存在；它不会随 clone 自动生成。已运行服务时直接打开本地页面，避免重复占用 8765 端口。
 
-## Known boundaries
+更新源码并重新构建：
 
-Platform coverage does not mean every field or inferred identity is verified. Unknown source facts remain unknown. Bilibili grouping is heuristic. The latest A candidate is unintegrated and its independent safety evidence is incomplete. See [current status](docs/PROJECT_STATUS.md); historical matrices are not current release certificates.
+```sh
+cd "$HOME/backup/ai/work/zhenghebao/mac-integration-20261005"
+git status --short
+# 工作区无冲突后，再同步主线。
+git pull --ff-only origin master
+npm --prefix apps/web run build:desktop-v2
+```
 
-## ⚠️ Notes and Limitations
+构建后重启服务，沿用已有运行数据目录。仓库根目录旧 `start_browser_service.*` 和 `npm --prefix apps/desktop start` 默认走 V1，当前 V2 使用上述显式入口。
 
-- This project is not an official tool of MCMod, Minecraft, Mojang, Microsoft, or any modpack author.
-- The data collection scripts are not officially authorized by third-party data providers.
-- Recommended usage: personal learning, local organization, and low-frequency updates.
-- Do not perform high-frequency crawling, bypass access restrictions, redistribute complete datasets, or use collected data commercially.
-- Users are responsible for evaluating their own usage environment and related risks.
+本机 Python 曾出现默认 CA 文件缺失；已恢复 Mac 启动器局部设置 `SSL_CERT_FILE=/etc/ssl/cert.pem` 使用系统证书。遇到同样问题时先检查证书位置，保留 TLS 校验，不用关闭验证解决。
 
----
+恢复包校验、生产快照与近期增量的区别、个人数据冲突处理见 [Mac 恢复与交接](docs/MAC_MIGRATION.md)。Windows 的全历史和旧工作树仍保留，不是本地最小运行必需项。
 
-## 🔒 Privacy
+## 六站统一更新
 
-Some local files may contain:
+1. 在本地 V2 顶部打开 **数据更新**。
+2. 选择场景：**快速日常增量更新**、**旧包版本与网盘补全**或**平台目录核对**。
+3. 选择需要的来源；“全选”会选中六站。
+4. 开始执行后查看每站的实际覆盖、观察数量、失败原因和保存结果。
+5. 更新保存后打开 **变动审计**，检查这次相对前一次的变化。
 
-- Browser sessions
-- Cookies
-- Tokens
-- Personal configuration
+![六站统一更新中心](docs/images/update-center-20261006.jpg)
 
-Do not upload or share sensitive files.
+*截图只展示场景和六站选择，本次拍图没有启动新采集。*
 
----
+任务串行执行，单站失败继续其余已选平台；取消会停止剩余任务。队列在本地服务运行期间管理，刷新页面不会丢失结果；服务重启保留历史结果，不自动重新发起中断采集。每站使用自己的更新范围，选择“目录核对”也不自动获得全站完整覆盖。
 
-## 🤖 AI-Generated Project
+新快照保留未观察到的旧条目。范围之外没有见到的记录不会直接解释为原站下架，第三方未返回的字段不会覆盖成空值。
 
-This repository’s **code, documentation, configuration, commit messages, and upload process were produced entirely (or substantially entirely) by AI**. The human maintainer has not manually authored or personally verified every line.
+## 每次更新变了什么
 
-AI output may be wrong, incomplete, or unsafe. **Review and test before use.** Publication here is not a quality guarantee or endorsement of any specific approach.
+**“一次”指一个实际保存的更新任务。** 默认展示最新一次，也可从更新记录中选择上一次、上上次或更早的任务；每个任务都与它紧邻的前置快照相比。六站依次更新会形成各站自己的任务记录，不把它们伪装成同一时间的六站全量刷新。
 
----
+![更新记录选择、站点统计和精确时间](docs/images/update-audit-20261006.jpg)
 
-## 📄 Data Disclaimer
+审计分为新增入库、内容／指标更新、补齐版本／直链、本地移除。列表可按类型和名称筛选，展开“具体变化”查看字段的更新前后值，还能打开来源资料。
 
-All rankings, scores, trends, and comment summaries are locally processed results.
+<details>
+<summary>查看字段前后值示例：播放量 139 → 141</summary>
 
-They are provided for information organization and reference only, and do not represent official evaluations of any modpack.
+![逐字段变动审计](docs/images/audit-fields-20261006.jpg)
 
----
+</details>
 
-## License
+采集开始、采集结束、基线和快照保存时间分别显示，审计时间为北京时间 UTC+8，精确到秒。只有采集时间变化不计作内容更新；未保存的失败任务不伪造为已更新。缺少对应旧快照时会明确提示不能计算，而不是用零变动冒充对比成功。
 
-**No open-source license is granted.**
+## 资料小窗与历史趋势
 
-This repository is published for **personal learning and technical reference only**. You may read the code for learning; commercial use, redistribution of collected datasets, or treating this project as an authorized product is not permitted by this notice.
+从卡片进入小窗，可以切换 **资料、版本历史、图片、其他来源和原站入口**。资料取自保存的正文与索引；图片合并原图库和已有正文里的 HTTP(S) 图片地址，按地址去重。相同图片若使用不同地址仍可能重复，远程图片也可能因来源访问限制不可显示。
 
-All third-party content—including modpacks, mods, webpage content, and comments—belongs to their respective owners. Nothing in this repository grants rights to those materials.
+![已存版本历史与正文图片](docs/images/source-preview-20261006.jpg)
+
+*本地样例“虚饰作品”：27 条版本说明、321 条模组关系和 10 张图片。数量描述该样例，不代表所有项目资料同样完整；右侧个人区未展开。*
+
+MC百科卡片和详情里的 **历史趋势**按钮使用相同的已有序列。可查看近 7／30／60 天或全部历史，查看日期、指数和区间统计；近几天以保存序列的末端日期为依据，不补造没有观测过的点。
+
+<details>
+<summary>查看从卡片打开的完整走势图</summary>
+
+![MC百科官方流行指数历史趋势](docs/images/trend-20261006.jpg)
+
+*样例有 134 个有效点，末端为 2026-09-26。10 月 6 日更新或发布快照，不会把旧序列变成当天已采集的趋势。*
+
+</details>
+
+B站视频播放器和外站网页在内嵌小窗中仍有兼容限制；已保存资料可独立查看，播放与完整讨论使用“浏览器打开”前往原站。
+
+## 数据、隐私与发布
+
+运行快照、个人库、收藏更新状态、采集拒绝账本、凭据和原始证据留在仓库之外。公开截图仅展示公开来源资料及功能界面，没有个人收藏或备注。
+
+公开站采用精确文件清单发布：仅导出允许的公开字段、必要资源和已有预览；本地地址在导出副本中脱敏，原始资料保持原样。详细流程见 [静态站交付](docs/STATIC_PAGES.md)。
+
+源码同步与网站部署分开进行：正常推送 `master` 更新源码，网站继续从 **`gh-pages` 根目录**发布。只推送 `master` 不会更新当前 Pages。不要把整个 `build/`、运行数据目录或私人交付 ZIP 上传为发布产物。
+
+## 开发与交付文档
+
+| 路径 | 用途 |
+| --- | --- |
+| `apps/web/` | V2 前端、静态站入口、公开导出和前端测试 |
+| `apps/desktop/` | Node.js 本地服务、更新队列、快照与个人库 |
+| `apps/desktop/collector_worker.py`、各平台采集器 | 来源采集与任务执行 |
+| `pipeline/` | Canonical SQLite、适配、转换与导出 |
+| `web/`、`多平台聚合转换器_v1.0.py` | 共用样式及旧转换兼容路径 |
+| `tests/`、`pipeline/tests/` | Python 测试；部分依赖已有本地样本 |
+| `docs/` | 契约、当前状态、交接和历史证据 |
+| `docs/images/` | 本 README 的实际界面截图及来源说明 |
+
+常用检查，在仓库根目录运行：
+
+```sh
+npm --prefix apps/web test
+npm --prefix apps/web run build:desktop-v2
+node --test apps/desktop/test/snapshot-audit.test.cjs
+node --test apps/desktop/test/pages-export.test.cjs apps/desktop/test/public-data-redaction.test.cjs
+```
+
+2026-10-06 发布前检查：Web 单测 120/120，Desktop 相关用例 46/46，B站 31/31（含已保存 HTML），CF 12/12，公开导出及脱敏用例 2/2；V2 和 Pages 构建通过。上线后核对 117 个发布文件的 Git 对象，21 个关键 HTTP 文件哈希一致，并抽查 B站／CF 卡片、详情与图片。这些证据不代表全仓安全审计、六站所有详情、真实官方鉴权或完整历史全部通过。
+
+详细阅读：
+
+- [当前实施状态](docs/PROJECT_STATE.md)：当前能力与历史验收边界，以顶部最新记录为准。
+- [开发说明](docs/DEVELOPMENT.md)：数据流水线和旧路径。
+- [本地服务](apps/desktop/README.md)：参数与 API 服务说明，V2 入口以本 README 为准。
+- [搜索契约](docs/SEARCH_CONTRACT.md)：搜索、筛选和字段语义。
+- [CurseForge 提供方](docs/CURSEFORGE_API.md)：第三方与官方接口的范围和配置。
+- [静态站交付](docs/STATIC_PAGES.md)：只读构建与公开发布清单。
+- [Mac 交接](docs/MAC_MIGRATION.md)、[分支整合记录](docs/BRANCH_INTEGRATION_20261005.md)：恢复与保留依据，不作为重放旧候选的指令。
+
+独立 A／B 候选尚未采用：A 的安全审计受限，B 的兼容与切换未验。PR #21 经等价核对关闭，重复分支已删除，未通过强行合并收敛分支。后续开发使用 `master`，`gh-pages` 继续用于网站。
+
+## 使用与许可
+
+本项目不是 MC百科、Minecraft、Mojang、Microsoft 或任何整合包作者的官方工具，与这些平台或作者没有合作关系。采集脚本未获得第三方数据源的官方授权；请遵守来源规则，采用个人学习、本地整理和低频更新方式，不绕过访问限制。
+
+排序、指数、趋势和评论整理仅用于信息组织，不代表对作品质量的官方评价。第三方整合包、模组、图片、网页和评论的权利属于原权利人。
+
+本仓库的代码、文档、配置与提交过程由 AI 完整生成或实质完成，人类维护者未逐行编写或背书。已有检查有明确范围，AI 输出仍可能错误、不完整或不安全，使用前请自行审查与测试。
+
+**未授予开源许可（No open-source license is granted）。** 仓库仅供个人学习与技术参考；本说明不授权商用或再分发完整采集数据，也不授予任何第三方材料的使用权。
