@@ -1,5 +1,13 @@
 # GitHub Pages 静态交付
 
+## 2026-10-06 Mac 当前资料导出
+
+延用 `gh-pages:/` 和V2静态入口。Mac本地当前公开快照共131,721条：MC百科1,507、B站1,867、BBSMC1,875、XYEBBS5,181、Modrinth18,757、CF102,534。仅发布 `publication-manifest.json` 的精确文件清单；不提交原始快照、个人库、采集状态、日志或证据。
+
+`MC_PAGES_REFRESH_REPORT` 为六平台当前公开raw输入路径、SHA256、数量、任务观察时间及真实覆盖；`MC_PAGES_SOURCE_DATA_DIR` 显式指定保存的公开sidecar目录，补MC模组、趋势等结构化资料；`MC_PAGES_PREVIEW_ARCHIVE_ROOT` 指定已保存正文／图片／版本预览的公开来源快照。上述输入只读，不导入、切换指针或采集。`MC_PAGES_SOURCE_COMMIT` 为40位已提交源码SHA，写入公开manifest及DATA_SCOPE，不能继续硬编码旧源码版本。
+
+静态站的后台更新、快照审计和Mac服务队列继续禁用；站点只读取发布时公开资料，个人收藏在访问者自身浏览器保存。CF第三方目录覆盖与B已有视频局部核验不代表全站或完整历史；各站观察时间分别展示，不把快照保存或构建时间当作源内容更新时间。
+
 2026-09-30：用户要求最新桌面界面与最新已有公开抓取数据，目标为公开仓库 `suifracti/mc-modpack-crawler-board` 的 `gh-pages`。不发布旧 portable。
 
 在 `apps/web` 运行 `npm run build:pages`；`MC_PAGES_OUT` 可指定输出目录，默认 `build/pages`。发布仅使用 `publication-manifest.json` 的精确文件清单，不能将整个 build 或输出目录一并上传。清单不会包含 `data-report.json`、源码、个人库、配置、session、日志或运行快照。

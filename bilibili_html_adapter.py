@@ -53,24 +53,34 @@ def content_category(title,author,description='',tags=None):
     return content_decision(title,author,description,tags)['kind']
 
 class InvalidPublicVideo(ValueError):pass
-class UnavailablePublicVideo(InvalidPublicVideo):pass
+class UnavailablePublicVideo(InvalidPublicVideo):
+    def __init__(self,message,true_code=-404):
+        super().__init__(message);self.true_code=true_code
 
 class _Parser(HTMLParser):
     def __init__(self):
         super().__init__();self.meta={};self.scripts=[];self.active=None;self.title=[];self.in_title=False
+        self.error_texts=[];self.error_active=None;self.error_depth=0
     def handle_starttag(self,tag,attrs):
         a=dict(attrs)
         if tag=='title':self.in_title=True
         if tag=='meta' and a.get('content') is not None:
             name=a.get('property') or a.get('name');self.meta[name]=a['content']
         if tag=='script' and not a.get('src'):self.active=[]
+        if tag=='div':
+            if self.error_active is not None:self.error_depth+=1
+            elif 'error-text' in a.get('class','').split():self.error_active=[];self.error_depth=1
     def handle_endtag(self,tag):
         if tag=='title':self.in_title=False
         if tag=='script' and self.active is not None:
             self.scripts.append(''.join(self.active));self.active=None
+        if tag=='div' and self.error_active is not None:
+            self.error_depth-=1
+            if not self.error_depth:self.error_texts.append(''.join(self.error_active).strip());self.error_active=None
     def handle_data(self,text):
         if self.in_title:self.title.append(text)
         if self.active is not None:self.active.append(text)
+        elif self.error_active is not None:self.error_active.append(text)
 
 def parse_public_video(html,bvid):
     if not re.fullmatch(r'BV[0-9A-Za-z]{10}',bvid):raise InvalidPublicVideo('Invalid BVID')
@@ -83,13 +93,20 @@ def parse_public_video(html,bvid):
             break
     if isinstance(state,dict):
         error=state.get('error');missing_video=state.get('videoData') or {}
+        canonical=parser.meta.get('og:url')
+        exact_url=canonical and canonical.rstrip('/')==f'https://www.bilibili.com/video/{bvid}'
+        known_unavailable=isinstance(error,dict) and (
+            error.get('trueCode')==-404 and (not canonical or exact_url)
+            or error.get('trueCode')==62002 and error.get('message')=='稿件不可见' and exact_url
+            or error.get('trueCode')==62012 and error.get('message')=='62012' and error.get('fromSpider') is False
+               and exact_url and '当前稿件up主设置为仅自见' in parser.error_texts)
         # An official unavailable-video page is distinct from a source access
         # refusal. Require all observed signals, including the requested BVID.
         if (isinstance(error,dict) and type(error.get('code')) is int and error['code']==404
-            and error.get('trueCode')==-404 and state.get('bvid')==bvid
+            and known_unavailable and state.get('bvid')==bvid
             and ''.join(parser.title).strip() in ('视频去哪了呢？_哔哩哔哩_bilibili','视频去哪了呢?_哔哩哔哩_bilibili')
             and isinstance(missing_video,dict) and not any(missing_video.get(k) for k in ('bvid','title','pubdate'))):
-            raise UnavailablePublicVideo('Official video unavailable (initial-state 404)')
+            raise UnavailablePublicVideo('Official video unavailable (initial-state 404)',error['trueCode'])
     if not isinstance(state,dict) or state.get('error'):raise InvalidPublicVideo('Missing or error initial state')
     video=state.get('videoData')
     if not isinstance(video,dict) or state.get('bvid')!=bvid or video.get('bvid')!=bvid:raise InvalidPublicVideo('BVID mismatch')

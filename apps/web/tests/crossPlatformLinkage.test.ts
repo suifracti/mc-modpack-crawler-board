@@ -104,14 +104,14 @@ describe('crossPlatformLinkage', () => {
 
     // Test capsule render
     const capsuleHtml = renderCardLinkageCapsule(result);
-    expect(capsuleHtml).toContain('全网联动');
+    expect(capsuleHtml).toContain('其他来源');
     expect(capsuleHtml).toContain('B站 (1)');
-    expect(capsuleHtml).toContain('论坛/网盘');
+    expect(capsuleHtml).toContain('论坛帖子');
 
     // Test drawer section render
     const drawerHtml = renderDrawerLinkageSection(result, mcmodRecord);
-    expect(drawerHtml).toContain('全网多平台关联生态');
+    expect(drawerHtml).toContain('其他来源线索');
     expect(drawerHtml).toContain('BBSMC 论坛');
-    expect(drawerHtml).toContain('Bilibili 关联汉化与实况视频');
+    expect(drawerHtml).toContain('Bilibili 相关视频');
   });
 });

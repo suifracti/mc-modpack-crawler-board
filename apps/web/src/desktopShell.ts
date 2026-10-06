@@ -1,3 +1,6 @@
+import type {PlatformUpdatePlan, UpdateBatchStatus} from './domain/updatePlans';
+import type {AuditHistorySummary, AuditPlatformUpdate} from './domain/auditHistory';
+import type { PublicLinkIndex } from './domain/crossPlatformLinkage';
 import { ALL_PLATFORMS, PLATFORM_CONFIGS } from './data/platformRegistry';
 import { groupBilibiliPacks } from './domain/bilibiliGrouping';
 import type { Platform } from './domain/types';
@@ -149,6 +152,9 @@ export interface DesktopCommentsResult {
 }
 
 export interface DesktopAuditResult {
+  history?: AuditHistorySummary[];
+  scope?: string;
+  platform_updates?: Record<string,AuditPlatformUpdate>;
   available: boolean;
   message: string | null;
   generated_at: string | null;
@@ -223,6 +229,7 @@ export interface DesktopFilterOption {
 }
 
 export interface DesktopUpdateStatus {
+  batch?: UpdateBatchStatus;
   state: 'idle' | 'running' | 'success' | 'failed' | 'cancelled';
   taskId: string | null;
   platform: Platform | null;
@@ -238,6 +245,9 @@ export interface DesktopUpdateStatus {
 }
 
 export interface DesktopApi {
+  getRelations?: () => Promise<PublicLinkIndex>;
+  getRecordPreview?: (platform: string, sourceId: string) => Promise<{ versions: Record<string, unknown>[]; fetchedAt: string; preview?: RecordPreview; provider?: string; providerLastFetch?: string | null }>;
+
   getPreviewVersions?: (platform: string, sourceId: string) => Promise<{ versions: Record<string, unknown>[]; fetchedAt: string; preview?: RecordPreview; provider?: string; providerLastFetch?: string | null }>;
   nativeDataDirectoryPicker?: boolean;
   getState: () => Promise<{ data: DesktopDataState; update: DesktopUpdateStatus }>;
@@ -247,7 +257,8 @@ export interface DesktopApi {
   getMissingPersonalSources: () => Promise<{ entries: Record<string, PersonalStatus> }>;
   restorePersonalLibrary: (payload: unknown) => Promise<{ restored: number; 'skipped-conflict': number; invalid: number }>;
   updatePersonalStatus: (platform: Platform, sourceId: string, patch: Partial<Pick<PersonalStatus, 'favorite' | 'wantToPlay' | 'played' | 'rating' | 'note'>>) => Promise<{ key: string; status: PersonalStatus }>;
-  getAuditDiff: () => Promise<DesktopAuditResult>;
+  getAuditDiff: (round?: number | string | null) => Promise<DesktopAuditResult>;
+  getSourceRecord?: (platform: Platform, sourceId: string) => Promise<DesktopRecord | null>;
   getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ bilibiliCounts?: { all: number; candidates: number; excluded: number }; platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availableCategoryCounts?: DesktopFilterOption[]; availableIncludedMods: DesktopFilterOption[]; availableGameplayCategories: DesktopFilterOption[]; availablePans: string[]; error?: string | null }>;
   getPlatformComments: (platform: Platform, sourceId: string) => Promise<DesktopCommentsResult>;
   getDataLibrary: () => Promise<DesktopDataLibrary>;
@@ -256,6 +267,7 @@ export interface DesktopApi {
   deleteDataSnapshot: (snapshotId: string) => Promise<{ archived: { snapshotId: string; recoverablePath: string }; library: DesktopDataLibrary }>;
   exportActiveData: () => Promise<{ path: string; snapshotId: string; reused: boolean }>;
   openDataDirectory: (snapshotId?: string) => Promise<{ opened: boolean; path: string }>;
+  startUpdateBatch?: (plans: PlatformUpdatePlan[]) => Promise<DesktopUpdateStatus>;
   startUpdate: (platform: Platform, options?: UpdateOptions) => Promise<DesktopUpdateStatus>;
   cancelUpdate: () => Promise<{ cancelled: boolean; reason?: string }>;
   openExternal: (url: string) => Promise<{ opened: boolean }>;

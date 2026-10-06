@@ -207,6 +207,7 @@ function createBrowserService(options = {}) {
         (sourcePlatform, sourceId) => store.findSourceRecord(sourcePlatform, sourceId),
       );
       if (result.eventsAdded) await logger(`收藏更新提醒：${result.eventsAdded} 条新变化已记录。`);
+      sendEvent('data',await store.getState());
     },
   });
 
@@ -224,6 +225,7 @@ function createBrowserService(options = {}) {
     if (!initialized) {
       await personalLibrary.init();
       await store.init();
+      await updateManager.restoreBatchHistory?.();
       await favoriteUpdates.init();
       await favoriteUpdates.seedMissingFavorites(
         (await personalLibrary.list()).entries,
@@ -251,6 +253,11 @@ function createBrowserService(options = {}) {
 
   async function handleApi(request, response, requestUrl) {
     const pathname = requestUrl.pathname;
+    const sourceRecordMatch = pathname.match(/^\/api\/source-record\/(mcmod|bilibili|bbsmc|modrinth|curseforge|xyebbs)\/([A-Za-z0-9_-]+)$/);
+    if (sourceRecordMatch && request.method === 'GET') return json(response,200,await store.findSourceRecord(sourceRecordMatch[1],sourceRecordMatch[2]));
+    const recordPreviewMatch = pathname.match(/^\/api\/record-preview\/(mcmod|bilibili|bbsmc|modrinth|curseforge|xyebbs)\/([A-Za-z0-9_-]+)$/);
+    if (recordPreviewMatch && request.method === 'GET') return json(response, 200, await store.getRecordPreview(recordPreviewMatch[1], recordPreviewMatch[2]));
+    if (pathname === '/api/relations' && request.method === 'GET') return json(response, 200, await store.getRelations());
     const previewVersionsMatch = pathname.match(/^\/api\/preview-versions\/(mcmod|bbsmc|modrinth|curseforge|xyebbs)\/([A-Za-z0-9_-]+)$/);
     if (previewVersionsMatch && request.method === 'GET') return json(response, 200, await getPreviewVersions(previewVersionsMatch[1], previewVersionsMatch[2]));
     if (pathname === '/api/health' && request.method === 'GET') return json(response, 200, { ok: true, service: 'mc-modpack-board-browser' });
@@ -266,7 +273,13 @@ function createBrowserService(options = {}) {
       return;
     }
     if (pathname === '/api/state' && request.method === 'GET') return json(response, 200, { data: await store.getState(), update: updateManager.getStatus() });
-    if (pathname === '/api/audit' && request.method === 'GET') return json(response, 200, await store.getAuditDiff());
+    if (pathname === '/api/audit' && request.method === 'GET') {
+      const value = requestUrl.searchParams.get('round');
+      const snapshot = requestUrl.searchParams.get('snapshot');
+      if ((snapshot !== null && (!/^[A-Za-z0-9_-]{1,100}$/.test(snapshot) || value !== null))
+          || (value !== null && (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))))) return json(response, 400, {error:'无效的审计轮次'});
+      return json(response, 200, await store.getAuditDiff(snapshot ?? (value === null ? null : Number(value))));
+    }
     if (pathname === '/api/data/library' && request.method === 'GET') return json(response, 200, await store.listSnapshots());
     if (pathname === '/api/data/open' && request.method === 'POST') {
       const body = await readJsonBody(request, 64 * 1024);
@@ -390,6 +403,12 @@ function createBrowserService(options = {}) {
       return json(response, 200, { cancelled: false, data });
     }
 
+    if(pathname === '/api/updates/batch' && request.method === 'POST') {
+      const body=await readJsonBody(request);
+      const task=updateManager.startBatch(body.plans);
+      task.catch(()=>{});
+      return json(response,202,updateManager.getStatus());
+    }
     if (pathname === '/api/updates' && request.method === 'POST') {
       const body = await readJsonBody(request);
       assertPlatform(body.platform);

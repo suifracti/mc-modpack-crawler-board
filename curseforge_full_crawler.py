@@ -332,7 +332,13 @@ def save_current_state(global_packs, max_total=0):
     with open(OUTPUT_JS, "w", encoding="utf-8") as f:
         f.write("window.curseforgeModpacksData = " + json.dumps(final_list, ensure_ascii=False) + ";\n")
 
-def main(max_total=0, recent_pages=0):
+def main(max_total=0, recent_pages=0, public_catalog=False, public_details=False):
+    if public_details:
+        from curseforge_modpacks_ch import refresh_project_details
+        return refresh_project_details(OUTPUT_JSON, OUTPUT_JS, limit=max_total)
+    if public_catalog:
+        from curseforge_modpacks_ch import refresh_catalog
+        return refresh_catalog(OUTPUT_JSON, OUTPUT_JS, limit=max_total, recent_pages=recent_pages)
     if metadata_provider() == 'cfwidget':
         from curseforge_cfwidget import refresh_known
         return refresh_known(OUTPUT_JSON, OUTPUT_JS, limit=max_total or 20)
@@ -615,5 +621,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CurseForge 超级全量切片爬虫")
     parser.add_argument("--max", type=int, default=0, help="最多采集条数（0 表示全量）")
     parser.add_argument("--recent-pages", type=int, default=0, help="仅更新最近修改排序的 N 页，每页 50 条")
+    parser.add_argument("--public-catalog", action="store_true", help="明确选择Modpacks.ch第三方目录；不代表完整CF原站历史")
+    parser.add_argument("--public-details", action="store_true", help="仅补充已确认新项目的公开正文与加载器，不重跑目录")
     args = parser.parse_args()
-    main(max_total=args.max, recent_pages=args.recent_pages)
+    main(max_total=args.max, recent_pages=args.recent_pages, public_catalog=args.public_catalog, public_details=args.public_details)

@@ -178,3 +178,40 @@ test('preserves mode and coverOffset options for runner', async () => {
   assert.equal(capturedOptions?.limit, 10);
 });
 
+test('a server batch survives one source failure and reports every source independently',async()=>{
+ const calls=[];
+ const store={prepareUpdateWorkspace:async(p)=>({workspace:p}),validateStage:async()=>({outcome:'partial_update',count:7,contract:{crawlerResult:{failedRequests:0,details:{provider:'modpacks-ch',coverage:'third-party-catalog',observedCount:100,pagesObserved:2,fullRefresh:false}}}}),commitUpdate:async()=>({snapshotId:'new',canonicalReady:false}),cleanupWorkspace:async()=>{}};
+ const manager=new UpdateManager({store,runnerFactory:({platform,onLine})=>{calls.push(platform);if(platform==='bilibili')onLine('DESKTOP_EVENT '+JSON.stringify({phase:'失败',error:'connection unavailable'}));return {promise:Promise.resolve({code:platform==='bilibili'?1:0})};}});
+ const status=await manager.startBatch([{platform:'bilibili',options:{mode:'existing',limit:30}},{platform:'curseforge',options:{mode:'recent',pages:2}},{platform:'modrinth',options:{limit:100}}]);
+ assert.deepEqual(calls,['bilibili','curseforge','modrinth']);
+ assert.equal(status.batch.completed,3);assert.equal(status.batch.state,'completed');
+ assert.deepEqual(status.batch.results.map(r=>r.state),['failed','success','success']);
+ assert.equal(status.batch.results[0].error,'connection unavailable');
+ assert.equal(status.batch.results[1].result.provider,'modpacks-ch');
+ assert.equal(status.batch.results[1].result.observedCount,100);
+});
+
+test('batch cancellation stops remaining sources and direct starts cannot interleave',async()=>{
+ const {store}=await setupStore();const entered=deferred(),finish=deferred();let count=0;
+ const manager=new UpdateManager({store,runnerFactory:()=>{count++;entered.resolve();return {promise:finish.promise,cancel:()=>finish.resolve({code:130})};}});
+ const pending=manager.startBatch([{platform:'bilibili'},{platform:'curseforge'}]);await entered.promise;
+ assert.throws(()=>manager.start('mcmod'),/已有更新任务/);
+ assert.deepEqual(manager.cancel(),{cancelled:true});
+ const result=await pending;assert.equal(count,1);assert.equal(result.batch.state,'cancelled');assert.equal(result.batch.results[0].state,'cancelled');
+});
+
+test('invalid batch inputs fail before any platform starts',()=>{
+ let count=0;const manager=new UpdateManager({store:{},runnerFactory:()=>{count++;}});
+ for(const items of [[],[{platform:'unknown'}],[{platform:'bilibili'},{platform:'bilibili'}],[{platform:'bilibili'},{platform:'curseforge',options:{limit:-1}}]])assert.throws(()=>manager.startBatch(items));
+ assert.equal(count,0);assert.equal(manager.getStatus().state,'idle');
+});
+
+test('completed batch results remain available after restarting the service',async()=>{
+ const {store}=await setupStore();const manager=new UpdateManager({store,runnerFactory:fakeRunnerFactory('fail')});
+ await manager.startBatch([{platform:'bilibili'},{platform:'curseforge'}]);
+ const restored=new UpdateManager({store,runnerFactory:()=>{throw new Error('must not restart network jobs');}});
+ await restored.restoreBatchHistory();
+ assert.equal(restored.getStatus().batch.state,'completed');assert.equal(restored.getStatus().batch.completed,2);
+ assert.deepEqual(restored.getStatus().batch.platforms,['bilibili','curseforge']);
+ assert.deepEqual(restored.getStatus().batch.results.map(r=>r.state),['failed','failed']);
+});

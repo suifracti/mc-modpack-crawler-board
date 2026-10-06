@@ -21,6 +21,16 @@ function exportRelations(out) {
     const bytes = fs.readFileSync(path.join(out,'data',file));
     return JSON.parse(bytes[0] === 31 && bytes[1] === 139 ? zlib.gunzipSync(bytes) : bytes);
   }));
+  const { index, stats } = createRelations(records, read(path.join(out,'data/manifest.json')).updatedAt);
+  const files=['data/relations.json.gz'];
+  fs.writeFileSync(path.join(out,files[0]),zlib.gzipSync(JSON.stringify(index),{level:9}));
+  const report={files,...stats};
+  fs.writeFileSync(path.join(out,'relations-export.json'),JSON.stringify(report,null,2));return report;
+}
+function buildRelations(records, dataTime) {
+  return createRelations(records, dataTime).index;
+}
+function createRelations(records, dataTime) {
   const byId = new Map(records.map(row => [row.id,row]));
   const aliasMap = new Map(), edges = new Map(), reasons = new Map();
   const add = (a,b,reason) => {
@@ -48,17 +58,14 @@ function exportRelations(out) {
       const id=sourceUrls.get(url.replace(/\/$/,''));if(id) add(row.id,id,'公开简介指向该原站条目');
     }
   }
-  const index={schema:1, catalogCount:records.length, dataTime:read(path.join(out,'data/manifest.json')).updatedAt, records:{}, links:{}};
+  const index={schema:1, catalogCount:records.length, dataTime, records:{}, links:{}};
   for (const [id,targets] of edges) {
     index.links[id]=[...targets].sort().slice(0,80).map(target=>({id:target,reason:reasons.get(id+'|'+target)}));
     for (const target of [id,...targets]) if (!index.records[target]) {
       const row=byId.get(target); index.records[target]={id:row.id,platform:row.platform,sourceId:row.sourceId,title:row.title,url:row.url,author:row.author,packVersion:row.packVersion};
     }
   }
-  const files=['data/relations.json.gz'];
-  fs.writeFileSync(path.join(out,files[0]),zlib.gzipSync(JSON.stringify(index),{level:9}));
-  const report={files,catalogCount:records.length,linkedRecords:edges.size,links:[...edges.values()].reduce((n,s)=>n+s.size,0)/2,biliCounts};
-  fs.writeFileSync(path.join(out,'relations-export.json'),JSON.stringify(report,null,2));return report;
+  return {index, stats:{biliCounts,catalogCount:records.length,linkedRecords:edges.size,links:[...edges.values()].reduce((n,targets)=>n+targets.size,0)/2}};
 }
-module.exports={exportRelations,aliases,normalize};
+module.exports={exportRelations,buildRelations,aliases,normalize};
 if(require.main===module){if(!process.env.MC_PAGES_OUT)throw Error('MC_PAGES_OUT required');console.log(JSON.stringify(exportRelations(process.env.MC_PAGES_OUT)));}

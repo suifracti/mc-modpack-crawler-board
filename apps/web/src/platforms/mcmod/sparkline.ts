@@ -29,7 +29,7 @@ export function generateSparklineSvg(
   const areaD = `${lineD} L ${pts[pts.length - 1][0]} 24 L ${pts[0][0]} 24 Z`;
 
   return (
-    `<svg class="sparkline-svg" viewBox="0 0 100 24" width="${width}" height="${height}" style="opacity: 0.95;">` +
+    `<svg class="sparkline-svg" viewBox="0 0 100 24" preserveAspectRatio="none" width="${width}" height="${height}" style="opacity: 0.95;">` +
     `<path d="${areaD}" fill="rgba(var(--primary-rgb), 0.1)"></path>` +
     `<path d="${lineD}" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round"></path>` +
     `</svg>`

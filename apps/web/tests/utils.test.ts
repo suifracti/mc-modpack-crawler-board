@@ -4,7 +4,7 @@ import { fmtBigNum, numFmt, formatVFileSize, asArray, getVPanClass } from '../sr
 
 describe('HTML Sanitization Utilities', () => {
   it('escHtml should escape dangerous HTML characters', () => {
-    expect(escHtml('<script>alert("xss")</script>')).toBe('&lt;script&gt;alert("xss")&lt;/script&gt;');
+    expect(escHtml('<script>alert("xss")</script>')).toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
     expect(escHtml('Tom & Jerry')).toBe('Tom &amp; Jerry');
     expect(escHtml('Plain text')).toBe('Plain text');
     expect(escHtml('')).toBe('');

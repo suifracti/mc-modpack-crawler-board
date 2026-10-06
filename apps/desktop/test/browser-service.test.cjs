@@ -128,6 +128,12 @@ test('serves same-origin health, state and imported records over HTTP', async ()
     const payload = JSON.parse(records.body);
     assert.equal(payload.total, 1);
     assert.equal(payload.records[0].title, '浏览器服务测试包');
+    const exact = await request(`${started.url}api/source-record/bilibili/BV-browser`);
+    assert.equal(exact.status,200);assert.equal(JSON.parse(exact.body).sourceId,'BV-browser');
+    const absent = await request(`${started.url}api/source-record/bilibili/not-in-snapshot`);
+    assert.equal(absent.status,200);assert.equal(JSON.parse(absent.body),null);
+    const foreign = await request(`${started.url}api/source-record/mcmod/BV-browser`);
+    assert.equal(JSON.parse(foreign.body),null);
 
     const initialLibrary = await request(`${started.url}api/library`);
     assert.equal(initialLibrary.status, 200);
@@ -241,4 +247,45 @@ test('does not persist index fallback identities and accepts a numeric source ID
   } finally {
     await service.stop();
   }
+});
+
+test('audit HTTP history accepts all saved updates and stable snapshot selection', async (t) => {
+  const root=await tempDir(); t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  const source=path.join(root,'source');await fs.mkdir(source);
+  await fs.writeFile(path.join(source,'bili_data.js'),'window.fixture = [{"bvid":"BV1","title":"初始"}];');
+  const service=createBrowserService({host:'127.0.0.1',port:0,dataRoot:path.join(root,'data')});
+  const started=await service.start();t.after(()=>service.stop());
+  await service.store.importDirectory(source);
+  const snapshots=[];
+  for(let i=1;i<=4;i++) {
+    const {workspace}=await service.store.prepareUpdateWorkspace('bilibili');
+    await fs.writeFile(path.join(workspace,'converted_output','data','bili_data.js'),`window.fixture = ${JSON.stringify([{bvid:'BV1',title:`第${i}次`}])};`);
+    snapshots.push(await service.store.commitUpdate(workspace,'bilibili',{sidecar:'bili_data.js',rawExists:false,rawCount:0,count:1,changed:true,outcome:'success_update'}));
+  }
+  const first=await request(`${started.url}api/audit?round=3`);
+  assert.equal(first.status,200); assert.equal(JSON.parse(first.body).updated[0].title,'第1次');
+  const stable=await request(`${started.url}api/audit?snapshot=${snapshots[0].snapshotId}`);
+  assert.equal(stable.status,200);assert.deepEqual(JSON.parse(stable.body),JSON.parse(first.body));
+  for(const query of ['round=-1','round=1.5','round=Infinity','snapshot=../data','round=0&snapshot=other']) {
+    assert.equal((await request(`${started.url}api/audit?${query}`)).status,400);
+  }
+});
+
+test('HTTP batch keeps running after request ends, continues after failure and broadcasts saved data',async(t)=>{
+ const root=await tempDir();t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const service=createBrowserService({host:'127.0.0.1',port:0,dataRoot:path.join(root,'data')});const started=await service.start();t.after(()=>service.stop());
+ let events='';const listening=new Promise(resolve=>{
+  const connection=http.get(`${started.url}api/events`,res=>{res.on('data',chunk=>{events+=chunk;resolve();});});t.after(()=>connection.destroy());
+ });await listening;
+ service.updateManager.runnerFactory=({platform,workspace,onLine})=>({promise:(async()=>{
+  if(platform==='bilibili'){onLine('DESKTOP_EVENT '+JSON.stringify({phase:'失败',error:'TLS fixture'}));return {code:1};}
+  await fs.writeFile(path.join(workspace,'converted_output/data/curseforge_data.js'),'window.fixture = [{"project_id":"42","title":"新包"}];');
+  await fs.writeFile(path.join(workspace,'crawler_output/curseforge_modpacks.json'),'[{"project_id":"42","title":"新包"}]');
+  await fs.writeFile(path.join(workspace,'build/desktop_update_result.json'),JSON.stringify({platform:'curseforge',outcome:'partial_update',partialScope:'catalog',previousIdsPreserved:true,rawTouched:true,sidecarTouched:true,collectionResultTouched:true,changed:true,crawlerResult:{status:'partial',fetchedCount:1,failedRequests:0,details:{provider:'modpacks-ch',coverage:'third-party-catalog',observedCount:1}}}));return {code:0};
+ })()});
+ const posted=await request(`${started.url}api/updates/batch`,{method:'POST',body:{plans:[{platform:'bilibili'},{platform:'curseforge',options:{mode:'recent',pages:2}}]}});assert.equal(posted.status,202);
+ await service.updateManager.batchPromise;
+ const status=JSON.parse((await request(`${started.url}api/state`)).body);
+ assert.equal(status.update.batch.completed,2);assert.deepEqual(status.update.batch.results.map(r=>r.state),['failed','success']);assert.equal(status.data.platforms.curseforge.count,1);
+ assert.match(events,/event: data/);
 });

@@ -3,6 +3,7 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const os = require('node:os');
+const { buildSnapshotAudit } = require('./snapshot-audit.cjs');
 const {
   ALL_PLATFORMS,
   COMMON_DATA_FILES,
@@ -563,6 +564,42 @@ class DataStore {
     return cached.normalized.find((record) => record.sourceId === target) || null;
   }
 
+  async getRecordPreview(platform, sourceId) {
+    assertPlatform(platform);
+    if (!/^[A-Za-z0-9_-]+$/.test(String(sourceId))) throw new Error('非法来源编号');
+    const active = await this.getActiveSnapshot();
+    if (!active) throw new Error('还没有本地快照');
+    const cached = this.readCachedPlatform(active.snapshotId, platform);
+    const raw = cached.result.records.find(row => String(row.mid ?? row.bvid ?? row.project_id ?? row.source_id ?? row.id ?? row.slug ?? '') === String(sourceId));
+    if (!raw) throw new Error('当前快照未收录该来源');
+    const record = normaliseRecord(platform, raw, 0);
+    const { readLocalPreview } = require('./local-preview.cjs');
+    return readLocalPreview(path.join(this.snapshotsDir, active.snapshotId), active, record);
+  }
+
+  async getRelations() {
+    const active = await this.getActiveSnapshot();
+    if (!active) throw new Error('还没有本地快照');
+    if (this.relationsCache?.snapshotId === active.snapshotId) return this.relationsCache.index;
+    const records = [];
+    for (const platform of ALL_PLATFORMS) {
+      const cached = this.readCachedPlatform(active.snapshotId, platform);
+      if (cached.result.error) throw new Error(cached.result.error);
+      for (const row of cached.result.records) {
+        const id = String(row.mid ?? row.bvid ?? row.project_id ?? row.id ?? '');
+        if (!id) continue;
+        records.push({id:`${platform}:${id}`,platform,sourceId:id,title:row.title || row.name || '',url:row.url || '',author:row.author || '',packVersion:row.packVersion || row.pack_version,
+          raw:{english_name:row.english_name || row.englishName,chinese_name:row.chinese_name || row.chineseName,slug:row.slug,desc:row.desc,
+            title:row.title,content_category:row.content_category,content_candidate:row.content_candidate},summary:row.description || row.desc || ''});
+      }
+      await new Promise(resolve => setImmediate(resolve));
+    }
+    const { buildRelations } = require('../../web/scripts/export-pages-relations.cjs');
+    const index = buildRelations(records,active.updatedAt);
+    this.relationsCache = {snapshotId:active.snapshotId,index};
+    return index;
+  }
+
   async getPlatformComments(platform, sourceId) {
     assertPlatform(platform);
     const active = await this.getActiveSnapshot();
@@ -609,9 +646,32 @@ class DataStore {
     return { platform, sourceId: String(sourceId || ''), available: false, sourceFile: null, pageCount: 0, comments: [] };
   }
 
-  async getAuditDiff() {
+  async getAuditDiff(round = null) {
+    if (round !== null && !(typeof round === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(round))
+        && (!Number.isSafeInteger(round) || round < 0)) throw new Error('无效的审计轮次');
     const active = await this.getActiveSnapshot();
     if (!active) return { available: false, message: '还没有可读取的本地快照。', generated_at: null, stats: null, added: [], updated: [], removed: [], version_gained: [] };
+    if (active.source === 'desktop-update') {
+      if (this.auditCache?.snapshotId !== active.snapshotId) {
+        this.auditCache = { snapshotId: active.snapshotId, promise: buildSnapshotAudit(this.snapshotsDir, active) };
+      }
+      try {
+        const audit = await this.auditCache.promise;
+        if (round === null) return audit;
+        const selected = await audit.getRound(round);
+        return selected ? {...selected, history:audit.history} : {
+          available:false, message:'没有该次可读取的历史快照，不能计算真实变动。',
+          generated_at:null, stats:null, added:[], updated:[], removed:[], version_gained:[], history:audit.history, scope:'task',
+        };
+      } catch (error) {
+        this.auditCache = null;
+        return { available: false, message: `历史快照审计失败：${error.message}`, generated_at: active.updatedAt || null, stats: null, added: [], updated: [], removed: [], version_gained: [] };
+      }
+    }
+    if (round !== null) return {
+      available: false, message: '导入的历史审计没有本地更新任务快照，不能计算该轮变动。',
+      generated_at: null, stats: null, added: [], updated: [], removed: [], version_gained: [], history: [], scope: 'task',
+    };
     const filePath = path.join(this.snapshotDataDir(active.snapshotId), 'audit_diff.js');
     if (!(await exists(filePath))) return { available: false, message: '当前快照没有 audit_diff.js，无法伪造历史变动审计。', generated_at: null, stats: null, added: [], updated: [], removed: [], version_gained: [] };
     try {
@@ -741,6 +801,7 @@ class DataStore {
       updatedAt: nowIso(),
       source: 'desktop-update',
       updatedPlatforms: [platform],
+      previousSnapshotId: active?.snapshotId || null,
       canonicalReady: Boolean(await exists(path.join(tempSnapshot, 'canonical.db'))),
       platform: {
         id: platform,

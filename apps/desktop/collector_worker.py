@@ -49,8 +49,9 @@ def parse_args() -> argparse.Namespace:
 def build_script_args(platform: str, args: argparse.Namespace) -> list[str]:
     limit = args.limit
     if platform == "bilibili":
-        result = ["--mode", "existing" if getattr(args, "mode", None) == "existing" else "new",
-                  "--limit", str(min(limit or 3, 30)), "--html-state", str(args.html_state)]
+        mode = getattr(args,"mode",None)
+        result = ["--mode", "catalog" if mode=="catalog" else "existing" if mode=="existing" else "new",
+                  "--limit", str(min(limit or (5000 if mode=="catalog" else 3), 5000 if mode=="catalog" else 30)), "--html-state", str(args.html_state)]
         if getattr(args, "bv", None):
             result.extend(["--bv", args.bv])
         if getattr(args, "until", None):
@@ -78,9 +79,23 @@ def build_script_args(platform: str, args: argparse.Namespace) -> list[str]:
     if platform == "modrinth":
         return ["--max", str(limit or 0)]
     if platform == "curseforge":
+        config_root = str(Path(getattr(args, "source_root", Path(__file__).resolve().parents[2])).resolve())
+        sys.path.insert(0, config_root)
+        try:
+            from curseforge_api_config import metadata_provider
+            provider = metadata_provider()
+        finally:
+            sys.path.pop(0)
+        if getattr(args,"mode",None)=="metadata":
+            if provider!="cfwidget":raise ValueError('Public project details require the explicitly selected no-key provider')
+            return ["--max",str(limit or 0),"--public-details"]
+        mode=getattr(args,"mode",None)
+        public = ["--public-catalog"] if provider == "cfwidget" and mode in {None,"new","catalog","recent"} else []
+        if mode in {None,"new"}:
+            return ["--max","0","--recent-pages",str(args.pages or 2)]+public
         if getattr(args, "mode", None) == "recent":
-            return ["--max", "0", "--recent-pages", str(args.pages or 20)]
-        return ["--max", str(limit or 0)]
+            return ["--max", "0", "--recent-pages", str(args.pages or 20)] + public
+        return ["--max", str(limit or 0)] + public
     raise ValueError(platform)
 
 
@@ -308,6 +323,7 @@ def run_selected_collector(args: argparse.Namespace) -> None:
     if source_name in {"existing_version_crawler.py", "curseforge_full_crawler.py"}:
         shutil.copy2(source_root / "curseforge_api_config.py", isolated_script.parent / "curseforge_api_config.py")
         shutil.copy2(source_root / "curseforge_cfwidget.py", isolated_script.parent / "curseforge_cfwidget.py")
+        shutil.copy2(source_root / "curseforge_modpacks_ch.py", isolated_script.parent / "curseforge_modpacks_ch.py")
 
     if args.platform == "bilibili":
         for helper in ("bilibili_html_adapter.py", "bilibili_html_extract.py"):

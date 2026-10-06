@@ -69,7 +69,8 @@ export function installBrowserApi(): void {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
-    getAuditDiff: () => request<DesktopAuditResult>('/api/audit'),
+    getAuditDiff: (round?: number | string | null) => request<DesktopAuditResult>(`/api/audit${round === undefined || round === null ? '' : typeof round === 'string' ? `?snapshot=${encodeURIComponent(round)}` : `?round=${round}`}`),
+    getSourceRecord: (platform, sourceId) => request(`/api/source-record/${encodeURIComponent(platform)}/${encodeURIComponent(sourceId)}`),
     getPlatformRecords: (platform, options = {}) => {
       const params = new URLSearchParams({
         query: options.query || '',
@@ -91,6 +92,8 @@ export function installBrowserApi(): void {
       return request<Awaited<ReturnType<DesktopApi['getPlatformRecords']>>>(`/api/platforms/${encodeURIComponent(platform)}/records?${params.toString()}`);
     },
     getPlatformComments: (platform, sourceId) => request<DesktopCommentsResult>(`/api/platforms/${encodeURIComponent(platform)}/comments/${encodeURIComponent(sourceId)}`),
+    getRelations: () => request('/api/relations'),
+    getRecordPreview: (platform, sourceId) => request(`/api/record-preview/${encodeURIComponent(platform)}/${encodeURIComponent(sourceId)}`),
     getPreviewVersions: (platform, sourceId) => request(`/api/preview-versions/${encodeURIComponent(platform)}/${encodeURIComponent(sourceId)}`),
     getDataLibrary: () => request<DesktopDataLibrary>('/api/data/library'),
     chooseDataDirectory: async (path) => {
@@ -106,6 +109,7 @@ export function installBrowserApi(): void {
     deleteDataSnapshot: (snapshotId) => request<{ archived: { snapshotId: string; recoverablePath: string }; library: DesktopDataLibrary }>('/api/data/delete', { method: 'POST', body: JSON.stringify({ snapshotId }) }),
     exportActiveData: () => request<{ path: string; snapshotId: string; reused: boolean }>('/api/data/export', { method: 'POST', body: '{}' }),
     openDataDirectory: (snapshotId) => request<{ opened: boolean; path: string }>('/api/data/open', { method: 'POST', body: JSON.stringify(snapshotId ? { snapshotId } : {}) }),
+    startUpdateBatch: (plans) => request<DesktopUpdateStatus>('/api/updates/batch', {method:'POST',body:JSON.stringify({plans})}),
     startUpdate: (platform: Platform, options = {}) => request<DesktopUpdateStatus>('/api/updates', { method: 'POST', body: JSON.stringify({ platform, options }) }),
     cancelUpdate: () => request<{ cancelled: boolean; reason?: string }>('/api/updates/cancel', { method: 'POST', body: '{}' }),
     openExternal: async (url) => {

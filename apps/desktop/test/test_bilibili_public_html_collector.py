@@ -1,11 +1,11 @@
-import json,sys,tempfile,unittest,urllib.error,urllib.request,os,time,subprocess
+import json,sys,tempfile,unittest,urllib.error,urllib.request,os,time,subprocess,ssl
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT));sys.path.insert(0,str(ROOT/'apps/desktop'))
 import bilibili_public_html_collector as html
-from bilibili_html_adapter import classify_video
+from bilibili_html_adapter import classify_video,InvalidPublicVideo
 from collector_worker import run_selected_collector,build_script_args,collect_output_contract,file_state
 
 A='BV1234567890';B='BV0987654321';C='BV0123456789'
@@ -17,6 +17,12 @@ def body(bvid,*,child=None,title='【MC整合包发布】星港2.0'):
 def unavailable_body(bvid):
  return '<title>视频去哪了呢？_哔哩哔哩_bilibili</title><script>window.__INITIAL_STATE__='+json.dumps({'bvid':bvid,'error':{'code':404,'trueCode':-404},'videoData':{'stat':{},'owner':{}}})+';</script>'
 
+def invisible_body(bvid,code=62002,message='稿件不可见',canonical=None):
+  return '<title>视频去哪了呢？_哔哩哔哩_bilibili</title><meta property="og:url" content="'+(canonical or f'https://www.bilibili.com/video/{bvid}/')+'"><script>window.__INITIAL_STATE__='+json.dumps({'bvid':bvid,'error':{'code':404,'trueCode':code,'message':message},'videoData':{'stat':{},'owner':{}}})+';</script>'
+
+def owner_only_body(bvid):
+ return '<title>视频去哪了呢？_哔哩哔哩_bilibili</title><meta property="og:url" content="https://www.bilibili.com/video/'+bvid+'/"><div class="error-prompt"><div class="error-text">当前稿件up主设置为仅自见</div></div><script>window.__INITIAL_STATE__='+json.dumps({'bvid':bvid,'error':{'code':404,'trueCode':62012,'message':'62012','fromSpider':False},'videoData':{'stat':{},'owner':{}}})+';</script>'
+
 class Transport:
  def __init__(self,pages=None,denied=False):self.pages=pages or {};self.requests=[];self.denied=denied
  def fetch(self,url,limit):
@@ -27,6 +33,109 @@ class Transport:
   return value
 
 class Tests(unittest.TestCase):
+ def test_owner_only_video_retains_old_record_and_continues_public_queue(self):
+  with tempfile.TemporaryDirectory() as d:
+   old=[{'bvid':A,'desc':'private video old evidence','pub_timestamp':20},{'bvid':B,'pub_timestamp':10}]
+   r,rows=self.run_collect(d,old,Transport({A:owner_only_body(A),B:body(B)}),mode='catalog',limit=2)
+   self.assertEqual(rows[0],old[0]);self.assertEqual(r['details']['observedCount'],1);self.assertIsNone(r['details']['stopped'])
+   state=json.loads((Path(d)/'state.json').read_text());self.assertEqual(state['unavailable'][A]['initialStateTrueCode'],62012)
+   self.assertEqual(state['days'][html.utc()[:10]],[A,B])
+
+ def test_owner_only_detection_requires_all_rendered_identity_signals(self):
+  sample=owner_only_body(A)
+  for value in [sample.replace('当前稿件up主设置为仅自见','请先登录'),sample.replace('62012','62004'),sample.replace('"fromSpider": false','"fromSpider": true'),sample.replace('video/'+A,'video/'+B),sample.replace('<div class="error-text">当前稿件up主设置为仅自见</div>','<!-- 当前稿件up主设置为仅自见 -->'),sample.replace('"bvid": "'+A+'"','"bvid": "'+B+'"')]:
+   with self.subTest(value=value):
+    with self.assertRaises(InvalidPublicVideo) as caught:html.parse_public_video(value,A)
+    self.assertIs(type(caught.exception),InvalidPublicVideo)
+
+ def test_certificate_stop_never_resumes_as_tls_eof_after_cooldown(self):
+  with tempfile.TemporaryDirectory() as d:
+   old=[{'bvid':A,'pub_timestamp':20},{'bvid':B,'pub_timestamp':10}]
+   cert=urllib.error.URLError(ssl.SSLCertVerificationError(1,'certificate verify failed'))
+   with patch.object(html,'utc',return_value='2026-10-06T08:00:00Z'):self.run_collect(d,old,Transport({A:cert}),mode='catalog',limit=2)
+   p=Path(d)/'state.json';prior=json.loads(p.read_text());t=Transport({B:body(B)})
+   with patch.object(html,'utc',return_value='2026-10-06T08:10:00Z'),patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'result2.json')}):html.collect(d,p,mode='catalog',limit=2,transport=t)
+   self.assertEqual(t.requests,[]);self.assertEqual(json.loads(p.read_text())['stopped'],prior['stopped'])
+
+ def test_old_mislabelled_certificate_stop_is_not_resumed(self):
+  with tempfile.TemporaryDirectory() as d:
+   self.setup_input(d,[{'bvid':A},{'bvid':B}]);p=Path(d)/'state.json'
+   stop={'at':'2026-10-06T08:00:00Z','bvid':A,'httpStatus':None,'error':'<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed>','stopKind':'transport','reason':'tls-eof-unverified','stage':'video'}
+   prior={'schema':1,'days':{'2026-10-06':[A]},'stopped':stop};p.write_text(json.dumps(prior));t=Transport({B:body(B)})
+   with patch.object(html,'utc',return_value='2026-10-06T08:10:00Z'),patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'result.json')}):html.collect(d,p,mode='catalog',transport=t)
+   self.assertEqual(t.requests,[]);self.assertEqual(json.loads(p.read_text()),prior)
+
+ def test_robots_tls_interruption_can_be_rechecked_on_next_update_after_cooldown(self):
+  class Interrupted(Transport):
+   def fetch(self,url,limit):
+    self.requests.append(url);raise urllib.error.URLError(ssl.SSLEOFError(8,'EOF occurred in violation of protocol'))
+  with tempfile.TemporaryDirectory() as d:
+   old=[{'bvid':A,'desc':'preserve'}]
+   with patch.object(html,'utc',return_value='2026-10-06T08:00:00Z'):first,_=self.run_collect(d,old,Interrupted(),mode='catalog')
+   state_path=Path(d)/'state.json';prior=json.loads(state_path.read_text());self.assertEqual(prior['stopped']['stopKind'],'transport');self.assertEqual(prior['stopped']['stage'],'robots')
+   t=Transport({A:body(A)})
+   with patch.object(html,'utc',return_value='2026-10-06T08:01:00Z'),patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'r2.json')}):html.collect(d,state_path,mode='catalog',transport=t)
+   self.assertEqual(t.requests,[]);self.assertEqual(json.loads(state_path.read_text())['stopped'],prior['stopped'])
+   with patch.object(html,'utc',return_value='2026-10-06T08:10:00Z'),patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'r3.json')}):result=html.collect(d,state_path,mode='catalog',transport=t)
+   self.assertEqual(result['details']['observedCount'],1);state=json.loads(state_path.read_text());self.assertEqual(state['stopHistory'][0]['stopped'],prior['stopped']);self.assertIsNone(state['stopped'])
+
+ def test_exact_legacy_robots_tls_stop_keeps_history_and_skips_attempted_video(self):
+  with tempfile.TemporaryDirectory() as d:
+   self.setup_input(d,[{'bvid':A},{'bvid':B}]);p=Path(d)/'state.json'
+   prior={'schema':1,'days':{'2026-10-06':[A]},'stopHistory':[{'old':'retained'}],'stopped':{'at':'2026-10-06T07:00:00Z','httpStatus':None,'error':'<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1082)>'}};p.write_text(json.dumps(prior));t=Transport({B:body(B)})
+   with patch.object(html,'utc',return_value='2026-10-06T08:00:00Z'),patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'result.json')}):r=html.collect(d,p,mode='catalog',transport=t)
+   self.assertEqual(r['details']['observedCount'],1);after=json.loads(p.read_text());self.assertEqual(after['stopHistory'][0],prior['stopHistory'][0]);self.assertEqual(after['stopHistory'][1]['stopped'],prior['stopped']);self.assertEqual(after['days']['2026-10-06'],[A,B]);self.assertFalse(any('/'+A+'/' in u for u in t.requests))
+
+ def test_catalog_batch_limit_does_not_claim_complete_known_catalog(self):
+  with tempfile.TemporaryDirectory() as d:
+   r,_=self.run_collect(d,[{'bvid':A},{'bvid':B}],Transport({A:body(A)}),mode='catalog',limit=1)
+   self.assertFalse(r['details']['knownCatalogCompleted']);self.assertEqual(r['details']['unverifiedQueuedCount'],1)
+ def test_tls_eof_defers_only_that_video_and_does_not_claim_complete(self):
+  with tempfile.TemporaryDirectory() as d:
+   old=[{'bvid':A,'desc':'preserve','pub_timestamp':20},{'bvid':B,'pub_timestamp':10}]
+   eof=urllib.error.URLError(ssl.SSLEOFError(8,'EOF occurred in violation of protocol'))
+   r,rows=self.run_collect(d,old,Transport({A:eof,B:body(B)}),mode='catalog',limit=2)
+   self.assertEqual(rows[0],old[0]);self.assertEqual(r['details']['observedCount'],1)
+   self.assertIsNone(r['details']['stopped']);self.assertFalse(r['details']['knownCatalogCompleted'])
+   state=json.loads((Path(d)/'state.json').read_text());self.assertIn(A,state['transportFailures']);self.assertNotIn(A,state['unavailable'])
+   self.assertEqual(r['details']['pendingTransportFailureCount'],1)
+   again=Transport()
+   with patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'result2.json')}):html.collect(d,Path(d)/'state.json',transport=again,mode='catalog')
+   self.assertEqual(again.requests,[])
+ def test_three_consecutive_tls_eof_errors_open_circuit_without_more_requests(self):
+  with tempfile.TemporaryDirectory() as d:
+   ids=[A,B,C,'BV9999999999'];eof=urllib.error.URLError(ssl.SSLEOFError(8,'EOF occurred in violation of protocol'))
+   t=Transport({x:eof for x in ids})
+   r,_=self.run_collect(d,[{'bvid':x,'pub_timestamp':100-i} for i,x in enumerate(ids)],t,mode='catalog',limit=4)
+   self.assertEqual(sum('/video/' in x for x in t.requests),3)
+   self.assertTrue(r['details']['stopped']['transportFailureCircuitOpen']);self.assertFalse(r['details']['knownCatalogCompleted'])
+ def test_tls_certificate_errors_and_access_gates_still_stop_immediately(self):
+  for error in (urllib.error.URLError(ssl.SSLCertVerificationError(1,'certificate verify failed')),urllib.error.HTTPError('https://www.bilibili.com/',429,'denied',{},None),ValueError('captcha fixture')):
+   with self.subTest(error=error),tempfile.TemporaryDirectory() as d:
+    t=Transport({A:error,B:body(B)})
+    r,_=self.run_collect(d,[{'bvid':A,'pub_timestamp':20},{'bvid':B,'pub_timestamp':10}],t,mode='catalog',limit=2)
+    self.assertIsNotNone(r['details']['stopped']);self.assertEqual(sum('/video/' in x for x in t.requests),1)
+ def test_legacy_tls_eof_resolution_preserves_ledger_and_never_resolves_refusals(self):
+  with tempfile.TemporaryDirectory() as d:
+   p=Path(d)/'state.json';stop={'at':'2026-10-06T07:01:16Z','bvid':A,'error':'<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1082)>','httpStatus':None}
+   prior={'schema':1,'days':{'2026-10-06':[A]},'stopped':stop,'stopHistory':[{'older':'retained'}]};p.write_text(json.dumps(prior))
+   html.resolve_transport_stop(p);state=json.loads(p.read_text())
+   self.assertEqual(state['days'],prior['days']);self.assertEqual(state['stopHistory'][0],prior['stopHistory'][0]);self.assertEqual(state['stopHistory'][1]['stopped'],stop)
+   self.assertIn(A,state['transportFailures']);self.assertIsNone(state['stopped']);self.assertEqual(state['transportFailureStreak'],1)
+   for extra in ({'httpStatus':403},{'htmlEvidence':{}},{'transportFailureCircuitOpen':True},{'error':'captcha'},{'bvid':B}):
+    p.write_text(json.dumps({**prior,'stopped':{**stop,**extra}}));before=p.read_bytes()
+    with self.assertRaises(html.Refusal):html.resolve_transport_stop(p)
+    self.assertEqual(p.read_bytes(),before)
+ def test_evidenced_invisible_video_is_skipped_without_global_stop(self):
+  with tempfile.TemporaryDirectory() as d:
+   r,rows=self.run_collect(d,[{'bvid':A,'pub_timestamp':20},{'bvid':B,'pub_timestamp':10}],Transport({A:invisible_body(A),B:body(B)}),mode='catalog',limit=2)
+   self.assertEqual(r['details']['observedCount'],1);self.assertIsNone(r['details']['stopped']);self.assertTrue(r['details']['knownCatalogCompleted']);self.assertEqual(len(rows),2)
+   state=json.loads((Path(d)/'state.json').read_text());e=state['unavailable'][A]['htmlEvidence'];self.assertEqual(Path(e['path']).read_text(),invisible_body(A));self.assertEqual(state['unavailable'][A]['initialStateTrueCode'],62002)
+ def test_invisible_classification_requires_exact_evidenced_code_message_and_identity(self):
+  for value in [invisible_body(A,62004),invisible_body(A,message='登录后查看'),invisible_body(B),invisible_body(A,canonical=f'https://www.bilibili.com/video/{B}/'),invisible_body(A).replace('视频去哪了呢？','安全验证')]:
+   with self.subTest(value=value):
+    with self.assertRaises(InvalidPublicVideo) as caught:html.parse_public_video(value,A)
+    self.assertIs(type(caught.exception),InvalidPublicVideo)
  def test_content_gate_requires_mc_pack_identity_and_rejects_keyword_bait(self):
   cases=[
    ('cs1.6血腥版自制整合包发布','下载地址 https://example.invalid/game.zip',False),
@@ -174,6 +283,26 @@ class Tests(unittest.TestCase):
    t=Transport({A:body(A,child=B),B:ValueError('captcha fixture')})
    r,rows=self.run_collect(d,[{'bvid':A},{'bvid':C,'desc':'retain'}],t,mode='new',bvid=A,limit=3)
    self.assertEqual(r['status'],'partial');self.assertEqual(r['failedRequests'],1);self.assertEqual({v['bvid'] for v in rows},{A,C});self.assertEqual(rows[1]['desc'],'retain')
+ def test_catalog_mode_can_continue_past_default_daily_batch_without_resetting_ledger(self):
+  with tempfile.TemporaryDirectory() as d:
+   ids=[f'BV{i:010d}' for i in range(1,33)]
+   self.setup_input(d,[{'bvid':v,'desc':'retain'} for v in ids])
+   state=Path(d)/'state.json'; prior={'schema':1,'days':{html.utc()[:10]:ids[:30]},'stopped':None,'stopHistory':[{'evidence':'retained'}]};state.write_text(json.dumps(prior))
+   t=Transport({v:body(v) for v in ids[30:]})
+   with patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'result.json')}):r=html.collect(d,state,mode='catalog',limit=50,transport=t)
+   self.assertEqual(r['details']['observedCount'],2)
+   self.assertFalse(r['details']['fullRefresh'])
+   self.assertEqual(r['details']['plannedCandidateCount'],2)
+   self.assertTrue(r['details']['knownCatalogCompleted'])
+   after=json.loads(state.read_text());self.assertEqual(after['days'][html.utc()[:10]],ids);self.assertEqual(after['stopHistory'],prior['stopHistory'])
+   self.assertFalse(any('/'+v+'/' in u for v in ids[:30] for u in t.requests))
+   self.assertIn('5000',build_script_args('bilibili',SimpleNamespace(limit=10000,mode='catalog',html_state=str(state),until=None)))
+ def test_catalog_mode_never_bypasses_a_persisted_refusal(self):
+  with tempfile.TemporaryDirectory() as d:
+   self.setup_input(d,[{'bvid':A}])
+   state=Path(d)/'state.json';prior={'schema':1,'days':{},'stopped':{'error':'HTTP 412','bvid':A},'stopHistory':[{'error':'older refusal'}]};state.write_text(json.dumps(prior));t=Transport()
+   with patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'result.json')}):r=html.collect(d,state,mode='catalog',limit=5000,transport=t)
+   self.assertEqual(t.requests,[]);self.assertEqual(json.loads(state.read_text()),prior);self.assertEqual(r['status'],'failed')
  def test_no_seed_or_duplicate_input_does_not_start_requests(self):
   for rows in ([],[{'bvid':A},{'bvid':A}]):
    with tempfile.TemporaryDirectory() as d:

@@ -1,7 +1,10 @@
+import {planPlatformUpdate, type PlatformUpdatePlan, type UpdateBatchStatus} from './domain/updatePlans';
+import {renderAuditHistory, renderAuditPlatformTimes, renderAuditChanges, formatAuditTime, type AuditHistorySummary, type AuditPlatformUpdate} from './domain/auditHistory';
+import type { PublicLinkIndex } from './domain/crossPlatformLinkage';
 import { ALL_PLATFORMS, PLATFORM_CONFIGS } from './data/platformRegistry';
 import { groupBilibiliPacks } from './domain/bilibiliGrouping';
 import type { Platform } from './domain/types';
-import type { RecordPreview } from './domain/recordPreview';
+import { mergeRecordPreview, type RecordPreview } from './domain/recordPreview';
 import { getCategoryLabel } from './filters/platformFilters';
 import { buildVersionModalViewModel } from './modals/version/buildViewModel';
 import { generateSparklineSvg } from './platforms/mcmod/sparkline';
@@ -56,6 +59,8 @@ import {
   renderCardLinkageCapsule,
   renderDrawerLinkageSection,
   publicAssociationScope,
+  installPublicAssociations,
+  clearPublicAssociations,
 } from './domain/crossPlatformLinkage';
 import { classifyBilibiliContent } from '../../shared/bilibili-content.cjs';
 import { formatDisplayDate } from './utils/format';
@@ -157,6 +162,9 @@ export interface DesktopCommentsResult {
 }
 
 export interface DesktopAuditResult {
+  history?: AuditHistorySummary[];
+  scope?: string;
+  platform_updates?: Record<string,AuditPlatformUpdate>;
   available: boolean;
   message: string | null;
   generated_at: string | null;
@@ -231,6 +239,7 @@ export interface DesktopFilterOption {
 }
 
 export interface DesktopUpdateStatus {
+  batch?: UpdateBatchStatus;
   state: 'idle' | 'running' | 'success' | 'failed' | 'cancelled';
   taskId: string | null;
   platform: Platform | null;
@@ -246,6 +255,9 @@ export interface DesktopUpdateStatus {
 }
 
 export interface DesktopApi {
+  getRelations?: () => Promise<PublicLinkIndex>;
+  getRecordPreview?: (platform: string, sourceId: string) => Promise<{ versions: Record<string, unknown>[]; fetchedAt: string; preview?: RecordPreview; provider?: string; providerLastFetch?: string | null }>;
+
   getPreviewVersions?: (platform: string, sourceId: string) => Promise<{ versions: Record<string, unknown>[]; fetchedAt: string; preview?: RecordPreview; provider?: string; providerLastFetch?: string | null }>;
   nativeDataDirectoryPicker?: boolean;
   getState: () => Promise<{ data: DesktopDataState; update: DesktopUpdateStatus }>;
@@ -255,7 +267,8 @@ export interface DesktopApi {
   getMissingPersonalSources: () => Promise<{ entries: Record<string, PersonalStatus> }>;
   restorePersonalLibrary: (payload: unknown) => Promise<{ restored: number; 'skipped-conflict': number; invalid: number }>;
   updatePersonalStatus: (platform: Platform, sourceId: string, patch: Partial<Pick<PersonalStatus, 'favorite' | 'wantToPlay' | 'played' | 'rating' | 'note'>>) => Promise<{ key: string; status: PersonalStatus }>;
-  getAuditDiff: () => Promise<DesktopAuditResult>;
+  getAuditDiff: (round?: number | string | null) => Promise<DesktopAuditResult>;
+  getSourceRecord?: (platform: Platform, sourceId: string) => Promise<DesktopRecord | null>;
   getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ bilibiliCounts?: { all: number; candidates: number; excluded: number }; platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availableCategoryCounts?: DesktopFilterOption[]; availableIncludedMods: DesktopFilterOption[]; availableGameplayCategories: DesktopFilterOption[]; availablePans: string[]; error?: string | null }>;
   getPlatformComments: (platform: Platform, sourceId: string) => Promise<DesktopCommentsResult>;
   getDataLibrary: () => Promise<DesktopDataLibrary>;
@@ -264,6 +277,7 @@ export interface DesktopApi {
   deleteDataSnapshot: (snapshotId: string) => Promise<{ archived: { snapshotId: string; recoverablePath: string }; library: DesktopDataLibrary }>;
   exportActiveData: () => Promise<{ path: string; snapshotId: string; reused: boolean }>;
   openDataDirectory: (snapshotId?: string) => Promise<{ opened: boolean; path: string }>;
+  startUpdateBatch?: (plans: PlatformUpdatePlan[]) => Promise<DesktopUpdateStatus>;
   startUpdate: (platform: Platform, options?: UpdateOptions) => Promise<DesktopUpdateStatus>;
   cancelUpdate: () => Promise<{ cancelled: boolean; reason?: string }>;
   openExternal: (url: string) => Promise<{ opened: boolean }>;
@@ -396,7 +410,7 @@ const state = {
   stickyCategoriesExpanded: false,
   stickyModSearch: '',
   stickyCatSearch: '',
-  viewMode: (localStorage.getItem('mcmod-desktop-v2-view-mode') || 'cards') as ViewMode,
+  viewMode: (typeof localStorage !== 'undefined' ? localStorage.getItem('mcmod-desktop-v2-view-mode') || 'cards' : 'cards') as ViewMode,
   v2DrawerTab: 'overview' as 'overview' | 'mods' | 'linkage' | 'meta',
   v2DrawerModFilter: '',
   v2Toast: null as string | null,
@@ -455,6 +469,8 @@ const state = {
   auditOpen: false,
   auditLoading: false,
   auditError: '',
+  auditRound: 0 as number | string | null,
+  auditRowLimit: 100,
   v2AuditTab: 'all' as 'all' | 'added' | 'updated' | 'version_gained' | 'removed',
   v2AuditSearch: '',
   compareOpen: false,
@@ -777,15 +793,17 @@ function recordRealCoverUrl(record: DesktopRecord): string {
   return '';
 }
 
-function recordImageUrls(record: DesktopRecord): string[] {
+export function recordImageUrls(record: DesktopRecord): string[] {
   const raw = record.raw || {};
   const keys = record.platform === 'bbsmc'
     ? ['featured_gallery', 'gallery']
     : record.platform === 'bilibili'
       ? ['pic', 'images', 'gallery']
       : ['gallery', 'images', 'intro_images', 'screenshots', 'cover_url', 'coverUrl', 'icon_url', 'head_url'];
-  const urls = keys.flatMap((key) => imageValueUrls(raw[key]));
-  const cover = recordRealCoverUrl(record);
+  const urls = keys.flatMap((key) => imageValueUrls(raw[key])).map(url => record.platform === 'bilibili' ? url.replace(/^http:/, 'https:') : url);
+  const cover = record.platform === 'bilibili'
+    ? safeImageUrl(raw.pic).replace(/^http:/, 'https:') || recordRealCoverUrl(record)
+    : recordRealCoverUrl(record);
   return [...new Set([cover, ...urls].filter(Boolean))];
 }
 
@@ -1182,9 +1200,9 @@ function renderActiveFilters(): string {
 function renderUpdateModal(): string {
   if (!state.updateOpen) return '';
   const update = state.update;
-  const running = update?.state === 'running';
-  const selectedPlatforms = state.updatePlatforms;
-  const batch = state.updateBatch;
+  const running = update?.state === 'running' || update?.batch?.state === 'running';
+  const selectedPlatforms = update?.batch?.state === 'running' && update.batch.platforms ? update.batch.platforms : state.updatePlatforms;
+  const batch = update?.batch?.state === 'running' ? update.batch : state.updateBatch;
   const progress = update && typeof update.total === 'number' && update.total > 0 ? Math.min(100, Math.round((update.processed / update.total) * 100)) : null;
   const logLines = (state.logs.length ? state.logs : update?.logs || []).slice(-80);
   const scenario = state.v2UpdateScenario || 'daily-fast';
@@ -1220,19 +1238,19 @@ function renderUpdateModal(): string {
       </div>
       <div class="update-scenarios-grid">
         <div class="update-scenario-card ${scenario === 'daily-fast' ? 'is-active' : ''}" data-action="set-v2-update-scenario" data-scenario="daily-fast">
-          <span class="scenario-badge scenario-badge-fast">⚡ 约 1-2 分钟 · 极速追新</span>
+          <span class="scenario-badge scenario-badge-fast">⚡ 日常批次 · 逐站更新</span>
           <div class="scenario-title">🌟 快速日常增量更新</div>
-          <div class="scenario-desc">在 6 大平台自动探测「今天或近期新上架的新整合包」，并同步近期活跃项目的最新动态。耗时极短，适合每天打开软件时点一下。</div>
+          <div class="scenario-desc">更新近期目录和已有项目动态。CF 读取公开近期目录并收录新项目资料；B站轮换核验已有视频。各站独立保存结果，单站失败继续其他站。</div>
           <div class="scenario-meta">
-            <span>🆕 找新包: 开启</span>
-            <span>⚡ 耗时: 极短</span>
+            <span>🆕 更新近期资料</span>
+            <span>📋 每站结果单独可查</span>
           </div>
         </div>
 
         <div class="update-scenario-card ${scenario === 'enrich-versions' ? 'is-active' : ''}" data-action="set-v2-update-scenario" data-scenario="enrich-versions">
-          <span class="scenario-badge scenario-badge-enrich">🔄 约 1-3 分钟 · 补齐资源</span>
+          <span class="scenario-badge scenario-badge-enrich">🔄 已有项目 · 补齐来源资料</span>
           <div class="scenario-title">📦 旧包版本与网盘补全</div>
-          <div class="scenario-desc">专门针对本地已有旧包，深入补齐官方历史版本、更新日志、网盘下载直链（夸克、百度、123盘等）与提取码。解决部分包没有下载方式的问题。</div>
+          <div class="scenario-desc">按来源实际提供的资料补充已有项目版本和链接。B站每次核验最多30个已有视频，CF无Key时读取已知ID的文件缓存；缺失资料不会推断或伪造。</div>
           <div class="scenario-meta">
             <span>💾 补全网盘: 开启</span>
             <span>📦 范围: 自选批次</span>
@@ -1240,15 +1258,17 @@ function renderUpdateModal(): string {
         </div>
 
         <div class="update-scenario-card ${scenario === 'full-catalog' ? 'is-active' : ''}" data-action="set-v2-update-scenario" data-scenario="full-catalog">
-          <span class="scenario-badge scenario-badge-full">📊 约 3-5 分钟 · 全量校对</span>
-          <div class="scenario-title">🌐 全站全量目录体检</div>
-          <div class="scenario-desc">全量扫描 6 大平台的所有整合包目录，核对项目总数，同步所有新增内容与标签。适合初次使用或长时间未更新时进行完整校对。</div>
+          <span class="scenario-badge scenario-badge-full">📊 目录核对 · 耗时视平台与范围而定</span>
+          <div class="scenario-title">🌐 平台目录核对</div>
+          <div class="scenario-desc">按各平台可用的访问入口核对目录，更新实际覆盖的条目；受访问权限和批次限制的平台不代表全量更新。</div>
           <div class="scenario-meta">
-            <span>📑 全量列表: 开启</span>
-            <span>🛡️ 完整度: 100%</span>
+            <span>📑 请求目录核对</span>
+            <span>🛡️ 覆盖范围以实际结果为准</span>
           </div>
         </div>
       </div>
+
+      <p class="muted">B站日常核验30个已有视频，目录模式核验已有目录、最多5000个；保留账本并跳过当日已尝试项。CF无Key时日常读取Modpacks.ch近期2页，目录模式遍历它提供的全部页，正文与新项目一起收录。范围以各站实际结果为准。</p>
 
       <!-- 如果选了旧包版本补全，展示批次调节按钮 -->
       ${scenario === 'enrich-versions' ? `<div class="update-scenario-options">
@@ -1290,7 +1310,7 @@ function renderUpdateModal(): string {
       <!-- 3. 操作按钮 -->
       <div class="update-actions" style="margin: 14px 0;">
         <button class="button primary wide" data-action="start-update" style="font-size:14px;padding:12px;" ${running || !selectedPlatforms.length ? 'disabled' : ''}>
-          ${running ? '⚡ 任务执行中，已自动在后台运行…' : `🚀 开始执行${scenario === 'daily-fast' ? '【快速日常更新】' : scenario === 'enrich-versions' ? `【旧包网盘深度补全 (${enrichSize}个/站)】` : '【全量目录体检】'}（已选 ${selectedPlatforms.length} 个平台）`}
+          ${running ? '⚡ 任务执行中，已自动在后台运行…' : `🚀 开始执行${scenario === 'daily-fast' ? '【日常更新】' : scenario === 'enrich-versions' ? `【旧包资料补全】` : '【平台目录核对】'}（已选 ${selectedPlatforms.length} 个平台）`}
         </button>
         ${running ? '<button class="button danger" data-action="cancel-update" style="padding:12px 20px;">⏹ 取消任务</button>' : ''}
       </div>
@@ -1308,6 +1328,11 @@ function renderUpdateModal(): string {
         ${update?.error ? `<div class="error-box">${esc(update.error)}</div>` : ''}
       </div>
 
+      ${update?.batch?.results.length ? `<div class="update-batch-results"><strong>本轮各站结果 · ${update.batch.completed}/${update.batch.total}</strong>${update.batch.results.map(result=>{
+        const data=result.result||{};
+        const scope=data.coverage==='third-party-catalog'?'第三方目录':data.coverage==='public-video-html-bounded'?'已有视频核验':'来源实际范围';
+        return `<article><strong>${esc(PLATFORM_CONFIGS[result.platform].name)}</strong><span>${result.state==='success'?data.outcome==='partial_update'?'已保存（局部覆盖）':'已保存':result.state==='cancelled'?'已取消':'失败，旧数据保留'}${result.state==='success'?` · ${scope}${data.observedCount!==undefined?` · 观察 ${Number(data.observedCount).toLocaleString()} 条`:''}${data.pagesObserved?` / ${Number(data.pagesObserved)} 页`:''}`:''}</span>${result.error?`<p>${esc(result.error)}</p>`:''}${data.unverifiedQueuedCount?`<p>已有目录仍有 ${Number(data.unverifiedQueuedCount).toLocaleString()} 条未开始核验</p>`:''}${data.sourceStop||data.stopped?`<p>来源中断：${esc(data.sourceStop||JSON.stringify(data.stopped))}</p>`:''}</article>`;
+      }).join('')}</div>`:''}
       <div class="update-log-head" style="margin-top:12px;">
         <strong>任务执行日志 <span>${logLines.length} 条</span></strong>
         <button type="button" class="button secondary small" data-action="toggle-update-logs" aria-expanded="${state.updateLogsExpanded}">${state.updateLogsExpanded ? '收起' : '展开完整日志'}</button>
@@ -1319,7 +1344,7 @@ function renderUpdateModal(): string {
 
 function refreshUpdateDock(): void {
   const update = state.update;
-  const active = update?.state === 'running' || Boolean(state.updateBatch);
+  const active = update?.state === 'running' || update?.batch?.state === 'running' || Boolean(state.updateBatch);
   const dock = root.querySelector<HTMLButtonElement>('.update-task-dock');
   if (dock) {
     dock.hidden = !active;
@@ -1444,7 +1469,7 @@ function renderQuickDownloadLinks(record: DesktopRecord): string {
   return `<div class="card-downloads">${visible.map((link) => `<a class="card-download-link" href="${esc(safeExternalUrl(link.url))}" target="_blank" rel="noreferrer" data-action="open-source" data-url="${esc(safeExternalUrl(link.url))}">${esc(String(link.name || link.type || '下载'))} ↗</a>`).join('')}${links.length > visible.length ? `<span class="card-download-more">+${links.length - visible.length} 个</span>` : ''}</div>`;
 }
 
-function renderRecord(record: DesktopRecord, index: number): string {
+export function renderRecord(record: DesktopRecord, index: number): string {
   const config = PLATFORM_CONFIGS[record.platform];
   const searchContractText = existingSearchText(record).slice(0, 240);
   const originalCoverUrl = recordRealCoverUrl(record);
@@ -1483,6 +1508,7 @@ function renderRecord(record: DesktopRecord, index: number): string {
       : `<span>${esc(m.text)}</span>`
     ).join('')}</div>` : ''}
     ${linkageHtml}
+    ${record.platform === 'mcmod' ? renderMcmodTrendDetail(record) : ''}
     ${renderQuickDownloadLinks(record)}
     ${isStaticSite() ? '' : renderPersonalCardZone(renderPersonalCardActions(record, index), 'pack-card-personal-zone')}
     <div class="card-footer platform-card-actions">
@@ -1503,7 +1529,7 @@ function renderRecordWindowAction(record: DesktopRecord, className = 'mcmod-comm
   return `<button type="button" class="${esc(className)}" data-action="open-in-app-window" data-card-window="true" data-record-id="${esc(record.id)}" data-url="${esc(url)}" data-title="${esc(record.title)}" title="小窗浏览 · 左侧资料与版本 · 右侧个人区">🪟 小窗打开</button>`;
 }
 
-function renderCompactRecord(record: DesktopRecord, index: number): string {
+export function renderCompactRecord(record: DesktopRecord, index: number): string {
   const originalCoverUrl = recordRealCoverUrl(record);
   const fallbackUrl = PLATFORM_COVER_FALLBACKS[record.platform];
   const cover = renderCoverImage({ url: originalCoverUrl, fallback: fallbackUrl, alt: `${record.title}封面`, key: record.id, className: 'compact-record-cover-image' });
@@ -1540,6 +1566,7 @@ function renderCompactRecord(record: DesktopRecord, index: number): string {
       <p class="compact-record-summary">${esc(summaryText)}</p>
       <div class="chips">${record.versions.slice(0, 3).map((value) => `<span>MC ${esc(value)}</span>`).join('')}${record.loaders.slice(0, 2).map((value) => `<span>${esc(value)}</span>`).join('')}</div>
       ${linkageHtml}
+      ${record.platform === 'mcmod' ? renderMcmodTrendDetail(record) : ''}
     </div>
     <div class="compact-record-side">
       <div class="compact-record-metrics">${metrics.map((m) => m.isComment
@@ -1582,7 +1609,7 @@ function renderMcmodTrendTrigger(record: DesktopRecord, series = mcmodTrendSerie
 function renderMcmodTrendDetail(record: DesktopRecord): string {
   if (record.platform !== 'mcmod') return '';
   const series = mcmodTrendSeries(record);
-  const summary = series.status === 'ready' ? `当前快照有 ${series.points.length} 个官方流行指数历史点。` : mcmodTrendStatusText(series);
+  const summary = series.status === 'ready' ? `当前快照有 ${series.points.length} 个官方流行指数历史点；最新 ${series.points.at(-1)!.date}，指数 ${series.points.at(-1)!.value}。` : mcmodTrendStatusText(series);
   return `<div class="detail-section mcmod-trend-detail"><h3>历史趋势</h3><p class="detail-summary">${esc(summary)}${series.skippedCount ? ` 已跳过 ${series.skippedCount} 个日期或数值异常的点。` : ''}</p>${renderMcmodTrendTrigger(record, series)}<output class="trend-preview-readout">悬浮曲线查看日期和指数；方向键切换点位</output></div>`;
 }
 
@@ -1889,10 +1916,10 @@ function auditRows(audit: DesktopAuditResult): string {
 
   const allEntries: AuditEntry[] = [];
   if (tab === 'all' || tab === 'added') {
-    (audit.added || []).forEach((item) => allEntries.push({ category: 'added', label: '✨ 新增上架', item }));
+    (audit.added || []).forEach((item) => allEntries.push({ category: 'added', label: '✨ 新增入库', item }));
   }
   if (tab === 'all' || tab === 'updated') {
-    (audit.updated || []).forEach((item) => allEntries.push({ category: 'updated', label: '🔄 内容更新', item }));
+    (audit.updated || []).forEach((item) => allEntries.push({ category: 'updated', label: '🔄 内容/指标更新', item }));
   }
   if (tab === 'all' || tab === 'version_gained') {
     (audit.version_gained || []).forEach((item) => allEntries.push({ category: 'version_gained', label: '🏷️ 补齐版本/直链', item }));
@@ -1914,13 +1941,14 @@ function auditRows(audit: DesktopAuditResult): string {
     return `<div class="empty-evidence">${query ? '未找到符合条件的变动条目。' : '当前类别没有变动条目。'}</div>`;
   }
 
-  return filtered.slice(0, 100).map((entry) => {
+  const rows = filtered.slice(0, state.auditRowLimit).map((entry) => {
     const item = entry.item;
     const title = String(item.title || item.name || item.id || '未命名整合包');
     const platform = (item.platform ? String(item.platform) : '') as Platform;
     const platformName = PLATFORM_CONFIGS[platform]?.name || platform || '未知平台';
     const author = String(item.author || '未知作者');
     const matchedRecord = findRecordForAudit(item);
+    const sourceId = String(item.source_id || item.sourceId || item.id || '').replace(`${platform}:`,'');
     const safeUrl = safeExternalUrl(String(item.url || (matchedRecord?.url) || ''));
 
     const categoryBadgeClass = entry.category === 'added' ? 'audit-badge-added'
@@ -1938,10 +1966,12 @@ function auditRows(audit: DesktopAuditResult): string {
       </div>
       <div class="audit-row-actions">
         ${matchedRecord ? `<button type="button" class="button primary small" data-action="audit-select-record" data-record-id="${esc(matchedRecord.id)}">📦 详情抽屉</button>` : ''}
-        ${safeUrl ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-url="${esc(safeUrl)}" data-title="${esc(title)}">${isStaticSite() ? '原站 ↗' : '🪟 小窗'}</button><a class="button ghost small" href="${esc(safeUrl)}" target="_blank" rel="noreferrer">原站 ↗</a>` : ''}
+        ${safeUrl ? `<button type="button" class="button secondary small" data-action="open-in-app-window" data-platform="${esc(platform)}" data-source-id="${esc(sourceId)}" data-record-id="${esc(matchedRecord?.id || '')}" data-url="${esc(safeUrl)}" data-title="${esc(title)}">${isStaticSite() ? '原站 ↗' : '🪟 小窗'}</button><a class="button ghost small" href="${esc(safeUrl)}" target="_blank" rel="noreferrer">原站 ↗</a>` : ''}
       </div>
+      ${renderAuditChanges(item)}
     </article>`;
   }).join('');
+  return `<p class="audit-list-count">已显示 ${Math.min(filtered.length,state.auditRowLimit)} / ${filtered.length} 条匹配变动</p>${rows}${filtered.length>state.auditRowLimit ? '<button type="button" class="button secondary" data-action="more-audit-rows">继续显示100条</button>' : ''}`;
 }
 
 function auditPanel(): string {
@@ -1951,18 +1981,20 @@ function auditPanel(): string {
   const currentTab = state.v2AuditTab || 'all';
 
   const body = state.auditLoading
-    ? '<div class="loading-state">正在读取当前快照的审计文件…</div>'
+    ? '<div class="loading-state">正在对比本地历史快照…</div>'
     : state.auditError
       ? `<div class="error-state"><div class="empty-icon">!</div><h3>审计请求失败</h3><p>${esc(state.auditError)}</p><button type="button" class="button secondary" data-action="retry-audit">重试审计请求</button></div>`
       : audit
-        ? `<p class="audit-meta">${esc(audit.generated_at || '当前快照')} · ${audit.available ? '可用历史对比' : '没有可用历史基线'}</p>
+        ? `${audit.history ? renderAuditHistory(audit.history,state.auditRound) : ''}
+          <p class="audit-meta">本次更新与紧邻前一次快照对比 · 保存于 ${esc(formatAuditTime(audit.generated_at))} · ${audit.available ? '可用历史对比' : '没有可用历史基线'}</p>
+          ${renderAuditPlatformTimes(audit.platform_updates)}
           ${audit.message ? `<div class="notice">${esc(audit.message)}</div>` : ''}
           <div class="audit-kpis">
-            <div><strong>${formatCount(Number(stats.total_current || 0))}</strong><span>当前范围总数</span></div>
-            <div style="border-left: 3px solid #10b981;"><strong>${formatCount(Number(stats.added_count || audit.added?.length || 0))}</strong><span>✨ 新增上架</span></div>
-            <div style="border-left: 3px solid #3b82f6;"><strong>${formatCount(Number(stats.updated_count || audit.updated?.length || 0))}</strong><span>🔄 内容更新</span></div>
+            <div><strong>${formatCount(Number(stats.total_current || 0))}</strong><span>对比范围记录数</span></div>
+            <div style="border-left: 3px solid #10b981;"><strong>${formatCount(Number(stats.added_count || audit.added?.length || 0))}</strong><span>✨ 新增入库</span></div>
+            <div style="border-left: 3px solid #3b82f6;"><strong>${formatCount(Number(stats.updated_count || audit.updated?.length || 0))}</strong><span>🔄 内容/指标更新</span></div>
             <div style="border-left: 3px solid #f59e0b;"><strong>${formatCount(Number(stats.version_gained_count || audit.version_gained?.length || 0))}</strong><span>🏷️ 补齐版本/直链</span></div>
-            <div style="border-left: 3px solid #ef4444;"><strong>${formatCount(Number(stats.removed_count || audit.removed?.length || 0))}</strong><span>❌ 已下架移除</span></div>
+            <div style="border-left: 3px solid #ef4444;"><strong>${formatCount(Number(stats.removed_count || audit.removed?.length || 0))}</strong><span>❌ 本地移除</span></div>
           </div>
           <div class="v2-audit-toolbar">
             <div class="v2-audit-tabs" role="tablist">
@@ -1983,7 +2015,7 @@ function auditPanel(): string {
         <div class="modal-title-wrap">
           <span class="eyebrow">SNAPSHOT AUDIT</span>
           <h2>抓取变动审计与增量核验</h2>
-          <p>对比上一次快照与本次采集结果，清晰列出新上架整合包、内容更新、历史版本补全与下架变动，可直接在此处打开详情或小窗预览。</p>
+          <p>每次更新都与它紧邻的前一次快照比较，查看新增了哪些条目、哪些字段发生变化及更新前后的值。默认显示最新一次，也可选择历史更新；时间为北京时间。</p>
         </div>
         <button type="button" class="modal-close audit-close" data-action="close-audit" aria-label="关闭审计">×</button>
       </header>
@@ -3222,7 +3254,7 @@ export function renderDetailSourceDynamics(
   const releaseHtml = releases.length
     ? `<div class="detail-section dynamics-section">
         <div class="dynamics-header">
-          <h3>${record.platform === 'bilibili' ? '视频发布与版本动态' : record.platform === 'modrinth' ? '版本发布与变更记录' : record.platform === 'xyebbs' ? '原帖更新日志与版本' : record.platform === 'curseforge' ? 'CurseForge 全部发布文件与直链下载' : '更新日志与版本历史'} <span class="detail-submeta">共 ${releases.length} 条记录</span></h3>
+          <h3>${record.platform === 'bilibili' ? '视频发布与版本动态' : record.platform === 'modrinth' ? '版本发布与变更记录' : record.platform === 'xyebbs' ? '原帖更新日志与版本' : record.platform === 'curseforge' ? 'CurseForge 已收录发布文件与下载入口' : '更新日志与版本历史'} <span class="detail-submeta">共 ${releases.length} 条记录</span></h3>
         </div>
         <div class="release-list">${releases.map((release) => renderRelease(release as unknown as Record<string, unknown>)).join('')}</div>
       </div>`
@@ -3257,7 +3289,7 @@ export function renderDetailSourceDynamics(
     } else if (live?.error) {
       liveActionHtml = `<div class="notice error" style="margin-bottom:10px;">在线查询失败：${esc(live.error)} <button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}" style="margin-left:8px;">重试查询</button></div>`;
     } else if (live?.versions?.length) {
-      liveActionHtml = `<div class="notice" style="color:var(--accent-green);font-size:12px;margin-bottom:10px;">已载入 ${live.versions.length} 条版本资料${live.provider === 'cfwidget' ? '（CFWidget缓存，上游抓取时间' + esc(live.providerLastFetch || '未知') + '）' : '（官方接口当前返回范围）'} <button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}" style="margin-left:8px;">刷新</button></div>`;
+      liveActionHtml = `<div class="notice" style="color:var(--accent-green);font-size:12px;margin-bottom:10px;">已载入 ${live.versions.length} 条版本资料${live.provider === 'cfwidget' ? '（CFWidget缓存，上游抓取时间' + esc(live.providerLastFetch || '未知') + '）' : live.provider === 'local-snapshot' ? '（本地已存快照）' : '（官方接口当前返回范围）'} <button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}" style="margin-left:8px;">刷新</button></div>`;
     } else {
       liveActionHtml = `<div style="margin-bottom:10px;"><button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}">查询可用版本资料</button></div>`;
     }
@@ -3338,7 +3370,7 @@ export function renderDetailSourceDynamics(
     } else if (live?.error) {
       liveActionHtml = `<div class="notice error" style="margin-bottom:10px;">在线查询失败：${esc(live.error)} <button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}" style="margin-left:8px;">重试查询</button></div>`;
     } else if (live?.versions?.length) {
-      liveActionHtml = `<div class="notice" style="color:var(--accent-green);font-size:12px;margin-bottom:10px;">⚡ 已通过官方 API 载入全部 ${live.versions.length} 个版本与网盘直链 <button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}" style="margin-left:8px;">刷新</button></div>`;
+      liveActionHtml = `<div class="notice" style="color:var(--accent-green);font-size:12px;margin-bottom:10px;">${live.provider === 'local-snapshot' ? '已从本地快照载入' : '已通过原站接口载入'} ${live.versions.length} 条版本与网盘直链 <button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}" style="margin-left:8px;">刷新</button></div>`;
     } else {
       liveActionHtml = `<div style="margin-bottom:10px;"><button type="button" class="button secondary small" data-action="fetch-live-versions" data-record-id="${esc(record.id)}">⚡ 在线查询最新版本与网盘直链</button></div>`;
     }
@@ -3671,9 +3703,9 @@ export function renderInAppChangelogView(record: DesktopRecord): string {
         : record.platform === 'xyebbs'
           ? (hasReleaseNotes ? '原帖版本与更新说明' : '原帖版本记录')
           : record.platform === 'curseforge'
-            ? 'CurseForge 全部发布文件与直链下载'
+            ? 'CurseForge 已收录发布文件与下载入口'
             : hasReleaseNotes ? '版本与更新说明' : '版本历史记录';
-    const liveBanner = (record.platform === 'xyebbs' && live?.versions?.length)
+    const liveBanner = (record.platform === 'xyebbs' && live?.versions?.length && live.provider !== 'local-snapshot')
       ? `<div style="margin: 4px 0 10px 0;"><span class="notice" style="color:var(--accent-green);font-size:12px;">⚡ 已通过官方 API 载入最新发布版本与网盘直链</span></div>`
       : '';
     contentHtml += `<div class="in-app-log-section">
@@ -3750,18 +3782,10 @@ function recordForInAppWindow(win: InAppWindowState): DesktopRecord | null {
   const record = win.record || (win.recordId ? state.records.find((record) => record.id === win.recordId) : null)
     || state.records.find((record) => record.url === win.url || (record.sourceId && win.url.includes(record.sourceId)))
     || null;
-  if (!record || !isStaticSite()) return record;
-  const cached = previewVersionCache.get(record.id);
-  const preview = cached?.preview;
-  if (!preview) return record;
-  const currentDescription = String(record.raw.description || record.raw.desc || record.summary || '').trim();
-  const description = preview.description.length > currentDescription.length ? preview.description : currentDescription;
-  return { ...record, releases: cached?.versions || record.releases, raw: { ...record.raw,
-    description, intro_images: [...new Set([...imageValueUrls(record.raw.intro_images), ...preview.images])],
-    gallery: [...new Set([...imageValueUrls(record.raw.gallery), ...preview.images])],
-    ...(preview.includedMods ? { includedMods: preview.includedMods } : {}),
-    releases: cached?.versions || record.releases, previewArchiveAt: preview.archivedAt,
-  } };
+  if (!record) return record;
+  const preview = previewVersionCache.get(record.id)?.preview;
+  const versions = previewVersionCache.get(record.id)?.versions;
+  return preview ? mergeRecordPreview(record, {...preview, releases: versions?.length ? versions : preview.releases}) : record;
 }
 
 function inAppFrameConfig(win: InAppWindowState, record: DesktopRecord | null): { restricted: boolean; frameUrl: string; sandbox: string; proxy: boolean; note: string } {
@@ -3826,14 +3850,16 @@ function inAppFrameConfig(win: InAppWindowState, record: DesktopRecord | null): 
 const previewVersionCache = new Map<string, { versions?: Record<string, unknown>[]; preview?: RecordPreview; provider?: string; providerLastFetch?: string | null; error?: string; loading?: boolean }>();
 const inAppVersionLimits = new Map<string, number>();
 
-async function loadPreviewVersions(record: DesktopRecord): Promise<void> {
-  if ((!isStaticSite() && !['mcmod', 'bbsmc', 'modrinth', 'curseforge', 'xyebbs'].includes(record.platform)) || !window.desktopApi?.getPreviewVersions || previewVersionCache.has(record.id)) return;
+async function loadPreviewVersions(record: DesktopRecord, online = false): Promise<void> {
+  const readPreview = online ? window.desktopApi?.getPreviewVersions : !isStaticSite() && window.desktopApi?.getRecordPreview || window.desktopApi?.getPreviewVersions;
+  if (!readPreview || previewVersionCache.has(record.id) && !online) return;
+  const previous = previewVersionCache.get(record.id);
   const entry: { versions?: Record<string, unknown>[]; preview?: RecordPreview; provider?: string; providerLastFetch?: string | null; error?: string; loading?: boolean } = { loading: true };
   previewVersionCache.set(record.id, entry);
   try {
-    const result = await window.desktopApi.getPreviewVersions(record.platform, record.sourceId);
+    const result = await readPreview(record.platform, record.sourceId);
     entry.versions = result.versions;
-    entry.preview = result.preview;
+    entry.preview = result.preview || previous?.preview;
     entry.provider = result.provider;
     entry.providerLastFetch = result.providerLastFetch;
   }
@@ -3848,17 +3874,17 @@ function renderInAppWebPane(win: InAppWindowState, record: DesktopRecord | null)
   if (!record || tab === 'web') body = renderInAppRemotePane(win, record);
   else if (tab === 'versions') {
     const live = previewVersionCache.get(record.id);
-    body = `<div class="in-app-reader">${live?.loading ? '<p role="status">正在查询原站版本，本地记录仍可查看…</p>' : ''}${live?.error ? `<p>在线版本暂不可用：${esc(live.error)}。以下保留本地记录。</p><button class="button secondary small" data-action="retry-preview-versions">重试查询</button>` : ''}${renderInAppChangelogView(record)}</div>`;
+    body = `<div class="in-app-reader">${live?.loading ? '<p role="status">正在读取版本资料，本地记录仍可查看…</p>' : ''}${live?.error ? `<p>补充版本暂不可用：${esc(live.error)}。以下保留本地记录。</p><button class="button secondary small" data-action="retry-preview-versions">重试查询</button>` : ''}${renderInAppChangelogView(record)}</div>`;
   } else if (tab === 'linkage') body = `<div class="in-app-reader"><p class="results-scope-hint">${esc(publicAssociationScope())}</p>${renderDrawerLinkageSection(findCrossPlatformAssociations(record, state.records, state.biliGroups), record)}</div>`;
   else if (tab === 'gallery') body = `<div class="in-app-reader">${renderMediaSection(record) || '<p>当前快照没有收录图片。</p>'}</div>`;
   else {
     const raw = record.raw as Record<string, unknown>;
     const description = String(raw.description || raw.desc || record.summary || '当前快照没有收录简介。');
     const preview = previewVersionCache.get(record.id);
-    const archive = raw.previewArchiveAt ? `<p class="pages-preview-provenance">正文、图片和补充版本来自 ${esc(formatPublicTime(String(raw.previewArchiveAt)))} 的已有存档，未重新抓取外站。</p>` : '';
-    const loading = isStaticSite() && preview?.loading ? '<p role="status">正在加载正文、图片与版本存档…</p>' : '';
-    const error = isStaticSite() && preview?.error ? `<p role="alert">${esc(preview.error)}。当前条目仍可查看。</p><button type="button" class="button secondary small" data-action="retry-preview-versions" data-tab="overview">重试加载存档</button>` : '';
-    body = `<div class="in-app-reader"><h2>${esc(record.title)}</h2><p>${esc(PLATFORM_CONFIGS[record.platform].name)} · ${esc(record.author && record.author !== '未知' ? record.author : '作者未收录')}</p>${archive}${loading}${error}${record.platform === 'bilibili' ? isStaticSite() ? '<p class="in-app-version-limited">视频发布线索，新视频不代表整合包新版本。播放与完整讨论请到B站原页。</p>' : '<p class="in-app-version-limited">B站内嵌播放器存在兼容问题；可以尝试播放，空白时请用右上角“浏览器打开”。</p>' : ''}${renderDetailFacts(record)}<h3>简介</h3><div class="in-app-reader-description">${esc(description)}</div>${isStaticSite() ? renderMediaSection(record) : ''}${renderDetailDownloadLinks(record)}${raw.pinned_comment ? `<h3>置顶评论</h3><div class="in-app-reader-description">${esc(String(raw.pinned_comment))}</div>` : ''}</div>`;
+    const archive = raw.previewArchiveAt ? `<p class="pages-preview-provenance">正文、图片和补充版本来自已有存档；快照索引时间 ${esc(formatPublicTime(String(raw.previewArchiveAt)))} 不代表正文的原站刷新时间。</p>` : '';
+    const loading = preview?.loading ? '<p role="status">正在加载正文、图片与版本存档…</p>' : '';
+    const error = preview?.error ? `<p role="alert">${esc(preview.error)}。当前条目仍可查看。</p><button type="button" class="button secondary small" data-action="retry-preview-versions" data-tab="overview">重试加载存档</button>` : '';
+    body = `<div class="in-app-reader"><h2>${esc(record.title)}</h2><p>${esc(PLATFORM_CONFIGS[record.platform].name)} · ${esc(record.author && record.author !== '未知' ? record.author : '作者未收录')}</p>${archive}${loading}${error}${record.platform === 'bilibili' ? isStaticSite() ? '<p class="in-app-version-limited">视频发布线索，新视频不代表整合包新版本。播放与完整讨论请到B站原页。</p>' : '<p class="in-app-version-limited">B站内嵌播放器存在兼容问题；可以尝试播放，空白时请用右上角“浏览器打开”。</p>' : ''}${renderDetailFacts(record)}<h3>简介</h3><div class="in-app-reader-description">${esc(description)}</div>${renderDetailDownloadLinks(record)}${raw.pinned_comment ? `<h3>置顶评论</h3><div class="in-app-reader-description">${esc(String(raw.pinned_comment))}</div>` : ''}</div>`;
   }
   return `<section class="in-app-content-shell">${tabs}${body}</section>`;
 }
@@ -4580,7 +4606,7 @@ function bindTrendPreviews(): void {
     const trigger = container.querySelector<HTMLElement>('[data-trend-trigger]');
     const graph = trigger?.querySelector<HTMLElement>('.mcmod-trend-sparkline');
     const output = container.querySelector<HTMLOutputElement>('output');
-    const record = state.records.find((item) => item.id === trigger?.dataset.recordId) || state.selected || state.inAppWindowPreviousSelected;
+    const record = state.inAppWindows.find(win => win.record?.id === trigger?.dataset.recordId)?.record || state.records.find((item) => item.id === trigger?.dataset.recordId) || state.selected || state.inAppWindowPreviousSelected;
     if (!trigger || !graph || !output || !record) return;
     const series = mcmodTrendSeries(record);
     if (series.status !== 'ready') return;
@@ -4591,7 +4617,23 @@ function bindTrendPreviews(): void {
   });
 }
 
+export function bindActionButtons(container: ParentNode, dispatch: (element: HTMLElement, event: Event) => unknown = handleAction): void {
+  container.querySelectorAll<HTMLElement>('[data-action]').forEach((element) => {
+    const host = safeHost(element.dataset.url || '').toLowerCase();
+    if (!isStaticSite() && element.dataset.action === 'open-in-app-window' && (host === 'bilibili.com' || host.endsWith('.bilibili.com'))) {
+      element.textContent = '🪟 B站资料小窗';
+      element.title = '查看已存简介、封面和来源线索；视频播放器仍有兼容问题，可用浏览器打开';
+    }
+    element.addEventListener('click', (event) => void dispatch(element, event));
+  });
+}
+
 function bindEvents(): void {
+  root.querySelector<HTMLSelectElement>('.js-audit-history-select')?.addEventListener('change', (event) => {
+    state.auditRound = (event.currentTarget as HTMLSelectElement).value;
+    state.v2AuditTab='all'; state.v2AuditSearch=''; state.auditRowLimit=100;
+    void loadAudit();
+  });
   const modFilterInput = root?.querySelector<HTMLInputElement>('.js-v2-mod-filter');
   if (modFilterInput) {
     modFilterInput.addEventListener('input', () => {
@@ -4614,6 +4656,7 @@ function bindEvents(): void {
       const list = root?.querySelector<HTMLElement>('.audit-list');
       if (list && state.audit) {
         list.innerHTML = auditRows(state.audit);
+        bindActionButtons(list);
       }
     });
   }
@@ -4641,14 +4684,7 @@ function bindEvents(): void {
     } catch (error) { state.message = `恢复未确认成功，请核对当前资料：${error instanceof Error ? error.message : String(error)}`; }
     render();
   });
-  root.querySelectorAll<HTMLElement>('[data-action]').forEach((element) => {
-    const host = safeHost(element.dataset.url || '').toLowerCase();
-    if (!isStaticSite() && element.dataset.action === 'open-in-app-window' && (host === 'bilibili.com' || host.endsWith('.bilibili.com'))) {
-      element.textContent = '⚠ B站小窗（已知问题）';
-      element.title = 'B站站内打开有问题，可能空白或一直等待，建议使用浏览器打开';
-    }
-    element.addEventListener('click', (event) => void handleAction(element, event));
-  });
+  bindActionButtons(root);
   const trendPanel = root.querySelector<HTMLElement>('[data-mcmod-trend-panel]');
   trendPanel?.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
@@ -5135,18 +5171,25 @@ async function loadFavoriteUpdates(renderAfter = false): Promise<void> {
   }
 }
 
+let auditRequestSequence = 0;
 async function loadAudit(): Promise<void> {
+  const requestSequence = ++auditRequestSequence;
   state.auditLoading = true;
   state.auditError = '';
   render();
   try {
-    state.audit = await window.desktopApi.getAuditDiff();
+    const audit = await window.desktopApi.getAuditDiff(state.auditRound);
+    if(requestSequence !== auditRequestSequence) return;
+    state.audit = audit;
   } catch (error) {
+    if(requestSequence !== auditRequestSequence) return;
     state.audit = null;
     state.auditError = error instanceof Error ? error.message : String(error);
   } finally {
-    state.auditLoading = false;
-    render();
+    if(requestSequence === auditRequestSequence) {
+      state.auditLoading = false;
+      render();
+    }
   }
 }
 
@@ -5203,6 +5246,8 @@ async function loadSelectedDataDirectory(path?: string): Promise<void> {
     const result = await window.desktopApi.chooseDataDirectory(path);
     if (!result.cancelled && result.data) {
       platformRecordCache.clear();
+      previewVersionCache.clear();
+      if (!isStaticSite()) clearPublicAssociations();
       state.data = result.data;
       state.dataImportOpen = false;
       state.dataImportPath = '';
@@ -5220,9 +5265,10 @@ async function loadSelectedDataDirectory(path?: string): Promise<void> {
 }
 
 function optionsForUpdatePlatform(platform: Platform, options: UpdateOptions): UpdateOptions {
+  if(platform==='bilibili'||platform==='curseforge')return planPlatformUpdate(platform,state.v2UpdateScenario,state.v2EnrichBatchSize).options||{};
   return {
     limit: platform === 'mcmod' ? options.mcmodLimit : options.limit,
-    pages: platform === 'bilibili' ? options.pages : undefined,
+    pages: undefined,
     mode: platform === 'mcmod' ? options.mode : options.otherMode,
   };
 }
@@ -5275,7 +5321,9 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     event?.stopPropagation();
     const recordId = element.dataset.recordId || '';
     const record = state.records.find((item) => item.id === recordId)
-      || (state.selected?.id === recordId ? state.selected : null);
+      || (state.selected?.id === recordId ? state.selected : null)
+      || state.inAppWindows.find(win => win.record?.id === recordId)?.record
+      || (state.inAppWindowPreviousSelected?.id === recordId ? state.inAppWindowPreviousSelected : null);
     if (!record || record.platform !== 'mcmod') return;
     state.trendChart = { record, range: 'all' };
     trendFocusAfterRender = 'close';
@@ -5369,6 +5417,8 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     try {
       const result = await window.desktopApi.activateDataSnapshot(snapshotId);
       platformRecordCache.clear();
+      previewVersionCache.clear();
+      if (!isStaticSite()) clearPublicAssociations();
       state.data = result.data;
       state.message = '';
       await loadRecords(true);
@@ -5405,6 +5455,12 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     state.auditOpen = !state.auditOpen;
     if (state.auditOpen && !state.audit) await loadAudit();
     else render();
+  } else if (action === 'select-audit-round') {
+    state.auditRound = element.dataset.round==='all' ? null : Number(element.dataset.round);
+    state.v2AuditTab='all'; state.v2AuditSearch=''; state.auditRowLimit=100;
+    await loadAudit();
+  } else if (action === 'more-audit-rows') {
+    state.auditRowLimit+=100; render();
   } else if (action === 'retry-audit') {
     await loadAudit();
   } else if (action === 'close-audit') {
@@ -5414,7 +5470,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
   } else if (action === 'set-v2-audit-tab') {
     const tab = element.getAttribute('data-tab') as 'all' | 'added' | 'updated' | 'version_gained' | 'removed';
     if (tab) {
-      state.v2AuditTab = tab;
+      state.v2AuditTab = tab; state.auditRowLimit=100;
       render();
     }
   } else if (action === 'audit-select-record') {
@@ -5774,6 +5830,13 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     const platforms = [...state.updatePlatforms];
     if (!platforms.length) return;
     const scenario = state.v2UpdateScenario || 'daily-fast';
+    if(window.desktopApi.startUpdateBatch) {
+      state.logs=[];state.updateFormError='';state.updateOpen=true;
+      try {
+        state.update=await window.desktopApi.startUpdateBatch(platforms.map(platform=>planPlatformUpdate(platform,scenario,state.v2EnrichBatchSize)));
+      } catch(error) {state.updateFormError=error instanceof Error?error.message:String(error);}
+      render();return;
+    }
     if (scenario === 'enrich-versions') {
       state.mcmodUpdateMode = 'versions';
       state.mcmodOldLimit = state.v2EnrichBatchSize || 50;
@@ -5899,11 +5962,17 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
     const url = element.dataset.url;
     const title = element.dataset.title || '网页小窗';
     const recordId = element.dataset.recordId || '';
-    const foundRecord = (recordId ? state.records.find((r) => r.id === recordId) : null)
-      || state.selected
-      || (url ? state.records.find((r) => r.url === url || (r.sourceId && url.includes(r.sourceId))) : null)
-      || null;
+    let foundRecord = (recordId ? state.records.find((r) => r.id === recordId) : null)
+      || (url ? state.records.find((r) => r.url === url) : null)
+      || (state.selected?.url === url ? state.selected : null);
+    const sourcePlatform = element.dataset.platform as Platform | undefined;
+    const sourceId = element.dataset.sourceId;
+    if (!foundRecord && sourcePlatform && sourceId && window.desktopApi?.getSourceRecord) {
+      try { foundRecord = await window.desktopApi.getSourceRecord(sourcePlatform,sourceId); }
+      catch (error) { state.message = `本地资料读取失败：${error instanceof Error ? error.message : String(error)}`; render(); return; }
+    }
     if (url) {
+      state.auditOpen = false;
       if (!state.inAppWindows.length && state.inAppWindow) state.inAppWindows = [state.inAppWindow];
       if (!state.inAppWindows.length) state.inAppWindowPreviousSelected = isStaticSite() ? state.selected : state.selected || foundRecord;
       state.selected = null;
@@ -5917,7 +5986,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
         title,
         recordId: foundRecord?.id,
         record: foundRecord || undefined,
-        contentTab: isStaticSite() || foundRecord && ['bilibili', 'curseforge', 'xyebbs'].includes(foundRecord.platform) ? 'overview' : 'web',
+        contentTab: foundRecord ? 'overview' : 'web',
         maximized: false,
         activeTab: 'web',
         showChangelogPane: viewportWidth >= (isStaticSite() ? 1100 : 1420),
@@ -5927,7 +5996,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
       if (element.dataset.inAppTab === 'linkage') nextWindow.contentTab = 'linkage';
       if (!existing) state.inAppWindows.push(nextWindow);
       state.inAppWindow = nextWindow;
-      if (foundRecord && (isStaticSite() || ['mcmod', 'bbsmc', 'modrinth', 'curseforge', 'xyebbs'].includes(foundRecord.platform))) void loadPreviewVersions(foundRecord);
+      if (foundRecord) void loadPreviewVersions(foundRecord);
       render();
     }
   } else if (action === 'set-in-app-window-tab') {
@@ -6067,8 +6136,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
       ? state.selected
       : (recordId ? (state.records.find((r) => r.id === recordId) || state.inAppWindows.find((w) => w.record?.id === recordId)?.record) : state.selected);
     if (targetRecord) {
-      previewVersionCache.delete(targetRecord.id);
-      void loadPreviewVersions(targetRecord);
+      void loadPreviewVersions(targetRecord, true);
       render();
     }
   } else if (action === 'more-in-app-versions') {
@@ -6556,6 +6624,17 @@ function bindDocumentEvents(): void {
   }, { passive: true });
 }
 
+async function loadLocalRelations(): Promise<void> {
+  if (isStaticSite() || !window.desktopApi?.getRelations) return;
+  const snapshotId = state.data?.snapshotId;
+  try {
+    const index = await window.desktopApi.getRelations();
+    if (snapshotId !== state.data?.snapshotId) return;
+    installPublicAssociations({...index, source:'local'});
+    render();
+  } catch (error) { state.message = `其他来源索引读取失败：${error instanceof Error ? error.message : String(error)}`; render(); }
+}
+
 async function warmupPlatformCache(): Promise<void> {
   if (isStaticSite()) return;
   const currentSnapshotId = state.data?.snapshotId;
@@ -6612,10 +6691,12 @@ export async function initDesktopShellV2(): Promise<void> {
     const initial = await window.desktopApi.getState();
     state.data = initial.data;
     state.update = initial.update;
+    if (initial.update?.batch?.platforms?.length) state.updatePlatforms = [...initial.update.batch.platforms];
     await loadPersonalLibrary();
     await loadFavoriteUpdates(false);
     await loadRecords();
     void warmupPlatformCache();
+    void loadLocalRelations();
   } catch (error) {
     state.loading = false;
     state.message = error instanceof Error ? error.message : String(error);
@@ -6623,6 +6704,7 @@ export async function initDesktopShellV2(): Promise<void> {
   }
   window.desktopApi.onUpdateStatus((update) => {
     state.update = update;
+    if(update.batch?.state==='running' && update.batch.platforms)state.updatePlatforms=[...update.batch.platforms];
     if (update.platform) state.updatePlatform = update.platform;
     state.logs = update.logs || state.logs;
     if (state.updateOpen) render();
@@ -6637,12 +6719,15 @@ export async function initDesktopShellV2(): Promise<void> {
         if (!nextPlatform) state.updateBatch = null;
       }
       platformRecordCache.clear();
+      previewVersionCache.clear();
+      if (!isStaticSite()) clearPublicAssociations();
       void window.desktopApi.getState().then(async (next) => {
         state.data = next.data;
         await loadPersonalLibrary();
         await loadFavoriteUpdates(false);
         await loadRecords(true);
         void warmupPlatformCache();
+    void loadLocalRelations();
       });
       if (nextPlatform) window.setTimeout(() => void startUpdateBatchPlatform(nextPlatform!), 0);
     } else if ((update.state === 'failed' || update.state === 'cancelled') && state.updateBatch) {
@@ -6657,11 +6742,21 @@ export async function initDesktopShellV2(): Promise<void> {
   });
   window.desktopApi.onDataChanged((data) => {
     platformRecordCache.clear();
+      previewVersionCache.clear();
+      if (!isStaticSite()) clearPublicAssociations();
     state.data = data;
+    ++auditRequestSequence;
+    state.audit = null;
+    state.auditRound = 0;
+    state.auditLoading = false;
+    state.auditError = '';
+    state.v2AuditTab='all'; state.v2AuditSearch=''; state.auditRowLimit=100;
+    if(state.auditOpen) void loadAudit();
     void loadPersonalLibrary().then(async () => {
       await loadFavoriteUpdates(false);
       await loadRecords(true);
       void warmupPlatformCache();
+    void loadLocalRelations();
     });
   });
 }

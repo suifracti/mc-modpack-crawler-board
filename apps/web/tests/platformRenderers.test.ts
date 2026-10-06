@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { BILIBILI_COVER_FALLBACK, renderBiliGroupedCard, renderBiliFlatCard } from '../src/platforms/bilibili/renderer';
 import { renderBbsmcCard } from '../src/platforms/bbsmc/renderer';
 import { renderXyebbsCard, XYEBBS_COVER_FALLBACK } from '../src/platforms/xyebbs/renderer';
@@ -30,6 +30,9 @@ import type { ModrinthPack } from '../src/types/legacy/modrinth';
 import type { CurseforgePack } from '../src/types/legacy/curseforge';
 import { clearFailedImage, getImageFailure, rememberFailedImage } from '../src/utils/imageFallback';
 import { releaseDetachedCoverImageRequest, renderCoverImage, startCoverImageRetry, type CoverImageRequestTarget } from '../src/utils/coverImage';
+
+beforeAll(() => vi.stubGlobal('document', { documentElement: { dataset: {} } }));
+afterAll(() => vi.unstubAllGlobals());
 
 describe('Platform Card Renderers', () => {
   it('keeps a personal action bound to platform and source id after records reorder', () => {

@@ -2,6 +2,8 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const repo=path.resolve(__dirname,'../../..');
 const out=path.resolve(process.env.MC_PAGES_OUT || path.join(repo,'build/pages'));
+const sourceCommit=process.env.MC_PAGES_SOURCE_COMMIT || null;
+if(sourceCommit && !/^[0-9a-f]{40}$/.test(sourceCommit))throw Error('Invalid source commit');
 const refresh=process.env.MC_PAGES_REFRESH_REPORT ? JSON.parse(fs.readFileSync(process.env.MC_PAGES_REFRESH_REPORT,'utf8')) : null;
 // Explicit public cover metadata supplements missing fields without opening a DataStore.
 const mcCovers=new Map();
@@ -37,8 +39,8 @@ function clean(value){
   return value;
 }
 fs.mkdirSync(path.join(out,'data'),{recursive:true});
-const manifest={hasData:true,snapshotId:'public-crawler-export',updatedAt:null,source:'static-public',canonicalReady:false,platforms:{},sourceTimes:{},sourceRefresh:{},recordCount:0};
-const mcDetails=readPlatformRecords(path.join(repo,'converted_output','data'),'mcmod').records;
+const manifest={hasData:true,snapshotId:'public-crawler-export',sourceCodeSha:sourceCommit,updatedAt:null,source:'static-public',canonicalReady:false,platforms:{},sourceTimes:{},sourceRefresh:{},recordCount:0};
+const mcDetails=readPlatformRecords(path.resolve(process.env.MC_PAGES_SOURCE_DATA_DIR || path.join(repo,'converted_output','data')),'mcmod').records;
 const mcById=new Map(mcDetails.map(v=>[String(v.mid||v.id||v.project_id),v]));
 for(const platform of ALL_PLATFORMS){
   const result=refresh?.sources?.[platform];
@@ -96,7 +98,7 @@ for(const platform of ALL_PLATFORMS){
 }
 fs.writeFileSync(path.join(out,'data/manifest.json'),JSON.stringify(manifest));
 fs.writeFileSync(path.join(out,'.nojekyll'),'');
-fs.writeFileSync(path.join(out,'DATA_SCOPE.md'),`# 公开采集数据\n\n最新桌面界面 ${'9fe154f'}，六平台 ${manifest.recordCount} 条。\n\n${Object.entries(manifest.sourceTimes).map(([p,t])=>`- ${p}: 源文件更新时间 ${t}`).join('\n')}\n\n${refresh ? '本轮为隔离增量刷新；成功源显示验证时间，保留旧源仍显示原文件时间。更新计数为展示字段发生变化，不代表整合包版本发布。' : '时间来自现有采集文件的修改时间，不保证同一批次或即时数据。'}${refresh ? '\n\n'+Object.entries(manifest.sourceRefresh).map(([p,v])=>`- ${p}: ${v.status}; 范围 ${v.coverage}; 新增 ${v.new}; 展示字段更新 ${v.updated}; 请求失败 ${v.failedRequests}; 范围验证失败 ${v.validationFailures}; 原数据时间 ${v.baseSourceFileTime}`).join('\n') : ''}仅公开来源展示字段；不包含个人资料、配置、凭据、session、日志、本地路径和运行快照。个人收藏仅在访问者自己的浏览器保存。静态站不执行爬虫、服务、代理和快照管理；原站小窗转为外链打开。\n`);
+fs.writeFileSync(path.join(out,'DATA_SCOPE.md'),`# 公开采集数据\n\n最新桌面界面 ${sourceCommit || 'unknown'}，六平台 ${manifest.recordCount} 条。\n\n${Object.entries(manifest.sourceTimes).map(([p,t])=>`- ${p}: 源文件更新时间 ${t}`).join('\n')}\n\n${refresh ? '本轮为隔离增量刷新；成功源显示验证时间，保留旧源仍显示原文件时间。更新计数为展示字段发生变化，不代表整合包版本发布。' : '时间来自现有采集文件的修改时间，不保证同一批次或即时数据。'}${refresh ? '\n\n'+Object.entries(manifest.sourceRefresh).map(([p,v])=>`- ${p}: ${v.status}; 范围 ${v.coverage}; 新增 ${v.new}; 展示字段更新 ${v.updated}; 请求失败 ${v.failedRequests}; 范围验证失败 ${v.validationFailures}; 原数据时间 ${v.baseSourceFileTime}`).join('\n') : ''}仅公开来源展示字段；不包含个人资料、配置、凭据、session、日志、本地路径和运行快照。个人收藏仅在访问者自己的浏览器保存。静态站不执行爬虫、服务、代理和快照管理；原站小窗转为外链打开。\n`);
 fs.writeFileSync(path.join(out,'data-report.json'),JSON.stringify({manifest,redactedValues:redactions,dataBytes:fs.readdirSync(path.join(out,'data')).reduce((n,f)=>n+fs.statSync(path.join(out,'data',f)).size,0)},null,2));
 console.log(JSON.stringify({records:manifest.recordCount,platforms:Object.fromEntries(Object.entries(manifest.platforms).map(([p,v])=>[p,v.count])),sourceTimes:manifest.sourceTimes,redactedValues:redactions}));
 
