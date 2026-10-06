@@ -1,5 +1,6 @@
 // Read public crawler outputs only; never instantiate DataStore or read user library/config.
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const {scrubLocalText}=require('./public-data-redaction.cjs');
 const repo=path.resolve(__dirname,'../../..');
 const out=path.resolve(process.env.MC_PAGES_OUT || path.join(repo,'build/pages'));
 const sourceCommit=process.env.MC_PAGES_SOURCE_COMMIT || null;
@@ -31,6 +32,8 @@ function decodePublicTitle(value){
 }
 function clean(value){
   if(typeof value==='string'){
+    const scrubbed=scrubLocalText(value);
+    if(scrubbed!==value){redactions++;value=scrubbed;}
     if(/(?:(?:^|[\s"'(])[A-Za-z]:[\\/]|file:\/\/|(?:https?:\/\/)?(?:localhost|127\.0\.0\.1)(?::|\/)|[?&](?:token|access_token|auth|authorization|signature|api_key|credential)=)/i.test(value)){redactions++;return '';}
     return value;
   }

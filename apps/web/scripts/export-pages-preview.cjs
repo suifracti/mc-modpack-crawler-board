@@ -2,12 +2,13 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
+const {scrubLocalText}=require('./public-data-redaction.cjs');
 const platforms = ['mcmod', 'bilibili', 'bbsmc', 'xyebbs', 'modrinth', 'curseforge'];
 const readJson = p => JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, ''));
 const sourceId = row => String(row.project_id ?? row.mid ?? row.bvid ?? row.id ?? '');
-const text = value => typeof value === 'string' ? value.trim() : '';
+const text = value => typeof value === 'string' ? scrubLocalText(value).trim() : '';
 function safeUrl(value) {
-  try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? url.href : ''; }
+  try { const url = new URL(scrubLocalText(value)); return ['https:', 'http:'].includes(url.protocol) ? url.href : ''; }
   catch { return ''; }
 }
 function imageUrls(value) {
