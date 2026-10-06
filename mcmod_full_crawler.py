@@ -39,6 +39,9 @@ import ast
 import random
 import argparse
 import tempfile
+import shutil
+import ssl
+import subprocess
 import urllib.request
 import urllib.parse
 import http.cookiejar
@@ -81,7 +84,45 @@ def get_headers(referer=None):
 COOKIE_JAR = http.cookiejar.CookieJar()
 OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(COOKIE_JAR))
 IS_BANNED = False
+USE_CURL = False
 COLLECTION_STATS = {"requests": 0, "successful": 0, "not_found": 0, "failed": 0, "errors": []}
+
+
+def open_mcmod_text(url, headers, timeout=12, data=None):
+    """Use the system TLS client when Python's TLS handshake fails on MC百科."""
+    global USE_CURL
+    if not USE_CURL:
+        request = urllib.request.Request(url, data=data, headers=headers)
+        try:
+            with OPENER.open(request, timeout=timeout) as response:
+                return response.status, response.read().decode("utf-8", errors="replace"), response.geturl()
+        except urllib.error.HTTPError as error:
+            return error.code, error.read().decode("utf-8", errors="replace"), error.geturl()
+        except urllib.error.URLError as error:
+            if not isinstance(error.reason, ssl.SSLError):
+                raise
+            USE_CURL = True
+            print("  [网络连接] Python TLS 握手失败，改用系统 curl 访问 MC百科。", flush=True)
+
+    curl = shutil.which("curl.exe" if os.name == "nt" else "curl")
+    if not curl:
+        raise RuntimeError("Python TLS 不可用，且系统未安装 curl")
+    command = [curl, "--silent", "--show-error", "--location", "--max-redirs", "5",
+               "--max-time", str(timeout), "--write-out",
+               "\n__MC_CURL_STATUS__:%{http_code}\t%{url_effective}"]
+    for key, value in headers.items():
+        command.extend(["--header", f"{key}: {value}"])
+    if data is not None:
+        command.extend(["--data-binary", "@-"])
+    command.append(url)
+    result = subprocess.run(command, input=data, capture_output=True, timeout=timeout + 3, check=False)
+    if result.returncode:
+        raise OSError(f"curl {result.returncode}: {result.stderr.decode('utf-8', errors='replace').strip()}")
+    body, marker, metadata = result.stdout.rpartition(b"\n__MC_CURL_STATUS__:")
+    if not marker:
+        raise OSError("curl 响应缺少 HTTP 状态")
+    status_text, final_url = metadata.decode("utf-8", errors="replace").split("\t", 1)
+    return int(status_text), body.decode("utf-8", errors="replace"), final_url.strip()
 
 def init_network(proxy=None, no_proxy=False):
     """初始化网络层，支持纯直连模式或指定 HTTP/HTTPS 代理"""
@@ -119,7 +160,7 @@ def check_banned_response(text):
 
 # ═══════════════════════ 网络请求层 ═══════════════════════
 
-def fetch_html(url, retries=3, timeout=12):
+def fetch_html(url, retries=3, timeout=12, return_404=False):
     """通用的轻量 HTML 获取函数 (带 CookieJar 与退避重试)"""
     global IS_BANNED
     if IS_BANNED:
@@ -129,23 +170,22 @@ def fetch_html(url, retries=3, timeout=12):
             return None
         try:
             COLLECTION_STATS["requests"] += 1
-            req = urllib.request.Request(url, headers=get_headers())
-            with OPENER.open(req, timeout=timeout) as resp:
-                if resp.status == 404:
-                    COLLECTION_STATS["not_found"] += 1
-                    return None
-                if resp.status == 200:
-                    text = resp.read().decode('utf-8', errors='ignore')
-                    if check_banned_response(text):
-                        COLLECTION_STATS["failed"] += 1
-                        COLLECTION_STATS["errors"].append("MC百科访问频控")
-                        return None
-                    COLLECTION_STATS["successful"] += 1
-                    return text
+            status, text, _ = open_mcmod_text(url, get_headers(), timeout=timeout)
+            if status == 404:
+                COLLECTION_STATS["not_found"] += 1
+                return 404 if return_404 else None
+            if status != 200:
+                raise urllib.error.HTTPError(url, status, "MC百科 HTTP 请求失败", None, None)
+            if check_banned_response(text):
+                COLLECTION_STATS["failed"] += 1
+                COLLECTION_STATS["errors"].append("MC百科访问频控")
+                return None
+            COLLECTION_STATS["successful"] += 1
+            return text
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 COLLECTION_STATS["not_found"] += 1
-                return None
+                return 404 if return_404 else None
             if attempt == retries - 1:
                 COLLECTION_STATS["failed"] += 1
                 COLLECTION_STATS["errors"].append(f"HTTP {e.code} {url}")
@@ -166,23 +206,20 @@ class CoverRefreshBlocked(RuntimeError):
 
 def fetch_cover_page_once(url, timeout=12):
     """Fetch one pack detail page without retries for the bounded cover refresh."""
-    req = urllib.request.Request(url, headers=get_headers(referer=url))
     try:
-        with OPENER.open(req, timeout=timeout) as response:
-            if response.status in (401, 403, 429):
-                raise CoverRefreshBlocked(f"HTTP {response.status}")
-            if response.status != 200:
-                return None
-            final_url = urllib.parse.urlsplit(response.geturl())
-            host = (final_url.hostname or "").lower()
-            if final_url.scheme.lower() != "https" or not (host == "mcmod.cn" or host.endswith(".mcmod.cn")):
-                raise CoverRefreshBlocked("请求被重定向到非 MC 百科 HTTPS 地址")
-            requested_mid = re.search(r"/modpack/(\d+)\.html$", urllib.parse.urlsplit(url).path)
-            final_mid = re.search(r"/modpack/(\d+)\.html$", final_url.path)
-            if requested_mid and (not final_mid or requested_mid.group(1) != final_mid.group(1)):
-                raise CoverRefreshBlocked("响应页面的整合包 ID 与请求不一致")
-            charset = response.headers.get_content_charset() or "utf-8"
-            text = response.read().decode(charset, errors="replace")
+        status, text, response_url = open_mcmod_text(url, get_headers(referer=url), timeout=timeout)
+        if status in (401, 403, 429):
+            raise CoverRefreshBlocked(f"HTTP {status}")
+        if status != 200:
+            return None
+        final_url = urllib.parse.urlsplit(response_url)
+        host = (final_url.hostname or "").lower()
+        if final_url.scheme.lower() != "https" or not (host == "mcmod.cn" or host.endswith(".mcmod.cn")):
+            raise CoverRefreshBlocked("请求被重定向到非 MC 百科 HTTPS 地址")
+        requested_mid = re.search(r"/modpack/(\d+)\.html$", urllib.parse.urlsplit(url).path)
+        final_mid = re.search(r"/modpack/(\d+)\.html$", final_url.path)
+        if requested_mid and (not final_mid or requested_mid.group(1) != final_mid.group(1)):
+            raise CoverRefreshBlocked("响应页面的整合包 ID 与请求不一致")
     except urllib.error.HTTPError as error:
         if error.code in (401, 403, 429):
             raise CoverRefreshBlocked(f"HTTP {error.code}") from error
@@ -217,22 +254,22 @@ def fetch_trend_data(mid, retries=3, timeout=12):
             return []
         try:
             COLLECTION_STATS["requests"] += 1
-            req = urllib.request.Request(url, data=post_data, headers=headers)
-            with OPENER.open(req, timeout=timeout) as resp:
-                raw_text = resp.read().decode('utf-8', errors='ignore')
-                if check_banned_response(raw_text):
-                    COLLECTION_STATS["failed"] += 1
-                    COLLECTION_STATS["errors"].append("MC百科走势请求触发风控")
-                    return []
-                COLLECTION_STATS["successful"] += 1
-                data = json.loads(raw_text)
-                if data.get("state") == 0:
-                    html = data.get("html", "")
-                    arrays = re.findall(r'data:\s*(\[[^\]]+\])', html)
-                    if len(arrays) >= 2:
-                        dates = [str(d) for d in ast.literal_eval(arrays[0])]
-                        values = [float(v) for v in ast.literal_eval(arrays[1])]
-                        return list(zip(dates, values))
+            status, raw_text, _ = open_mcmod_text(url, headers, timeout=timeout, data=post_data)
+            if status != 200:
+                raise urllib.error.HTTPError(url, status, "MC百科走势 HTTP 请求失败", None, None)
+            if check_banned_response(raw_text):
+                COLLECTION_STATS["failed"] += 1
+                COLLECTION_STATS["errors"].append("MC百科走势请求触发风控")
+                return []
+            COLLECTION_STATS["successful"] += 1
+            data = json.loads(raw_text)
+            if data.get("state") == 0:
+                html = data.get("html", "")
+                arrays = re.findall(r'data:\s*(\[[^\]]+\])', html)
+                if len(arrays) >= 2:
+                    dates = [str(d) for d in ast.literal_eval(arrays[0])]
+                    values = [float(v) for v in ast.literal_eval(arrays[1])]
+                    return list(zip(dates, values))
         except urllib.error.HTTPError as error:
             if error.code == 404:
                 COLLECTION_STATS["not_found"] += 1
@@ -249,6 +286,90 @@ def fetch_trend_data(mid, retries=3, timeout=12):
             else:
                 time.sleep(1.5 * (attempt + 1))
     return []
+
+class _VersionHistoryParser(HTMLParser):
+    """Read visible release entries only, keeping their dated notes as plain text."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.depth = 0
+        self.game_version = ""
+        self.game_depth = 0
+        self.entry = None
+        self.entry_depth = 0
+        self.content_depth = 0
+        self.field = ""
+        self.ignored_depth = 0
+        self.versions = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("script", "style"):
+            self.ignored_depth += 1
+            return
+        if self.ignored_depth:
+            return
+        attrs = dict(attrs)
+        classes = set(attrs.get("class", "").split())
+        if tag == "div":
+            self.depth += 1
+            if "version-content" in classes:
+                self.game_version = attrs.get("data-frame", "").strip()
+                self.game_depth = self.depth
+            if "version-content-block" in classes:
+                self.entry = {"versionName": "", "date": "", "changelog": "", "gameVersions": [self.game_version] if self.game_version else []}
+                self.entry_depth = self.depth
+            if self.entry is not None and "content" in classes and "common-text" in classes:
+                self.content_depth = self.depth
+        elif tag == "span" and self.entry is not None:
+            if "time" in classes:
+                self.field = "date"
+            elif "name" in classes:
+                self.field = "versionName"
+        elif tag == "br" and self.content_depth:
+            self.entry["changelog"] += "\n"
+
+    def handle_data(self, data):
+        if self.entry is None or self.ignored_depth:
+            return
+        if self.content_depth:
+            self.entry["changelog"] += data
+        elif self.field:
+            self.entry[self.field] += data
+
+    def handle_endtag(self, tag):
+        if tag in ("script", "style") and self.ignored_depth:
+            self.ignored_depth -= 1
+            return
+        if self.ignored_depth:
+            return
+        if tag in ("p", "li") and self.content_depth and self.entry is not None:
+            self.entry["changelog"] += "\n"
+        if tag == "span":
+            self.field = ""
+        if tag != "div":
+            return
+        if self.content_depth == self.depth:
+            self.content_depth = 0
+        if self.entry_depth == self.depth and self.entry is not None:
+            entry = self.entry
+            entry["versionName"] = entry["versionName"].strip()
+            entry["date"] = entry["date"].strip()
+            entry["changelog"] = "\n".join(line.strip() for line in entry["changelog"].splitlines() if line.strip())
+            if entry["versionName"] and entry["date"]:
+                self.versions.append(entry)
+            self.entry = None
+            self.entry_depth = 0
+        if self.game_depth == self.depth:
+            self.game_version = ""
+            self.game_depth = 0
+        self.depth -= 1
+
+
+def parse_mcmod_version_history(html):
+    parser = _VersionHistoryParser()
+    parser.feed(html)
+    return parser.versions
+
 
 def fetch_version_data(mid, retries=3, timeout=12):
     """提取真实整合包版本日志页面数据
@@ -268,7 +389,10 @@ def fetch_version_data(mid, retries=3, timeout=12):
             "checked": False
         }
     url = f"https://www.mcmod.cn/modpack/version/{mid}.html"
-    html = fetch_html(url, retries=retries, timeout=timeout)
+    html = fetch_html(url, retries=retries, timeout=timeout, return_404=True)
+    if html == 404:
+        return {"version_count": 0, "latest_version": "", "latest_date": "",
+                "release_date": "", "versions": [], "checked": True}
     if not html:
         return {
             "version_count": 0,
@@ -278,20 +402,18 @@ def fetch_version_data(mid, retries=3, timeout=12):
             "versions": [],
             "checked": False
         }
-    entries = re.findall(r'<span class="time">([^<]+)</span>.*?<span class="name">([^<]+)</span>', html, re.S)
-    clean_entries = []
-    for d_str, v_str in entries:
-        d = d_str.strip()
-        v = v_str.strip()
-        if d and v:
-            clean_entries.append({"version": v, "date": d})
+    clean_entries = parse_mcmod_version_history(html)
+    confirmed_empty = bool(re.search(r'class=["\'][^"\']*version-content-empty\b', html))
+    if not clean_entries and not confirmed_empty:
+        COLLECTION_STATS["failed"] += 1
+        COLLECTION_STATS["errors"].append(f"#{mid} 版本页未确认完整返回")
     return {
         "version_count": len(clean_entries),
-        "latest_version": clean_entries[0]["version"] if clean_entries else "",
+        "latest_version": clean_entries[0]["versionName"] if clean_entries else "",
         "latest_date": clean_entries[0]["date"] if clean_entries else "",
         "release_date": clean_entries[-1]["date"] if clean_entries else "",
         "versions": clean_entries,
-        "checked": True
+        "checked": bool(clean_entries or confirmed_empty)
     }
 
 # ═══════════════════════ 走势缝合与数据算法 ═══════════════════════
@@ -486,7 +608,7 @@ def _normalize_mcmod_cover_url(value):
     path = parsed.path.lower()
     if parsed.scheme.lower() not in ("http", "https") or not (host == "mcmod.cn" or host.endswith(".mcmod.cn")):
         return ""
-    if "/modpack/cover/" not in path or path.endswith(("/blank.png", "/loading.gif", "/none.jpg")):
+    if not any(part in path for part in ("/modpack/cover/", "/class/cover/")) or path.endswith(("/blank.png", "/loading.gif", "/none.jpg")):
         return ""
     return normalized
 
@@ -716,6 +838,7 @@ def build_table_row(p, trend_points=None, version_info=None):
         "last_update_date": latest_date,
         "release_date": v_info.get("release_date", ""),
         "version_count": v_info.get("version_count", 0),
+        "versions": v_info.get("versions", []),
         # 只有页面成功返回才置位：用于区分"确认无日志"与"抓取失败"，
         # 供 refresh_trend_and_versions 的增量回填判定使用。
         "version_checked": bool(v_info.get("checked")),
@@ -781,11 +904,12 @@ def update_table_row_metrics(row, m=None, new_trend_points=None, version_info=No
         row["c4"] = build_c4(rec_n, fav_n, com_n)
 
     # 2. 版本日志更新
-    if version_info:
+    if version_info and version_info.get("checked"):
         row["latest_version"] = version_info.get("latest_version", "")
         row["last_update_date"] = version_info.get("latest_date", "")
         row["release_date"] = version_info.get("release_date", "")
         row["version_count"] = version_info.get("version_count", 0)
+        row["versions"] = version_info.get("versions", [])
         # 只有页面成功返回才置位。用来把"确认无日志"与"抓取失败"区分开：
         # 前者不该反复重抓，后者必须能被补回来。
         if version_info.get("checked"):
@@ -849,15 +973,31 @@ def load_data():
         except Exception as e:
             print(f"  [警告] 载入 app_data.js 异常: {e}")
 
+    # Cover-only runs patch raw/sidecar without rewriting the legacy table.
+    # Carry those verified URLs forward so the next normal save cannot erase them.
+    if os.path.exists(RAW_JSON_PATH):
+        try:
+            with open(RAW_JSON_PATH, "r", encoding="utf-8") as handle:
+                covers = {str(item.get("mid")): item for item in json.load(handle)
+                          if isinstance(item, dict) and item.get("mid")}
+            for row in rows:
+                archived = covers.get(str(row.get("mid"))) or {}
+                if archived.get("cover_url") and not row.get("cover_url"):
+                    row["cover_url"] = archived["cover_url"]
+                if archived.get("cover_checked_at"):
+                    row["cover_checked_at"] = archived["cover_checked_at"]
+        except (OSError, ValueError, TypeError) as error:
+            print(f"  [警告] 无法读取已有封面归档: {error}")
+
     return rows, compare_data
 
 def build_raw_modpack_entry(r, app_info):
     """构造标准化的 crawler_output 原始条目"""
     mid = str(r.get("mid", ""))
     c0 = r.get("c0", "")
-    cover_url = ""
+    cover_url = str(r.get("cover_url") or "")
     cov_m = re.search(r'data-image-url="([^"]+)"', c0) or re.search(r'src="([^"]+)"', c0)
-    if cov_m:
+    if cov_m and not cover_url:
         cover_url = cov_m.group(1)
 
     title = r.get("title") or app_info.get("title") or f"Modpack {mid}"
@@ -886,6 +1026,7 @@ def build_raw_modpack_entry(r, app_info):
         "type_name": r.get("type_name") or app_info.get("type", "原生整合"),
         "mold_id": str(mold_id),
         "cover_url": cover_url,
+        "cover_checked_at": r.get("cover_checked_at") or None,
         "views": int(r.get("views_n", 0) or 0),
         "score": r.get("score_n", 1),
         "trend_latest": int(r.get("lat_n", 0) or 0),
@@ -897,6 +1038,7 @@ def build_raw_modpack_entry(r, app_info):
         "release_date": r.get("release_date") or app_info.get("release_date", ""),
         "version_count": int(r.get("version_count") or app_info.get("version_count", 0) or 0),
         "version_checked": bool(r.get("version_checked") or app_info.get("version_checked")),
+        "versions": r.get("versions") or app_info.get("versions") or [],
         "comments": int(r.get("com_n", 0) or 0),
         "recommend": int(r.get("rec_n", 0) or 0),
         "favorite": int(r.get("fav_n", 0) or 0),
@@ -998,7 +1140,9 @@ def build_modern_mcmod_entry(r, app_info):
         "includedModsCount": int(r.get("mod_count", len(included_mod_names)) or len(included_mod_names)),
         "modCategories": app_info.get("modCategories") or [],
         "previewMods": app_info.get("previewMods") or [],
+        "includedMods": app_info.get("includedMods") or [],
         "includedModNames": included_mod_names,
+        "releases": raw.get("versions", []),
         "modCategorySearch": ", ".join(str(item) for item in (app_info.get("mod_categories") or [])),
         "trendPoints": trend_points,
         "environmentClaims": claims,
@@ -1038,7 +1182,7 @@ def _mcmod_record_id(value):
     return str(int(value)) if value.isdigit() else value
 
 
-def refresh_missing_mcmod_covers(limit, offset=0, page_fetcher=None):
+def refresh_missing_mcmod_covers(limit, offset=0, page_fetcher=None, force=False):
     """Fill only blank cover_url/coverUrl pairs in the staged raw and sidecar files."""
     if not isinstance(limit, int) or limit <= 0:
         raise ValueError("封面刷新必须指定正整数 --limit")
@@ -1092,7 +1236,13 @@ def refresh_missing_mcmod_covers(limit, offset=0, page_fetcher=None):
                 raw_record["cover_url"] = sidecar_cover
                 touched = True
             continue
-        if index >= offset:
+        last_checked = raw_record.get("cover_checked_at")
+        recently_checked = False
+        try:
+            recently_checked = last_checked is not None and time.time() - float(last_checked) < 30 * 86400
+        except (TypeError, ValueError):
+            pass
+        if index >= offset and (force or not recently_checked):
             candidates.append((index, record_id, raw_record, sidecar_record))
 
     selected = candidates[:limit]
@@ -1123,8 +1273,11 @@ def refresh_missing_mcmod_covers(limit, offset=0, page_fetcher=None):
         cover_url = extract_mcmod_pack_cover(record_id, page_html)
         if not cover_url:
             no_cover += 1
+            raw_record["cover_checked_at"] = int(time.time())
+            touched = True
             continue
         raw_record["cover_url"] = cover_url
+        raw_record["cover_checked_at"] = int(time.time())
         sidecar_record["coverUrl"] = cover_url
         updated += 1
         touched = True
@@ -1230,6 +1383,7 @@ def probe_new_modpacks(rows, compare_data, max_404=8, recheck_holes=False):
                 "last_update_date": row.get("last_update_date", ""),
                 "release_date": row.get("release_date", ""),
                 "version_count": row.get("version_count", 0),
+                "versions": row.get("versions", []),
                 "version_checked": row.get("version_checked", False),
                 "comments": pack_info["com_n"],
                 "recommend": pack_info["rec_n"],
@@ -1292,6 +1446,7 @@ def probe_new_modpacks(rows, compare_data, max_404=8, recheck_holes=False):
             "last_update_date": row.get("last_update_date", ""),
             "release_date": row.get("release_date", ""),
             "version_count": row.get("version_count", 0),
+            "versions": row.get("versions", []),
             "version_checked": row.get("version_checked", False),
             "comments": pack_info["com_n"],
             "recommend": pack_info["rec_n"],
@@ -1424,6 +1579,7 @@ def refresh_trend_and_versions(rows, compare_data, concurrency=2, limit=None, fo
             if is_trend_stale(r, max_stale_days=max_stale_days)
             or (not str(r.get("latest_version") or "").strip()
                 and not r.get("version_checked"))
+            or (int(r.get("version_count") or 0) > 0 and not r.get("versions"))
         ]
         if limit:
             target_rows = target_rows[:limit]
@@ -1477,11 +1633,12 @@ def refresh_trend_and_versions(rows, compare_data, concurrency=2, limit=None, fo
                         app["growth7"] = f"{row.get('t7_n', 0)}%"
                         app["growth30"] = f"{row.get('t30_n', 0)}%"
                         app["growth60"] = f"{row.get('t60_n', 0)}%"
-                    if v_info and v_info.get("latest_version"):
+                    if v_info and v_info.get("checked"):
                         app["latest_version"] = v_info["latest_version"]
                         app["last_update_date"] = v_info["latest_date"]
                         app["release_date"] = v_info["release_date"]
                         app["version_count"] = v_info["version_count"]
+                        app["versions"] = v_info["versions"]
 
             if t_pts:
                 updated_trend += 1
@@ -1501,6 +1658,249 @@ def refresh_trend_and_versions(rows, compare_data, concurrency=2, limit=None, fo
     print(f"  🎉 [走势与版本更新完成] 成功缝合走势 {updated_trend:,} 款，获取版本日志 {updated_ver:,} 款！")
     return updated_trend, updated_ver
 
+
+def backfill_snapshot_versions(limit=None, concurrency=2, gentle=True, cache_size=50):
+    """Backfill releases directly into the current raw + modern snapshot.
+
+    Imported snapshots may not contain legacy table_rows.js; rebuilding their
+    modern sidecar through that legacy input would silently erase every pack.
+    """
+    with open(RAW_JSON_PATH, "r", encoding="utf-8") as handle:
+        raw_records = json.load(handle)
+    with open(MCMOD_DATA_PATH, "r", encoding="utf-8") as handle:
+        sidecar_text = handle.read().strip()
+    prefix = "window.mcmodData = "
+    if not sidecar_text.startswith(prefix):
+        raise ValueError("MC百科现代数据文件格式不正确，拒绝补抓")
+    modern_records = json.loads(sidecar_text[len(prefix):].rstrip(";\n "))
+    modern_by_mid = {str(item.get("mid")): item for item in modern_records}
+    raw_mids = {str(item.get("mid")) for item in raw_records}
+    if not raw_records or len(raw_mids) != len(raw_records) or raw_mids != set(modern_by_mid):
+        raise ValueError("MC百科原始记录与现代数据 ID 不一致，拒绝补抓")
+
+    def sync_release(raw):
+        modern = modern_by_mid[str(raw["mid"])]
+        versions = raw.get("versions") or []
+        modern["releases"] = versions
+        modern["versionChecked"] = bool(raw.get("version_checked"))
+        latest = str(raw.get("latest_version") or "").strip()
+        if latest:
+            modern["packVersion"] = latest
+        else:
+            modern.pop("packVersion", None)
+        if raw.get("last_update_date"):
+            modern["modifiedAt"] = raw["last_update_date"]
+        if raw.get("release_date"):
+            modern["publishedAt"] = raw["release_date"]
+
+    # Also heals a checkpoint interrupted between the two file replacements.
+    for raw in raw_records:
+        sync_release(raw)
+
+    targets = [item for item in raw_records if item.get("mid") and not item.get("version_checked")
+               and not item.get("versions")]
+    if limit:
+        targets = targets[:limit]
+    total = len(targets)
+    print(f"  [旧包版本补抓] 待核对 {total:,} / {len(raw_records):,} 款；只请求版本页。", flush=True)
+
+    def checkpoint():
+        raw_text = json.dumps(raw_records, ensure_ascii=False, indent=2) + "\n"
+        modern_text = prefix + json.dumps(modern_records, ensure_ascii=False, separators=(",", ":")) + ";\n"
+        _atomic_write_text(RAW_JSON_PATH, raw_text)
+        _atomic_write_text(MCMOD_DATA_PATH, modern_text)
+
+    def worker(raw):
+        if IS_BANNED:
+            return raw, {}
+        time.sleep(random.uniform(1.0, 2.0) if gentle else random.uniform(0.1, 0.25))
+        return raw, fetch_version_data(raw["mid"], retries=3, timeout=12)
+
+    checked = 0
+    with_history = 0
+    done = 0
+    if total:
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            futures = [executor.submit(worker, raw) for raw in targets]
+            for future in as_completed(futures):
+                raw, result = future.result()
+                done += 1
+                if result.get("checked"):
+                    checked += 1
+                    raw.update({
+                        "latest_version": result["latest_version"],
+                        "last_update_date": result["latest_date"],
+                        "release_date": result["release_date"],
+                        "version_count": result["version_count"],
+                        "versions": result["versions"],
+                        "version_checked": True,
+                    })
+                    sync_release(raw)
+                    if result["versions"]:
+                        with_history += 1
+                if done % 20 == 0 or done == total:
+                    print(f"  [旧包版本进度] {done:,}/{total:,} · 已核对 {checked:,} · 有历史 {with_history:,}", flush=True)
+                if done % cache_size == 0:
+                    checkpoint()
+    checkpoint()
+    print(f"  [旧包版本完成] 已核对 {checked:,}/{total:,} 款，有历史版本 {with_history:,} 款。", flush=True)
+    return len(raw_records), checked, with_history, total
+
+
+def refresh_modern_snapshot(args):
+    """Refresh a modern-only desktop snapshot without rebuilding legacy tables."""
+    with open(RAW_JSON_PATH, encoding="utf-8") as handle:
+        raw_records = json.load(handle)
+    modern_records = _read_jsonp_array(MCMOD_DATA_PATH, "mcmodData")
+    modern_by_id = {str(item.get("mid")): item for item in modern_records}
+    raw_ids = {str(item.get("mid")) for item in raw_records}
+    if not raw_records or len(raw_ids) != len(raw_records) or raw_ids != set(modern_by_id):
+        raise ValueError("MC百科原始记录与现代数据 ID 不一致，拒绝更新")
+
+    def checkpoint():
+        _atomic_write_text(RAW_JSON_PATH, json.dumps(raw_records, ensure_ascii=False, indent=2) + "\n")
+        _atomic_write_text(MCMOD_DATA_PATH, "window.mcmodData = " + json.dumps(modern_records, ensure_ascii=False, separators=(",", ":")) + ";\n")
+
+    new_count = refreshed = trend_count = version_count = 0
+    probe_complete = True
+    if args.mode in ("new", "all"):
+        known = {int(item["mid"]) for item in raw_records}
+        mid = max(known) + 1
+        misses = 0
+        while misses < args.max_404 and not IS_BANNED:
+            page = fetch_html(f"https://www.mcmod.cn/modpack/{mid}.html", return_404=True)
+            if page == 404:
+                misses += 1
+            elif not page:
+                probe_complete = False
+                break
+            else:
+                info = parse_mcmod_pack(mid, page)
+                if not info or not info.get("full_title"):
+                    COLLECTION_STATS["failed"] += 1
+                    COLLECTION_STATS["errors"].append(f"#{mid} 详情页解析失败")
+                    probe_complete = False
+                    break
+                points = fetch_trend_data(mid)
+                version = fetch_version_data(mid)
+                row = build_table_row(info, trend_points=points, version_info=version)
+                app_info = {
+                    "title_cn": info["title_cn"], "title_en": info["title_en"],
+                    "categories": info["categories"], "mc_versions": info["mc_versions"],
+                    "mods": [item["name"] for item in info["mods"]],
+                    "includedMods": info["mods"], "includedModNames": [item["name"] for item in info["mods"]],
+                    "cover_url": info["cover_url"],
+                }
+                raw_records.append(build_raw_modpack_entry(row, app_info))
+                modern_records.append(build_modern_mcmod_entry(row, app_info))
+                new_count += 1
+                misses = 0
+                checkpoint()
+                print(f"  [新包] #{mid} {info['full_title']}", flush=True)
+            mid += 1
+
+    if args.mode in ("metrics", "trend", "all", "sync-titles"):
+        candidates = raw_records
+        if args.mode == "all" and args.limit:
+            candidates = sorted(raw_records, key=lambda item: item.get("all_checked_at") or "")
+        targets = candidates[:args.limit] if args.limit else candidates
+        for index, raw in enumerate(targets, 1):
+            if IS_BANNED:
+                break
+            modern = modern_by_id.get(str(raw["mid"]))
+            if modern is None:
+                # Newly discovered records already have current details.
+                continue
+            mid = raw["mid"]
+            failures_before = COLLECTION_STATS["failed"]
+            if args.mode in ("metrics", "all", "sync-titles"):
+                page = fetch_html(f"https://www.mcmod.cn/modpack/{mid}.html")
+                if page:
+                    metrics = parse_metrics_only(page)
+                    title = metrics.get("full_title")
+                    if title and title != raw.get("title"):
+                        modern.setdefault("formerTitles", []).append(raw.get("title"))
+                        raw["title"] = modern["title"] = title
+                        raw["title_cn"] = modern["chineseName"] = metrics["title_cn"]
+                        raw["title_en"] = modern["englishName"] = metrics["title_en"]
+                    mapping = {"views_n": ("views", "views"), "rec_n": ("recommend", "recommendations"),
+                               "fav_n": ("favorite", "favorites"), "com_n": ("comments", "commentsCount")}
+                    for source, (raw_key, modern_key) in mapping.items():
+                        value = metrics.get(source)
+                        if value is not None and (value > 0 or not raw.get(raw_key)):
+                            raw[raw_key] = modern[modern_key] = value
+                    if metrics.get("lat_n") is not None:
+                        raw["trend_latest"] = metrics["lat_n"]
+                        modern.setdefault("trendStats", {})["lat"] = metrics["lat_n"]
+                        raw["score"] = modern["score"] = metrics["score_n"]
+                    votes = modern.setdefault("votes", {})
+                    for source, raw_key, modern_key in (("rv_n", "red_votes", "redVotes"),
+                                                        ("bv_n", "black_votes", "blackVotes")):
+                        value = metrics.get(source)
+                        if value and value > 0:
+                            raw[raw_key] = votes[modern_key] = value
+                    if metrics.get("rv_n", 0) + metrics.get("bv_n", 0) > 0:
+                        raw["red_percent"] = votes["redPercent"] = metrics["rp_n"]
+                        raw["black_percent"] = votes["blackPercent"] = metrics["bp_n"]
+                    detail = parse_mcmod_pack(mid, page)
+                    if detail.get("categories"):
+                        raw["categories"] = modern["categories"] = detail["categories"]
+                    if detail.get("mc_versions"):
+                        raw["mc_versions"] = modern["mcVersions"] = detail["mc_versions"]
+                    if detail.get("mods"):
+                        raw["mods"] = [item["name"] for item in detail["mods"]]
+                        raw["mod_count"] = modern["includedModsCount"] = len(detail["mods"])
+                        modern["includedMods"] = detail["mods"]
+                        modern["includedModNames"] = raw["mods"]
+                    cover = extract_mcmod_pack_cover(mid, page)
+                    if cover and not raw.get("cover_url") and not modern.get("coverUrl"):
+                        raw["cover_url"] = cover
+                        modern["coverUrl"] = cover
+                    raw["cover_checked_at"] = int(time.time())
+                    refreshed += 1
+            if args.mode in ("trend", "all"):
+                if args.force or is_trend_stale(raw, args.stale_days):
+                    points = fetch_trend_data(mid)
+                    if points:
+                        dates, vals, merged = merge_trend_series(raw.get("trend_dates", ""), raw.get("trend_vals", ""), points)
+                        lat, high, avg, days, t7, t30, t60, tall = compute_trend_stats(merged)
+                        raw.update(trend_dates=dates, trend_vals=vals, trend_latest=lat, trend_days=days)
+                        modern["trendPoints"] = [{"date": date, "viewsDelta": value} for date, value in merged]
+                        modern.setdefault("trendStats", {}).update(lat=lat, max=high, avg=avg, days=days,
+                            t7=t7, t30=t30, t60=t60, tall=tall, history7d=[value for _, value in merged[-7:]],
+                            trendDatesStr=dates, trendValsStr=vals)
+                        trend_count += 1
+                version = fetch_version_data(mid)
+                if version.get("checked"):
+                    modern["versionChecked"] = True
+                    raw["version_checked"] = True
+                    if version["versions"] or not raw.get("versions"):
+                        raw.update(latest_version=version["latest_version"], last_update_date=version["latest_date"],
+                                   release_date=version["release_date"], version_count=version["version_count"],
+                                   versions=version["versions"])
+                        modern["releases"] = version["versions"]
+                        if version["latest_version"]:
+                            modern["packVersion"] = version["latest_version"]
+                    version_count += 1
+            if args.mode == "all" and COLLECTION_STATS["failed"] == failures_before:
+                raw["all_checked_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            if index % args.cache_size == 0:
+                checkpoint()
+                print(f"  [旧包进度] {index}/{len(targets)} 指标 {refreshed} 走势 {trend_count} 版本 {version_count}", flush=True)
+            if index < len(targets):
+                time.sleep(random.uniform(0.5, 0.9) if not args.no_gentle else 0.1)
+    checkpoint()
+    complete = probe_complete and not IS_BANNED and COLLECTION_STATS["failed"] == 0
+    changes = new_count + refreshed + trend_count + version_count
+    write_collection_result("mcmod", request_completed=complete, fetched_count=changes,
+        pages_completed=COLLECTION_STATS["successful"], failed_requests=COLLECTION_STATS["failed"],
+        errors=COLLECTION_STATS["errors"],
+        status="success" if complete and changes else "success_no_change" if complete else "partial",
+        no_change_confirmed=complete and changes == 0,
+        details={"mode": args.mode, "new": new_count, "metrics": refreshed,
+                 "trends": trend_count, "versions": version_count, "rowsAfter": len(raw_records)})
+    print(f"  [现代快照完成] 新包 {new_count} 指标 {refreshed} 走势 {trend_count} 版本 {version_count} 完整={complete}", flush=True)
+
 # ═══════════════════════ 主入口 ═══════════════════════
 
 def main():
@@ -1510,12 +1910,13 @@ def main():
     )
     parser.add_argument(
         "--mode",
-        choices=["new", "trend", "metrics", "all", "sync-titles", "covers"],
+        choices=["new", "trend", "versions", "metrics", "all", "sync-titles", "covers"],
         default="new",
         help=(
             "运行模式：\n"
             "  new         - 仅向上探测全新整合包 (含走势与版本日志，秒级完成，默认)\n"
             "  trend       - 并发刷新存量整合包走势（执行无限时间线缝合）与版本更新日志\n"
+            "  versions    - 只补抓未核实旧包的完整版本历史与正文\n"
             "  metrics     - 多线程定向刷新存量整合包基础指标 (浏览量/指数/投票等)\n"
             "  sync-titles - 并发扫描存量整合包更名情况，更新标题并记录历史别名 (解决更名后搜不到问题)\n"
             "  covers      - 仅补充隔离工作区中已收录条目的缺失封面字段\n"
@@ -1627,7 +2028,7 @@ def main():
     print("=" * 70)
 
     if args.mode == "covers":
-        cover_result = refresh_missing_mcmod_covers(args.limit, offset=args.cover_offset)
+        cover_result = refresh_missing_mcmod_covers(args.limit, offset=args.cover_offset, force=args.force)
         failed_requests = cover_result["failed"] + (1 if cover_result["blocked"] else 0)
         request_completed = not cover_result["blocked"] and failed_requests == 0
         status = "success" if request_completed and cover_result["updated"] else (
@@ -1655,9 +2056,52 @@ def main():
         print("  [安全范围] 只写隔离工作区 raw.cover_url / sidecar.coverUrl；未覆盖已有字段。")
         return
 
+    if args.mode == "versions":
+        if not os.environ.get("MC_DESKTOP_WORKSPACE") or not os.environ.get("MC_DESKTOP_COLLECTION_RESULT"):
+            parser.error("versions 模式仅允许在隔离工作区运行")
+        try:
+            total_rows, checked, with_history, target_count = backfill_snapshot_versions(
+                limit=args.limit, concurrency=args.concurrency, gentle=gentle, cache_size=args.cache_size)
+            complete = not IS_BANNED and COLLECTION_STATS["failed"] == 0 and checked == target_count
+            write_collection_result(
+                "mcmod", request_completed=complete, fetched_count=checked,
+                pages_completed=COLLECTION_STATS["successful"], failed_requests=COLLECTION_STATS["failed"],
+                errors=COLLECTION_STATS["errors"],
+                status="success" if complete and checked else "success_no_change" if complete else "partial",
+                no_change_confirmed=complete and checked == 0,
+                details={"mode": "versions", "rowsAfter": total_rows, "targets": target_count,
+                         "checked": checked, "withHistory": with_history},
+            )
+        except Exception as error:
+            write_collection_result(
+                "mcmod", request_completed=False, fetched_count=0, pages_completed=0,
+                failed_requests=1, errors=[str(error)], status="failed", no_change_confirmed=False,
+                details={"mode": "versions"},
+            )
+            raise
+        return
+
+    if (os.path.exists(RAW_JSON_PATH) and os.path.exists(MCMOD_DATA_PATH)
+            and not os.path.exists(TABLE_ROWS_PATH)):
+        if not os.environ.get("MC_DESKTOP_WORKSPACE") or not os.environ.get("MC_DESKTOP_COLLECTION_RESULT"):
+            parser.error("现代快照更新仅允许在隔离工作区运行")
+        refresh_modern_snapshot(args)
+        return
+
     # 1. 读取现有数据
     rows, compare_data = load_data()
     print(f"  [数据就绪] 载入 table_rows: {len(rows):,} 款 | compareData: {len(compare_data):,} 款")
+
+    # Imported modern snapshots can legitimately omit the legacy table.
+    # Never rebuild their raw/modern data from an empty rows list.
+    if not rows and os.path.exists(RAW_JSON_PATH):
+        with open(RAW_JSON_PATH, "r", encoding="utf-8") as handle:
+            archived_rows = json.load(handle)
+        if archived_rows:
+            raise RuntimeError(
+                "当前快照仅有现代 MC百科数据、没有 table_rows.js；此模式需要先适配现代快照，"
+                "已拒绝覆写。旧包版本请使用 versions 模式。"
+            )
 
     if not os.path.exists(RAW_JSON_PATH):
         print(f"  [架构对齐] 首次检测到 {RAW_JSON_PATH} 尚未生成，正在生成基线归档...")
@@ -1689,23 +2133,35 @@ def main():
     # 3. 保存全量统一归档与前端主数据
     print("\n" + "-" * 70)
     save_all_outputs(rows, compare_data)
+    cover_result = None
+    if args.mode in ("trend", "all") and not IS_BANNED:
+        # Independently bounded missing-cover pass. Existing non-empty URLs are
+        # never overwritten; only the isolated workspace is writable here.
+        cover_result = refresh_missing_mcmod_covers(args.limit or 50)
+        print(f"  [旧包缺封面] 检查 {cover_result['requests']} 页，补回 {cover_result['updated']} 张，原站无封面 {cover_result['noCover']} 张")
     print("-" * 70)
-    print(f"  🏆 [执行完毕] 新增收录: {new_count} 款 | 基础指标刷新: {updated_metrics_count} 款 | 走势缝合: {updated_trend_count} 款 | 版本日志提取: {updated_ver_count} 款 | 当前全量: {len(rows):,} 款")
+    print(f"  🏆 [执行完毕] 新增收录: {new_count} 款 | 基础指标刷新: {updated_metrics_count} 款 | 走势缝合: {updated_trend_count} 款 | 版本日志提取: {updated_ver_count} 款 | 补全封面: {cover_result['updated'] if cover_result else 0} 张 | 当前全量: {len(rows):,} 款")
     print("=" * 70 + "\n")
 
-    request_completed = not IS_BANNED and COLLECTION_STATS["failed"] == 0
-    no_change_confirmed = request_completed and new_count == 0 and COLLECTION_STATS["not_found"] > 0
-    status = "success" if new_count > 0 and request_completed else "success_no_change" if no_change_confirmed else "partial" if not request_completed and rows else "failed"
+    cover_failed = bool(cover_result and (cover_result["failed"] or cover_result["blocked"]))
+    request_completed = not IS_BANNED and COLLECTION_STATS["failed"] == 0 and not cover_failed
+    refreshed_count = new_count + updated_metrics_count + updated_trend_count + updated_ver_count + (cover_result["updated"] if cover_result else 0)
+    # Desktop update modes must count refreshed existing packs as real work.
+    # A successful stale scan with no targets is also a confirmed no-change run.
+    no_change_confirmed = request_completed and refreshed_count == 0 and (
+        args.mode != "new" or COLLECTION_STATS["not_found"] > 0
+    )
+    status = "success" if refreshed_count > 0 and request_completed else "success_no_change" if no_change_confirmed else "partial" if not request_completed and rows else "failed"
     write_collection_result(
         "mcmod",
         request_completed=request_completed,
-        fetched_count=int(new_count),
-        pages_completed=int(COLLECTION_STATS["successful"] + COLLECTION_STATS["not_found"]),
-        failed_requests=int(COLLECTION_STATS["failed"]),
-        errors=COLLECTION_STATS["errors"],
+        fetched_count=int(refreshed_count),
+        pages_completed=int(COLLECTION_STATS["successful"] + COLLECTION_STATS["not_found"] + (cover_result["requests"] if cover_result else 0)),
+        failed_requests=int(COLLECTION_STATS["failed"] + (cover_result["failed"] if cover_result else 0) + (1 if cover_result and cover_result["blocked"] else 0)),
+        errors=COLLECTION_STATS["errors"] + ([cover_result["blocked"]] if cover_result and cover_result["blocked"] else []),
         status=status,
         no_change_confirmed=no_change_confirmed,
-        details={"rowsBefore": len(rows) - int(new_count), "rowsAfter": len(rows), "notFoundProbes": int(COLLECTION_STATS["not_found"]), "mode": args.mode},
+        details={"rowsBefore": len(rows) - int(new_count), "rowsAfter": len(rows), "newCount": int(new_count), "metricsUpdated": int(updated_metrics_count), "trendUpdated": int(updated_trend_count), "versionsUpdated": int(updated_ver_count), "coversUpdated": int(cover_result["updated"] if cover_result else 0), "coverRequests": int(cover_result["requests"] if cover_result else 0), "notFoundProbes": int(COLLECTION_STATS["not_found"]), "mode": args.mode},
     )
 
 if __name__ == "__main__":

@@ -59,7 +59,7 @@ def main() -> int:
     update_result = json.loads(result_path.read_text(encoding="utf-8"))
     if update_result.get("platform") != args.platform:
         raise ValueError("本轮采集结果合同的平台不匹配")
-    if update_result.get("outcome") not in {"success_update", "success_no_change"}:
+    if update_result.get("outcome") not in {"success_update", "success_no_change", "partial_update"}:
         raise ValueError("本轮采集未形成成功结果，拒绝生成快照")
     crawler_result = update_result.get("crawlerResult") or {}
     if crawler_result.get("status") != "success_no_change" and (

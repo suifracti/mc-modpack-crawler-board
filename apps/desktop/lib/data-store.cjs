@@ -68,7 +68,7 @@ function parseQueryOptions(queryOrOptions) {
   }
   const options = queryOrOptions || {};
   const page = Number.isInteger(Number(options.page)) ? Math.max(1, Number(options.page)) : 1;
-  const pageSize = Number.isInteger(Number(options.pageSize)) ? Math.min(500, Math.max(1, Number(options.pageSize))) : 48;
+  const pageSize = Number.isInteger(Number(options.pageSize)) ? Math.min(2000, Math.max(1, Number(options.pageSize))) : 48;
   return {
     query: String(options.query || ''),
     version: String(options.version || ''),
@@ -177,7 +177,7 @@ function matchesDateRange(record, dateRange, referenceTime) {
   if (/^\d{4}(?:-\d{2})?$/.test(range)) return updatedAt.startsWith(range);
   const days = { '7d': 7, '30d': 30, '90d': 90 }[range];
   if (!days) return true;
-  const timestamp = recordTimestamp(record);
+  const timestamp = record._timestamp !== undefined ? record._timestamp : recordTimestamp(record);
   return Boolean(timestamp && referenceTime - timestamp <= days * 86_400_000);
 }
 
@@ -233,8 +233,12 @@ function sortRecords(records, sort) {
               : sort === 'created_desc'
                 ? ['created_timestamp', 'date_created']
                 : [];
-    const leftValue = sort === 'created_desc' ? recordCreatedTimestamp(left) : (keys.length ? metricValue(left, keys) : recordTimestamp(left));
-    const rightValue = sort === 'created_desc' ? recordCreatedTimestamp(right) : (keys.length ? metricValue(right, keys) : recordTimestamp(right));
+    const leftValue = sort === 'created_desc'
+      ? (left._createdTimestamp !== undefined ? left._createdTimestamp : recordCreatedTimestamp(left))
+      : (keys.length ? metricValue(left, keys) : (left._timestamp !== undefined ? left._timestamp : recordTimestamp(left)));
+    const rightValue = sort === 'created_desc'
+      ? (right._createdTimestamp !== undefined ? right._createdTimestamp : recordCreatedTimestamp(right))
+      : (keys.length ? metricValue(right, keys) : (right._timestamp !== undefined ? right._timestamp : recordTimestamp(right)));
     if (rightValue !== leftValue) return rightValue - leftValue;
     return String(left.title).localeCompare(String(right.title), 'zh-CN');
   });
@@ -330,6 +334,16 @@ class DataStore {
     return path.join(this.snapshotsDir, snapshotId, 'crawler_output');
   }
 
+  async getSnapshotDirectory(snapshotId) {
+    const id = String(snapshotId || '').trim();
+    if (!/^[A-Za-z0-9._-]+$/.test(id)) throw new Error('快照标识无效');
+    const snapshotDir = path.resolve(this.snapshotsDir, id);
+    if (!snapshotDir.startsWith(`${path.resolve(this.snapshotsDir)}${path.sep}`) || !(await exists(path.join(snapshotDir, 'data')))) {
+      throw new Error('所选快照不存在或数据不完整');
+    }
+    return snapshotDir;
+  }
+
   readCachedPlatform(snapshotId, platform) {
     const dataDir = this.snapshotDataDir(snapshotId);
     const sidecar = findSidecar(dataDir, platform);
@@ -375,7 +389,7 @@ class DataStore {
         available: Boolean(result.sourceFile && !result.error),
       };
     }
-    return {
+    const payload = {
       schema: SNAPSHOT_SCHEMA,
       hasData: Boolean(active),
       snapshotId: active?.snapshotId || null,
@@ -385,6 +399,20 @@ class DataStore {
       dataRoot: this.rootDir,
       platforms,
     };
+    if (active) {
+      setImmediate(() => { this.warmupCache().catch(() => {}); });
+    }
+    return payload;
+  }
+
+  async warmupCache() {
+    const active = await this.getActiveSnapshot();
+    if (!active) return;
+    for (const platform of ALL_PLATFORMS) {
+      try {
+        await this.getPlatformRecords(platform, { page: 1, pageSize: 24, sort: 'updated_desc' });
+      } catch {}
+    }
   }
 
   async getPlatformRecords(platform, queryOrOptions = '') {
@@ -401,55 +429,121 @@ class DataStore {
       availableVersions: [],
       availableLoaders: [],
       availableCategories: [],
+      availableCategoryCounts: [],
       availableIncludedMods: [],
       availableGameplayCategories: [],
       availablePans: [],
     };
     const cached = this.readCachedPlatform(active.snapshotId, platform);
     const result = cached.result;
-    if (!cached.normalized) cached.normalized = result.records.map((record, index) => normaliseRecord(platform, record, index));
+    if (!cached.normalized) {
+      cached.normalized = result.records.map((record, index) => {
+        const norm = normaliseRecord(platform, record, index);
+        norm._timestamp = recordTimestamp(norm);
+        norm._createdTimestamp = recordCreatedTimestamp(norm);
+        return norm;
+      });
+    }
     const normalized = cached.normalized;
     if (!cached.platformFacets) {
       cached.platformFacets = {
+        categories: countedOptions(normalized, (record) => record.categories),
         includedMods: platform === 'mcmod' ? countedOptions(normalized, includedModNames) : [],
         gameplayCategories: platform === 'curseforge' ? countedOptions(normalized, (record) => record.categories) : [],
       };
     }
-    const searched = options.query.trim()
-      ? normalized.filter((record) => matchesSearchDocument(record.searchDocument, options.query))
-      : normalized;
+    if (!cached.baseFacets) {
+      cached.baseFacets = {
+        availableVersions: optionValues(normalized, 'versions'),
+        availableLoaders: optionValues(normalized, 'loaders'),
+        availableCategories: optionValues(normalized, 'categories'),
+        availableIncludedMods: cached.platformFacets.includedMods,
+        availableGameplayCategories: cached.platformFacets.gameplayCategories,
+        availablePans: availablePanValues(normalized),
+      };
+    }
+    if (!cached.baseSorted) {
+      cached.baseSorted = new Map();
+    }
+
+    const hasQuery = Boolean(options.query.trim());
     const version = options.version.trim().toLocaleLowerCase();
     const loader = options.loader.trim().toLocaleLowerCase();
-    const referenceTime = Math.max(Date.now(), ...searched.map(recordTimestamp));
     const gameplayCategories = platform === 'curseforge'
       ? options.gameplayCategories.length ? options.gameplayCategories : stringListOption(options.category)
       : [];
-    const filtered = searched.filter((record) => {
-      const versionMatch = !version || record.versions.some((item) => item.toLocaleLowerCase() === version);
-      const loaderMatch = !loader || record.loaders.some((item) => item.toLocaleLowerCase() === loader);
-      const categoryMatch = platform === 'curseforge' || !options.category || record.categories.includes(options.category);
-      const includedModsMatch = platform !== 'mcmod' || matchesIncludedMods(record, options.includedMods, options.includedModsExclude);
-      const gameplayCategoryMatch = platform !== 'curseforge' || matchesGameplayCategories(record, gameplayCategories, options.gameplayCategoriesExclude);
-      const panMatch = matchesPan(record, options.pan);
-      const serverMatch = !options.serverOnly || hasServerSupport(record);
-      const dateMatch = matchesDateRange(record, options.dateRange, referenceTime);
-      const personalMatch = !options.personalStatus || Boolean(this.personalLibrary?.matches(platform, record.sourceId, options.personalStatus));
-      return versionMatch && loaderMatch && categoryMatch && includedModsMatch && gameplayCategoryMatch && panMatch && serverMatch && dateMatch && personalMatch;
-    });
-    const sorted = sortRecords(filtered, options.sort);
+    const isUnfiltered = !hasQuery
+      && !version
+      && !loader
+      && (platform === 'curseforge' || !options.category)
+      && (!options.includedMods || !options.includedMods.length)
+      && (!gameplayCategories.length)
+      && !options.pan
+      && !options.dateRange
+      && !options.serverOnly
+      && !options.personalStatus;
+
+    let sorted;
+    let searched = normalized;
+    if (isUnfiltered) {
+      sorted = cached.baseSorted.get(options.sort);
+      if (!sorted) {
+        sorted = sortRecords(normalized, options.sort);
+        cached.baseSorted.set(options.sort, sorted);
+      }
+    } else {
+      searched = hasQuery
+        ? normalized.filter((record) => matchesSearchDocument(record.searchDocument, options.query))
+        : normalized;
+      let referenceTime = Date.now();
+      if (options.dateRange) {
+        for (const record of searched) {
+          const ts = record._timestamp !== undefined ? record._timestamp : recordTimestamp(record);
+          if (ts > referenceTime) referenceTime = ts;
+        }
+      }
+      const filtered = searched.filter((record) => {
+        const versionMatch = !version || record.versions.some((item) => item.toLocaleLowerCase() === version);
+        const loaderMatch = !loader || record.loaders.some((item) => item.toLocaleLowerCase() === loader);
+        const categoryMatch = platform === 'curseforge' || !options.category || record.categories.includes(options.category);
+        const includedModsMatch = platform !== 'mcmod' || matchesIncludedMods(record, options.includedMods, options.includedModsExclude);
+        const gameplayCategoryMatch = platform !== 'curseforge' || matchesGameplayCategories(record, gameplayCategories, options.gameplayCategoriesExclude);
+        const panMatch = matchesPan(record, options.pan);
+        const serverMatch = !options.serverOnly || hasServerSupport(record);
+        const dateMatch = matchesDateRange(record, options.dateRange, referenceTime);
+        const personalMatch = !options.personalStatus || Boolean(this.personalLibrary?.matches(platform, record.sourceId, options.personalStatus));
+        return versionMatch && loaderMatch && categoryMatch && includedModsMatch && gameplayCategoryMatch && panMatch && serverMatch && dateMatch && personalMatch;
+      });
+      sorted = sortRecords(filtered, options.sort);
+    }
+
     const offset = (options.page - 1) * options.pageSize;
-    return {
-      platform,
-      total: sorted.length,
-      page: options.page,
-      pageSize: options.pageSize,
-      records: sorted.slice(offset, offset + options.pageSize),
+    const facets = !hasQuery ? cached.baseFacets : {
       availableVersions: optionValues(searched, 'versions'),
       availableLoaders: optionValues(searched, 'loaders'),
       availableCategories: optionValues(searched, 'categories'),
       availableIncludedMods: cached.platformFacets.includedMods,
       availableGameplayCategories: cached.platformFacets.gameplayCategories,
       availablePans: availablePanValues(searched),
+    };
+
+    return {
+      platform,
+      total: sorted.length,
+      page: options.page,
+      pageSize: options.pageSize,
+      records: sorted.slice(offset, offset + options.pageSize).map((record) => {
+        if (!record.searchDocument && record._timestamp === undefined && record._createdTimestamp === undefined) return record;
+        const { searchDocument, _timestamp, _createdTimestamp, ...publicRecord } = record;
+        return publicRecord;
+      }),
+      availableVersions: facets.availableVersions,
+      availableLoaders: facets.availableLoaders,
+      availableCategories: facets.availableCategories,
+      availableCategoryCounts: cached.platformFacets.categories,
+      availableIncludedMods: facets.availableIncludedMods,
+      availableGameplayCategories: facets.availableGameplayCategories,
+      availablePans: facets.availablePans,
       sourceFile: result.sourceFile,
       error: result.error,
     };
@@ -473,12 +567,46 @@ class DataStore {
     assertPlatform(platform);
     const active = await this.getActiveSnapshot();
     if (!active) return { platform, sourceId: String(sourceId || ''), available: false, sourceFile: null, pageCount: 0, comments: [] };
-    if (platform !== 'mcmod') return { platform, sourceId: String(sourceId || ''), available: false, sourceFile: null, pageCount: 0, comments: [] };
-    return {
-      platform,
-      sourceId: String(sourceId || ''),
-      ...(await readMcmodComments(this.snapshotDataDir(active.snapshotId), sourceId)),
-    };
+    if (platform === 'mcmod') {
+      return {
+        platform,
+        sourceId: String(sourceId || ''),
+        ...(await readMcmodComments(this.snapshotDataDir(active.snapshotId), sourceId)),
+      };
+    }
+    const record = await this.findSourceRecord(platform, sourceId);
+    if (record) {
+      const raw = record.raw || {};
+      const comments = [];
+      if (typeof raw.pinned_comment === 'string' && raw.pinned_comment.trim()) {
+        comments.push({
+          author: `${record.author || 'UP主'}（置顶说明）`,
+          text: raw.pinned_comment.trim(),
+          date: record.publishedAt || record.updatedAt || '',
+          likes: 0,
+        });
+      }
+      if (Array.isArray(raw.comments)) {
+        for (const c of raw.comments) {
+          if (c && typeof c === 'object') {
+            comments.push(c);
+          } else if (typeof c === 'string' && c.trim()) {
+            comments.push({ text: c.trim() });
+          }
+        }
+      }
+      if (comments.length > 0) {
+        return {
+          platform,
+          sourceId: String(sourceId || ''),
+          available: true,
+          sourceFile: null,
+          pageCount: comments.length,
+          comments,
+        };
+      }
+    }
+    return { platform, sourceId: String(sourceId || ''), available: false, sourceFile: null, pageCount: 0, comments: [] };
   }
 
   async getAuditDiff() {
@@ -531,10 +659,23 @@ class DataStore {
     } catch {
       throw new Error(`${PLATFORM_CONFIGS[platform].name} 缺少本轮采集结果合同，拒绝复用旧 sidecar`);
     }
-    if (contract.platform !== platform || !['success_update', 'success_no_change'].includes(contract.outcome)) {
+    if (contract.platform !== platform || !['success_update', 'success_no_change', 'partial_update'].includes(contract.outcome)) {
       throw new Error(`${PLATFORM_CONFIGS[platform].name} 本轮采集未形成可提交结果`);
     }
-    if (!contract.collectionResultTouched || !contract.crawlerResult || !['success', 'success_no_change'].includes(contract.crawlerResult.status)) {
+    const isPartial = contract.outcome === 'partial_update';
+    if (isPartial && (!(contract.partialScope === 'existing' && platform !== 'mcmod')
+        && !(contract.partialScope === 'catalog' && ['bilibili', 'curseforge'].includes(platform))
+        && !(contract.partialScope === 'public-video-html-bounded' && platform === 'bilibili'
+          && contract.crawlerResult?.details?.coverage === 'public-video-html-bounded'
+          && contract.crawlerResult?.fetchedCount > 0)
+        && !(contract.partialScope === 'mcmod_refresh' && platform === 'mcmod')
+        || contract.crawlerResult?.status !== 'partial'
+        || !contract.previousIdsPreserved
+        || (contract.crawlerResult?.truncated && !(platform === 'curseforge' && contract.partialScope === 'catalog')))) {
+      throw new Error(`${PLATFORM_CONFIGS[platform].name} 部分采集不满足只增不删条件`);
+    }
+    if (!contract.collectionResultTouched || !contract.crawlerResult
+        || !['success', 'success_no_change', ...(isPartial ? ['partial'] : [])].includes(contract.crawlerResult.status)) {
       throw new Error(`${PLATFORM_CONFIGS[platform].name} 缺少 crawler 对本轮请求完整性的确认`);
     }
     if (contract.crawlerResult.status !== 'success_no_change' && (!contract.rawTouched || !contract.sidecarTouched)) {
@@ -551,6 +692,15 @@ class DataStore {
     if (!rawExists) throw new Error(`本轮缺少原始快照: ${PLATFORM_CONFIGS[platform].rawFile}`);
     const raw = JSON.parse(await fsp.readFile(rawPath, 'utf8'));
     if (!Array.isArray(raw) || !raw.length) throw new Error(`本轮原始快照为空或不是数组: ${PLATFORM_CONFIGS[platform].rawFile}`);
+    if (isPartial && raw.length !== parsed.records.length) throw new Error(`${PLATFORM_CONFIGS[platform].name} 部分采集的原始记录与展示记录数不一致`);
+    if (isPartial && platform === 'mcmod') {
+      const rawIds = new Set(raw.map((item) => String(item.mid || '')));
+      const sidecarIds = new Set(parsed.records.map((item) => String(item.mid || '')));
+      if (rawIds.has('') || rawIds.size !== raw.length || sidecarIds.has('')
+          || sidecarIds.size !== parsed.records.length || [...rawIds].some((id) => !sidecarIds.has(id))) {
+        throw new Error('MC百科部分采集的原始记录与展示记录 ID 不一致');
+      }
+    }
     return {
       sidecar: path.basename(sidecar),
       count: parsed.records.length,
@@ -627,8 +777,13 @@ class DataStore {
     await fsp.rm(path.join(staging.workspace, 'converted_output', 'data'), { recursive: true, force: true });
     await fsp.mkdir(path.join(staging.workspace, 'converted_output', 'data'), { recursive: true });
     await copyDirectoryContents(dataDir, path.join(staging.workspace, 'converted_output', 'data'), (name) => SAFE_DATA_FILE.test(name));
-    const rawCandidate = path.basename(dataDir) === 'data' ? path.join(path.dirname(dataDir), '..', 'crawler_output') : path.join(source, 'crawler_output');
-    await copyDirectoryContents(rawCandidate, path.join(staging.workspace, 'crawler_output'), (name) => name.endsWith('.json'));
+    const rawCandidates = [
+      path.join(source, 'crawler_output'),
+      path.join(path.dirname(dataDir), 'crawler_output'),
+      path.join(path.dirname(path.dirname(dataDir)), 'crawler_output'),
+    ];
+    const rawCandidate = rawCandidates.find((candidate) => fs.existsSync(candidate));
+    if (rawCandidate) await copyDirectoryContents(rawCandidate, path.join(staging.workspace, 'crawler_output'), (name) => name.endsWith('.json'));
     const available = ALL_PLATFORMS.filter((platform) => {
       const result = readPlatformRecords(path.join(staging.workspace, 'converted_output', 'data'), platform);
       return !result.error && result.records.length > 0;
@@ -663,6 +818,84 @@ class DataStore {
     return this.getState();
   }
 
+  async listSnapshots() {
+    const active = await this.readActivePointer();
+    const snapshots = [];
+    for (const entry of await fsp.readdir(this.snapshotsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith('.incoming-')) continue;
+      const snapshotDir = path.join(this.snapshotsDir, entry.name);
+      if (!(await exists(path.join(snapshotDir, 'data')))) continue;
+      let manifest = {};
+      try {
+        manifest = JSON.parse(await fsp.readFile(path.join(snapshotDir, 'manifest.json'), 'utf8'));
+      } catch {
+        // A readable data directory is still selectable when an old import has no manifest.
+      }
+      const platforms = {};
+      for (const platform of ALL_PLATFORMS) {
+        const result = readPlatformRecords(path.join(snapshotDir, 'data'), platform);
+        if (!result.error && result.records.length) platforms[platform] = result.records.length;
+      }
+      snapshots.push({
+        snapshotId: entry.name,
+        directory: snapshotDir,
+        active: active?.snapshotId === entry.name,
+        createdAt: manifest.createdAt || null,
+        updatedAt: manifest.updatedAt || null,
+        source: manifest.source || 'local',
+        updatedPlatforms: Array.isArray(manifest.updatedPlatforms) ? manifest.updatedPlatforms : Object.keys(platforms),
+        canonicalReady: Boolean(manifest.canonicalReady),
+        platforms,
+        total: Object.values(platforms).reduce((sum, count) => sum + Number(count || 0), 0),
+      });
+    }
+    snapshots.sort((left, right) => String(right.updatedAt || right.createdAt || right.snapshotId).localeCompare(String(left.updatedAt || left.createdAt || left.snapshotId)));
+    return { dataRoot: this.rootDir, activeSnapshotId: active?.snapshotId || null, snapshots };
+  }
+
+  async activateSnapshot(snapshotId) {
+    const id = String(snapshotId || '').trim();
+    const snapshotDir = await this.getSnapshotDirectory(id);
+    const state = ALL_PLATFORMS.map((platform) => readPlatformRecords(path.join(snapshotDir, 'data'), platform));
+    if (!state.some((result) => !result.error && result.records.length)) throw new Error('所选快照没有可读取的平台数据');
+    await writeJsonAtomic(this.activePointer, { schema: SNAPSHOT_SCHEMA, snapshotId: id, updatedAt: nowIso() });
+    this.platformCache.clear();
+    return this.getState();
+  }
+
+  async archiveSnapshot(snapshotId) {
+    const id = String(snapshotId || '').trim();
+    const active = await this.readActivePointer();
+    if (active?.snapshotId === id) throw new Error('当前正在使用的快照不能删除，请先切换到其他快照');
+    const source = await this.getSnapshotDirectory(id);
+    const trashDir = path.join(this.rootDir, 'trash');
+    const suffix = new Date().toISOString().replace(/[-:.TZ]/g, '');
+    const destination = path.join(trashDir, `${id}-${suffix}`);
+    await fsp.mkdir(trashDir, { recursive: true });
+    await fsp.rename(source, destination);
+    this.platformCache.delete(id);
+    return { snapshotId: id, recoverablePath: destination };
+  }
+
+  async exportActiveSnapshot() {
+    const active = await this.getActiveSnapshot();
+    if (!active?.snapshotId) throw new Error('当前没有可导出的快照');
+    const exportsDir = path.join(this.rootDir, 'exports');
+    const name = `MCModpackBoard-data-${active.snapshotId}`;
+    const destination = path.join(exportsDir, name);
+    const temporary = path.join(exportsDir, `.incoming-${name}-${crypto.randomBytes(3).toString('hex')}`);
+    if (await exists(destination)) return { path: destination, snapshotId: active.snapshotId, reused: true };
+    await fsp.mkdir(temporary, { recursive: true });
+    try {
+      await copyDirectoryContents(path.join(this.snapshotsDir, active.snapshotId), temporary);
+      await fsp.rename(temporary, destination);
+    } catch (error) {
+      await fsp.rm(temporary, { recursive: true, force: true }).catch(() => {});
+      throw error;
+    }
+    return { path: destination, snapshotId: active.snapshotId, reused: false };
+  }
+
   async resolveDataDirectory(source) {
     const candidates = [
       path.join(source, 'data'),
@@ -692,12 +925,11 @@ class DataStore {
 }
 
 function defaultUserDataRoot(appName = 'MCModpackBoard') {
-  const base = process.env.APPDATA
-    || (process.platform === 'darwin'
-      ? path.join(os.homedir(), 'Library', 'Application Support')
-      : process.platform === 'win32'
-        ? path.join(os.homedir(), 'AppData', 'Roaming')
-        : process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'));
+  const base = process.platform === 'darwin'
+    ? path.join(os.homedir(), 'Library', 'Application Support')
+    : process.platform === 'win32'
+      ? process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
+      : process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
   return path.join(base, appName, 'data');
 }
 

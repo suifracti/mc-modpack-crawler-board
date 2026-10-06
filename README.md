@@ -1,5 +1,7 @@
 # Minecraft Modpack Board
 
+当前 Mac 开发主线为 **master**，已验基线为 `644d9e290dc29d8fb82e29108a876d4f80424465`。固定 Mac 目录、V2 构建与本机启动见 [Mac 接手说明](docs/MAC_MIGRATION.md)，已验范围和保留缺口见 [当前实施状态](docs/PROJECT_STATE.md)。迁移/整合分支不再作为后续默认开发入口；私人数据保持在仓库外，站点发布分支 `gh-pages` 保留。
+
 [中文](README_CN.md) · [Current status](docs/PROJECT_STATUS.md) · [Development](docs/DEVELOPMENT.md) · [Desktop task](docs/DESKTOP_TASK.md)
 
 A local Minecraft modpack discovery tool with collectors for **MCMod, Bilibili, BBSMC, XYEBBS, Modrinth and CurseForge**. Search and filter local records, inspect versions/mods/source information and follow links to the original platforms.

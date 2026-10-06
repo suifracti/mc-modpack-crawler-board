@@ -1,4 +1,5 @@
 const { spawn } = require('node:child_process');
+const { StringDecoder } = require('node:string_decoder');
 const { redactLogLine } = require('./platforms.cjs');
 
 function killProcessTree(child) {
@@ -13,26 +14,29 @@ function killProcessTree(child) {
 function createProcessRunner({ command, args, cwd, env, onLine }) {
   const child = spawn(command, args, {
     cwd,
-    env: { ...process.env, ...env },
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', PYTHONUNBUFFERED: '1', ...env },
     windowsHide: true,
     detached: process.platform !== 'win32',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  let buffer = '';
-  const handle = (chunk) => {
-    buffer += chunk.toString('utf8');
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() || '';
-    for (const line of lines) {
-      if (line.trim()) onLine(redactLogLine(line));
-    }
-  };
-  child.stdout.on('data', handle);
-  child.stderr.on('data', handle);
+  const streams = [child.stdout, child.stderr].map((stream) => {
+    const decoder = new StringDecoder('utf8');
+    let buffer = '';
+    stream.on('data', (chunk) => {
+      buffer += decoder.write(chunk);
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || '';
+      for (const line of lines) if (line.trim()) onLine(redactLogLine(line));
+    });
+    return () => {
+      buffer += decoder.end();
+      if (buffer.trim()) onLine(redactLogLine(buffer));
+    };
+  });
   const promise = new Promise((resolve, reject) => {
     child.once('error', reject);
     child.once('close', (code, signal) => {
-      if (buffer.trim()) onLine(redactLogLine(buffer));
+      streams.forEach((flush) => flush());
       resolve({ code: code ?? 1, signal: signal || null });
     });
   });

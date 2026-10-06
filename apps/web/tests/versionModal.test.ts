@@ -178,5 +178,41 @@ describe('Version Modal Subsystem', () => {
       };
       expect(buildVersionModalViewModel('curseforge', curse).platform).toBe('curseforge');
     });
+
+    it('adapts XYEBBS releases with normalized fields and pan downloads', () => {
+      const xyebbs = {
+        project_id: 14642,
+        id: '14642',
+        title: '迷雾农庄2',
+        author: '作者',
+        url: 'https://xyebbs.com/resources/14642',
+        has_server: true,
+        releases: [
+          {
+            version_number: '2.2.7',
+            date_published: '2026-09-28 00:08:02',
+            changelog: '修复了合成表与任务冲突',
+            downloads: 120,
+            files: [
+              { name: '下载', url: 'https://1828894354.share.123pan.cn/123pan/dVt7jv' },
+              { name: '下载', url: 'https://pan.baidu.com/s/1dNn9hSh', code: '提取码：jfyh' },
+              { name: '下载', url: 'https://pan.quark.cn/s/a9a77cc2' },
+            ],
+          },
+        ],
+      };
+      const vm = buildVersionModalViewModel('xyebbs', xyebbs as unknown as XyebbsPack);
+      expect(vm.platform).toBe('xyebbs');
+      expect(vm.releases.length).toBe(1);
+      const rel = vm.releases[0];
+      expect(rel.versionName).toBe('2.2.7');
+      expect(rel.date).toBe('2026-09-28');
+      expect(rel.changelogMd).toBe('修复了合成表与任务冲突');
+      expect(rel.downloads?.length).toBe(3);
+      expect(rel.downloads?.[0]?.name).toBe('123云盘');
+      expect(rel.downloads?.[1]?.name).toBe('百度网盘');
+      expect(rel.downloads?.[1]?.code).toBe('提取码：jfyh');
+      expect(rel.downloads?.[2]?.name).toBe('夸克网盘');
+    });
   });
 });

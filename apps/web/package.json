@@ -7,8 +7,10 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:desktop": "tsc --noEmit && vite build --config vite.desktop.config.ts",
+    "build:desktop-v2": "tsc --noEmit && vite build --config vite.desktop-v2.config.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:pages": "tsc --noEmit && vite build --config vite.pages.config.ts && node scripts/export-pages.cjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

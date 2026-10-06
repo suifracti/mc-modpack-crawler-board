@@ -224,6 +224,7 @@ class BiliAuth:
 class BiliModpackCrawler:
     def __init__(self):
         self.stats = {"requests": 0, "successful": 0, "failed": 0, "errors": [], "pages_completed": 0}
+        self.unavailable_bvids = set()
         self.img_key = ""
         self.sub_key = ""
         self.cookie_str = BiliAuth.load_cookie_str()
@@ -272,20 +273,27 @@ class BiliModpackCrawler:
 
     def get_video_detail(self, bvid: str) -> Optional[Dict[str, Any]]:
         url = f'https://api.bilibili.com/x/web-interface/view?bvid={bvid}'
-        req = urllib.request.Request(url, headers=self.headers)
-        try:
-            self.stats["requests"] += 1
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                res = json.loads(resp.read().decode('utf-8'))
-                if res.get('code') == 0:
-                    self.stats["successful"] += 1
-                    return res.get('data')
+        for attempt in range(3):
+            req = urllib.request.Request(url, headers=self.headers)
+            try:
+                self.stats["requests"] += 1
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    res = json.loads(resp.read().decode('utf-8'))
+                    if res.get('code') == 0:
+                        self.stats["successful"] += 1
+                        return res.get('data')
+                    if res.get('code') == 62002:
+                        self.unavailable_bvids.add(bvid)
+                        return None
+                    error = f"detail code={res.get('code')} bvid={bvid}"
+            except Exception as exc:
+                error = f"detail {bvid}: {exc}"
+            if attempt < 2:
+                time.sleep(0.4 * (attempt + 1))
+            else:
                 self.stats["failed"] += 1
-                self.stats["errors"].append(f"detail code={res.get('code')} bvid={bvid}")
-        except Exception as e:
-            self.stats["failed"] += 1
-            self.stats["errors"].append(f"detail {bvid}: {e}")
-            print(f"  [!] 获取详情异常 [{bvid}]: {e}")
+                self.stats["errors"].append(error)
+                print(f"  [!] 获取详情异常 [{bvid}]: {error}")
         return None
 
     def get_pinned_comment(self, aid: int) -> Dict[str, Any]:
@@ -887,10 +895,10 @@ def get_historical_search_tasks() -> List[Tuple[str, str, int]]:
 
 
 def crawl_bilibili_modpacks(until_date: Optional[str] = None, max_pages_per_kw: int = 50, max_total: int = 10000) -> List[Dict[str, Any]]:
-    # 截止日期解析：默认回车全量抓取 (None / "" / "all")
+    # 截止日期解析：不设日期并不代表搜索 API 可穷尽全站历史。
     if not until_date or str(until_date).strip().lower() in ("all", "全部", "none", ""):
         cutoff_ts = 0
-        cutoff_str = "全量抓取（不设截止日期，搜尽所有历史发布）"
+        cutoff_str = f"不设发布日期截止；每个关键词/排序最多 {max_pages_per_kw} 页（非全站穷尽）"
     else:
         import datetime
         cutoff_dt = datetime.datetime.strptime(str(until_date).strip(), "%Y-%m-%d")
@@ -1154,7 +1162,7 @@ def crawl_bilibili_modpacks(until_date: Optional[str] = None, max_pages_per_kw: 
     return processed
 
 
-def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
+def sync_descriptions(target_bv: str = "", max_total: int = 0) -> List[Dict[str, Any]]:
     """
     增量巡检与同步模式：
     并发请求 B站 官方 API，巡检已录入整合包视频的最新【简介】与【置顶评论】。
@@ -1194,7 +1202,8 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
         }
 
     crawler = BiliModpackCrawler()
-    total = len(pack_map)
+    to_check = [target_bv] if target_bv else sorted(pack_map, key=lambda bv: pack_map[bv].get("desc_checked_at") or "")[:max_total or None]
+    total = len(to_check)
     print("=" * 65)
     print(f"  🔄 B站 整合包简介与置顶评论增量巡检引擎启动")
     print(f"  -> 待巡检总数: {total} 款视频")
@@ -1202,16 +1211,22 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
 
     updated_count = 0
     checked_count = 0
+    failed_count = 0
     lock = Lock()
 
     def check_worker(bvid: str):
-        nonlocal updated_count, checked_count
+        nonlocal updated_count, checked_count, failed_count
         orig_pack = pack_map[bvid]
         try:
             detail = crawler.get_video_detail(bvid)
             if not isinstance(detail, dict) or not detail:
                 with lock:
                     checked_count += 1
+                    if bvid in crawler.unavailable_bvids:
+                        orig_pack["desc_checked_at"] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+                        orig_pack["source_unavailable"] = True
+                    else:
+                        failed_count += 1
                     orig_pack["desc_observed"] = False
                     orig_pack["download_links_observed"] = False
                 return
@@ -1271,6 +1286,7 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
 
             with lock:
                 checked_count += 1
+                orig_pack["desc_checked_at"] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
                 orig_pack["title"] = new_title
                 orig_pack["author"] = author
                 orig_pack["pic"] = pic
@@ -1289,8 +1305,10 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
                     orig_pack["has_subtitle"] = sub_info.get("has_subtitle", False)
                     orig_pack["subtitle_text"] = subtitle_text
                     orig_pack["subtitle_summary"] = sub_info.get("subtitle_summary", "")
-                orig_pack["mc_version"] = ext["mc_version"]
-                orig_pack["all_versions"] = ext["all_versions"]
+                if ext["mc_version"] and ext["mc_version"] != "未知":
+                    orig_pack["mc_version"] = ext["mc_version"]
+                if ext["all_versions"]:
+                    orig_pack["all_versions"] = ext["all_versions"]
                 orig_pack["loaders"] = ext["loaders"]
                 orig_pack["categories"] = ext["categories"]
                 link_sources_observed = desc_observed and pinned_observed and subtitle_observed
@@ -1301,7 +1319,8 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
                 orig_pack["qq_group"] = ext["qq_group"]
                 orig_pack["mod_count"] = ext["mod_count"]
                 orig_pack["has_server"] = ext["has_server"]
-                orig_pack["pack_version"] = ext["pack_version"]
+                if ext["pack_version"]:
+                    orig_pack["pack_version"] = ext["pack_version"]
                 orig_pack["has_group_version"] = ext["has_group_version"]
                 orig_pack["group_version_note"] = ext["group_version_note"]
 
@@ -1313,9 +1332,10 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
                 elif checked_count % 50 == 0:
                     print(f"  ... 已巡检 {checked_count}/{total} 款视频 ...")
         except Exception:
-            pass
+            with lock:
+                checked_count += 1
+                failed_count += 1
 
-    to_check = [target_bv] if target_bv else list(pack_map.keys())
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = [executor.submit(check_worker, bv) for bv in to_check]
         for f in as_completed(futures):
@@ -1337,6 +1357,15 @@ def sync_descriptions(target_bv: str = "") -> List[Dict[str, Any]]:
     print(f"\n[√] 巡检完成！共检查 {checked_count} 条，捕获简介/置顶更新或新信息: {updated_count} 款。")
     print(f"    - JSON: {json_path}")
     print(f"    - JS: {js_path}")
+    completed = failed_count == 0 and checked_count == total
+    write_collection_result(
+        "bilibili", request_completed=completed, fetched_count=checked_count - failed_count,
+        pages_completed=checked_count - failed_count, failed_requests=failed_count,
+        errors=[f"{failed_count} 个旧视频详情未能读取"] if failed_count else [],
+        status="success" if completed and checked_count else "success_no_change" if completed else "partial",
+        no_change_confirmed=completed and checked_count == 0,
+        details={"mode": "sync-desc", "checked": checked_count, "updated": updated_count, "failed": failed_count},
+    )
     return final_list
 
 
@@ -1355,6 +1384,6 @@ if __name__ == "__main__":
         sys.exit(0)
 
     if args.mode == "sync-desc" or args.bv:
-        sync_descriptions(target_bv=args.bv)
+        sync_descriptions(target_bv=args.bv, max_total=args.max if args.mode == "sync-desc" else 0)
     else:
         crawl_bilibili_modpacks(until_date=args.until, max_pages_per_kw=args.pages, max_total=args.max)

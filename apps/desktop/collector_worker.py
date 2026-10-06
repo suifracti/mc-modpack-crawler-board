@@ -39,28 +39,47 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--pages", type=int, default=1)
     parser.add_argument("--until", default=None)
+    parser.add_argument("--mode", default=None)
+    parser.add_argument("--cover-offset", type=int, default=None)
+    parser.add_argument("--bv", default=None)
+    parser.add_argument("--html-state", default=None)
     return parser.parse_args()
 
 
 def build_script_args(platform: str, args: argparse.Namespace) -> list[str]:
     limit = args.limit
     if platform == "bilibili":
-        result = ["--mode", "crawl", "--pages", str(args.pages), "--max", str(limit or 20)]
-        if args.until:
+        result = ["--mode", "existing" if getattr(args, "mode", None) == "existing" else "new",
+                  "--limit", str(min(limit or 3, 30)), "--html-state", str(args.html_state)]
+        if getattr(args, "bv", None):
+            result.extend(["--bv", args.bv])
+        if getattr(args, "until", None):
             result.extend(["--until", args.until])
         return result
+    if getattr(args, "mode", None) == "existing" and platform != "mcmod":
+        return ["--platform", platform, "--limit", str(limit or 50)]
     if platform == "mcmod":
-        result = ["--mode", "new"]
+        mode = getattr(args, "mode", None) or "new"
+        result = ["--mode", mode]
         if limit:
             result.extend(["--limit", str(limit)])
+        elif mode == "covers":
+            result.extend(["--limit", "20"])
+        if mode == "covers":
+            result.append("--force")
+        cover_offset = getattr(args, "cover_offset", None)
+        if cover_offset is not None and mode == "covers":
+            result.extend(["--cover-offset", str(cover_offset)])
         return result
     if platform == "bbsmc":
-        return ["--type", "modpack", "--max", str(limit or 0), "--enrich", "0"]
+        return ["--type", "modpack", "--max", str(limit or 0), "--enrich", str(min(limit, 100) if limit else 100)]
     if platform == "xyebbs":
-        return ["--max", str(limit or 0), "--enrich", "0"]
+        return ["--max", str(limit or 0), "--enrich", str(min(limit, 100) if limit else 100)]
     if platform == "modrinth":
         return ["--max", str(limit or 0)]
     if platform == "curseforge":
+        if getattr(args, "mode", None) == "recent":
+            return ["--max", "0", "--recent-pages", str(args.pages or 20)]
         return ["--max", str(limit or 0)]
     raise ValueError(platform)
 
@@ -117,12 +136,60 @@ def write_update_contract(workspace: Path, contract: dict[str, object]) -> None:
     temp.replace(path)
 
 
+def merge_catalog_with_existing(workspace: Path, platform: str, previous: list[dict]) -> None:
+    """A list refresh must not erase release details or drop previously known IDs."""
+    config = PLATFORMS[platform]
+    raw_path = workspace / "crawler_output" / config["raw"]
+    sidecar_path = workspace / "converted_output" / "data" / config["sidecar"]
+    with raw_path.open(encoding="utf-8") as handle:
+        current = json.load(handle)
+    if not isinstance(current, list) or not current:
+        return
+    key = "bvid" if platform == "bilibili" else "project_id"
+    old_by_id = {str(item.get(key)): item for item in previous if isinstance(item, dict) and item.get(key)}
+    seen = set()
+    keep_fields = (
+        "releases", "versions_data", "releases_data", "version_checked_at", "latest_version",
+        "desc_checked_at", "source_unavailable", "pack_version", "group_version_note",
+    )
+    for item in current:
+        ident = str(item.get(key) or "")
+        seen.add(ident)
+        old = old_by_id.get(ident)
+        if not old:
+            continue
+        for field in keep_fields:
+            if old.get(field) and not item.get(field):
+                item[field] = old[field]
+        if platform == "bilibili":
+            for field, observed in (("desc", "desc_observed"), ("pinned_comment", "pinned_comment_observed")):
+                if old.get(field) and not item.get(observed):
+                    item[field] = old[field]
+    retained = [item for ident, item in old_by_id.items() if ident not in seen]
+    if retained:
+        print(f"desktop merge: {platform} kept {len(retained)} older records absent from this listing", flush=True)
+        current.extend(retained)
+    sidecar_text = sidecar_path.read_text(encoding="utf-8").strip()
+    if "=" not in sidecar_text:
+        raise ValueError("平台 sidecar 缺少赋值前缀，拒绝合并")
+    prefix = sidecar_text.split("=", 1)[0] + "= "
+    for path, content in (
+        (raw_path, json.dumps(current, ensure_ascii=False, indent=2) + "\n"),
+        (sidecar_path, prefix + json.dumps(current, ensure_ascii=False, separators=(",", ":")) + ";\n"),
+    ):
+        temp = path.with_suffix(path.suffix + f".{os.getpid()}.tmp")
+        temp.write_text(content, encoding="utf-8")
+        temp.replace(path)
+
+
 def collect_output_contract(
     workspace: Path,
     platform: str,
     started_ns: int,
     before: dict[str, dict[str, object]],
     crawler_error: str | None = None,
+    allow_existing_partial: bool = False,
+    allow_mcmod_partial: bool = False,
 ) -> dict[str, object]:
     config = PLATFORMS[platform]
     raw_path = workspace / "crawler_output" / config["raw"]
@@ -140,19 +207,30 @@ def collect_output_contract(
     failure_reason = None
     try:
         if crawler_error:
+            if platform == "bilibili" and result_state["exists"] and result_touched:
+                attempted = read_collection_result(result_path)
+                if (attempted.get("details") or {}).get("coverage") == "public-video-html-bounded":
+                    crawler_result = attempted
+                    reasons = attempted.get("errors") or []
+                    raise ValueError("HTML局部更新未完成：" + "; ".join(str(value) for value in reasons or [crawler_error]))
             raise ValueError(f"crawler 执行失败: {crawler_error}")
         if not result_state["exists"] or not result_touched:
             raise ValueError("本轮没有生成 crawler 采集结果合同")
         crawler_result = read_collection_result(result_path)
         if crawler_result.get("platform") != platform:
             raise ValueError("crawler 采集结果合同的平台不匹配")
-        if crawler_result.get("status") not in {"success", "success_no_change"}:
+        truncated_catalog_allowed = platform == "curseforge" and not allow_existing_partial and not allow_mcmod_partial
+        partial_allowed = ((platform in {"bilibili", "curseforge"} or allow_existing_partial or allow_mcmod_partial)
+                           and crawler_result.get("status") == "partial"
+                           and int(crawler_result.get("fetchedCount") or 0) > 0
+                           and (not crawler_result.get("truncated") or truncated_catalog_allowed))
+        if crawler_result.get("status") not in {"success", "success_no_change"} and not partial_allowed:
             raise ValueError(f"crawler 报告本轮结果为 {crawler_result.get('status') or 'unknown'}")
-        if not crawler_result.get("requestCompleted"):
+        if not crawler_result.get("requestCompleted") and not partial_allowed:
             raise ValueError("crawler 未确认请求/分页完整完成")
-        if crawler_result.get("truncated"):
+        if crawler_result.get("truncated") and not truncated_catalog_allowed:
             raise ValueError("crawler 报告本轮分页被截断")
-        if int(crawler_result.get("failedRequests") or 0) > 0:
+        if int(crawler_result.get("failedRequests") or 0) > 0 and not partial_allowed:
             raise ValueError("crawler 报告存在失败请求")
         fetched_count = int(crawler_result.get("fetchedCount") or 0)
         if fetched_count <= 0 and not crawler_result.get("noChangeConfirmed"):
@@ -176,7 +254,10 @@ def collect_output_contract(
         failure_reason = str(error)
 
     changed = any(before[name].get("sha256") != after.get("sha256") for name, after in {"raw": raw_state, "sidecar": sidecar_state}.items())
-    outcome = "success_update" if not failure_reason and changed else "success_no_change" if not failure_reason else "failed"
+    html_partial = bool(platform == "bilibili" and crawler_result and
+                        (crawler_result.get("details") or {}).get("coverage") == "public-video-html-bounded")
+    outcome = ("partial_update" if not failure_reason and (changed or html_partial) and crawler_result and crawler_result.get("status") == "partial"
+               else "success_update" if not failure_reason and changed else "success_no_change" if not failure_reason else "failed")
     return {
         "schema": 1,
         "platform": platform,
@@ -195,6 +276,7 @@ def collect_output_contract(
         "sidecarCount": sidecar_count,
         "changed": changed,
         "outcome": outcome,
+        "partialScope": ("public-video-html-bounded" if html_partial else "mcmod_refresh" if allow_mcmod_partial else "existing" if allow_existing_partial else "catalog") if outcome == "partial_update" else None,
         "error": failure_reason,
     }
 
@@ -203,18 +285,38 @@ def run_selected_collector(args: argparse.Namespace) -> None:
     workspace = Path(args.workspace).resolve()
     source_root = Path(args.source_root).resolve()
     config = PLATFORMS[args.platform]
-    source_script = source_root / config["script"]
+    source_name = "existing_version_crawler.py" if args.mode == "existing" and args.platform not in ("mcmod", "bilibili") else config["script"]
+    if args.platform == "bilibili":
+        source_name = "bilibili_public_html_collector.py"
+        if not getattr(args, "html_state", None):
+            args.html_state = str(workspace.parent.parent / "collector-state" / "bilibili-public-html-state.json")
+    source_script = source_root / source_name
     if not source_script.exists():
         raise FileNotFoundError(f"collector source not found: {source_script}")
 
     ensure_stage_dirs(workspace)
-    isolated_script = workspace / "_collector" / config["script"]
+    isolated_script = workspace / "_collector" / source_name
     isolated_script.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_script, isolated_script)
     helper_source = source_root / "desktop_collection_contract.py"
     if not helper_source.exists():
         raise FileNotFoundError(f"collector contract helper not found: {helper_source}")
     shutil.copy2(helper_source, isolated_script.parent / helper_source.name)
+    if source_name == "existing_version_crawler.py":
+        # Existing-version CF requests share the source-wide refusal guard.
+        shutil.copy2(source_root / "curseforge_full_crawler.py", isolated_script.parent / "curseforge_full_crawler.py")
+    if source_name in {"existing_version_crawler.py", "curseforge_full_crawler.py"}:
+        shutil.copy2(source_root / "curseforge_api_config.py", isolated_script.parent / "curseforge_api_config.py")
+        shutil.copy2(source_root / "curseforge_cfwidget.py", isolated_script.parent / "curseforge_cfwidget.py")
+
+    if args.platform == "bilibili":
+        for helper in ("bilibili_html_adapter.py", "bilibili_html_extract.py"):
+            shutil.copy2(source_root / helper, isolated_script.parent / helper)
+        # Keep the same content policy in the isolated HTML worker as public browsing.
+        rules = source_root / "bilibili-content-rules.json"
+        if not rules.is_file():
+            rules = source_root / "apps" / "shared" / "bilibili-content-rules.json"
+        shutil.copy2(rules, isolated_script.parent / "bilibili-content-rules.json")
 
     script_args = build_script_args(args.platform, args)
     emit(platform=args.platform, phase="采集", processed=0, total=None)
@@ -226,6 +328,10 @@ def run_selected_collector(args: argparse.Namespace) -> None:
         "result": workspace / "build" / config["result"],
     }
     before = {name: file_state(path) for name, path in output_paths.items()}
+    old_records = []
+    if output_paths["raw"].exists():
+        with output_paths["raw"].open(encoding="utf-8") as handle:
+            old_records = json.load(handle)
     started_ns = time.time_ns()
 
     previous_cwd = Path.cwd()
@@ -260,7 +366,22 @@ def run_selected_collector(args: argparse.Namespace) -> None:
         else:
             os.environ["MC_DESKTOP_COLLECTION_RESULT"] = previous_result_path
 
-    contract = collect_output_contract(workspace, args.platform, started_ns, before, crawler_error)
+    if crawler_error is None and old_records and args.mode != "existing" and args.platform not in {"mcmod", "bilibili"}:
+        merge_catalog_with_existing(workspace, args.platform, old_records)
+    previous_ids_preserved = not old_records
+    if old_records:
+        key = "bvid" if args.platform == "bilibili" else "project_id"
+        with output_paths["raw"].open(encoding="utf-8") as handle:
+            merged = json.load(handle)
+        old_ids = {str(item.get(key)) for item in old_records if item.get(key)}
+        new_ids = {str(item.get(key)) for item in merged if item.get(key)}
+        previous_ids_preserved = old_ids.issubset(new_ids)
+        if not previous_ids_preserved:
+            raise ValueError(f"{args.platform} 合并后遗失旧 ID，拒绝提交")
+    contract = collect_output_contract(workspace, args.platform, started_ns, before, crawler_error,
+                                       allow_existing_partial=args.mode == "existing" and args.platform != "mcmod",
+                                       allow_mcmod_partial=args.platform == "mcmod" and args.mode in {"all", "metrics", "trend", "covers"})
+    contract["previousIdsPreserved"] = previous_ids_preserved
     write_update_contract(workspace, contract)
     if contract["outcome"] == "failed":
         emit(platform=args.platform, phase="失败", processed=contract["rawCount"], total=contract["rawCount"], error=contract["error"])
@@ -284,6 +405,10 @@ def run_selected_collector(args: argparse.Namespace) -> None:
 
 
 def main() -> int:
+    # Both desktop runners decode stdout as UTF-8, independent of Windows locale.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     args = parse_args()
     try:
         run_selected_collector(args)

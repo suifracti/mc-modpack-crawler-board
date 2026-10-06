@@ -15,28 +15,37 @@ export function adaptCurseforgeToVersionModal(
 ): VersionModalViewModel {
   const p = pack || {};
   const slug = p.slug || String(p.id || (p as any).project_id || (extra?.id as string) || '');
-  const filesList = ((p as unknown as { files?: Array<Record<string, unknown>> }).files || (extra?.files as any[]) || []);
+  const filesList = [
+    (p as unknown as { files?: Array<Record<string, unknown>> }).files,
+    extra?.files,
+    (p as unknown as { releases?: Array<Record<string, unknown>> }).releases,
+    extra?.releases,
+    (p as unknown as { versions?: Array<Record<string, unknown>> }).versions,
+    extra?.versions,
+  ].find((list) => Array.isArray(list) && list.length > 0) as any[] || [];
   const targetUrl = p.url || (extra?.url as string) || `https://www.curseforge.com/minecraft/modpacks/${slug}`;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const releases: ReleaseItemViewModel[] = filesList.map((f: any) => {
-    const dls: DownloadItemViewModel[] = f.downloadUrl
-      ? [
-          {
-            name: (f.fileName as string) || (f.displayName as string) || '下载 zip',
-            url: f.downloadUrl as string,
-            panClass: 'pan-btn-curseforge',
-            sizeStr: formatVFileSize(f.fileLength as number),
-            isOfficial: true,
-          },
-        ]
-      : [];
+    const dls: DownloadItemViewModel[] = Array.isArray(f.downloads) && f.downloads.length > 0
+      ? f.downloads
+      : f.downloadUrl
+        ? [
+            {
+              name: (f.fileName as string) || (f.displayName as string) || '下载 zip',
+              url: f.downloadUrl as string,
+              panClass: 'pan-btn-curseforge',
+              sizeStr: formatVFileSize(f.fileLength as number),
+              isOfficial: true,
+            },
+          ]
+        : [];
 
     return {
-      versionId: String(f.id || ''),
-      versionName: (f.displayName as string) || (f.fileName as string) || 'Release',
-      date: f.fileDate ? String(f.fileDate).substring(0, 10) : undefined,
-      gameVersions: (f.gameVersions as string[]) || [],
+      versionId: String(f.id || f.versionId || ''),
+      versionName: (f.displayName as string) || (f.fileName as string) || (f.versionName as string) || (f.name as string) || 'Release',
+      date: f.date ? String(f.date).substring(0, 10) : (f.fileDate ? String(f.fileDate).substring(0, 10) : undefined),
+      gameVersions: (f.gameVersions as string[]) || (f.game_versions as string[]) || [],
       downloads: dls,
     };
   });

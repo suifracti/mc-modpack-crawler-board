@@ -41,6 +41,23 @@ class StructuredMCModExporter:
             """)
             items = items_cur.fetchall()
 
+            release_rows = conn.execute("""
+                SELECT source_item_id, version_name, release_date, changelog, is_latest
+                FROM releases
+                WHERE source_item_id LIKE 'mcmod:%'
+                ORDER BY source_item_id, is_latest DESC, release_date DESC, id
+            """).fetchall()
+            releases_map: Dict[str, List[Dict[str, Any]]] = {}
+            for release in release_rows:
+                # Aggregate placeholders have no release-specific history to show.
+                if not release["changelog"] and release["version_name"] in ("最新版", "最新版本"):
+                    continue
+                releases_map.setdefault(release["source_item_id"], []).append({
+                    "versionName": release["version_name"],
+                    "date": release["release_date"] or "",
+                    "changelog": release["changelog"] or "",
+                })
+
             # 2. Fetch categories
             cats_cur = conn.execute("""
                 SELECT sc.source_item_id, c.name
@@ -291,6 +308,7 @@ class StructuredMCModExporter:
                     "tags": [],
                     "categories": cats,
                     "mcVersions": mc_vers,
+                    "releases": releases_map.get(si_id, []),
                     "loaders": [],
                     "includedModsCount": len(pack_mods),
                     "has_server": any(c["side"] == "server" and c["status"] in ("supported", "required", "optional") for c in env_claims),
@@ -300,6 +318,17 @@ class StructuredMCModExporter:
                     "mod_cat_search": ", ".join(all_mod_cats),
                     "modCategories": mod_categories,
                     "previewMods": preview_mods,
+                    "includedMods": [
+                        {
+                            "name": m["name"],
+                            "title": m["title"],
+                            "version": m["version"],
+                            "url": m["url"],
+                            "classId": m["class_id"],
+                            "categoryName": m.get("category_name") or "",
+                        }
+                        for m in pack_mods
+                    ],
                     # Phase 3G-D.1: structured provenance replaces the ambiguous
                     # flat `modSearchText` string. Match Reason used to reverse-parse
                     # `modSearchText.split(', ')`, which fabricated mod names whenever

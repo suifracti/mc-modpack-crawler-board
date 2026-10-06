@@ -13,12 +13,17 @@ import os
 import sys
 import json
 import time
+import re
+import shutil
+import subprocess
 import urllib.request
+import urllib.error
 import urllib.parse
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 from desktop_collection_contract import write_collection_result
+from curseforge_api_config import api_url, validate_api_url, read_api_key, metadata_provider, ApiConfigurationError
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
@@ -29,7 +34,7 @@ WORKSPACE_ROOT = os.path.abspath(os.environ.get("MC_DESKTOP_WORKSPACE") or os.ge
 OUTPUT_JSON = os.path.join(WORKSPACE_ROOT, "crawler_output", "curseforge_modpacks.json")
 OUTPUT_JS = os.path.join(WORKSPACE_ROOT, "converted_output", "data", "curseforge_data.js")
 PAGE_SIZE = 50
-MAX_WORKERS = 12
+MAX_WORKERS = 4
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -37,6 +42,81 @@ HEADERS = {
 }
 
 REQUEST_STATS = {"requests": 0, "successful": 0, "failed": 0, "errors": []}
+CURL_BIN = shutil.which("curl.exe") if os.name == "nt" else None
+ACCESS_LOCK = Lock()
+ACCESS_STOP = None
+
+
+class AccessRefusal(RuntimeError):
+    def __init__(self, message, *, requested=True):
+        super().__init__(message)
+        self.requested = requested
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise AccessRefusal(f"CurseForge API HTTP {code}: redirect not followed")
+
+
+def request_api_json(url, *, headers=None):
+    global ACCESS_STOP
+    # Serialize this source so queued slices cannot issue requests after a
+    # refusal. Retain the established TLS client and request headers.
+    with ACCESS_LOCK:
+        if ACCESS_STOP:
+            raise AccessRefusal(ACCESS_STOP, requested=False)
+        try:
+            try:
+                validate_api_url(url)
+                api_key = read_api_key()
+            except ApiConfigurationError as error:
+                raise AccessRefusal(str(error), requested=False) from None
+            REQUEST_STATS["requests"] += 1
+            request_headers = {**(HEADERS if headers is None else headers)}
+            # Never accept an upstream header containing a different credential.
+            request_headers = {k:v for k,v in request_headers.items() if k.lower() != 'x-api-key'}
+            if CURL_BIN:
+                command = [CURL_BIN, "--silent", "--show-error", "--max-time", "12",
+                           "--max-filesize", "12582912", "--write-out", "\n__CF_STATUS__:%{http_code}"]
+                for key, value in request_headers.items():
+                    command.extend(["--header", f"{key}: {value}"])
+                # Send the key through stdin, so it cannot appear in process
+                # arguments or TimeoutExpired command diagnostics.
+                command.extend(['--header', '@-'])
+                result = subprocess.run([*command, url], input=('x-api-key: '+api_key+'\n').encode('ascii'), capture_output=True, timeout=15, check=False)
+                if result.returncode:
+                    raise OSError(f"CurseForge transport error (curl {result.returncode})")
+                body, marker, code = result.stdout.rpartition(b"\n__CF_STATUS__:")
+                status = int(code.strip()) if marker and code.strip().isdigit() else 0
+            else:
+                request = urllib.request.Request(url, headers={**request_headers,'x-api-key':api_key})
+                opener = urllib.request.build_opener(NoRedirect())
+                try:
+                    with opener.open(request, timeout=12) as response:
+                        status = response.status
+                        body = response.read(12582913)
+                except urllib.error.HTTPError as error:
+                    status = error.code
+                    error.close()
+                    body = b""
+            if 300 <= status < 400 or status in (401, 403, 412, 429):
+                raise AccessRefusal(f"CurseForge API HTTP {status}: source stopped without redirect or retry")
+            if status != 200:
+                raise ValueError(f"CurseForge API HTTP {status or 'unknown'}")
+            if len(body) > 12582912:
+                raise AccessRefusal("CurseForge response exceeds bounded size")
+            text = body.decode("utf-8-sig")
+            if re.match(r'\s*<(?:!doctype\s+html|html|head|body)\b', text, re.I):
+                raise AccessRefusal("CurseForge HTML response or access gate: source stopped")
+            value = json.loads(text)
+            if isinstance(value,dict):
+                message = ' '.join(str(value.get(key) or '') for key in ('message','error','msg'))
+                if re.search(r'captcha|验证码|安全验证|Access Denied', message, re.I):
+                    raise AccessRefusal("CurseForge access challenge: source stopped")
+            return value
+        except AccessRefusal as error:
+            ACCESS_STOP = str(error)
+            raise
 
 LOADER_TYPE_MAP = {
     1: "Forge",
@@ -114,21 +194,20 @@ def fetch_slice_page(index, category_id=None, game_version=None, mod_loader_type
     if mod_loader_type:
         params["modLoaderType"] = mod_loader_type
 
-    qs = urllib.parse.urlencode(params)
-    url = f"https://api.curse.tools/v1/cf/mods/search?{qs}"
+    url = api_url('/v1/mods/search', params)
 
     for attempt in range(retries):
+        if ACCESS_STOP:
+            return None
         try:
-            REQUEST_STATS["requests"] += 1
-            req = urllib.request.Request(url, headers=HEADERS)
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                if resp.status == 200:
-                    value = json.loads(resp.read().decode("utf-8"))
-                    REQUEST_STATS["successful"] += 1
-                    return value
-                if attempt == retries - 1:
-                    REQUEST_STATS["failed"] += 1
-                    REQUEST_STATS["errors"].append(f"HTTP {resp.status} index={index}")
+            value = request_api_json(url)
+            REQUEST_STATS["successful"] += 1
+            return value
+        except AccessRefusal as error:
+            REQUEST_STATS["errors"].append(f"index={index}: {error}")
+            if error.requested:
+                REQUEST_STATS["failed"] += 1
+            return None
         except Exception as error:
             if attempt < retries - 1:
                 time.sleep(1)
@@ -253,7 +332,10 @@ def save_current_state(global_packs, max_total=0):
     with open(OUTPUT_JS, "w", encoding="utf-8") as f:
         f.write("window.curseforgeModpacksData = " + json.dumps(final_list, ensure_ascii=False) + ";\n")
 
-def main(max_total=0):
+def main(max_total=0, recent_pages=0):
+    if metadata_provider() == 'cfwidget':
+        from curseforge_cfwidget import refresh_known
+        return refresh_known(OUTPUT_JSON, OUTPUT_JS, limit=max_total or 20)
     print("=" * 70)
     print("  🚀 CurseForge 超级全量切片深挖爬虫 (全版本 × 全分类 × 全Loader)")
     print("  目标：完全抓完 CurseForge 存世所有 Minecraft 整合包！")
@@ -395,7 +477,12 @@ def main(max_total=0):
         "sort_order": "asc"
     })
 
-    print(f"  [规划] 共生成 {len(slice_tasks)} 个全量切片任务，已启动 {MAX_WORKERS} 线程池调度...\n")
+    if recent_pages:
+        slice_tasks = [{"label": "Recent_UpdatedDesc", "game_version": None,
+                        "category_id": None, "loader_type": None,
+                        "sort_field": 3, "sort_order": "desc"}]
+        print(f"  [范围] 最近更新排序前 {recent_pages * PAGE_SIZE} 款；保留其他旧记录，不声称全站完整扫描。")
+    print(f"  [规划] 共生成 {len(slice_tasks)} 个切片任务，已启动 {MAX_WORKERS} 线程池调度...\n")
 
     def worker_slice(task):
         t_label = task["label"]
@@ -411,7 +498,7 @@ def main(max_total=0):
         slice_failed = False
         slice_truncated = False
         
-        while index + PAGE_SIZE <= 10000:
+        while index + PAGE_SIZE <= min(10000, recent_pages * PAGE_SIZE if recent_pages else 10000):
             res = fetch_slice_page(index, category_id=cid, game_version=gv, mod_loader_type=lt, sort_field=sf, sort_order=so)
             if res is None:
                 slice_failed = True
@@ -429,15 +516,21 @@ def main(max_total=0):
                     break
                 for item in items:
                     pid = str(item.get("id") or "")
-                    if pid and pid not in global_packs:
+                    if pid:
+                        is_new = pid not in global_packs
                         pack = standardize_pack(item)
-                        global_packs[pid] = pack
-                        slice_new_count += 1
+                        # Catalog metadata must retain previously collected
+                        # version histories and other richer per-project fields.
+                        global_packs[pid] = {**global_packs.get(pid, {}), **pack}
+                        if is_new:
+                            slice_new_count += 1
                         if max_total and len(global_packs) >= max_total:
                             break
                         
             total_count = res.get("pagination", {}).get("totalCount", 10000)
             index += len(items)
+            if recent_pages and index % (PAGE_SIZE * 25) == 0:
+                print(f"  [近期扫描] {index:,}/{recent_pages * PAGE_SIZE:,} · 当前去重 {len(global_packs):,}", flush=True)
             
             # 达到该切片尾部或单页未满则终止
             if len(items) < PAGE_SIZE or index >= total_count:
@@ -454,9 +547,10 @@ def main(max_total=0):
                 except Exception:
                     pass
 
-        if not max_total and index >= 10000:
-            last_total = locals().get("total_count", 10000)
-            slice_truncated = bool(last_total > index)
+        if not max_total and not recent_pages and index >= 10000:
+            # The upstream API caps totalCount at 10,000, so equality cannot
+            # prove that a slice is exhaustive.
+            slice_truncated = True
         return t_label, slice_total_items, slice_new_count, slice_failed, slice_truncated
 
     completed_slices = 0
@@ -490,16 +584,18 @@ def main(max_total=0):
         final_list = final_list[:max_total]
     final_list.sort(key=lambda x: x.get("downloads", 0), reverse=True)
 
-    print("\n" + "=" * 70)
-    print(f"  🎉 [完全抓取完毕] 成功全量采集去重 {len(final_list):,} 款 CurseForge 整合包！(总耗时 {elapsed:.1f} 秒)")
-    print("=" * 70)
-
-    save_current_state(global_packs, max_total=max_total)
-    print(f"  [OK] 全量 JSON 已持久化: {OUTPUT_JSON} ({os.path.getsize(OUTPUT_JSON) / 1024 / 1024:.2f} MB)")
-    print(f"  [OK] 全量 JS 数据源已更新: {OUTPUT_JS} ({os.path.getsize(OUTPUT_JS) / 1024 / 1024:.2f} MB)")
-
     request_completed = failed_slices == 0 and REQUEST_STATS["failed"] == 0 and not truncated
     status = "success" if fetched_count and request_completed else "empty" if request_completed else "partial" if fetched_count else "failed"
+    coverage = "近期窗口完成" if recent_pages and request_completed else "切片扫描完成" if request_completed else "部分采集：存在失败请求或分页上限"
+    print("\n" + "=" * 70)
+    print(f"  [{coverage}] 本地去重 {len(final_list):,} 款 CurseForge 整合包 (耗时 {elapsed:.1f} 秒；失败切片 {failed_slices}；截断={truncated})")
+    print("=" * 70)
+
+    if fetched_count:
+        save_current_state(global_packs, max_total=max_total)
+        print(f"  [OK] JSON 已持久化: {OUTPUT_JSON} ({os.path.getsize(OUTPUT_JSON) / 1024 / 1024:.2f} MB)")
+        print(f"  [OK] JS 数据源已更新: {OUTPUT_JS} ({os.path.getsize(OUTPUT_JS) / 1024 / 1024:.2f} MB)")
+
     write_collection_result(
         "curseforge",
         request_completed=request_completed,
@@ -509,11 +605,15 @@ def main(max_total=0):
         failed_requests=int(REQUEST_STATS["failed"] + failed_slices),
         errors=REQUEST_STATS["errors"],
         status=status,
-        details={"completedSlices": completed_slices, "totalSlices": total_slices, "uniqueOutputCount": len(final_list), "requestedLimit": max_total or None},
+        details={"completedSlices": completed_slices, "totalSlices": total_slices, "uniqueOutputCount": len(final_list),
+                 "requestedLimit": max_total or None, "recentWindow": recent_pages * PAGE_SIZE if recent_pages else None,
+                 "sourceStop": ACCESS_STOP, "apiProvider": "official-curseforge",
+                 "requests": REQUEST_STATS["requests"]},
     )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CurseForge 超级全量切片爬虫")
     parser.add_argument("--max", type=int, default=0, help="最多采集条数（0 表示全量）")
+    parser.add_argument("--recent-pages", type=int, default=0, help="仅更新最近修改排序的 N 页，每页 50 条")
     args = parser.parse_args()
-    main(max_total=args.max)
+    main(max_total=args.max, recent_pages=args.recent_pages)

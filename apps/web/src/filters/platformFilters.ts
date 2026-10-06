@@ -76,8 +76,14 @@ export const CAT_LABELS: Record<string, string> = {
   'RLCraft': 'RLCraft 系',
 };
 
+const CAT_LABELS_LOWER: Record<string, string> = {};
+for (const [key, value] of Object.entries(CAT_LABELS)) {
+  CAT_LABELS_LOWER[key.toLowerCase()] = value;
+}
+
 export function getCategoryLabel(val: string): string {
-  return CAT_LABELS[val] || val;
+  if (!val) return '';
+  return CAT_LABELS[val] || CAT_LABELS_LOWER[val.toLowerCase()] || val;
 }
 
 export function filterBilibiliPacks(

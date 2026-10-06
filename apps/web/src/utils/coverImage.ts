@@ -4,11 +4,12 @@ import {
   canRetryImage,
   cancelImageRetry,
   getImageFailure,
+  imageRetryDelay,
   stableImageSource,
   type ImageRetryTicket,
 } from './imageFallback';
 
-export type CoverImageState = 'loading' | 'loaded' | 'error' | 'timeout' | 'missing';
+export type CoverImageState = 'loading' | 'loaded' | 'fallback' | 'error' | 'timeout' | 'missing';
 
 export interface CoverImageRequestTarget {
   isConnected: boolean;
@@ -60,7 +61,8 @@ export function renderCoverImage(options: {
   const status = `<span class="cover-image-status" role="status" aria-live="polite">${escHtml(statusText(state))}</span>`;
   const retryable = Boolean(failure);
   const canRetry = retryable && canRetryImage(original);
-  const retryLabel = canRetry ? '重试封面' : '稍后可重试';
+  const retrySeconds = Math.max(1, Math.ceil(imageRetryDelay(original) / 1000));
+  const retryLabel = canRetry ? '重试封面' : `封面失败 · ${retrySeconds} 秒后可重试`;
   const retryButton = `<button type="button" class="cover-image-retry" data-action="retry-cover" aria-label="${escAttrJs(`${retryLabel}：${options.alt}`)}"${retryable ? '' : ' hidden'}${retryable && !canRetry ? ' disabled' : ''}>${retryLabel}</button>`;
   return { state, source, image, status, retryButton };
 }

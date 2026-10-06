@@ -2645,10 +2645,11 @@ function onPlatformLoaded(platId) {
         var dlZoneHtml = '<div class="xyebbs-download-zone">';
         var links = p.download_links || [];
         links.forEach(function(l) {
-            if (l && l.url) {
-                var lClass = l.type === 'APP_IMPORT' ? 'pan-btn-modrinth' : 'pan-btn-other';
-                var icon = l.type === 'APP_IMPORT' ? '🚀' : '🌐';
-                dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="bili-pan-btn ' + lClass + '" style="font-size:0.8rem;" title="' + l.name + '">' + icon + ' ' + l.label + ' ↗</a>';
+            var urlStr = String((l && l.url) || '');
+            if (urlStr.indexOf('http://') === 0 || urlStr.indexOf('https://') === 0) {
+                var lClass = 'pan-btn-other';
+                var icon = '🌐';
+                dlZoneHtml += '<a href="' + urlStr + '" target="_blank" rel="noreferrer" class="bili-pan-btn ' + lClass + '" style="font-size:0.8rem;" title="' + (l.name || '') + '">' + icon + ' ' + (l.label || '官网直达') + ' ↗</a>';
             }
         });
         dlZoneHtml += '<button type="button" class="bili-pan-btn pan-btn-other js-open-plat-version-modal" data-platform="modrinth" data-vkey="' + p.url + '" data-title="' + safeTitle + '" data-ver="' + (p.mc_version || '') + '" data-date="' + (p.date_modified || '') + '" data-url="' + (p.url || '#') + '" data-author="' + safeAuthor + '" data-downloads="' + dlStr + '" style="font-size:0.8rem; background:rgba(27,217,106,0.12); color:#1bd96a; border-color:rgba(27,217,106,0.3); margin-top:4px;">📜 版本详情 ↗</button>';
@@ -2810,10 +2811,11 @@ function onPlatformLoaded(platId) {
         var dlZoneHtml = '<div class="xyebbs-download-zone">';
         var links = p.download_links || [];
         links.forEach(function(l) {
-            if (l && l.url) {
-                var lClass = l.type === 'APP_IMPORT' ? 'pan-btn-curseforge' : 'pan-btn-other';
-                var icon = l.type === 'APP_IMPORT' ? '🔥' : '🔗';
-                dlZoneHtml += '<a href="' + l.url + '" target="_blank" rel="noreferrer" class="bili-pan-btn ' + lClass + '" style="font-size:0.8rem;" title="' + l.name + '">' + icon + ' ' + l.label + ' ↗</a>';
+            var urlStr = String((l && l.url) || '');
+            if (urlStr.indexOf('http://') === 0 || urlStr.indexOf('https://') === 0) {
+                var lClass = 'pan-btn-other';
+                var icon = '🔗';
+                dlZoneHtml += '<a href="' + urlStr + '" target="_blank" rel="noreferrer" class="bili-pan-btn ' + lClass + '" style="font-size:0.8rem;" title="' + (l.name || '') + '">' + icon + ' ' + (l.label || '官网直达') + ' ↗</a>';
             }
         });
         dlZoneHtml += '<button type="button" class="bili-pan-btn pan-btn-other js-open-plat-version-modal" data-platform="curseforge" data-vkey="' + p.url + '" data-title="' + safeTitle + '" data-ver="' + (p.mc_version || '') + '" data-date="' + (p.date_modified || '') + '" data-url="' + (p.url || '#') + '" data-author="' + safeAuthor + '" data-downloads="' + dlStr + '" style="font-size:0.8rem; background:rgba(241,100,54,0.12); color:#f16436; border-color:rgba(241,100,54,0.3); margin-top:4px;">📜 版本详情 ↗</button>';

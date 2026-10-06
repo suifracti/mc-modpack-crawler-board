@@ -1,6 +1,6 @@
 # 本地浏览器服务
 
-本项目不再打包 Electron EXE。它由 Node.js 启动一个仅监听本机的 HTTP 服务，并在默认浏览器打开看板，因此 Windows、macOS 和 Linux 共用同一套入口。
+本项目不再打包 Electron EXE。它由 Node.js 启动 HTTP 服务，并在默认浏览器打开看板，因此 Windows、macOS 和 Linux 共用同一套入口。
 
 ## 启动
 
@@ -24,10 +24,10 @@ npm --prefix apps/desktop run start:no-open
 
 仓库根目录也提供一键启动器：Windows 双击 `start_browser_service.cmd`，macOS 双击 `start_browser_service.command`，Linux 运行 `start_browser_service.sh`。启动器会先构建前端；服务运行期间不要关闭它打开的终端窗口。
 
-默认地址为 `http://127.0.0.1:8765/`。可用参数覆盖本机端口、数据目录和 Python 命令：
+默认监听 IPv6 `::` 的 8765 端口；本机浏览器仍可使用 `http://127.0.0.1:8765/`。其他设备可使用 `http://[本机公网IPv6地址]:8765/desktop.html`。可用参数覆盖监听地址、端口、数据目录和 Python 命令：
 
 ```text
-node apps/desktop/server.cjs --port 8765 --data-root <本地数据目录> --python <python3路径>
+node apps/desktop/server.cjs --host :: --port 8765 --data-root <本地数据目录> --python <python3路径>
 ```
 
 服务默认使用系统用户数据目录保存快照：Windows 为 `%APPDATA%/MCModpackBoard/data`，macOS 为 `~/Library/Application Support/MCModpackBoard/data`，Linux 为 `$XDG_DATA_HOME/MCModpackBoard/data` 或 `~/.local/share/MCModpackBoard/data`。也可通过 `MC_DESKTOP_DATA_ROOT` 指定。
@@ -42,6 +42,6 @@ node apps/desktop/server.cjs --port 8765 --data-root <本地数据目录> --pyth
 
 ## 依赖与边界
 
-开发运行需要 Node.js、Python 3 和现有采集器依赖；服务只监听 `127.0.0.1`，不作为公网服务使用。平台访问限制、登录态、限流和网络失败会按真实结果显示，不会把失败伪装成成功。
+开发运行需要 Node.js、Python 3 和现有采集器依赖。公网访问还需要本机防火墙及网络上游允许入站 TCP 8765；仅更改监听地址不能保证外网连通。服务目前没有登录保护，外部访问者也能调用数据导入、删除快照、采集更新和个人库接口；只在可信网络中开放，或通过带身份验证的反向代理/隧道分享。若只需本机访问，可用 `--host 127.0.0.1`。平台访问限制、登录态、限流和网络失败会按真实结果显示，不会把失败伪装成成功。
 
 `main.cjs`、`preload.cjs` 和旧 Electron 测试文件暂留作为历史实现参考，但当前启动脚本和交付路径不再使用 Electron 或生成 EXE。

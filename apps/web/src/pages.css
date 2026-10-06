@@ -1,0 +1,450 @@
+/* Server-only actions have no static counterpart. Browser-local card marks remain available. */
+html[data-static-site] [data-action="toggle-update"],
+html[data-static-site] [data-action="choose-data"],
+html[data-static-site] [data-action="toggle-audit"],
+html[data-static-site] [data-action="open-personal-profile"],
+html[data-static-site] [data-action="fetch-live-versions"] { display: none !important; }
+
+html[data-static-site] .detail-actions [data-action="open-in-app-window"] { display: inline-flex; }
+
+/* Public browsing keeps the title, package version and source action in a clear hierarchy. */
+html[data-static-site] .v2-pack-card > .platform-card-title {
+  margin-top: 11px !important;
+  font-size: 18px !important;
+  font-weight: 650 !important;
+  line-height: 1.45 !important;
+  overflow-wrap: anywhere;
+}
+html[data-static-site] .v2-pack-card > .platform-card-summary {
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+  -webkit-line-clamp: 2;
+}
+html[data-static-site] .v2-pack-card > .card-top {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+html[data-static-site] .card-top .card-time {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+html[data-static-site] .card-pack-ver-pill {
+  padding: 3px 8px;
+  border-radius: 6px;
+  border-color: color-mix(in srgb, var(--accent-primary) 30%, transparent);
+  background: var(--accent-primary-tint);
+  color: var(--accent-primary);
+  font-size: 12px;
+}
+html[data-static-site] .v2-pack-card > .card-footer {
+  margin: 12px 16px 14px !important;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  gap: 8px;
+  flex-wrap: wrap;
+}
+html[data-static-site] :is(.card-detail-primary, .card-details-primary) {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--control-radius);
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+  font-size: 13px;
+  font-weight: 650;
+}
+html[data-static-site] :is(.card-detail-primary, .card-details-primary):hover {
+  background: var(--accent-primary-hover);
+}
+html[data-static-site] .card-secondary-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+html[data-static-site] .card-secondary-actions :is(.card-inapp-btn, .compare-star) {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: var(--control-radius);
+  font-size: 12px;
+}
+html[data-static-site] .card-personal-inline {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+html[data-static-site] .card-personal-inline .personal-card-actions { gap: 5px; }
+html[data-static-site] .card-personal-inline :is(.personal-favorite-button, .personal-flag-button) {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+/* Source overviews show useful totals first; collection limits stay available on demand. */
+html[data-static-site] .pages-source-card { gap: 12px; padding: 18px; }
+html[data-static-site] .pages-source-card .showcase-title { font-size: 18px; }
+html[data-static-site] .pages-source-card .showcase-metrics {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  padding: 12px;
+}
+html[data-static-site] .pages-source-card .smetric-val { font-size: 20px; }
+html[data-static-site] .pages-source-card [data-pages-source-state] {
+  font-size: 13px;
+  font-weight: 600;
+}
+html[data-static-site] .showcase-source-summary,
+html[data-static-site] .results-scope-hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+html[data-static-site] .showcase-source-details {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+html[data-static-site] .showcase-source-details > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--accent-primary);
+  font-weight: 600;
+}
+html[data-static-site] .showcase-source-details[open] > summary { margin-bottom: 6px; }
+
+/* Keep filters usable without making each row look like a separate panel. */
+html[data-static-site] .desktop-sticky-bar { gap: 7px; box-shadow: none; }
+html[data-static-site] .sticky-toolbar-row { padding-bottom: 9px; }
+html[data-static-site] .sticky-mods-row,
+html[data-static-site] .sticky-active-filters-row { border-top-style: solid; }
+html[data-static-site] .sticky-pills-flow { gap: 5px; }
+html[data-static-site] .sticky-pill:not(.is-active) { border-color: transparent; background: var(--bg-surface); }
+html[data-static-site] .sticky-pill:not(.is-active):hover {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary-tint);
+}
+html[data-static-site] .results-heading { align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+
+html[data-static-site] .detail-actions [data-action="open-source"] {
+  color: var(--text-inverse);
+  background: var(--accent-primary);
+  border-color: transparent;
+}
+html[data-static-site] .detail-actions [data-action="open-source"]:hover { background: var(--accent-primary-hover); }
+html[data-static-site] .empty-dyn-box {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--bg-surface-elevated);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+html[data-static-site] .empty-dyn-title { color: var(--text-primary); font-weight: 650; }
+html[data-static-site] :is(.empty-dyn-btn, .dynamics-empty-box button) {
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 35%, transparent);
+  border-radius: var(--control-radius);
+  background: var(--accent-primary-tint);
+  color: var(--accent-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+html[data-static-site] :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 3px;
+}
+
+/* The desktop overview grid starts at 420px; public browsing must fit phone viewports. */
+@media (max-width: 600px) {
+  html[data-static-site] .all-platforms-grid { grid-template-columns: minmax(0, 1fr); }
+  html[data-static-site] .platform-showcase-card { min-width: 0; }
+  html[data-static-site] .legacy-shell .main-content { padding: 16px 12px 70px; }
+  html[data-static-site] .topbar { height: auto; }
+  html[data-static-site] .topbar-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 8px;
+    padding: 8px 12px;
+  }
+  html[data-static-site] .brand-title { display: inline; font-size: 12px; }
+  html[data-static-site] .topbar-actions { grid-column: 2; grid-row: 1; gap: 4px; }
+  html[data-static-site] .top-tdot { width: 24px; }
+  html[data-static-site] .topbar-center { grid-column: 1 / -1; width: 100%; }
+  html[data-static-site] .legacy-shell .topbar-platform-nav { justify-content: flex-start; overflow-x: auto; }
+  html[data-static-site] .topbar-platform-flyout { display: none; }
+  html[data-static-site] .desktop-sticky-bar { padding: 10px; }
+  html[data-static-site] .desktop-sticky-bar.is-sticky { position: static; top: auto; }
+  html[data-static-site] :is(.sticky-toolbar-left, .sticky-toolbar-right, .sticky-row-left, .sticky-row-right) { flex-wrap: wrap; }
+  html[data-static-site] .sticky-main-search-wrap { flex-basis: 100%; max-width: none; }
+  html[data-static-site] .sticky-toolbar-right { width: 100%; justify-content: space-between; }
+  html[data-static-site] .sticky-search-input-wrap { flex: 1 1 auto; width: auto; min-width: 0; }
+  html[data-static-site] .sticky-pills-flow { flex-basis: 100%; }
+  html[data-static-site] .sticky-row-right { justify-content: flex-start; gap: 6px; }
+  html[data-static-site] .sticky-row-right :is(.sticky-all-btn, .sticky-expand-btn) { max-width: 100%; }
+  html[data-static-site] .v2-pack-card > .card-top { gap: 6px; }
+  html[data-static-site] .card-top .card-time { margin-left: 0; }
+  html[data-static-site] .results-heading .result-count { white-space: normal; }
+}
+
+html[data-static-site] .bmb-source-link {
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--accent-primary-tint);
+  color: var(--accent-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* Secondary filters stay close to search, with a clear native disclosure. */
+html[data-static-site] .pages-extra-filters {
+  min-width: 0;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 7px;
+}
+html[data-static-site] :is(.pages-extra-filters, .pages-detail-gallery, .pages-source-overview-fold) > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--control-radius);
+  background: var(--bg-surface-elevated);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  list-style: none;
+  cursor: pointer;
+}
+html[data-static-site] :is(.pages-extra-filters, .pages-detail-gallery, .pages-source-overview-fold) > summary::-webkit-details-marker { display: none; }
+html[data-static-site] :is(.pages-extra-filters, .pages-detail-gallery, .pages-source-overview-fold) > summary::after {
+  content: '';
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin: 0 3px 3px auto;
+  border-right: 2px solid var(--accent-primary);
+  border-bottom: 2px solid var(--accent-primary);
+  transform: rotate(45deg);
+}
+html[data-static-site] :is(.pages-extra-filters, .pages-detail-gallery, .pages-source-overview-fold)[open] > summary::after {
+  margin-bottom: -3px;
+  transform: rotate(225deg);
+}
+html[data-static-site] :is(.pages-extra-filters, .pages-detail-gallery, .pages-source-overview-fold) > summary:hover {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary-tint);
+}
+html[data-static-site] .pages-filter-summary-hint {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+html[data-static-site] .pages-extra-filters .sticky-bar-row {
+  margin-top: 10px;
+  padding-top: 10px;
+}
+html[data-static-site] .pages-extra-filters .sticky-bar-row:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+html[data-static-site] .pages-extra-filters .sticky-bar-label { font-size: 12px; }
+
+/* Source colors identify a source; browsing actions use the current theme. */
+html[data-static-site] .pages-source-card .showcase-metrics { align-items: center; }
+html[data-static-site] .pages-source-card .smetric-lbl {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+html[data-static-site] .pages-source-card .pages-source-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--pill-radius);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+html[data-static-site] .pages-source-status::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+}
+html[data-static-site] .pages-source-status.is-limited {
+  border-color: color-mix(in srgb, var(--status-warning) 40%, var(--border-subtle));
+  background: color-mix(in srgb, var(--status-warning) 8%, var(--bg-surface));
+}
+html[data-static-site] .pages-source-status.is-limited::before { background: var(--status-warning); }
+html[data-static-site] .pages-source-status.is-retained {
+  border-color: var(--border-hover);
+  background: var(--bg-surface-elevated);
+}
+html[data-static-site] .pages-source-status.is-verified {
+  border-color: color-mix(in srgb, var(--status-success) 40%, var(--border-subtle));
+  background: color-mix(in srgb, var(--status-success) 8%, var(--bg-surface));
+}
+html[data-static-site] .pages-source-status.is-verified::before { background: var(--status-success); }
+html[data-static-site] .pages-source-card .showcase-btn {
+  min-height: 38px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 45%, var(--border-subtle));
+  background: var(--accent-primary-tint);
+  color: var(--accent-primary);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+html[data-static-site] .pages-source-card .showcase-btn:hover {
+  border-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 16%, var(--bg-surface));
+  filter: none;
+  transform: none;
+}
+
+/* The source action is visible before optional images and longer source text. */
+html[data-static-site] .pages-detail-primary-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 16px;
+}
+html[data-static-site] .pages-detail-primary-action > .button.primary {
+  min-height: 38px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 650;
+}
+html[data-static-site] .pages-detail-primary-action > p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+html[data-static-site] .pages-detail-gallery { margin-top: 14px; }
+html[data-static-site] .pages-detail-gallery > .detail-section {
+  margin-top: 10px;
+  padding-top: 0;
+  border-top: 0;
+}
+html[data-static-site] .pages-detail-gallery .detail-image-gallery {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-height: 360px;
+  overflow-y: auto;
+}
+html[data-static-site] .pages-detail-gallery .detail-image { max-height: 160px; }
+html[data-static-site] .detail-col-source :is(.detail-summary, .release-notes) {
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+html[data-static-site] .detail-col-source :is(.detail-submeta, .release-meta) {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* Readable metadata and a secondary source button keep card actions distinct. */
+html[data-static-site] .v2-pack-card :is(.platform-card-meta, .card-metrics, .card-metrics > span, .card-metric-bubble),
+html[data-static-site] .card-top .card-time {
+  color: var(--text-secondary) !important;
+  font-size: 12px !important;
+  line-height: 1.5;
+}
+html[data-static-site] .v2-pack-card .platform-card-tags > span { font-size: 12px; }
+html[data-static-site] [data-card-window="true"] {
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 35%, var(--border-subtle));
+  background: var(--accent-primary-tint);
+  color: var(--accent-primary);
+  font-weight: 600;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: var(--control-radius);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+html[data-static-site] [data-card-window="true"]:hover {
+  border-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 16%, var(--bg-surface));
+  color: var(--accent-primary);
+}
+html[data-static-site] :is(.in-app-content-tabs, .in-app-reader) {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+}
+html[data-static-site] .in-app-window-header { flex-wrap: wrap; }
+html[data-static-site] .in-app-window-body { min-height: 0; }
+@media (max-width: 960px) {
+  html[data-static-site] .in-app-window-info { min-width: 0; max-width: 100%; }
+  html[data-static-site] .in-app-window-url-bar { display: none; }
+  html[data-static-site] .in-app-window-ctrls { flex-wrap: wrap; }
+  html[data-static-site] :is(.in-app-changelog-pane, .in-app-side-pane) {
+    width: 100%;
+    flex: 0 1 35%;
+    min-height: 0;
+  }
+  html[data-static-site] .in-app-content-shell { flex: 1 1 30%; }
+}
+html[data-static-site] .card-secondary-actions .compare-star:not(.is-selected) {
+  border-color: var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+html[data-static-site] .card-secondary-actions .compare-star:not(.is-selected):hover {
+  background: var(--bg-surface-elevated);
+  color: var(--text-primary);
+}
+
+@media (max-width: 600px) {
+  html[data-static-site] .pages-extra-filters > summary { flex-wrap: wrap; }
+  html[data-static-site] .pages-filter-summary-hint {
+    order: 1;
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+  html[data-static-site] .pages-extra-filters .sticky-bar-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  html[data-static-site] .pages-extra-filters .sticky-row-right { width: 100%; }
+  html[data-static-site] .pages-detail-primary-action { align-items: flex-start; }
+  html[data-static-site] .pages-detail-primary-action > p { flex-basis: 100%; }
+  html[data-static-site] .pages-detail-gallery .detail-image-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+html[data-static-site] .topbar-platform-flyout { display: none !important; }
+html[data-static-site] .pages-source-overview-fold { margin-bottom: 16px; }
+html[data-static-site] .pages-source-overview-fold .all-platforms-grid { margin-top: 14px; }
+
+html[data-static-site] .pages-bili-content-controls {
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+html[data-static-site] .pages-bili-content-controls > div { display: flex; flex-wrap: wrap; gap: 8px; }
+html[data-static-site] .pages-bili-content-controls p { margin: 10px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
+html[data-static-site] .pages-bili-decision { display: flex; flex-wrap: wrap; gap: 5px 10px; padding: 10px 16px; margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.6; border-top: 1px solid var(--border-subtle); }
+html[data-static-site] .pages-bili-decision strong { color: var(--text-primary); }
+html[data-static-site] .pages-bili-decision.is-excluded strong { color: #b26a12; }
+html[data-static-site] .in-app-reader .linkage-cards-grid { grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); }

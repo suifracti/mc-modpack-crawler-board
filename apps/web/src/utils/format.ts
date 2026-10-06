@@ -48,3 +48,24 @@ export function getVPanClass(str: string | null | undefined): string {
   if (s.includes('curseforge')) return 'pan-btn-curseforge';
   return 'pan-btn-default';
 }
+
+export function formatDisplayDate(value: string | null | undefined): string {
+  if (!value) return '';
+  const str = String(value).trim();
+  if (!str || /^0+(?:\.0+)?$/.test(str) || str === '未知' || str.includes('本地数据未提供')) return '';
+  const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/);
+  if (isoMatch) {
+    return `${isoMatch[1]} ${isoMatch[2]}`;
+  }
+  const dateMatch = str.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (dateMatch) {
+    return dateMatch[1];
+  }
+  const d = new Date(str);
+  if (!Number.isNaN(d.getTime())) {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  return str;
+}
+
