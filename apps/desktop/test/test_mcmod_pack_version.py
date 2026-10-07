@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import threading
 from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,6 +24,55 @@ def read_sidecar(path):
 
 
 class PackVersionContract(unittest.TestCase):
+    def test_modern_full_refresh_overlaps_trend_and_version_reads_without_losing_history(self):
+        page = (ROOT / 'tests/fixtures/mcmod_cover_page_16_excerpt.html').read_text()
+        with tempfile.TemporaryDirectory() as temp:
+            raw_path=Path(temp)/'raw.json';modern_path=Path(temp)/'mcmod_data.js'
+            raw_path.write_text(json.dumps([{'mid':'16','title':'old','versions':[{'versionName':'0.2.2'}],'desc':'archive'}]))
+            modern_path.write_text('window.mcmodData = '+json.dumps([{'mid':16,'title':'old','releases':[{'versionName':'0.2.2'}]}])+';')
+            started_trend=threading.Event();started_version=threading.Event();overlaps=[]
+            def trend(mid):
+                started_trend.set();overlaps.append(started_version.wait(0.5));return [('2026-10-07',23)]
+            def version(mid):
+                started_version.set();overlaps.append(started_trend.wait(0.5))
+                return {'checked':True,'versions':[{'versionName':'0.3.0'}],'latest_version':'0.3.0','latest_date':'2026-10-07','release_date':'2026-09-30','version_count':1}
+            args=SimpleNamespace(mode='all',limit=1,cache_size=50,max_404=1,force=False,stale_days=5,no_gentle=True,concurrency=2)
+            with patch.multiple(crawler,RAW_JSON_PATH=str(raw_path),MCMOD_DATA_PATH=str(modern_path),fetch_html=lambda url,**_k:page if url.endswith('/16.html') else 404,fetch_trend_data=trend,fetch_version_data=version,write_collection_result=lambda *_a,**_k:None,IS_BANNED=False):
+                crawler.refresh_modern_snapshot(args)
+            self.assertEqual(overlaps,[True,True])
+            saved=json.loads(raw_path.read_text())[0];self.assertEqual(saved['latest_version'],'0.3.0');self.assertEqual(saved['desc'],'archive')
+            self.assertEqual(saved['trend_dates'],'2026-10-07');self.assertEqual(read_sidecar(modern_path)[0]['packVersion'],'0.3.0')
+
+    def test_version_refresh_revisits_checked_packs_and_preserves_history_on_empty_page(self):
+        with tempfile.TemporaryDirectory() as temp:
+            raw_path = Path(temp) / 'raw.json'
+            modern_path = Path(temp) / 'mcmod_data.js'
+            old_release = {'versionName': '0.2.2', 'date': '2026-02-23'}
+            raw = [{'mid': str(i), 'title': 'Existing pack', 'version_checked': True,
+                    'latest_version': '0.2.2', 'versions': [old_release], 'cover_url': 'keep'} for i in (1, 2)]
+            modern = [{'mid': i, 'packVersion': '0.2.2', 'releases': [old_release], 'coverUrl': 'keep'} for i in (1, 2)]
+            raw_path.write_text(json.dumps(raw))
+            modern_path.write_text('window.mcmodData = ' + json.dumps(modern) + ';')
+            calls = []
+            def fetch(mid, **kwargs):
+                calls.append(mid)
+                version = '0.3.0' if mid == '1' else ''
+                return {'checked': True, 'latest_version': version, 'latest_date': '2026-09-30' if version else '',
+                        'release_date': '2026-02-23' if version else '', 'version_count': 1 if version else 0,
+                        'versions': [{'versionName': version, 'date': '2026-09-30'}] if version else []}
+            with patch.multiple(crawler, RAW_JSON_PATH=str(raw_path), MCMOD_DATA_PATH=str(modern_path),
+                                fetch_version_data=fetch, IS_BANNED=False), patch.object(crawler.time, 'sleep'):
+                result = crawler.backfill_snapshot_versions(concurrency=1)
+            self.assertEqual(calls, ['1', '2'])
+            self.assertEqual(result[1], 2)
+            updated = json.loads(raw_path.read_text())
+            self.assertEqual(updated[0]['latest_version'], '0.3.0')
+            self.assertEqual(read_sidecar(modern_path)[0]['packVersion'], '0.3.0')
+            self.assertEqual(updated[1]['versions'], [old_release])
+            self.assertEqual(updated[1]['latest_version'], '0.2.2')
+            self.assertTrue(updated[0].get('version_checked_at'))
+            self.assertEqual(updated[0]['cover_url'], 'keep')
+
     def test_modern_only_new_pack_keeps_existing_records(self):
         page = (ROOT / "tests" / "fixtures" / "mcmod_cover_page_16_excerpt.html").read_text(encoding="utf-8")
         with tempfile.TemporaryDirectory(prefix="mcmod-modern-new-") as temp:

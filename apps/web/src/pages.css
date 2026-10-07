@@ -435,16 +435,5 @@ html[data-static-site] .topbar-platform-flyout { display: none !important; }
 html[data-static-site] .pages-source-overview-fold { margin-bottom: 16px; }
 html[data-static-site] .pages-source-overview-fold .all-platforms-grid { margin-top: 14px; }
 
-html[data-static-site] .pages-bili-content-controls {
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  background: var(--bg-surface);
-  padding: 14px 16px;
-  margin-bottom: 16px;
-}
-html[data-static-site] .pages-bili-content-controls > div { display: flex; flex-wrap: wrap; gap: 8px; }
-html[data-static-site] .pages-bili-content-controls p { margin: 10px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
-html[data-static-site] .pages-bili-decision { display: flex; flex-wrap: wrap; gap: 5px 10px; padding: 10px 16px; margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.6; border-top: 1px solid var(--border-subtle); }
-html[data-static-site] .pages-bili-decision strong { color: var(--text-primary); }
-html[data-static-site] .pages-bili-decision.is-excluded strong { color: #b26a12; }
+/* Source notes and content filters share the desktop card styles. */
 html[data-static-site] .in-app-reader .linkage-cards-grid { grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); }

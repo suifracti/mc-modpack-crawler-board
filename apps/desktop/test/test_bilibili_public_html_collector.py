@@ -14,6 +14,10 @@ def body(bvid,*,child=None,title='【MC整合包发布】星港2.0'):
  if child:video['ugc_season']={'sections':[{'episodes':[{'bvid':child}]}]}
  return '<script>window.__INITIAL_STATE__='+json.dumps({'bvid':bvid,'videoData':video,'tags':[{'tag_name':'我的世界'}]},ensure_ascii=False)+'; throw new Error("must never execute");</script>'
 
+def restricted_body(bvid):
+ video={'bvid':bvid,'state':0,'is_upower_exclusive':True,'title':'【MC整合包发布】星港2.0','owner':{'name':'fixture'},'pubdate':1790502559,'duration':80,'desc':'受限内容不得作为采集成功数据','stat':{'view':10}}
+ return '<script>window.__INITIAL_STATE__='+json.dumps({'bvid':bvid,'videoData':video,'tags':[{'tag_name':'我的世界'}]},ensure_ascii=False)+';</script>'
+
 def unavailable_body(bvid):
  return '<title>视频去哪了呢？_哔哩哔哩_bilibili</title><script>window.__INITIAL_STATE__='+json.dumps({'bvid':bvid,'error':{'code':404,'trueCode':-404},'videoData':{'stat':{},'owner':{}}})+';</script>'
 
@@ -33,6 +37,60 @@ class Transport:
   return value
 
 class Tests(unittest.TestCase):
+ def test_paid_restricted_state_is_classified_as_one_video_not_a_global_refusal(self):
+  with self.assertRaises(InvalidPublicVideo) as caught:html.parse_public_video(restricted_body(A),A)
+  self.assertEqual(type(caught.exception).__name__,'RestrictedPublicVideo')
+
+ def test_paid_restricted_video_retains_old_record_and_continues_public_queue(self):
+  with tempfile.TemporaryDirectory() as d:
+   old=[{'bvid':A,'title':'old restricted record','pub_timestamp':20},{'bvid':B,'pub_timestamp':10}]
+   r,rows=self.run_collect(d,old,Transport({A:restricted_body(A),B:body(B)}),mode='catalog',limit=2)
+   self.assertEqual(rows[0],old[0]);self.assertIn('source_html_checked_at',rows[1])
+   self.assertEqual(r['details']['observedCount'],1);self.assertEqual(r['failedRequests'],1)
+   self.assertIsNone(r['details']['stopped']);self.assertTrue(r['details']['knownCatalogCompleted']);self.assertEqual(r['details']['knownRestrictedCount'],1)
+   state=json.loads((Path(d)/'state.json').read_text());self.assertIn(A,state['restricted']);self.assertTrue(state['restricted'][A]['oldRecordRetained'])
+   self.assertEqual(state['days'][html.utc()[:10]],[A,B])
+
+ def test_saved_paid_stop_migrates_only_with_matching_local_hash_and_continues_queue(self):
+  with tempfile.TemporaryDirectory() as d:
+   old=[{'bvid':A,'title':'old restricted record','pub_timestamp':20},{'bvid':B,'pub_timestamp':10}]
+   raw=self.setup_input(d,old);state_path=Path(d)/'state.json';evidence=html.save_html_evidence(state_path,A,restricted_body(A))
+   prior={'schema':1,'days':{html.utc()[:10]:[A]},'stopped':{'at':html.utc(),'bvid':A,'error':'Paid or restricted video','httpStatus':None,'htmlEvidence':evidence},'stopHistory':[{'older':'retain'}]}
+   state_path.write_text(json.dumps(prior),encoding='utf-8');transport=Transport({A:restricted_body(A),B:body(B)})
+   with patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'result.json')}):result=html.collect(d,state_path,mode='catalog',limit=2,transport=transport)
+   rows=json.loads(raw.read_text(encoding='utf-8'))
+   after=json.loads(state_path.read_text())
+   self.assertEqual(rows[0],old[0]);self.assertIn('source_html_checked_at',rows[1]);self.assertIsNone(result['details']['stopped'])
+   self.assertFalse(any('/video/'+A+'/' in u for u in transport.requests));self.assertTrue(any('/video/'+B+'/' in u for u in transport.requests))
+   self.assertEqual(after['stopHistory'][0],prior['stopHistory'][0]);self.assertEqual(after['stopHistory'][1]['resolution'],'single-video-restricted')
+   self.assertIn(A,after['restricted']);self.assertIsNone(after['stopped'])
+
+ def test_saved_paid_stop_with_tampered_evidence_does_not_resume_or_request(self):
+  with tempfile.TemporaryDirectory() as d:
+   raw=self.setup_input(d,[{'bvid':A,'title':'retain'}]);state_path=Path(d)/'state.json';evidence=html.save_html_evidence(state_path,A,restricted_body(A))
+   Path(evidence['path']).write_text(restricted_body(A)+'<!-- tampered -->',encoding='utf-8')
+   prior={'schema':1,'days':{html.utc()[:10]:[A]},'stopped':{'at':html.utc(),'bvid':A,'error':'Paid or restricted video','httpStatus':None,'htmlEvidence':evidence},'stopHistory':[{'older':'retain'}]}
+   state_path.write_text(json.dumps(prior),encoding='utf-8');before=state_path.read_bytes();transport=Transport({B:body(B)})
+   with patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'result.json')}):result=html.collect(d,state_path,mode='catalog',limit=2,transport=transport)
+   self.assertEqual(transport.requests,[]);self.assertEqual(state_path.read_bytes(),before);self.assertEqual(json.loads(raw.read_text()),[{'bvid':A,'title':'retain'}])
+   self.assertEqual(result['status'],'failed');self.assertEqual(result['details']['stopped'],prior['stopped'])
+
+ def test_certificate_stop_resumes_only_with_saved_single_robots_failure_and_trusted_roots(self):
+  with tempfile.TemporaryDirectory() as d:
+   state_path=Path(d)/'state.json';proof_dir=Path(d)/'update-results';proof_dir.mkdir()
+   stop={'at':'2026-10-06T14:30:44Z','error':'<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1082)>','httpStatus':None}
+   prior={'schema':1,'days':{html.utc()[:10]:[A]},'stopped':stop,'stopHistory':[{'older':'retain'}]};state_path.write_text(json.dumps(prior))
+   proof={'platform':'bilibili','outcome':'failed','crawlerResult':{'status':'failed','errors':[stop['error']],'details':{'requests':['https://www.bilibili.com/robots.txt'],'observedCount':0,'stopped':stop}}}
+   proof_file=proof_dir/'failed.json';proof_file.write_text(json.dumps(proof));fake_context=SimpleNamespace(cert_store_stats=lambda:{'x509_ca':128},verify_mode=ssl.CERT_REQUIRED,check_hostname=True)
+   with patch.object(html,'create_verified_context',return_value=fake_context):self.assertTrue(html.resolve_trust_store_stop(prior,state_path,proof_dir))
+   after=prior;self.assertEqual(after['days'],{html.utc()[:10]:[A]});self.assertIsNone(after['stopped']);self.assertEqual(after['stopHistory'][0],{'older':'retain'})
+   self.assertEqual(after['stopHistory'][1]['resolution'],'verified-system-ca-roots-before-video-request');self.assertEqual(after['stopHistory'][1]['contentRequests'],0)
+
+ def test_public_html_transport_uses_verified_system_roots(self):
+  opener=html.PublicTransport().opener;handler=next(h for h in opener.handlers if isinstance(h,urllib.request.HTTPSHandler))
+  self.assertTrue(handler._context.check_hostname);self.assertEqual(handler._context.verify_mode,ssl.CERT_REQUIRED)
+  self.assertGreater(handler._context.cert_store_stats()['x509_ca'],0)
+
  def test_owner_only_video_retains_old_record_and_continues_public_queue(self):
   with tempfile.TemporaryDirectory() as d:
    old=[{'bvid':A,'desc':'private video old evidence','pub_timestamp':20},{'bvid':B,'pub_timestamp':10}]
@@ -224,6 +282,99 @@ class Tests(unittest.TestCase):
    with self.subTest(title=title):
     video={'title':title,'desc':desc,'owner':{'name':'fixture'},'duration':90}
     self.assertEqual(classify_video(video,['我的世界'])['accepted'],accepted)
+ def test_publication_signals_separate_preview_recommendation_and_acquisition_bait(self):
+  from bilibili_html_adapter import content_decision
+  cases=[
+   ('MC整合包发布:永生——魔法与科技','', 'release', True),
+   ('MC整合包预告：永生 0.3','https://www.mcmod.cn/modpack/1096.html','announcement',True),
+   ('我的世界国外整合包推荐 The Fool','https://www.curseforge.com/minecraft/modpacks/the-fool','showcase',True),
+   ('星港 0.3 正式更新','https://www.mcmod.cn/modpack/123.html','release',True),
+   ('转载 MC整合包发布：星港','https://www.mcmod.cn/modpack/123.html','showcase',True),
+   ('我的世界整合包更新推荐：星港','https://www.mcmod.cn/modpack/123.html','showcase',True),
+   ('MC 推荐这款原创整合包 星港','','showcase',True),
+   ('MC 分享作者自制的整合包 星港','','showcase',True),
+   ('【籽岷/MC】籽岷看小水滴大佬制作的脑叶公司整合包2.0预告','','showcase',True),
+   ('MC 我制作的整合包分享：星港','','release',True),
+   ('MC 不是我制作的整合包分享：星港','','showcase',True),
+   ('我的世界 怪物大乱斗:重生整合包分享 支持手机版fcl启动器','三连+关注后自动发送更多整合包！！！\n整合包：https://docs.qq.com/sheet/example\n本次整合包 https://pan.quark.cn/s/example','promotion',False),
+   ('MC整合包 星港 生存第二期','Minecraft 1.20.1','gameplay',False),
+  ]
+  for title,desc,kind,accepted in cases:
+   with self.subTest(title=title):
+    actual=content_decision(title,'fixture',desc,['我的世界'])
+    self.assertEqual((actual['kind'],actual['candidate']),(kind,accepted))
+
+ def test_catalog_update_discovers_and_confirms_public_season_members(self):
+  with tempfile.TemporaryDirectory() as d:
+   r,rows=self.run_collect(d,[{'bvid':A}],Transport({A:body(A,child=B),B:body(B)}),mode='catalog',limit=2)
+   self.assertEqual([x['bvid'] for x in rows],[A,B])
+   self.assertEqual(r['details']['newCount'],1)
+   self.assertFalse(r['details']['globalDiscoveryAvailable'])
+
+ def test_catalog_known_updates_are_not_starved_by_new_season_members(self):
+  with tempfile.TemporaryDirectory() as d:
+   old=[{'bvid':A,'pub_timestamp':20},{'bvid':C,'pub_timestamp':10}]
+   transport=Transport({A:body(A,child=B),B:body(B),C:body(C)})
+   result,rows=self.run_collect(d,old,transport,mode='catalog',limit=2)
+   self.assertTrue(all(r.get('source_html_checked_at') for r in rows))
+   self.assertEqual([x['bvid'] for x in rows],[A,C])
+   self.assertEqual(json.loads((Path(d)/'state.json').read_text())['discoveryQueue'],[B])
+   self.assertFalse(result['details']['knownCatalogCompleted'])
+
+ def test_persisted_season_backlog_does_not_precede_existing_catalog(self):
+  with tempfile.TemporaryDirectory() as d:
+   self.setup_input(d,[{'bvid':A}]);state=Path(d)/'state.json'
+   state.write_text(json.dumps({'schema':1,'days':{},'discoveryQueue':[B],'stopped':None}))
+   with patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'result.json')}):
+    result=html.collect(d,state,mode='catalog',limit=1,transport=Transport({A:body(A),B:body(B)}))
+   rows=json.loads((Path(d)/'crawler_output/bilibili_modpacks.json').read_text())
+   self.assertEqual([r['bvid'] for r in rows],[A]);self.assertIn('source_html_checked_at',rows[0])
+   self.assertEqual(json.loads(state.read_text())['discoveryQueue'],[B])
+
+ def test_gameplay_season_does_not_expand_into_more_unrelated_requests(self):
+  with tempfile.TemporaryDirectory() as d:
+   result,rows=self.run_collect(d,[{'bvid':A}],Transport({A:body(A,title='MC整合包实况 EP1',child=B),B:body(B)}),mode='catalog',limit=3)
+   self.assertEqual(result['details']['observedCount'],1)
+   self.assertEqual([r['bvid'] for r in rows],[A])
+   self.assertEqual(json.loads((Path(d)/'state.json').read_text())['discoveryQueue'],[])
+
+ def test_interrupted_catalog_preserves_completed_observations_in_workspace_checkpoint(self):
+  ids=['BV'+str(i).zfill(10) for i in range(31)]
+  with tempfile.TemporaryDirectory() as d:
+   raw=self.setup_input(d,[{'bvid':x,'desc':'old full body','pub_timestamp':100-i} for i,x in enumerate(ids)])
+   class Interrupted(Transport):
+    def fetch(self,url,limit):
+     if '/video/'+ids[-1]+'/' in url:raise KeyboardInterrupt()
+     return super().fetch(url,limit)
+   transport=Interrupted({x:body(x) for x in ids})
+   with patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'result.json')}):
+    with self.assertRaises(KeyboardInterrupt):html.collect(d,Path(d)/'state.json',mode='catalog',limit=31,transport=transport)
+   saved=json.loads(raw.read_text());self.assertIn('source_html_checked_at',saved[0]);self.assertEqual(saved[0]['desc'],'old full body')
+   self.assertNotIn('source_html_checked_at',saved[-1])
+   sidecar=Path(d)/'converted_output/data/bili_data.js'
+   self.assertEqual(json.loads(sidecar.read_text().split('=',1)[1].rstrip(';\n')),saved)
+
+ def test_verified_browser_candidates_do_not_starve_known_refresh_on_next_day(self):
+  with tempfile.TemporaryDirectory() as d:
+   self.setup_input(d,[{'bvid':A}]);p=Path(d)/'bilibili-browser-discovery.json';p.write_text(json.dumps({'schema':1,'candidates':[{'bvid':B,'sourceUrl':'https://search.bilibili.com/all?keyword=整合包'}]}))
+   with patch.object(html,'utc',return_value='2026-10-06T08:00:00Z'),patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'r1.json')}):html.collect(d,Path(d)/'state.json',mode='catalog',limit=1,transport=Transport({B:body(B)}))
+   t=Transport({A:body(A)})
+   with patch.object(html,'utc',return_value='2026-10-07T08:00:00Z'),patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'r2.json')}):r=html.collect(d,Path(d)/'state.json',mode='catalog',limit=1,transport=t)
+   self.assertEqual(r['details']['observedCount'],1);self.assertIn('/video/'+A+'/',t.requests[-1]);self.assertFalse(any('/video/'+B+'/' in u for u in t.requests))
+
+ def test_fresh_title_version_has_its_own_observation_without_erasing_old_derived_evidence(self):
+  video,tags=html.parse_public_video(body(A,title='【MC整合包发布】星港2.0'),A)
+  observed,_=html.metadata_patch(video,tags,body(A),'2026-10-06T10:00:00Z')
+  merged=html.merge_observation({'bvid':A,'pack_version':'1.0','desc':'archive'},observed)
+  self.assertEqual(merged['pack_version'],'1.0');self.assertEqual(merged['source_title_pack_version'],'2.0');self.assertEqual(merged['desc'],'archive')
+
+ def test_browser_discovery_queue_is_used_by_the_normal_update_without_cookies(self):
+  with tempfile.TemporaryDirectory() as d:
+   p=Path(d)/'bilibili-browser-discovery.json';p.write_text(json.dumps({'schema':1,'candidates':[{'bvid':B,'title':'MC整合包发布：永生','sourceUrl':'https://search.bilibili.com/all?keyword=整合包'}]}))
+   r,rows=self.run_collect(d,[{'bvid':A}],Transport({B:body(B)}),mode='catalog',limit=1)
+   self.assertIn(B,[x['bvid'] for x in rows]);self.assertEqual(r['details']['browserDiscoveredCount'],1)
+   self.assertFalse(r['details']['cookiesUsed'])
+
  def setup_input(self,d,rows):
   p=Path(d)/'crawler_output/bilibili_modpacks.json';p.parent.mkdir(parents=True);p.write_text(json.dumps(rows,ensure_ascii=False),encoding='utf-8');return p
  def run_collect(self,d,rows,transport,**kw):
@@ -283,6 +434,43 @@ class Tests(unittest.TestCase):
    t=Transport({A:body(A,child=B),B:ValueError('captcha fixture')})
    r,rows=self.run_collect(d,[{'bvid':A},{'bvid':C,'desc':'retain'}],t,mode='new',bvid=A,limit=3)
    self.assertEqual(r['status'],'partial');self.assertEqual(r['failedRequests'],1);self.assertEqual({v['bvid'] for v in rows},{A,C});self.assertEqual(rows[1]['desc'],'retain')
+
+ def test_unparseable_video_is_isolated_and_next_candidate_continues(self):
+  malformed='<title>赛事库 | 课堂 | 2021拜年纪</title><main>no initial state</main>'
+  with tempfile.TemporaryDirectory() as d:
+   old=[{'bvid':A,'title':'keep old A','pub_timestamp':20},{'bvid':B,'pub_timestamp':10}]
+   t=Transport({A:malformed,B:body(B)})
+   result,rows=self.run_collect(d,old,t,mode='catalog',limit=2)
+   self.assertEqual(rows[0],old[0]);self.assertIn('source_html_checked_at',rows[1])
+   self.assertEqual(result['failedRequests'],1);self.assertIsNone(result['details']['stopped'])
+   self.assertFalse(result['details']['perVideoFailureThresholdReached'])
+   state=json.loads((Path(d)/'state.json').read_text())
+   self.assertEqual(state['parseFailures'][A]['classification'],'unparseable-public-html')
+   self.assertEqual(state['parseFailures'][A]['oldRecordRetained'],True)
+   self.assertTrue(any('/video/'+B+'/' in url for url in t.requests))
+
+ def test_saved_unparseable_stop_migrates_without_refetch_and_continues(self):
+  malformed='<title>赛事库 | 课堂 | 2021拜年纪</title><main>no initial state</main>'
+  with tempfile.TemporaryDirectory() as d:
+   old=[{'bvid':A,'title':'keep old A','pub_timestamp':20},{'bvid':B,'pub_timestamp':10}]
+   raw=self.setup_input(d,old);state_path=Path(d)/'state.json';evidence=html.save_html_evidence(state_path,A,malformed)
+   prior={'schema':1,'days':{html.utc()[:10]:[A]},'stopped':{'at':html.utc(),'bvid':A,'error':'Missing or error initial state','httpStatus':None,'htmlEvidence':evidence},'stopHistory':[{'older':'retain'}]}
+   state_path.write_text(json.dumps(prior),encoding='utf-8');t=Transport({B:body(B)})
+   with patch.dict(os.environ,{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'result.json')}):result=html.collect(d,state_path,mode='catalog',limit=2,transport=t)
+   rows=json.loads(raw.read_text(encoding='utf-8'));after=json.loads(state_path.read_text())
+   self.assertEqual(rows[0],old[0]);self.assertIn('source_html_checked_at',rows[1])
+   self.assertFalse(any('/video/'+A+'/' in url for url in t.requests));self.assertTrue(any('/video/'+B+'/' in url for url in t.requests))
+   self.assertIsNone(after['stopped']);self.assertEqual(after['parseFailures'][A]['htmlEvidence']['sha256'],evidence['sha256'])
+   self.assertEqual(after['stopHistory'][1]['resolution'],'isolated-unparseable-video');self.assertFalse(result['details']['stopped'])
+
+ def test_unparseable_video_failures_stop_at_bounded_batch_threshold(self):
+  with tempfile.TemporaryDirectory() as d:
+   ids=[f'BV{i:010d}' for i in range(1,4)];rows=[{'bvid':value,'pub_timestamp':10-i} for i,value in enumerate(ids)]
+   t=Transport({value:'<title>unexpected</title>' for value in ids})
+   with patch.object(html,'MAX_UNPARSEABLE_FAILURES_PER_RUN',2):result,actual=self.run_collect(d,rows,t,mode='catalog',limit=3)
+   self.assertEqual(result['failedRequests'],2);self.assertTrue(result['details']['perVideoFailureThresholdReached'])
+   self.assertEqual(sum('/video/' in url for url in t.requests),2)
+   self.assertEqual(len(json.loads((Path(d)/'state.json').read_text())['discoveryQueue']),1)
  def test_catalog_mode_can_continue_past_default_daily_batch_without_resetting_ledger(self):
   with tempfile.TemporaryDirectory() as d:
    ids=[f'BV{i:010d}' for i in range(1,33)]

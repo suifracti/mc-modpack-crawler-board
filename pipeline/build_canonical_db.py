@@ -4,10 +4,13 @@ Builds build/canonical.db from raw JSON snapshots in crawler_output/.
 Strictly preserves crawler files and existing dashboard contracts.
 """
 import argparse
+import hashlib
 from datetime import datetime, timezone
 import os
 import sys
 import time
+import uuid
+from pathlib import Path
 from typing import Dict, Tuple, List, Any
 
 # Ensure project root is on PYTHONPATH
@@ -35,7 +38,27 @@ from pipeline.adapters import (
 from pipeline.models.canonical import CanonicalPackBundle
 
 
-def build_canonical_db(db_path: str = DEFAULT_DB_PATH, recreate: bool = True) -> Dict[str, Any]:
+def pipeline_fingerprint():
+    root = Path(__file__).resolve().parent
+    digest = hashlib.sha256()
+    for file in sorted([*root.rglob('*.py'), root / 'db/schema.sql']):
+        digest.update(str(file.relative_to(root)).encode())
+        digest.update(file.read_bytes())
+    return digest.hexdigest()
+
+
+def source_id_fingerprint(conn, platform):
+    digest = hashlib.sha256()
+    for row in conn.execute('SELECT source_id FROM source_items WHERE platform = ? ORDER BY source_id', (platform,)):
+        digest.update(repr(row[0]).encode()); digest.update(b'\n')
+    return digest.hexdigest()
+
+
+def build_canonical_db(db_path: str = DEFAULT_DB_PATH, recreate: bool = True, platforms=None) -> Dict[str, Any]:
+    selected = set(platforms) if platforms is not None else None
+    valid = {'mcmod','bilibili','bbsmc','xyebbs','modrinth','curseforge'}
+    if selected is not None and (not selected or not selected <= valid or recreate or not os.path.isfile(db_path)):
+        raise ValueError('Partial canonical refresh requires a validated existing database and known platforms')
     start_time = time.time()
     print(f"[*] Starting Canonical DB Ingestion -> {db_path}")
 
@@ -61,7 +84,7 @@ def build_canonical_db(db_path: str = DEFAULT_DB_PATH, recreate: bool = True) ->
     init_db(conn)
     print("[+] Database schema initialized successfully.")
 
-    run_id = f"run_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+    run_id = f"run_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
     started_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     conn.execute(
         "INSERT INTO ingest_runs (run_id, started_at, status, notes) VALUES (?, ?, ?, ?)",
@@ -103,6 +126,15 @@ def build_canonical_db(db_path: str = DEFAULT_DB_PATH, recreate: bool = True) ->
         ModrinthAdapter(workspace_root=PROJECT_ROOT),
         CurseForgeAdapter(workspace_root=PROJECT_ROOT),
     ]
+    if selected is not None:
+        adapters = [adapter for adapter in adapters if adapter.platform_name in selected]
+        marks = ','.join('?' for _ in selected)
+        values = sorted(selected)
+        # This is an isolated copy. Cascades replace only the selected source;
+        # clear its old FTS rows as FTS5 has no foreign-key cascade.
+        with conn:
+            conn.execute(f'DELETE FROM pack_fts WHERE pack_id IN (SELECT id FROM packs WHERE primary_platform IN ({marks}))', values)
+            conn.execute(f'DELETE FROM packs WHERE primary_platform IN ({marks})', values)
 
     total_records = 0
 
@@ -403,8 +435,7 @@ def build_canonical_db(db_path: str = DEFAULT_DB_PATH, recreate: bool = True) ->
     # Build FTS index
     print("\n[*] Populating FTS5 Full-Text Search index (pack_fts)...")
     fts_start = time.time()
-    conn.execute(
-        """
+    fts_sql = """
         INSERT INTO pack_fts(pack_id, title, aliases, author, summary, categories)
         SELECT 
             p.id,
@@ -414,9 +445,19 @@ def build_canonical_db(db_path: str = DEFAULT_DB_PATH, recreate: bool = True) ->
             COALESCE(p.summary, ''),
             COALESCE((SELECT GROUP_CONCAT(c.name, ' ') FROM source_item_categories sic JOIN categories c ON sic.category_id = c.id WHERE sic.source_item_id = s.id), '')
         FROM packs p
-        LEFT JOIN source_items s ON s.pack_id = p.id;
+        LEFT JOIN source_items s ON s.pack_id = p.id
         """
-    )
+    if selected is not None:
+        conn.execute(fts_sql + f' WHERE p.primary_platform IN ({marks})', values)
+    else:
+        conn.execute(fts_sql)
+    conn.commit()
+
+    conn.execute('CREATE TABLE IF NOT EXISTS canonical_build_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+    conn.execute('INSERT OR REPLACE INTO canonical_build_meta VALUES (?, ?)', ('pipelineFingerprint', pipeline_fingerprint()))
+    for platform in valid:
+        conn.execute('INSERT OR REPLACE INTO canonical_build_meta VALUES (?, ?)',
+                     ('sourceIds:' + platform, source_id_fingerprint(conn, platform)))
     conn.commit()
     print(f"[+] FTS5 index populated in {time.time() - fts_start:.2f}s.")
 

@@ -37,7 +37,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workspace", required=True)
     parser.add_argument("--source-root", required=True)
     parser.add_argument("--limit", type=int, default=None)
-    parser.add_argument("--pages", type=int, default=1)
+    # Leave unset unless the caller explicitly limits pages. Platform modes
+    # choose their own safe defaults (including the 200-page CF catalog cap).
+    parser.add_argument("--pages", type=int, default=None)
     parser.add_argument("--until", default=None)
     parser.add_argument("--mode", default=None)
     parser.add_argument("--cover-offset", type=int, default=None)
@@ -73,11 +75,11 @@ def build_script_args(platform: str, args: argparse.Namespace) -> list[str]:
             result.extend(["--cover-offset", str(cover_offset)])
         return result
     if platform == "bbsmc":
-        return ["--type", "modpack", "--max", str(limit or 0), "--enrich", str(min(limit, 100) if limit else 100)]
+        return ["--type", "modpack", "--max", str(limit or 0), "--enrich", str(limit or 100000)] + (["--daily"] if getattr(args,"mode",None)=="daily" else [])
     if platform == "xyebbs":
-        return ["--max", str(limit or 0), "--enrich", str(min(limit, 100) if limit else 100)]
+        return ["--max", str(limit or 0), "--enrich", str(limit or 100000)] + (["--daily"] if getattr(args,"mode",None)=="daily" else [])
     if platform == "modrinth":
-        return ["--max", str(limit or 0)]
+        return ["--max", str(limit or 0)] + (["--daily"] if getattr(args,"mode",None)=="daily" else [])
     if platform == "curseforge":
         config_root = str(Path(getattr(args, "source_root", Path(__file__).resolve().parents[2])).resolve())
         sys.path.insert(0, config_root)
@@ -95,6 +97,8 @@ def build_script_args(platform: str, args: argparse.Namespace) -> list[str]:
             return ["--max","0","--recent-pages",str(args.pages or 2)]+public
         if getattr(args, "mode", None) == "recent":
             return ["--max", "0", "--recent-pages", str(args.pages or 20)] + public
+        if mode == "catalog":
+            return ["--max", str(limit or 0), "--recent-pages", str(args.pages or 200)] + public
         return ["--max", str(limit or 0)] + public
     raise ValueError(platform)
 
@@ -158,7 +162,7 @@ def merge_catalog_with_existing(workspace: Path, platform: str, previous: list[d
     sidecar_path = workspace / "converted_output" / "data" / config["sidecar"]
     with raw_path.open(encoding="utf-8") as handle:
         current = json.load(handle)
-    if not isinstance(current, list) or not current:
+    if not isinstance(current, list):
         return
     key = "bvid" if platform == "bilibili" else "project_id"
     old_by_id = {str(item.get(key)): item for item in previous if isinstance(item, dict) and item.get(key)}
@@ -173,7 +177,26 @@ def merge_catalog_with_existing(workspace: Path, platform: str, previous: list[d
         old = old_by_id.get(ident)
         if not old:
             continue
+        history_fields = ("releases", "versions_data", "releases_data")
+        fresh_history = next((item[field] for field in history_fields
+                              if isinstance(item.get(field), list) and item[field]), None)
+        if fresh_history:
+            # The catalog producers use different history field names. Never
+            # let a retained old `releases`/latest_version hide fresh versions.
+            old_history = next((old[field] for field in history_fields
+                                if isinstance(old.get(field), list) and old[field]), [])
+            def release_name(release):
+                return str(next((release.get(k) for k in ("version_number", "versionName", "label", "name")
+                                 if release.get(k)), ""))
+            fresh_names = {release_name(release) for release in fresh_history}
+            item["releases"] = fresh_history + [release for release in old_history
+                                               if release_name(release) not in fresh_names]
+            latest = release_name(fresh_history[0])
+            if latest:
+                item["latest_version"] = latest
         for field in keep_fields:
+            if fresh_history and field in (*history_fields, "latest_version", "pack_version", "version_checked_at"):
+                continue
             if old.get(field) and not item.get(field):
                 item[field] = old[field]
         if platform == "bilibili":
@@ -235,12 +258,18 @@ def collect_output_contract(
         if crawler_result.get("platform") != platform:
             raise ValueError("crawler 采集结果合同的平台不匹配")
         truncated_catalog_allowed = platform == "curseforge" and not allow_existing_partial and not allow_mcmod_partial
-        partial_allowed = ((platform in {"bilibili", "curseforge"} or allow_existing_partial or allow_mcmod_partial)
+        details = crawler_result.get("details") or {}
+        verified_catalog_partial = (platform in {"bbsmc", "xyebbs", "modrinth"}
+                                    and details.get("catalogCompleted") is True
+                                    and int(details.get("versionsChecked") or 0) > 0
+                                    and not details.get("sourceStopped")
+                                    and int(details.get("versionParseFailures") or 0) == 0)
+        partial_allowed = ((verified_catalog_partial or platform in {"bilibili", "curseforge"} or allow_existing_partial or allow_mcmod_partial)
                            and crawler_result.get("status") == "partial"
                            and int(crawler_result.get("fetchedCount") or 0) > 0
                            and (not crawler_result.get("truncated") or truncated_catalog_allowed))
         if crawler_result.get("status") not in {"success", "success_no_change"} and not partial_allowed:
-            raise ValueError(f"crawler 报告本轮结果为 {crawler_result.get('status') or 'unknown'}")
+            raise ValueError(f"crawler 报告本轮结果为 {crawler_result.get('status') or 'unknown'}；" + "; ".join(str(value) for value in (crawler_result.get("errors") or [])[:3]))
         if not crawler_result.get("requestCompleted") and not partial_allowed:
             raise ValueError("crawler 未确认请求/分页完整完成")
         if crawler_result.get("truncated") and not truncated_catalog_allowed:
@@ -324,9 +353,16 @@ def run_selected_collector(args: argparse.Namespace) -> None:
         shutil.copy2(source_root / "curseforge_api_config.py", isolated_script.parent / "curseforge_api_config.py")
         shutil.copy2(source_root / "curseforge_cfwidget.py", isolated_script.parent / "curseforge_cfwidget.py")
         shutil.copy2(source_root / "curseforge_modpacks_ch.py", isolated_script.parent / "curseforge_modpacks_ch.py")
+        shutil.copy2(source_root / "verified_tls.py", isolated_script.parent / "verified_tls.py")
+
+    if args.platform in {"bbsmc", "xyebbs"}:
+        shutil.copy2(source_root / "public_api_transport.py", isolated_script.parent / "public_api_transport.py")
+    if args.platform in {"bbsmc", "xyebbs", "modrinth"}:
+        shutil.copy2(source_root / "verified_tls.py", isolated_script.parent / "verified_tls.py")
+        shutil.copy2(source_root / "catalog_refresh_policy.py", isolated_script.parent / "catalog_refresh_policy.py")
 
     if args.platform == "bilibili":
-        for helper in ("bilibili_html_adapter.py", "bilibili_html_extract.py"):
+        for helper in ("bilibili_html_adapter.py", "bilibili_html_extract.py", "verified_tls.py"):
             shutil.copy2(source_root / helper, isolated_script.parent / helper)
         # Keep the same content policy in the isolated HTML worker as public browsing.
         rules = source_root / "bilibili-content-rules.json"
@@ -355,6 +391,8 @@ def run_selected_collector(args: argparse.Namespace) -> None:
     previous_path = sys.path[:]
     previous_workspace = os.environ.get("MC_DESKTOP_WORKSPACE")
     previous_result_path = os.environ.get("MC_DESKTOP_COLLECTION_RESULT")
+    previous_cf_checkpoint = os.environ.get("MC_CF_PUBLIC_CATALOG_CHECKPOINT")
+    previous_bili_proof_dir = os.environ.get("MC_BILIBILI_TLS_STOP_PROOF_DIR")
     crawler_error = None
     try:
         os.chdir(workspace)
@@ -362,6 +400,19 @@ def run_selected_collector(args: argparse.Namespace) -> None:
         sys.argv = [str(isolated_script), *script_args]
         os.environ["MC_DESKTOP_WORKSPACE"] = str(workspace)
         os.environ["MC_DESKTOP_COLLECTION_RESULT"] = str(workspace / "build" / config["result"])
+        if args.platform == "curseforge" and "--public-catalog" in script_args:
+            data_root = workspace.parent.parent if workspace.parent.name == "incoming" else workspace
+            checkpoint = (data_root / "collector-state" / "curseforge-public-catalog-v2" / "checkpoint.json"
+                          if args.mode == "catalog" else data_root / "collector-state" /
+                          "curseforge-public-catalog-recent-v2" / f"{workspace.name}-checkpoint.json")
+            os.environ["MC_CF_PUBLIC_CATALOG_CHECKPOINT"] = str(
+                checkpoint
+            )
+        if args.platform == "bilibili":
+            data_root = workspace.parent.parent if workspace.parent.name == "incoming" else workspace
+            os.environ["MC_BILIBILI_TLS_STOP_PROOF_DIR"] = str(
+                data_root / "collector-state" / "update-results"
+            )
         try:
             runpy.run_path(str(isolated_script), run_name="__main__")
         except SystemExit as error:
@@ -381,6 +432,14 @@ def run_selected_collector(args: argparse.Namespace) -> None:
             os.environ.pop("MC_DESKTOP_COLLECTION_RESULT", None)
         else:
             os.environ["MC_DESKTOP_COLLECTION_RESULT"] = previous_result_path
+        if previous_cf_checkpoint is None:
+            os.environ.pop("MC_CF_PUBLIC_CATALOG_CHECKPOINT", None)
+        else:
+            os.environ["MC_CF_PUBLIC_CATALOG_CHECKPOINT"] = previous_cf_checkpoint
+        if previous_bili_proof_dir is None:
+            os.environ.pop("MC_BILIBILI_TLS_STOP_PROOF_DIR", None)
+        else:
+            os.environ["MC_BILIBILI_TLS_STOP_PROOF_DIR"] = previous_bili_proof_dir
 
     if crawler_error is None and old_records and args.mode != "existing" and args.platform not in {"mcmod", "bilibili"}:
         merge_catalog_with_existing(workspace, args.platform, old_records)
@@ -396,10 +455,17 @@ def run_selected_collector(args: argparse.Namespace) -> None:
             raise ValueError(f"{args.platform} 合并后遗失旧 ID，拒绝提交")
     contract = collect_output_contract(workspace, args.platform, started_ns, before, crawler_error,
                                        allow_existing_partial=args.mode == "existing" and args.platform != "mcmod",
-                                       allow_mcmod_partial=args.platform == "mcmod" and args.mode in {"all", "metrics", "trend", "covers"})
+                                       allow_mcmod_partial=args.platform == "mcmod" and args.mode in {"all", "metrics", "trend", "covers", "versions"})
     contract["previousIdsPreserved"] = previous_ids_preserved
     write_update_contract(workspace, contract)
     if contract["outcome"] == "failed":
+        # The runner removes its temporary stage. Retain the small result
+        # contract so a rejected update can still be diagnosed afterwards.
+        diagnostic_dir = workspace.parent.parent / "collector-state" / "update-results"
+        diagnostic_dir.mkdir(parents=True, exist_ok=True)
+        diagnostic_path = diagnostic_dir / f"{workspace.name}.json"
+        with os.fdopen(os.open(diagnostic_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8") as handle:
+            json.dump(contract, handle, ensure_ascii=False, indent=2)
         emit(platform=args.platform, phase="失败", processed=contract["rawCount"], total=contract["rawCount"], error=contract["error"])
         raise RuntimeError(str(contract["error"]))
 

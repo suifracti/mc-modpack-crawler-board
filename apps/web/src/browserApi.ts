@@ -1,3 +1,4 @@
+import {createBilibiliCompatibleQuery} from './domain/bilibiliQueryCompatibility';
 import type { Platform } from './domain/types';
 import type { DesktopApi, DesktopDataState, DesktopCommentsResult, DesktopUpdateStatus, DesktopAuditResult, DesktopDataLibrary, FavoriteUpdatesResult, PersonalStatus } from './desktopShell';
 
@@ -57,23 +58,15 @@ function subscribe<T>(listeners: Set<(value: T) => void>, callback: (value: T) =
 
 export function installBrowserApi(): void {
   if (window.desktopApi) return;
-  const api: DesktopApi = {
-    nativeDataDirectoryPicker: false,
-    getState: () => request<{ data: DesktopDataState; update: DesktopUpdateStatus }>('/api/state'),
-    getPersonalLibrary: () => request<{ schema: number; entries: Record<string, PersonalStatus> }>('/api/library'),
-    getFavoriteUpdates: () => request<FavoriteUpdatesResult>('/api/favorite-updates'),
-    markFavoriteUpdateRead: (id) => request<FavoriteUpdatesResult>(`/api/favorite-updates/${encodeURIComponent(id)}/read`, { method: 'POST', body: '{}' }),
-    getMissingPersonalSources: () => request<{ entries: Record<string, PersonalStatus> }>('/api/library/missing'),
-    restorePersonalLibrary: (payload) => request<{ restored: number; 'skipped-conflict': number; invalid: number }>('/api/library/restore', { method: 'POST', body: JSON.stringify(payload) }),
-    updatePersonalStatus: (platform, sourceId, patch) => request<{ key: string; status: PersonalStatus }>(`/api/library/${encodeURIComponent(platform)}/${encodeURIComponent(sourceId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-    getAuditDiff: (round?: number | string | null) => request<DesktopAuditResult>(`/api/audit${round === undefined || round === null ? '' : typeof round === 'string' ? `?snapshot=${encodeURIComponent(round)}` : `?round=${round}`}`),
-    getSourceRecord: (platform, sourceId) => request(`/api/source-record/${encodeURIComponent(platform)}/${encodeURIComponent(sourceId)}`),
-    getPlatformRecords: (platform, options = {}) => {
+  const compatibleBilibiliQuery = createBilibiliCompatibleQuery(
+    options => queryPlatformRecords('bilibili', options),
+    async () => (await request<{entries: Record<string, PersonalStatus>}>('/api/library')).entries,
+    async () => (await request<{data: DesktopDataState}>('/api/state')).data.snapshotId || '',
+  );
+  const queryPlatformRecords: DesktopApi['getPlatformRecords'] = (platform, options = {}) => {
       const params = new URLSearchParams({
         query: options.query || '',
+        bilibiliContent: options.bilibiliContent || 'all',
         version: options.version || '',
         loader: options.loader || '',
         category: options.category || '',
@@ -90,7 +83,23 @@ export function installBrowserApi(): void {
       for (const category of options.gameplayCategories || []) params.append('gameplayCategory', category);
       if (options.gameplayCategoriesExclude) params.set('gameplayCategoriesExclude', 'true');
       return request<Awaited<ReturnType<DesktopApi['getPlatformRecords']>>>(`/api/platforms/${encodeURIComponent(platform)}/records?${params.toString()}`);
-    },
+  };
+  const api: DesktopApi = {
+    nativeDataDirectoryPicker: false,
+    getState: () => request<{ data: DesktopDataState; update: DesktopUpdateStatus }>('/api/state'),
+    getPersonalLibrary: () => request<{ schema: number; entries: Record<string, PersonalStatus> }>('/api/library'),
+    getFavoriteUpdates: () => request<FavoriteUpdatesResult>('/api/favorite-updates'),
+    markFavoriteUpdateRead: (id) => request<FavoriteUpdatesResult>(`/api/favorite-updates/${encodeURIComponent(id)}/read`, { method: 'POST', body: '{}' }),
+    getMissingPersonalSources: () => request<{ entries: Record<string, PersonalStatus> }>('/api/library/missing'),
+    restorePersonalLibrary: (payload) => request<{ restored: number; 'skipped-conflict': number; invalid: number }>('/api/library/restore', { method: 'POST', body: JSON.stringify(payload) }),
+    updatePersonalStatus: (platform, sourceId, patch) => request<{ key: string; status: PersonalStatus }>(`/api/library/${encodeURIComponent(platform)}/${encodeURIComponent(sourceId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+    getAuditDiff: (round?: number | string | null) => request<DesktopAuditResult>(`/api/audit${round === undefined || round === null ? '' : typeof round === 'string' ? `?snapshot=${encodeURIComponent(round)}` : `?round=${round}`}`),
+    getSourceRecord: (platform, sourceId) => request(`/api/source-record/${encodeURIComponent(platform)}/${encodeURIComponent(sourceId)}`),
+    getPlatformRecords: (platform, options = {}) => platform === 'bilibili'
+      ? compatibleBilibiliQuery(options) : queryPlatformRecords(platform, options),
     getPlatformComments: (platform, sourceId) => request<DesktopCommentsResult>(`/api/platforms/${encodeURIComponent(platform)}/comments/${encodeURIComponent(sourceId)}`),
     getRelations: () => request('/api/relations'),
     getRecordPreview: (platform, sourceId) => request(`/api/record-preview/${encodeURIComponent(platform)}/${encodeURIComponent(sourceId)}`),

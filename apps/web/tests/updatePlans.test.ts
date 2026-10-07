@@ -15,7 +15,15 @@ describe('one update center for all six platforms',()=>{
  });
  it('plans are independent of later UI scenario changes',()=>{
   const a=planPlatformUpdate('mcmod','daily-fast',50);planPlatformUpdate('mcmod','full-catalog',300);
-  expect(a.options).toEqual({mode:'new'});
-  expect(planPlatformUpdate('modrinth','daily-fast',50).options).toEqual({mode:'catalog',limit:100});
+  expect(a.options).toEqual({mode:'all',limit:50});
+  expect(planPlatformUpdate('modrinth','daily-fast',50).options).toEqual({mode:'daily'});
  });
+});
+
+it('daily public APIs preserve catalog scope with incremental version checks',()=>{
+ for(const platform of ['bbsmc','xyebbs','modrinth'] as const) expect(planPlatformUpdate(platform,'daily-fast').options).toEqual({mode:'daily'});
+});
+
+it('complete catalog refresh is not silently capped to popularity leaders',()=>{
+ for(const platform of ['bbsmc','xyebbs','modrinth'] as const) expect(planPlatformUpdate(platform,'full-catalog').options).toEqual({mode:'catalog'});
 });

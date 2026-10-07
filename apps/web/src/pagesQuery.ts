@@ -1,7 +1,8 @@
 // @ts-nocheck
 // Desktop data-store query contract, reused without disk access.
 import { matchesSearchDocument, buildSearchDocument } from '../../shared/search-contract.cjs';
-import { classifyBilibiliContent } from '../../shared/bilibili-content.cjs';
+import { publicSearchAliases } from './domain/crossPlatformLinkage';
+import { classifyBilibiliContent, bilibiliContentScope } from '../../shared/bilibili-content.cjs';
 function parseQueryOptions(queryOrOptions) {
   if (typeof queryOrOptions === 'string' || queryOrOptions === undefined || queryOrOptions === null) {
     return {
@@ -42,7 +43,7 @@ function parseQueryOptions(queryOrOptions) {
     sort: String(options.sort || ''),
     page,
     pageSize,
-    bilibiliContent: ['all', 'excluded'].includes(options.bilibiliContent) ? options.bilibiliContent : 'candidates',
+    bilibiliContent: ['all', 'secondary', 'excluded'].includes(options.bilibiliContent) ? options.bilibiliContent : 'candidates',
   };
 }
 
@@ -233,14 +234,14 @@ export async function queryStaticRecords(platform, queryOrOptions, cached, entri
       }
     }
     if (platform === 'bilibili' && !cached.bilibiliCounts) {
-      cached.bilibiliCounts = { all: cached.normalized.length, candidates: 0, excluded: 0 };
+      cached.bilibiliCounts = { all: cached.normalized.length, candidates: 0, secondary: 0, excluded: 0 };
       for (const record of cached.normalized) {
         record.contentDecision = classifyBilibiliContent(record);
-        cached.bilibiliCounts[record.contentDecision.candidate ? 'candidates' : 'excluded'] += 1;
+        cached.bilibiliCounts[bilibiliContentScope(record.contentDecision)] += 1;
       }
     }
     const normalized = platform === 'bilibili' && options.bilibiliContent !== 'all'
-      ? cached.normalized.filter(record => record.contentDecision.candidate === (options.bilibiliContent === 'candidates'))
+      ? cached.normalized.filter(record => bilibiliContentScope(record.contentDecision) === options.bilibiliContent)
       : cached.normalized;
     cached.facetScopes ||= new Map();
     const facetKey = platform === 'bilibili' ? options.bilibiliContent : 'all';
@@ -295,7 +296,7 @@ export async function queryStaticRecords(platform, queryOrOptions, cached, entri
       }
     } else {
       searched = hasQuery
-        ? normalized.filter((record) => matchesSearchDocument(record.searchDocument, options.query))
+        ? normalized.filter((record) => matchesSearchDocument({...record.searchDocument, aliasesLower: publicSearchAliases(record.id).map(s => s.toLowerCase())}, options.query))
         : normalized;
       let referenceTime = Date.now();
       if (options.dateRange) {

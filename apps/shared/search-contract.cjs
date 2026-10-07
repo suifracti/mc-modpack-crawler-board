@@ -109,6 +109,7 @@ function matchesSearchDocument(document, query) {
   if (!terms.length) return true;
   const fields = [
     document.titleLower,
+    ...(document.aliasesLower || []),
     ...(document.formerTitlesLower || []),
     document.authorLower,
     document.categoriesLower,

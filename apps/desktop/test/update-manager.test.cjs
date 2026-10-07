@@ -92,6 +92,21 @@ test('cancelled old-pack refresh keeps its isolated checkpoint for recovery', as
   assert.equal((await store.getPlatformRecords('bilibili')).records[0].title, '旧数据');
 });
 
+test('failed catalogue refresh retains the isolated result for diagnosis and retry', async () => {
+  const { root, store } = await setupStore();
+  try {
+    const before = await store.getActiveSnapshot();
+    const manager = new UpdateManager({ store, runnerFactory: fakeRunnerFactory('fail') });
+    const result = await manager.start('modrinth', { mode: 'catalog' });
+    assert.equal(result.state, 'failed');
+    assert.equal((await store.getActiveSnapshot()).snapshotId, before.snapshotId);
+    assert.equal((await fs.readdir(store.incomingDir)).length, 1);
+    assert.match(manager.getStatus().logs.join('\n'), /已保留中途结果/);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('cancellation during preparation prevents the runner and shutdown waits for the task', async () => {
   const { store } = await setupStore();
   const preparation = deferred();

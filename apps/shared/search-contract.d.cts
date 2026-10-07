@@ -3,6 +3,7 @@ interface SearchContractDocument {
   platform: string;
   title: string;
   titleLower: string;
+  aliasesLower?: string[];
   formerTitlesLower: string[];
   authorLower: string;
   categoriesLower: string;

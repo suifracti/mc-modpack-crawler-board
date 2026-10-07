@@ -15,6 +15,7 @@ const { assertPlatform, redactLogLine } = require('./lib/platforms.cjs');
 const { UpdateManager } = require('./lib/update-manager.cjs');
 const { createProcessRunner } = require('./lib/process-runner.cjs');
 const { openSystemTarget } = require('./lib/system-open.cjs');
+const { saveBrowserCandidates } = require('./lib/bilibili-discovery.cjs');
 const { getPreviewVersions } = require('./lib/preview-versions.cjs');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -313,6 +314,7 @@ function createBrowserService(options = {}) {
       assertPlatform(platform);
       return json(response, 200, await store.getPlatformRecords(platform, {
         query: requestUrl.searchParams.get('query') || '',
+        bilibiliContent: requestUrl.searchParams.get('bilibiliContent') || 'all',
         version: requestUrl.searchParams.get('version') || '',
         loader: requestUrl.searchParams.get('loader') || '',
         category: requestUrl.searchParams.get('category') || '',
@@ -402,6 +404,14 @@ function createBrowserService(options = {}) {
       sendEvent('data', data);
       return json(response, 200, { cancelled: false, data });
     }
+
+    if (pathname === '/api/bilibili/browser' && request.method === 'POST') {
+      await readJsonBody(request, 2048);
+      const url = 'https://search.bilibili.com/all?keyword=MC%E6%95%B4%E5%90%88%E5%8C%85&order=pubdate';
+      return json(response, 200, await (options.openBrowser || openBrowser)(url));
+    }
+
+    if(pathname === '/api/bilibili/discovery' && request.method === 'POST') return json(response,200,await saveBrowserCandidates(store.rootDir,await readJsonBody(request,64*1024)));
 
     if(pathname === '/api/updates/batch' && request.method === 'POST') {
       const body=await readJsonBody(request);

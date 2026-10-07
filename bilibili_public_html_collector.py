@@ -8,16 +8,23 @@ import argparse,copy,gzip,hashlib,io,json,os,re,ssl,tempfile,time
 import urllib.request,urllib.error,urllib.parse,urllib.robotparser
 from datetime import datetime,timezone,timedelta
 from pathlib import Path
-from bilibili_html_adapter import parse_public_video,make_public_record,UnavailablePublicVideo
+from bilibili_html_adapter import parse_public_video,make_public_record,InvalidPublicVideo,UnavailablePublicVideo,RestrictedPublicVideo
 from desktop_collection_contract import write_collection_result
+from verified_tls import create_verified_context
 
 UA='MCModpackCrawlerDashboard/1.0'
 MAX_PAGES=30
 MAX_CATALOG_PAGES=5000
 MIN_INTERVAL=2
+CHECKPOINT_INTERVAL=30
 TRANSPORT_COOLDOWN_SECONDS=300
+MAX_UNPARSEABLE_FAILURES_PER_RUN=25
+ISOLATABLE_HTML_PARSE_ERRORS={
+ 'Missing or error initial state','Initial state is not JSON','Missing or invalid publication state',
+ 'Invalid restriction flag','Missing identity fields','Missing publication date','Publication date mismatch'
+}
 META_FIELDS=('title','author','pub_timestamp','pub_time','duration','aid','cid','pic','views','likes','coins','favorites','share','reply','danmaku')
-OBS_FIELDS=('source_tags','source_kind','source_url','source_observed_at','source_html_sha256','source_field_provenance','classification_basis','description_excerpt','description_excerpt_truncated','description_excerpt_observed','description_source_sha256','description_download_links_observed','acquisition_note','content_category','content_candidate','content_reason','content_policy_schema')
+OBS_FIELDS=('source_tags','source_kind','source_url','source_observed_at','source_html_sha256','source_field_provenance','classification_basis','description_excerpt','description_excerpt_truncated','description_excerpt_observed','description_source_sha256','description_download_links_observed','acquisition_note','content_category','content_candidate','content_reason','content_policy_schema','source_title_pack_version')
 
 class Refusal(RuntimeError):pass
 def utc():return datetime.now(timezone.utc).isoformat()
@@ -29,6 +36,15 @@ def atomic_json(path,value):
  fd,name=tempfile.mkstemp(prefix='.html-observation-',suffix='.tmp',dir=path.parent)
  with os.fdopen(fd,'w',encoding='utf-8') as h:json.dump(value,h,ensure_ascii=False,indent=2);h.write('\n')
  os.replace(name,path)
+
+def save_observation_checkpoint(raw_path,sidecar,records):
+ rows=list(records.values())
+ atomic_json(raw_path,rows)
+ sidecar.parent.mkdir(parents=True,exist_ok=True)
+ fd,name=tempfile.mkstemp(prefix='.bili-sidecar-',suffix='.tmp',dir=sidecar.parent)
+ with os.fdopen(fd,'w',encoding='utf-8') as handle:
+  handle.write('window.biliModpacksData = '+json.dumps(rows,ensure_ascii=False)+';\n')
+ os.replace(name,sidecar)
 
 def save_html_evidence(state_path,bvid,body):
  digest=hashlib.sha256(body.encode()).hexdigest()
@@ -64,6 +80,88 @@ def resolve_unavailable_stop(state_path,bvid,body):
   unavailable[bvid]=entry;state['stopped']=None;atomic_json(state_path,state)
   return entry
  finally:os.close(fd);lock_path.unlink()
+
+def resolve_restricted_stop(state,state_path):
+ """Migrate only the saved, hash-matched single-video paywall stop; never fetch it again."""
+ stop=state.get('stopped');state_path=Path(state_path)
+ if (state.get('schema')!=1 or not isinstance(state.get('days'),dict) or not isinstance(stop,dict)
+     or not valid_bvid(stop.get('bvid')) or stop.get('httpStatus') is not None
+     or stop.get('error')!='Paid or restricted video' or not isinstance(stop.get('htmlEvidence'),dict)
+     or not any(isinstance(values,list) and stop['bvid'] in values for values in state['days'].values())):return False
+ evidence=stop['htmlEvidence'];digest=evidence.get('sha256');bvid=stop['bvid']
+ if not isinstance(digest,str) or not re.fullmatch(r'[0-9a-f]{64}',digest):return False
+ expected=state_path.parent/'bilibili-html-evidence'/f'{bvid}-{digest}.html'
+ try:
+  path=Path(evidence.get('path',''))
+  if path!=expected or path.is_symlink() or not path.is_file() or evidence.get('sourceUrl')!=f'https://www.bilibili.com/video/{bvid}/':return False
+  body=path.read_text(encoding='utf-8')
+  if hashlib.sha256(body.encode()).hexdigest()!=digest:return False
+  try:parse_public_video(body,bvid)
+  except RestrictedPublicVideo as exc:
+   if str(exc)!=stop['error']:return False
+  else:return False
+ except (OSError,UnicodeError,ValueError):return False
+ restricted=state.setdefault('restricted',{});history=state.setdefault('stopHistory',[])
+ if not isinstance(restricted,dict) or not isinstance(history,list):raise ValueError('Invalid persistent restriction history')
+ restricted.setdefault(bvid,{'at':stop.get('at'),'bvid':bvid,'reason':'paid-or-restricted','sourceUrl':evidence['sourceUrl'],'htmlSha256':digest,'oldRecordRetained':True,'resolvedFromStop':True})
+ history.append({'stopped':copy.deepcopy(stop),'resolvedAt':utc(),'resolution':'single-video-restricted','evidenceSha256':digest,'videoRetried':False})
+ state['stopped']=None
+ return True
+
+def resolve_unparseable_stop(state,state_path):
+ """Migrate one saved parser stop into an isolated failure without refetching it."""
+ stop=state.get('stopped');state_path=Path(state_path)
+ if (state.get('schema')!=1 or not isinstance(state.get('days'),dict) or not isinstance(stop,dict)
+     or not valid_bvid(stop.get('bvid')) or stop.get('httpStatus') is not None
+     or stop.get('error')!='Missing or error initial state' or not isinstance(stop.get('htmlEvidence'),dict)
+     or not any(isinstance(values,list) and stop['bvid'] in values for values in state['days'].values())):return False
+ evidence=stop['htmlEvidence'];digest=evidence.get('sha256');bvid=stop['bvid']
+ if not isinstance(digest,str) or not re.fullmatch(r'[0-9a-f]{64}',digest):return False
+ expected=state_path.parent/'bilibili-html-evidence'/f'{bvid}-{digest}.html'
+ try:
+  path=Path(evidence.get('path',''))
+  if path!=expected or path.is_symlink() or not path.is_file() or evidence.get('sourceUrl')!=f'https://www.bilibili.com/video/{bvid}/':return False
+  body=path.read_text(encoding='utf-8')
+  if hashlib.sha256(body.encode()).hexdigest()!=digest:return False
+  try:parse_public_video(body,bvid)
+  except InvalidPublicVideo as exc:
+   if isinstance(exc,(UnavailablePublicVideo,RestrictedPublicVideo)) or str(exc)!=stop['error']:return False
+  else:return False
+ except (OSError,UnicodeError,ValueError):return False
+ failures=state.setdefault('parseFailures',{});history=state.setdefault('stopHistory',[])
+ if not isinstance(failures,dict) or not isinstance(history,list):raise ValueError('Invalid persistent parse-failure history')
+ entry={'at':stop.get('at'),'bvid':bvid,'error':stop['error'],'classification':'unparseable-public-html','htmlEvidence':copy.deepcopy(evidence),'oldRecordRetained':True,'retried':False}
+ failures[bvid]=entry
+ history.append({'stopped':copy.deepcopy(stop),'resolvedAt':utc(),'resolution':'isolated-unparseable-video','evidenceSha256':digest,'videoRetried':False})
+ state['stopped']=None
+ return True
+
+def resolve_trust_store_stop(state,state_path,proof_dir):
+ """Clear only a saved CA-store failure proven to have stopped at robots, before video requests."""
+ stop=state.get('stopped')
+ if (state.get('schema')!=1 or not isinstance(stop,dict) or stop.get('httpStatus') is not None
+     or stop.get('bvid') or 'htmlEvidence' in stop or 'CERTIFICATE_VERIFY_FAILED' not in str(stop.get('error',''))):return False
+ proof_dir=Path(proof_dir) if proof_dir else None
+ expected=Path(state_path).parent/'update-results'
+ if not proof_dir or proof_dir!=expected or proof_dir.is_symlink() or not proof_dir.is_dir():return False
+ try:
+  context=create_verified_context()
+  if context.verify_mode!=ssl.CERT_REQUIRED or not context.check_hostname or context.cert_store_stats().get('x509_ca',0)<1:return False
+ except (OSError,ssl.SSLError,AttributeError,TypeError):return False
+ for path in sorted(proof_dir.glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True):
+  if path.is_symlink() or not path.is_file():continue
+  try:
+   contract=json.loads(path.read_text(encoding='utf-8'));result=contract.get('crawlerResult') or {};details=result.get('details') or {}
+   if (contract.get('platform')!='bilibili' or contract.get('outcome')!='failed' or result.get('status')!='failed'
+       or details.get('requests')!=['https://www.bilibili.com/robots.txt'] or details.get('observedCount')!=0
+       or details.get('stopped')!=stop or stop.get('error') not in (result.get('errors') or [])):continue
+   history=state.setdefault('stopHistory',[])
+   if not isinstance(history,list):raise ValueError('Invalid persistent stop history')
+   history.append({'stopped':copy.deepcopy(stop),'resolvedAt':utc(),'resolution':'verified-system-ca-roots-before-video-request','contentRequests':0,'proofSha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+   state['stopped']=None;state['transportFailureStreak']=0
+   return True
+  except (OSError,UnicodeError,ValueError,TypeError):continue
+ return False
 
 def is_tls_eof(error):
  """A typed connection interruption is not evidence about video availability."""
@@ -122,7 +220,7 @@ class RedirectGuard(urllib.request.HTTPRedirectHandler):
 
 class PublicTransport:
  def __init__(self):
-  self.guard=RedirectGuard();self.opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),self.guard)
+  self.guard=RedirectGuard();self.opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPSHandler(context=create_verified_context()),self.guard)
   self.last_request=0.0;self.requests=[]
  def fetch(self,url,limit):
   part=urllib.parse.urlsplit(url)
@@ -160,6 +258,8 @@ def metadata_patch(video,tags,body,observed_at):
   for k,source in [('views','view'),('likes','like'),('coins','coin'),('favorites','favorite'),('share','share'),('reply','reply'),('danmaku','danmaku')]:
    value=video.get('stat',{}).get(source)
    if type(value)is int and value>=0:record[k]=value
+ if record.get('source_field_provenance',{}).get('pack_version','').startswith('whole version token'):
+  record['source_title_pack_version']=record.get('pack_version')
  record['source_html_checked_at']=observed_at
  record.update(content_category=decision['contentCategory'],content_candidate=decision['accepted'],content_reason=decision['contentReason'] if decision['accepted'] else decision['basis'],content_policy_schema=decision['contentPolicySchema'])
  record['source_html_observed_fields']=[k for k in META_FIELDS if k in record]+[k for k in OBS_FIELDS if k in record]
@@ -193,7 +293,7 @@ def collect(workspace,state_path,*,mode='existing',limit=3,bvid=None,until=None,
  limit=max(1,min(int(limit),daily_budget));transport=transport or PublicTransport()
  raw_path=workspace/'crawler_output/bilibili_modpacks.json';sidecar=workspace/'converted_output/data/bili_data.js'
  observations=[];new_count=updated_count=0;errors=[];failed_count=0
- details={'mode':mode,'coverage':'public-video-html-bounded','fullRefresh':False,'observedCount':0,'newCount':0,'updatedCount':0,'failedCount':0,'requestBudget':limit,'dailyBudget':daily_budget,'knownCatalogRefresh':mode=='catalog','apiBusinessRequests':0,'cookiesUsed':False,'scriptsExecuted':False,'contentRetries':0,'minimumIntervalSeconds':2,'restrictedRobots':{},'stopped':None,'discoveredCandidates':[]}
+ details={'mode':mode,'coverage':'public-video-html-bounded','fullRefresh':False,'observedCount':0,'newCount':0,'updatedCount':0,'failedCount':0,'requestBudget':limit,'dailyBudget':daily_budget,'knownCatalogRefresh':mode=='catalog','apiBusinessRequests':0,'cookiesUsed':False,'scriptsExecuted':False,'contentRetries':0,'minimumIntervalSeconds':2,'restrictedRobots':{},'stopped':None,'perVideoFailureThresholdReached':False,'discoveredCandidates':[],'globalDiscoveryAvailable':False,'discoveryScope':'official-public-video-seasons'}
  state={'schema':1,'days':{},'stopped':None};lock_fd=None;lock_path=state_path.with_suffix(state_path.suffix+'.lock')
  try:
   previous=json.loads(raw_path.read_text(encoding='utf-8')) if raw_path.exists() else []
@@ -211,15 +311,40 @@ def collect(workspace,state_path,*,mode='existing',limit=3,bvid=None,until=None,
    state=json.loads(state_path.read_text(encoding='utf-8'))
    if state.get('schema')!=1 or not isinstance(state.get('days'),dict):raise ValueError('Invalid persistent HTML state; no requests made')
   if state.get('stopped'):
-   if resume_transport_state(state):atomic_json(state_path,state)
+   if resolve_restricted_stop(state,state_path):atomic_json(state_path,state)
+   elif resolve_unparseable_stop(state,state_path):atomic_json(state_path,state)
+   elif resolve_trust_store_stop(state,state_path,os.environ.get('MC_BILIBILI_TLS_STOP_PROOF_DIR')):atomic_json(state_path,state)
+   elif resume_transport_state(state):atomic_json(state_path,state)
    else:raise Refusal('Previous HTML refusal or transport cooldown persists; no further requests permitted: '+str(state['stopped']))
   day=utc()[:10];attempted=state['days'].setdefault(day,[])
   if not isinstance(attempted,list) or any(not valid_bvid(x) for x in attempted):raise ValueError('Invalid daily HTML ledger')
   unavailable=state.setdefault('unavailable',{})
   if not isinstance(unavailable,dict) or any(not valid_bvid(x) for x in unavailable):raise ValueError('Invalid unavailable-video ledger')
+  restricted_videos=state.setdefault('restricted',{})
+  if not isinstance(restricted_videos,dict) or any(not valid_bvid(x) for x in restricted_videos):raise ValueError('Invalid restricted-video ledger')
   transport_failures=state.setdefault('transportFailures',{})
   if not isinstance(transport_failures,dict) or any(not valid_bvid(x) for x in transport_failures):raise ValueError('Invalid transport-failure ledger')
-  seeds=[x for x in seeds if x not in attempted and x not in unavailable]
+  parse_failures=state.setdefault('parseFailures',{})
+  if not isinstance(parse_failures,dict) or any(not valid_bvid(x) or not isinstance(entry,dict) for x,entry in parse_failures.items()):raise ValueError('Invalid per-video parse-failure ledger')
+  browser_file=state_path.parent/'bilibili-browser-discovery.json'
+  browser=[]
+  if browser_file.exists():
+   discovered=json.loads(browser_file.read_text(encoding='utf-8'))
+   if discovered.get('schema')!=1 or not isinstance(discovered.get('candidates'),list):raise ValueError('Invalid browser discovery evidence')
+   for item in discovered['candidates']:
+    source=urllib.parse.urlsplit(str(item.get('sourceUrl','')))
+    if valid_bvid(item.get('bvid')) and source.scheme=='https' and source.hostname in {'search.bilibili.com','space.bilibili.com','www.bilibili.com'}:
+     browser.append(item['bvid'])
+  details['browserDiscoveredCount']=len(set(browser));details['discoveryScope']='official-browser-candidates-and-public-video-seasons'
+  browser_checked=state.setdefault('browserCandidatesChecked',[])
+  if not isinstance(browser_checked,list) or any(not valid_bvid(x) for x in browser_checked):raise ValueError('Invalid checked browser-candidate ledger')
+  browser_pending=[x for x in browser if x not in browser_checked and x not in restricted_videos and not records.get(x,{}).get('source_html_checked_at')]
+  pending=state.setdefault('discoveryQueue',[])
+  if not isinstance(pending,list) or any(not valid_bvid(x) for x in pending):raise ValueError('Invalid discovery queue')
+  # Fresh browser leads retain priority; old season backlogs cannot starve
+  # the existing catalog. New season children join the tail, never recurse first.
+  seeds=list(dict.fromkeys(([bvid] if bvid else [])+browser_pending+seeds+pending))
+  seeds=[x for x in seeds if x not in attempted and x not in unavailable and x not in restricted_videos]
   details['knownCandidateCount']=len(seeds)
   if not seeds or len(attempted)>=daily_budget:raise ValueError('Daily candidate budget exhausted or selected BVID already observed today; no repeat requests')
   seeds=seeds[:limit if mode in {'existing','catalog'} else min(3,limit)]
@@ -233,7 +358,7 @@ def collect(workspace,state_path,*,mode='existing',limit=3,bvid=None,until=None,
    except Exception as exc:
     details['restrictedRobots'][host]={'checkedAt':utc(),'error':str(exc),'businessRequests':0,'routeEnabled':False}
     close_http_error(exc)
-  queue=seeds[:];seen=set(attempted)|set(unavailable);attempt_count=0
+  queue=seeds[:];seen=set(attempted)|set(unavailable)|set(restricted_videos);attempt_count=0;parse_failures_this_run=0
   cutoff=datetime.fromisoformat(until).replace(tzinfo=timezone.utc).timestamp() if until else None
   while queue and attempt_count<limit and len(attempted)<daily_budget:
    ident=queue.pop(0)
@@ -247,31 +372,52 @@ def collect(workspace,state_path,*,mode='existing',limit=3,bvid=None,until=None,
     title=re.search(r'<title[^>]*>(.*?)</title>',body,re.I|re.S)
     if title and re.search(r'验证码|访问被拒绝|安全验证|Forbidden|Access Denied|Precondition Failed|请先登录',title.group(1),re.I):raise Refusal('HTTP200 access-gate title')
     video,tags=parse_public_video(body,ident);at=utc();patch,decision=metadata_patch(video,tags,body,at)
-    state['transportFailureStreak']=0;transport_failures.pop(ident,None);atomic_json(state_path,state)
+    if ident in browser and ident not in browser_checked:browser_checked.append(ident)
+    state['transportFailureStreak']=0;transport_failures.pop(ident,None)
     known=ident in records;accepted=decision['accepted']
     observations.append({'bvid':ident,'observedAt':at,'publishedAtUTC':datetime.fromtimestamp(video['pubdate'],timezone.utc).isoformat(),'accepted':accepted,'basis':decision['basis'],'known':known,'htmlSha256':patch['source_html_sha256']})
     if known:
      merged=merge_observation(records[ident],patch);updated_count+=int(merged!=records[ident]);records[ident]=merged
     elif accepted and (cutoff is None or video['pubdate']>=cutoff):records[ident]=merge_observation(None,patch);new_count+=1
-    if mode=='new':
-     candidates=[x for x in season_candidates(video) if x not in records and x not in seen and x not in queue]
-     details['discoveredCandidates'].extend(candidates);queue=candidates[:MAX_PAGES]+queue
-    print('DESKTOP_EVENT '+json.dumps({'phase':'已有视频目录核验' if mode=='catalog' else 'HTML局部核验','processed':attempt_count,'total':len(seeds) if mode=='catalog' else limit},ensure_ascii=False),flush=True)
+    if accepted and mode in {'new','catalog','existing'}:
+     candidates=[x for x in season_candidates(video) if x not in records and x not in seen and x not in queue and x not in restricted_videos]
+     details['discoveredCandidates'].extend(candidates);queue.extend(candidates)
+    state['discoveryQueue']=list(dict.fromkeys([x for x in pending+queue if x not in seen and x not in unavailable and x not in restricted_videos]))
+    pending=state['discoveryQueue'];atomic_json(state_path,state)
+    if len(observations)%CHECKPOINT_INTERVAL==0:
+     save_observation_checkpoint(raw_path,sidecar,records)
+    print('DESKTOP_EVENT '+json.dumps({'phase':'已有视频目录核验' if mode=='catalog' else 'HTML局部核验','processed':attempt_count,'total':limit},ensure_ascii=False),flush=True)
    except UnavailablePublicVideo as exc:
     failed_count+=1;state['transportFailureStreak']=0;transport_failures.pop(ident,None);unavailable[ident]={**unavailable_entry(ident,body,utc(),exc.true_code),'htmlEvidence':save_html_evidence(state_path,ident,body)};atomic_json(state_path,state);errors.append(f'{ident}: {exc}')
+   except RestrictedPublicVideo as exc:
+    failed_count+=1;state['transportFailureStreak']=0;transport_failures.pop(ident,None)
+    restricted_videos[ident]={'at':utc(),'bvid':ident,'reason':exc.reason_code,'sourceUrl':f'https://www.bilibili.com/video/{ident}/','htmlSha256':hashlib.sha256(body.encode()).hexdigest(),'oldRecordRetained':True,'retried':False}
+    atomic_json(state_path,state);errors.append(f'{ident}: {exc}')
+   except InvalidPublicVideo as exc:
+    if str(exc) not in ISOLATABLE_HTML_PARSE_ERRORS:
+     failed_count+=1;failure={'at':utc(),'bvid':ident,'error':str(exc),'httpStatus':getattr(exc,'code',None)};state['stopped']=failure
+     if isinstance(body,str):state['stopped']['htmlEvidence']=save_html_evidence(state_path,ident,body)
+     atomic_json(state_path,state);errors.append(str(exc));break
+    failed_count+=1;parse_failures_this_run+=1
+    evidence=save_html_evidence(state_path,ident,body) if isinstance(body,str) else None
+    entry={'at':utc(),'bvid':ident,'error':str(exc),'classification':'unparseable-public-html','htmlEvidence':evidence,'oldRecordRetained':ident in initial,'retried':False}
+    parse_failures[ident]=entry;atomic_json(state_path,state);errors.append(f'{ident}: unparseable public HTML: {exc}')
+    print('DESKTOP_EVENT '+json.dumps({'phase':'单条HTML解析失败隔离','processed':attempt_count,'failures':parse_failures_this_run,'threshold':MAX_UNPARSEABLE_FAILURES_PER_RUN},ensure_ascii=False),flush=True)
+    if parse_failures_this_run>=MAX_UNPARSEABLE_FAILURES_PER_RUN:details['perVideoFailureThresholdReached']=True;break
    except Exception as exc:
     failed_count+=1;failure={'at':utc(),'bvid':ident,'error':str(exc),'httpStatus':getattr(exc,'code',None)}
     if body is None and is_tls_eof(exc):
      transport_failures[ident]={**failure,'reason':'tls-eof-unverified','oldRecordRetained':True,'retried':False}
      state['transportFailureStreak']=int(state.get('transportFailureStreak') or 0)+1;errors.append(f'{ident}: TLS EOF; unverified, no retry')
-     print('DESKTOP_EVENT '+json.dumps({'phase':'网络中断记录（不重试）','processed':attempt_count,'total':len(seeds) if mode=='catalog' else limit},ensure_ascii=False),flush=True)
+     print('DESKTOP_EVENT '+json.dumps({'phase':'网络中断记录（不重试）','processed':attempt_count,'total':limit},ensure_ascii=False),flush=True)
      if state['transportFailureStreak']<3:atomic_json(state_path,state);continue
      failure['transportFailureCircuitOpen']=True
      failure.update(stopKind='transport',reason='tls-eof-unverified',transportErrorType='SSLEOFError',stage='video',retryAfter=(datetime.fromisoformat(utc())+timedelta(seconds=TRANSPORT_COOLDOWN_SECONDS)).isoformat())
     state['stopped']=failure
     if isinstance(body,str):state['stopped']['htmlEvidence']=save_html_evidence(state_path,ident,body)
     atomic_json(state_path,state);errors.append(str(exc));close_http_error(exc);break
-  details['dailyCandidatesUsed']=len(attempted);details['unverifiedQueuedCount']=max(0,details['knownCandidateCount']-attempt_count) if mode=='catalog' else len(queue)
+  state['discoveryQueue']=list(dict.fromkeys(x for x in list(state.get('discoveryQueue',[]))+queue if x not in seen and x not in unavailable and x not in restricted_videos));atomic_json(state_path,state)
+  details['dailyCandidatesUsed']=len(attempted);details['unverifiedQueuedCount']=max(len(queue),len(state.get('discoveryQueue',[])),max(0,details['knownCandidateCount']-attempt_count))
   details['pendingTransportFailureCount']=len(transport_failures)
   details['knownCatalogCompleted']=mode=='catalog' and not details['unverifiedQueuedCount'] and not state.get('stopped') and not transport_failures
  except FileExistsError:errors.append('HTML state is locked by another task or an interrupted task; no requests made')
@@ -287,11 +433,9 @@ def collect(workspace,state_path,*,mode='existing',limit=3,bvid=None,until=None,
   close_http_error(exc)
  finally:
   if lock_fd is not None:os.close(lock_fd);lock_path.unlink()
- details.update(observedCount=len(observations),newCount=new_count,updatedCount=updated_count,failedCount=failed_count,stopped=state.get('stopped'),knownUnavailableCount=len(state.get('unavailable') or {}),observations=observations,requests=getattr(transport,'requests',[]))
+ details.update(observedCount=len(observations),newCount=new_count,updatedCount=updated_count,failedCount=failed_count,perVideoParseFailureCount=parse_failures_this_run if 'parse_failures_this_run' in locals() else 0,knownParseFailureCount=len(state.get('parseFailures') or {}),stopped=state.get('stopped'),knownUnavailableCount=len(state.get('unavailable') or {}),knownRestrictedCount=len(state.get('restricted') or {}),observations=observations,requests=getattr(transport,'requests',[]))
  if observations:
-  atomic_json(raw_path,list(records.values()))
-  sidecar.parent.mkdir(parents=True,exist_ok=True)
-  sidecar.write_text('window.biliModpacksData = '+json.dumps(list(records.values()),ensure_ascii=False)+';\n',encoding='utf-8')
+  save_observation_checkpoint(raw_path,sidecar,records)
  result=write_collection_result('bilibili',request_completed=False,fetched_count=len(observations),pages_completed=len(observations),pages_expected=limit,failed_requests=failed_count,errors=errors,status='partial' if observations else 'failed',details=details)
  return result
 

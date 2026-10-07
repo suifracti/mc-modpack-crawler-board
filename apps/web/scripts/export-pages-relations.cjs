@@ -16,6 +16,29 @@ function aliases(record) {
   const commonMods = new Set(['tacz','create','机械动力','冰火传说','宝可梦','cobblemon','pixelmon','ftb']);
   return [...new Set(values.filter(v => typeof v === 'string').map(normalize).filter(v => v.length >= (/\p{Script=Han}/u.test(v) ? 3 : 4) && !generic.test(v) && !commonMods.has(v) && !/^[0-9]+$/.test(v)))];
 }
+function buildChineseSearchAliases(records) {
+  const clean = value => String(value || '').replace(/^\[[A-Z0-9]{2,8}\]\s*/, '').trim();
+  const byEnglish = new Map();
+  for (const row of records.filter(r => r.platform !== 'bilibili')) {
+    const title = clean(row.title), raw = row.raw || {};
+    const english = clean(raw.english_name || raw.englishName || title.match(/[（(]([^）)]+)[）)]/)?.[1] || title.split(/\s[-–—]\s/).find(v => !/\p{Script=Han}/u.test(v)));
+    const chinese = clean(raw.chinese_name || raw.chineseName || title.replace(/[（(][^）)]+[）)]/g, '').split(/\s[-–—]\s/).find(v => /\p{Script=Han}/u.test(v)));
+    const key = normalize(english);
+    if (!/^[a-z]/i.test(english) || key.length < 4 || generic.test(key) || !/\p{Script=Han}/u.test(chinese) || chinese.length < 2 || generic.test(normalize(chinese))) continue;
+    if (!byEnglish.has(key)) byEnglish.set(key, new Set()); byEnglish.get(key).add(chinese);
+  }
+  const result = {};
+  for (const row of records.filter(r => r.platform !== 'bilibili')) {
+    const names = new Set();
+    for (const alias of aliases(row)) {
+      const known = byEnglish.get(alias);
+      // Ambiguous translations are not silently assigned to foreign projects.
+      if (known?.size === 1) for (const name of known) names.add(name);
+    }
+    if (names.size) result[row.id] = [...names].sort();
+  }
+  return result;
+}
 function exportRelations(out) {
   const records = platforms.flatMap(platform => read(path.join(out,'data',platform+'.json')).files.flatMap(file => {
     const bytes = fs.readFileSync(path.join(out,'data',file));
@@ -58,7 +81,7 @@ function createRelations(records, dataTime) {
       const id=sourceUrls.get(url.replace(/\/$/,''));if(id) add(row.id,id,'公开简介指向该原站条目');
     }
   }
-  const index={schema:1, catalogCount:records.length, dataTime, records:{}, links:{}};
+  const index={schema:1, catalogCount:records.length, dataTime, records:{}, links:{}, searchAliases:buildChineseSearchAliases(records)};
   for (const [id,targets] of edges) {
     index.links[id]=[...targets].sort().slice(0,80).map(target=>({id:target,reason:reasons.get(id+'|'+target)}));
     for (const target of [id,...targets]) if (!index.records[target]) {

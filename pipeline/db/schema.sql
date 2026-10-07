@@ -153,6 +153,7 @@ CREATE TABLE IF NOT EXISTS download_links (
 );
 
 CREATE INDEX IF NOT EXISTS idx_download_links_source ON download_links(source_item_id);
+CREATE INDEX IF NOT EXISTS idx_download_links_release ON download_links(release_id);
 
 -- 11. 关联视频 (Related Videos)
 CREATE TABLE IF NOT EXISTS related_videos (
@@ -213,6 +214,7 @@ CREATE TABLE IF NOT EXISTS environment_claims (
 );
 
 CREATE INDEX IF NOT EXISTS idx_env_claims_pack ON environment_claims(pack_id);
+CREATE INDEX IF NOT EXISTS idx_env_claims_source ON environment_claims(source_item_id);
 CREATE INDEX IF NOT EXISTS idx_env_claims_certainty ON environment_claims(certainty);
 CREATE INDEX IF NOT EXISTS idx_env_claims_side_status ON environment_claims(side, status);
 

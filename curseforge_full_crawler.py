@@ -338,7 +338,8 @@ def main(max_total=0, recent_pages=0, public_catalog=False, public_details=False
         return refresh_project_details(OUTPUT_JSON, OUTPUT_JS, limit=max_total)
     if public_catalog:
         from curseforge_modpacks_ch import refresh_catalog
-        return refresh_catalog(OUTPUT_JSON, OUTPUT_JS, limit=max_total, recent_pages=recent_pages)
+        return refresh_catalog(OUTPUT_JSON, OUTPUT_JS, limit=max_total, recent_pages=recent_pages,
+                               checkpoint_path=os.environ.get("MC_CF_PUBLIC_CATALOG_CHECKPOINT"))
     if metadata_provider() == 'cfwidget':
         from curseforge_cfwidget import refresh_known
         return refresh_known(OUTPUT_JSON, OUTPUT_JS, limit=max_total or 20)

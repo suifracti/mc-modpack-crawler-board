@@ -12,6 +12,8 @@ import urllib.parse
 import argparse
 from datetime import datetime
 from desktop_collection_contract import write_collection_result
+from verified_tls import get_verified_context
+from catalog_refresh_policy import load_previous
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
@@ -29,9 +31,14 @@ HEADERS = {
     "Accept": "application/json"
 }
 
+SOURCE_STOPPED = False
+VERSIONS_CHECKED = 0
+MISSING_LATEST_IDS = set()
 REQUEST_STATS = {"requests": 0, "successful": 0, "failed": 0, "errors": []}
 
 def fetch_page(offset, limit=100, retries=3):
+    global SOURCE_STOPPED
+    if SOURCE_STOPPED: return None
     query_params = {
         "facets": '[["project_type:modpack"]]',
         "index": "downloads",
@@ -45,7 +52,7 @@ def fetch_page(offset, limit=100, retries=3):
         try:
             REQUEST_STATS["requests"] += 1
             req = urllib.request.Request(url, headers=HEADERS)
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=15, context=get_verified_context()) as resp:
                 if resp.status == 200:
                     value = json.loads(resp.read().decode("utf-8"))
                     REQUEST_STATS["successful"] += 1
@@ -54,6 +61,12 @@ def fetch_page(offset, limit=100, retries=3):
                     REQUEST_STATS["failed"] += 1
                     REQUEST_STATS["errors"].append(f"HTTP {resp.status} offset={offset}")
         except Exception as e:
+            if isinstance(e, urllib.error.HTTPError) and e.code in {401, 403, 412, 429}:
+                SOURCE_STOPPED = True
+                REQUEST_STATS["failed"] += 1
+                REQUEST_STATS["errors"].append(f"HTTP {e.code} offset={offset}; source stopped")
+                print(f"[来源停止] HTTP {e.code}；本轮不再访问 Modrinth。", flush=True)
+                return None
             if attempt < retries - 1:
                 time.sleep(2)
             else:
@@ -63,7 +76,32 @@ def fetch_page(offset, limit=100, retries=3):
                 return None
     return None
 
-def standardize_pack(item):
+def fetch_versions(ids):
+    global SOURCE_STOPPED, VERSIONS_CHECKED
+    if SOURCE_STOPPED: return {}
+    ids=list(dict.fromkeys(str(v) for v in ids if v))
+    if not ids:return {}
+    url='https://api.modrinth.com/v2/versions?'+urllib.parse.urlencode({'ids':json.dumps(ids,separators=(',',':'))})
+    REQUEST_STATS['requests']+=1
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url,headers=HEADERS),timeout=20,context=get_verified_context()) as response:
+            value=json.loads(response.read().decode('utf-8'))
+        if not isinstance(value,list):raise ValueError('Invalid multiple-version response')
+        found={v['id']:v for v in value if isinstance(v,dict) and v.get('id') in ids and v.get('project_id')}
+        missing=set(ids)-set(found)
+        if missing:
+            MISSING_LATEST_IDS.update(missing)
+            print(f'[版本未核实] {len(missing)} 个目录版本ID未返回；其他已核实版本保留。',flush=True)
+        VERSIONS_CHECKED += len(found)
+        REQUEST_STATS['successful']+=1
+        return found
+    except Exception as error:
+        if isinstance(error, urllib.error.HTTPError) and error.code in {401, 403, 412, 429}: SOURCE_STOPPED = True
+        REQUEST_STATS['failed']+=1;REQUEST_STATS['errors'].append('latest releases: '+str(error))
+        print('[版本核对失败] '+str(error),flush=True)
+        return {}
+
+def standardize_pack(item, releases_by_id=None):
     slug = (item.get("slug") or "").strip()
     proj_id = (item.get("project_id") or "").strip()
     title = (item.get("title") or slug).strip()
@@ -125,7 +163,7 @@ def standardize_pack(item):
     gallery = item.get("gallery") or []
     clean_gallery = [g for g in gallery if isinstance(g, str) and g.startswith("http")]
     
-    return {
+    record = {
         "platform": "modrinth",
         "project_id": proj_id,
         "slug": slug,
@@ -156,7 +194,20 @@ def standardize_pack(item):
         }
     }
 
-def main(max_total=None):
+    release=(releases_by_id or {}).get(item.get('latest_version'))
+    if isinstance(release,dict) and release.get('project_id')==proj_id and release.get('version_number'):
+        record.update(latest_version=release['version_number'],releases=[release],version_checked_at=datetime.now().astimezone().isoformat())
+    return record
+
+def main(max_total=None, daily=False):
+    previous=load_previous(OUTPUT_JSON) if daily else []
+    prior_by_id={str(row['project_id']):row for row in previous if row.get('project_id')}
+    cached_releases={}
+    for row in previous:
+        for release in row.get('releases') or []:
+            if isinstance(release,dict) and release.get('id') and release.get('project_id')==row.get('project_id') and release.get('version_number'):
+                cached_releases[release['id']]=release
+    versions_reused=0
     target_count = int(max_total) if max_total else TARGET_COUNT
     print("=" * 60)
     print("  🚀 Modrinth 整合包数据采集器 (API v2)")
@@ -190,8 +241,17 @@ def main(max_total=None):
             
         total_available = res.get("total_hits", total_available)
         hits = res.get("hits", [])
+        latest=fetch_versions([h.get('latest_version') for h in hits if not (cached_releases.get(h.get('latest_version')) or {}).get('project_id')==h.get('project_id')])
         for h in hits:
-            pack = standardize_pack(h)
+            reused=cached_releases.get(h.get('latest_version'))
+            if reused and reused.get('project_id')==h.get('project_id'):
+                latest[h['latest_version']]=reused
+                versions_reused+=1
+            pack = standardize_pack(h,latest)
+            if reused and reused.get('project_id')==h.get('project_id'):
+                prior=prior_by_id.get(str(h['project_id']),{})
+                if prior.get('version_checked_at'):pack['version_checked_at']=prior['version_checked_at']
+                else:pack.pop('version_checked_at',None)
             all_packs.append(pack)
 
         if len(all_packs) >= target_count:
@@ -200,7 +260,7 @@ def main(max_total=None):
             break
             
         offset += len(hits)
-        time.sleep(0.1)  # 礼貌并发间隔
+        time.sleep(0.6)  # 礼貌并发间隔
         
         if len(hits) < limit:
             break
@@ -225,7 +285,8 @@ def main(max_total=None):
         and total_available
         and len(all_packs) < total_available
     )
-    status = "success" if all_packs and request_completed and not truncated else "empty" if request_completed and not all_packs else "partial" if request_completed else "failed"
+    catalog_completed = bool(total_available and len(all_packs) >= total_available)
+    status = "success" if all_packs and request_completed and not truncated and not MISSING_LATEST_IDS else "empty" if request_completed and not all_packs else "partial" if all_packs and catalog_completed and not SOURCE_STOPPED else "failed"
     write_collection_result(
         "modrinth",
         request_completed=request_completed,
@@ -236,12 +297,13 @@ def main(max_total=None):
         failed_requests=int(REQUEST_STATS["failed"]),
         errors=REQUEST_STATS["errors"],
         status=status,
-        details={"totalAvailable": total_available, "targetCount": target_count, "targetReached": target_reached},
+        details={"totalAvailable": total_available, "targetCount": target_count, "targetReached": target_reached, "catalogCompleted": catalog_completed, "versionsChecked": VERSIONS_CHECKED, "versionsReused":versions_reused,"versionRefreshMode":"reuse-exact-release-id" if daily else "full-requested-range", "sourceStopped": SOURCE_STOPPED, "versionParseFailures": 0, "missingLatestReleaseIds": sorted(MISSING_LATEST_IDS), "unverifiedLatestVersionCount": len(MISSING_LATEST_IDS)},
     )
     print(f"  [OK] 保存 JS: {OUTPUT_JS} ({os.path.getsize(OUTPUT_JS) / 1024 / 1024:.2f} MB)")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Modrinth 整合包数据采集器")
     parser.add_argument("--max", type=int, default=0, help="最多采集条数（0 表示按默认全量目标）")
+    parser.add_argument('--daily',action='store_true',help='完整目录核对，版本ID未变时复用已核实发布资料')
     args = parser.parse_args()
-    main(max_total=args.max or None)
+    main(max_total=args.max or None,daily=args.daily)

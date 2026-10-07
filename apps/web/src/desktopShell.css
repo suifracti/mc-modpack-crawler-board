@@ -3784,6 +3784,157 @@ dd, .evidence-item strong {
   border-color: var(--plat-bili);
 }
 
+/* Shared source notes: local V2, static pages and detail readers. */
+.pages-bili-content-controls {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-surface);
+}
+.pages-bili-content-controls > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pages-bili-content-controls p {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.card-source-meta {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  cursor: default;
+}
+.pages-bili-decision {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.pages-bili-decision > strong {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--status-info) 22%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--status-info) 8%, var(--bg-surface));
+  color: var(--status-info);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.pages-bili-decision > span { min-width: 0; padding-top: 3px; overflow-wrap: anywhere; }
+.pages-bili-decision.is-secondary > strong {
+  border-color: var(--border-subtle);
+  background: var(--bg-surface-elevated);
+  color: var(--text-secondary);
+}
+.pages-bili-decision.is-excluded > strong {
+  border-color: color-mix(in srgb, var(--status-warning) 28%, transparent);
+  background: color-mix(in srgb, var(--status-warning) 8%, var(--bg-surface));
+  color: var(--text-primary);
+}
+.download-source-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 10px 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.download-source-summary > strong {
+  flex-shrink: 0;
+  padding-top: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.download-source-tags { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.download-source-chip {
+  padding: 3px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-surface-elevated);
+  color: var(--text-secondary);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.card-source-meta .download-source-summary { margin: 0; }
+.source-observation-note {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface-elevated);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.desktop-bili-grid .desktop-card-personal-zone.is-bilibili {
+  gap: 10px;
+  border-top-color: var(--border-subtle);
+  background: var(--bg-surface-elevated);
+}
+.desktop-bili-grid .bili-personal-actions { gap: 8px; }
+.desktop-bili-grid .bili-personal-target {
+  order: -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.desktop-bili-grid .bili-personal-target::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+:is(.desktop-rich-card, .pack-card) :is(.platform-card-disclosure, .bili-desc-collapse, .bili-versions-collapse, .bili-personal-summary, .card-extra-tags) > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--control-radius);
+  background: var(--bg-surface-elevated);
+  list-style: none;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+:is(.desktop-rich-card, .pack-card) :is(.platform-card-disclosure, .bili-desc-collapse, .bili-versions-collapse, .bili-personal-summary, .card-extra-tags) > summary::-webkit-details-marker { display: none; }
+:is(.desktop-rich-card, .pack-card) :is(.platform-card-disclosure, .bili-desc-collapse, .bili-versions-collapse, .bili-personal-summary, .card-extra-tags) > summary::after {
+  content: '⌄';
+  margin-left: auto;
+  color: var(--text-muted);
+  transition: transform 0.12s ease;
+}
+:is(.desktop-rich-card, .pack-card) :is(.platform-card-disclosure, .bili-desc-collapse, .bili-versions-collapse, .bili-personal-summary, .card-extra-tags)[open] > summary::after { transform: rotate(180deg); }
+:is(.desktop-rich-card, .pack-card) summary:hover { border-color: var(--accent-primary); background: var(--bg-surface-hover); }
+:is(.desktop-rich-card, .pack-card) :is(summary, button, a):focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .pages-bili-decision { flex-wrap: wrap; gap: 5px; }
+  .pages-bili-decision > span { flex-basis: 100%; }
+  .pages-bili-content-controls { padding: 12px; }
+}
+
 /* ── 详情抽屉个人状态管理 (Personal Zone in Detail Drawer) ── */
 .personal-detail-section {
   padding: 14px 16px;

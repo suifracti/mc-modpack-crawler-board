@@ -22,7 +22,7 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
   },
   bilibili: {
     id: 'bilibili',
-    name: 'B站自制',
+    name: 'B站',
     src: 'data/bili_data.js',
     globalVar: 'biliModpacksData',
     expectedCount: 936,

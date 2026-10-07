@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sqlite3
+from contextlib import closing
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -44,6 +46,31 @@ def parse_sidecar(path: Path) -> list[object]:
     return parsed if isinstance(parsed, list) else list(parsed.values())
 
 
+def can_reuse_canonical(db_path, raw_meta, changed_platform, builder):
+    """Reuse only verified provenance; old schema/code or other input drift rebuilds."""
+    if not db_path.is_file():
+        return False
+    try:
+        with closing(sqlite3.connect(db_path.as_uri() + '?mode=ro', uri=True)) as conn:
+            row = conn.execute("SELECT value FROM canonical_build_meta WHERE key='pipelineFingerprint'").fetchone()
+            if not row or row[0] != builder.pipeline_fingerprint():
+                return False
+            if conn.execute('PRAGMA quick_check').fetchone()[0] != 'ok' or conn.execute('PRAGMA foreign_key_check').fetchone():
+                return False
+            for platform, meta in raw_meta.items():
+                if platform == changed_platform:
+                    continue
+                prior = conn.execute('''SELECT r.content_hash, r.record_count FROM raw_snapshot_refs r
+                    JOIN ingest_runs i ON i.run_id=r.run_id WHERE r.platform=? AND i.status='completed'
+                    ORDER BY r.id DESC LIMIT 1''', (platform,)).fetchone()
+                ids = conn.execute('SELECT value FROM canonical_build_meta WHERE key=?', ('sourceIds:' + platform,)).fetchone()
+                if not prior or prior != (meta['rawSha256'], meta['rawCount']) or not ids or ids[0] != builder.source_id_fingerprint(conn, platform):
+                    return False
+            return True
+    except sqlite3.Error:
+        return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", required=True)
@@ -67,6 +94,15 @@ def main() -> int:
     ):
         raise ValueError("本轮原始 JSON 或现代 sidecar 未实际写入")
     raw_meta: dict[str, object] = {}
+    prior_manifest = workspace / 'build/desktop_snapshot_manifest.json'
+    prior_meta = {}
+    if prior_manifest.is_file():
+        try:
+            prior = json.loads(prior_manifest.read_text(encoding='utf-8'))
+            if prior.get('canonicalReady') is True:
+                prior_meta = prior.get('platforms') or {}
+        except (ValueError, TypeError):
+            pass
     all_raw = True
     for platform, (raw_name, sidecars) in PLATFORMS.items():
         raw_path = raw_dir / raw_name
@@ -75,19 +111,30 @@ def main() -> int:
             all_raw = False
             raw_meta[platform] = {"raw": False, "sidecar": bool(sidecar)}
             continue
-        raw_value = json.loads(raw_path.read_text(encoding="utf-8"))
-        if not isinstance(raw_value, list):
-            raise ValueError(f"raw snapshot must be a list: {raw_name}")
         if sidecar is None:
             raise ValueError(f"raw snapshot has no sidecar: {platform}")
-        sidecar_value = parse_sidecar(sidecar)
+        raw_hash = sha256(raw_path)
+        sidecar_hash = sha256(sidecar)
+        cached = prior_meta.get(platform) or {}
+        unchanged = (platform != args.platform and cached.get('rawSha256') == raw_hash
+                     and cached.get('sidecarSha256') == sidecar_hash
+                     and type(cached.get('rawCount')) is int and cached['rawCount'] > 0
+                     and type(cached.get('sidecarCount')) is int and cached['sidecarCount'] > 0)
+        if unchanged:
+            raw_count, sidecar_count = cached['rawCount'], cached['sidecarCount']
+        else:
+            raw_value = json.loads(raw_path.read_text(encoding="utf-8"))
+            if not isinstance(raw_value, list):
+                raise ValueError(f"raw snapshot must be a list: {raw_name}")
+            raw_count = len(raw_value)
+            sidecar_count = len(parse_sidecar(sidecar))
         raw_meta[platform] = {
             "raw": True,
-            "rawCount": len(raw_value),
+            "rawCount": raw_count,
             "sidecar": sidecar.name,
-            "sidecarCount": len(sidecar_value),
-            "rawSha256": sha256(raw_path),
-            "sidecarSha256": sha256(sidecar),
+            "sidecarCount": sidecar_count,
+            "rawSha256": raw_hash,
+            "sidecarSha256": sidecar_hash,
         }
 
     canonical_ready = False
@@ -102,9 +149,13 @@ def main() -> int:
             # that one module-level root at the isolated workspace before calling
             # it; no repository or production output is touched.
             canonical_builder.PROJECT_ROOT = str(workspace)
-            canonical_builder.build_canonical_db(str(workspace / "build" / "canonical.db"), recreate=True)
+            db_path = workspace / 'build/canonical.db'
+            reuse = can_reuse_canonical(db_path, raw_meta, args.platform, canonical_builder)
+            canonical_builder.build_canonical_db(str(db_path), recreate=not reuse,
+                                                  platforms=[args.platform] if reuse else None)
             canonical_ready = True
-            canonical_reason = "all six raw inputs validated and canonical SQLite built in isolation"
+            canonical_reason = ("all six inputs validated; unchanged platforms reused, selected platform rebuilt in isolation"
+                                if reuse else "all six raw inputs validated and canonical SQLite built in isolation")
         except Exception as error:  # noqa: BLE001 - preserve the actual integrity failure
             raise RuntimeError(f"canonical build failed in isolated workspace: {error}") from error
 

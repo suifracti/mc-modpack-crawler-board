@@ -9,6 +9,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 from desktop_collection_contract import write_collection_result
+from verified_tls import get_verified_context
 from curseforge_full_crawler import request_api_json as request_cf_json, AccessRefusal
 from curseforge_api_config import api_url as cf_api_url, metadata_provider
 from curseforge_cfwidget import get_project as get_widget_project, project_releases, merge_releases, WidgetRefusal
@@ -27,7 +28,7 @@ def request_json(url):
     for attempt in range(3):
         try:
             request = urllib.request.Request(url, headers=HEADERS)
-            with urllib.request.urlopen(request, timeout=15) as response:
+            with urllib.request.urlopen(request, timeout=15, context=get_verified_context()) as response:
                 if response.status != 200:
                     raise ValueError(f"HTTP {response.status}")
                 return json.load(response)

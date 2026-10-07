@@ -191,6 +191,7 @@ function isMcVersion(ver, mcVersions) {
 }
 
 function extractModpackVersion(platform, raw, record, title, mcVersions) {
+  if (platform === 'bilibili' && typeof raw.source_title_pack_version === 'string' && raw.source_title_pack_version.trim()) return raw.source_title_pack_version.trim();
   if (platform === 'mcmod') {
     const v = raw.packVersion || raw.latest_version || raw.latestVersion;
     return typeof v === 'string' && v.trim() ? v.trim() : undefined;

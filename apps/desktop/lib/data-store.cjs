@@ -1,3 +1,4 @@
+const { classifyBilibiliContent, bilibiliContentScope } = require('../../shared/bilibili-content.cjs');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -36,6 +37,50 @@ async function writeJsonAtomic(filePath, value) {
   const tempPath = `${filePath}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
   await fsp.writeFile(tempPath, JSON.stringify(value, null, 2), 'utf8');
   await fsp.rename(tempPath, filePath);
+}
+
+const ID_DIAGNOSTIC_SAMPLE_LIMIT = 20;
+
+function projectIdCounts(records) {
+  const counts = new Map();
+  for (const item of records) {
+    const id = String((item && item.project_id) || '');
+    counts.set(id, (counts.get(id) || 0) + 1);
+  }
+  return counts;
+}
+
+function summarizeProjectIds(records, counts) {
+  const emptyIndexes = [];
+  records.forEach((item, index) => {
+    if (!String((item && item.project_id) || '') && emptyIndexes.length < ID_DIAGNOSTIC_SAMPLE_LIMIT) {
+      emptyIndexes.push(index);
+    }
+  });
+  const duplicateIds = [...counts.entries()]
+    .filter(([id, count]) => id && count > 1)
+    .map(([id, count]) => ({ id, count }));
+  return {
+    recordCount: records.length,
+    uniqueIdCount: [...counts.keys()].filter(Boolean).length,
+    emptyIdCount: counts.get('') || 0,
+    emptyRowIndexSamples: emptyIndexes,
+    duplicateIdCount: duplicateIds.length,
+    duplicateRecordCount: duplicateIds.reduce((sum, item) => sum + item.count - 1, 0),
+    duplicateIds: duplicateIds.slice(0, ID_DIAGNOSTIC_SAMPLE_LIMIT),
+  };
+}
+
+async function writePrivateJsonExclusive(filePath, value) {
+  await fsp.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  const handle = await fsp.open(filePath, 'wx', 0o600);
+  try {
+    await handle.writeFile(JSON.stringify(value, null, 2) + '\n', 'utf8');
+    await handle.chmod(0o600);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
 }
 
 async function copyIfExists(source, destination) {
@@ -86,6 +131,7 @@ function parseQueryOptions(queryOrOptions) {
     sort: String(options.sort || ''),
     page,
     pageSize,
+    bilibiliContent: ['candidates','secondary','excluded'].includes(options.bilibiliContent) ? options.bilibiliContent : 'all',
   };
 }
 
@@ -445,21 +491,33 @@ class DataStore {
         return norm;
       });
     }
-    const normalized = cached.normalized;
-    if (!cached.platformFacets) {
-      cached.platformFacets = {
+    if(platform === 'bilibili' && !cached.bilibiliCounts) {
+      cached.bilibiliCounts={all:cached.normalized.length,candidates:0,secondary:0,excluded:0};
+      for(const record of cached.normalized) {
+        record.contentDecision=classifyBilibiliContent(record);
+        cached.bilibiliCounts[bilibiliContentScope(record.contentDecision)]++;
+      }
+    }
+    const normalized = platform === 'bilibili' && options.bilibiliContent && options.bilibiliContent !== 'all'
+      ? cached.normalized.filter(record => bilibiliContentScope(record.contentDecision) === options.bilibiliContent) : cached.normalized;
+    cached.facetScopes ||= new Map();
+    const facetKey=platform==='bilibili' ? options.bilibiliContent || 'all' : 'all';
+    if(!cached.facetScopes.has(facetKey))cached.facetScopes.set(facetKey,{});
+    const facetScope=cached.facetScopes.get(facetKey);
+    if (!facetScope.platformFacets) {
+      facetScope.platformFacets = {
         categories: countedOptions(normalized, (record) => record.categories),
         includedMods: platform === 'mcmod' ? countedOptions(normalized, includedModNames) : [],
         gameplayCategories: platform === 'curseforge' ? countedOptions(normalized, (record) => record.categories) : [],
       };
     }
-    if (!cached.baseFacets) {
-      cached.baseFacets = {
+    if (!facetScope.baseFacets) {
+      facetScope.baseFacets = {
         availableVersions: optionValues(normalized, 'versions'),
         availableLoaders: optionValues(normalized, 'loaders'),
         availableCategories: optionValues(normalized, 'categories'),
-        availableIncludedMods: cached.platformFacets.includedMods,
-        availableGameplayCategories: cached.platformFacets.gameplayCategories,
+        availableIncludedMods: facetScope.platformFacets.includedMods,
+        availableGameplayCategories: facetScope.platformFacets.gameplayCategories,
         availablePans: availablePanValues(normalized),
       };
     }
@@ -485,16 +543,18 @@ class DataStore {
       && !options.personalStatus;
 
     let sorted;
+    const crossAliases = hasQuery && /\p{Script=Han}/u.test(options.query) ? (await this.getRelations()).searchAliases || {} : {};
     let searched = normalized;
     if (isUnfiltered) {
-      sorted = cached.baseSorted.get(options.sort);
+      const sortKey=options.sort+':'+(options.bilibiliContent || 'all');
+      sorted = cached.baseSorted.get(sortKey);
       if (!sorted) {
         sorted = sortRecords(normalized, options.sort);
-        cached.baseSorted.set(options.sort, sorted);
+        cached.baseSorted.set(sortKey, sorted);
       }
     } else {
       searched = hasQuery
-        ? normalized.filter((record) => matchesSearchDocument(record.searchDocument, options.query))
+        ? normalized.filter((record) => matchesSearchDocument({...record.searchDocument, aliasesLower: (crossAliases[record.id] || []).map(s => s.toLowerCase())}, options.query))
         : normalized;
       let referenceTime = Date.now();
       if (options.dateRange) {
@@ -519,12 +579,12 @@ class DataStore {
     }
 
     const offset = (options.page - 1) * options.pageSize;
-    const facets = !hasQuery ? cached.baseFacets : {
+    const facets = !hasQuery ? facetScope.baseFacets : {
       availableVersions: optionValues(searched, 'versions'),
       availableLoaders: optionValues(searched, 'loaders'),
       availableCategories: optionValues(searched, 'categories'),
-      availableIncludedMods: cached.platformFacets.includedMods,
-      availableGameplayCategories: cached.platformFacets.gameplayCategories,
+      availableIncludedMods: facetScope.platformFacets.includedMods,
+      availableGameplayCategories: facetScope.platformFacets.gameplayCategories,
       availablePans: availablePanValues(searched),
     };
 
@@ -541,10 +601,11 @@ class DataStore {
       availableVersions: facets.availableVersions,
       availableLoaders: facets.availableLoaders,
       availableCategories: facets.availableCategories,
-      availableCategoryCounts: cached.platformFacets.categories,
+      availableCategoryCounts: facetScope.platformFacets.categories,
       availableIncludedMods: facets.availableIncludedMods,
       availableGameplayCategories: facets.availableGameplayCategories,
       availablePans: facets.availablePans,
+      bilibiliCounts: cached.bilibiliCounts,
       sourceFile: result.sourceFile,
       error: result.error,
     };
@@ -704,6 +765,7 @@ class DataStore {
       await copyDirectoryContents(rawDir, path.join(workspace, 'crawler_output'), (name) => name.endsWith('.json'));
       await copyDirectoryContents(this.snapshotDataDir(active.snapshotId), path.join(workspace, 'converted_output', 'data'), (name) => SAFE_DATA_FILE.test(name));
       const canonical = path.join(this.snapshotsDir, active.snapshotId, 'canonical.db');
+      await copyIfExists(path.join(this.snapshotsDir, active.snapshotId, 'desktop_snapshot_manifest.json'), path.join(workspace, 'build', 'desktop_snapshot_manifest.json'));
       await copyIfExists(canonical, path.join(workspace, 'build', 'canonical.db'));
     }
     return { jobId, workspace, activeSnapshotId: active?.snapshotId || null };
@@ -723,7 +785,12 @@ class DataStore {
       throw new Error(`${PLATFORM_CONFIGS[platform].name} 本轮采集未形成可提交结果`);
     }
     const isPartial = contract.outcome === 'partial_update';
-    if (isPartial && (!(contract.partialScope === 'existing' && platform !== 'mcmod')
+    const details = contract.crawlerResult?.details || {};
+    const verifiedCatalogPartial = contract.partialScope === 'catalog'
+      && ['bbsmc', 'xyebbs', 'modrinth'].includes(platform)
+      && details.catalogCompleted === true && Number(details.versionsChecked) > 0
+      && !details.sourceStopped && Number(details.versionParseFailures || 0) === 0;
+    if (isPartial && (!verifiedCatalogPartial && !(contract.partialScope === 'existing' && platform !== 'mcmod')
         && !(contract.partialScope === 'catalog' && ['bilibili', 'curseforge'].includes(platform))
         && !(contract.partialScope === 'public-video-html-bounded' && platform === 'bilibili'
           && contract.crawlerResult?.details?.coverage === 'public-video-html-bounded'
@@ -759,6 +826,58 @@ class DataStore {
       if (rawIds.has('') || rawIds.size !== raw.length || sidecarIds.has('')
           || sidecarIds.size !== parsed.records.length || [...rawIds].some((id) => !sidecarIds.has(id))) {
         throw new Error('MC百科部分采集的原始记录与展示记录 ID 不一致');
+      }
+    }
+    if (isPartial && verifiedCatalogPartial) {
+      const rawIds = new Set(raw.map(item => String((item && item.project_id) || '')));
+      const sidecarIds = new Set(parsed.records.map(item => String((item && item.project_id) || '')));
+      if (rawIds.has('') || rawIds.size !== raw.length || sidecarIds.size !== parsed.records.length
+          || [...rawIds].some(id => !sidecarIds.has(id))) {
+        const rawIdCounts = projectIdCounts(raw);
+        const sidecarIdCounts = projectIdCounts(parsed.records);
+        const rawOnlyIds = [...rawIdCounts.keys()].filter(id => id && !sidecarIdCounts.has(id));
+        const sidecarOnlyIds = [...sidecarIdCounts.keys()].filter(id => id && !rawIdCounts.has(id));
+        const diagnosticName = path.basename(workspace) + '-catalog-id-parity.json';
+        const diagnosticPath = path.join(this.rootDir, 'collector-state', 'update-results', diagnosticName);
+        const diagnostic = {
+          schema: 1,
+          recordedAt: nowIso(),
+          phase: 'catalog-partial-id-parity',
+          platform,
+          workspaceId: path.basename(workspace),
+          idField: 'project_id',
+          normalization: "String(project_id || '')",
+          sampleLimit: ID_DIAGNOSTIC_SAMPLE_LIMIT,
+          rawFile: {
+            name: path.basename(rawPath),
+            sha256: contract.raw?.sha256 || null,
+            ...summarizeProjectIds(raw, rawIdCounts),
+          },
+          sidecarFile: {
+            name: path.basename(sidecar),
+            sha256: contract.sidecar?.sha256 || null,
+            ...summarizeProjectIds(parsed.records, sidecarIdCounts),
+          },
+          rawOnlyIdCount: rawOnlyIds.length,
+          rawOnlyIds: rawOnlyIds.slice(0, ID_DIAGNOSTIC_SAMPLE_LIMIT),
+          sidecarOnlyIdCount: sidecarOnlyIds.length,
+          sidecarOnlyIds: sidecarOnlyIds.slice(0, ID_DIAGNOSTIC_SAMPLE_LIMIT),
+        };
+        let diagnosticHint = '';
+        try {
+          await writePrivateJsonExclusive(diagnosticPath, diagnostic);
+          diagnosticHint = '；诊断记录：collector-state/update-results/' + diagnosticName;
+        } catch {
+          // Keep the integrity rejection authoritative if diagnostics cannot be saved.
+        }
+        throw new Error('目录局部结果的原始记录与展示记录 ID 不一致' + diagnosticHint);
+      }
+      const active = await this.getActiveSnapshot();
+      if (active) {
+        const previous = this.readCachedPlatform(active.snapshotId, platform).result.records;
+        if (previous.some(item => !rawIds.has(String((item && item.project_id) || '')))) {
+          throw new Error('目录局部结果遗失旧 ID，拒绝提交');
+        }
       }
     }
     return {

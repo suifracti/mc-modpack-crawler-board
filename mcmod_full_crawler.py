@@ -49,6 +49,7 @@ from html.parser import HTMLParser
 from html import unescape as html_unescape
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from desktop_collection_contract import write_collection_result
+from datetime import datetime, timezone
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
@@ -1697,8 +1698,10 @@ def backfill_snapshot_versions(limit=None, concurrency=2, gentle=True, cache_siz
     for raw in raw_records:
         sync_release(raw)
 
-    targets = [item for item in raw_records if item.get("mid") and not item.get("version_checked")
-               and not item.get("versions")]
+    # A previous successful check is not evidence that today's releases are
+    # unchanged. Rotate bounded runs; an unlimited run revisits every known ID.
+    targets = sorted((item for item in raw_records if item.get("mid")),
+                     key=lambda item: item.get("version_checked_at") or "")
     if limit:
         targets = targets[:limit]
     total = len(targets)
@@ -1727,14 +1730,18 @@ def backfill_snapshot_versions(limit=None, concurrency=2, gentle=True, cache_siz
                 done += 1
                 if result.get("checked"):
                     checked += 1
-                    raw.update({
+                    raw["version_checked_at"] = datetime.now(timezone.utc).isoformat()
+                    # An unavailable/empty current page cannot erase already
+                    # captured release history or its explicit version name.
+                    if result["versions"] or not raw.get("versions"):
+                        raw.update({
                         "latest_version": result["latest_version"],
                         "last_update_date": result["latest_date"],
                         "release_date": result["release_date"],
                         "version_count": result["version_count"],
                         "versions": result["versions"],
                         "version_checked": True,
-                    })
+                        })
                     sync_release(raw)
                     if result["versions"]:
                         with_history += 1
@@ -1745,6 +1752,16 @@ def backfill_snapshot_versions(limit=None, concurrency=2, gentle=True, cache_siz
     checkpoint()
     print(f"  [旧包版本完成] 已核对 {checked:,}/{total:,} 款，有历史版本 {with_history:,} 款。", flush=True)
     return len(raw_records), checked, with_history, total
+
+
+def fetch_modern_trend_and_version(mid, need_trend, concurrency=2):
+    """Overlap independent read requests; keep at most two in flight per pack."""
+    if need_trend and concurrency > 1:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            trend = executor.submit(fetch_trend_data, mid)
+            version = executor.submit(fetch_version_data, mid)
+            return trend.result(), version.result()
+    return (fetch_trend_data(mid) if need_trend else []), fetch_version_data(mid)
 
 
 def refresh_modern_snapshot(args):
@@ -1804,6 +1821,7 @@ def refresh_modern_snapshot(args):
         if args.mode == "all" and args.limit:
             candidates = sorted(raw_records, key=lambda item: item.get("all_checked_at") or "")
         targets = candidates[:args.limit] if args.limit else candidates
+        processed = 0
         for index, raw in enumerate(targets, 1):
             if IS_BANNED:
                 break
@@ -1859,8 +1877,9 @@ def refresh_modern_snapshot(args):
                     raw["cover_checked_at"] = int(time.time())
                     refreshed += 1
             if args.mode in ("trend", "all"):
-                if args.force or is_trend_stale(raw, args.stale_days):
-                    points = fetch_trend_data(mid)
+                need_trend = args.force or is_trend_stale(raw, args.stale_days)
+                points, version = fetch_modern_trend_and_version(mid, need_trend, getattr(args, 'concurrency', 2))
+                if need_trend:
                     if points:
                         dates, vals, merged = merge_trend_series(raw.get("trend_dates", ""), raw.get("trend_vals", ""), points)
                         lat, high, avg, days, t7, t30, t60, tall = compute_trend_stats(merged)
@@ -1870,7 +1889,6 @@ def refresh_modern_snapshot(args):
                             t7=t7, t30=t30, t60=t60, tall=tall, history7d=[value for _, value in merged[-7:]],
                             trendDatesStr=dates, trendValsStr=vals)
                         trend_count += 1
-                version = fetch_version_data(mid)
                 if version.get("checked"):
                     modern["versionChecked"] = True
                     raw["version_checked"] = True
@@ -1884,12 +1902,17 @@ def refresh_modern_snapshot(args):
                     version_count += 1
             if args.mode == "all" and COLLECTION_STATS["failed"] == failures_before:
                 raw["all_checked_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            processed = index
             if index % args.cache_size == 0:
                 checkpoint()
                 print(f"  [旧包进度] {index}/{len(targets)} 指标 {refreshed} 走势 {trend_count} 版本 {version_count}", flush=True)
+                print('DESKTOP_EVENT ' + json.dumps({'phase': '旧包资料复查', 'processed': index, 'total': len(targets)}, ensure_ascii=False), flush=True)
             if index < len(targets):
                 time.sleep(random.uniform(0.5, 0.9) if not args.no_gentle else 0.1)
     checkpoint()
+    if args.mode in ('all', 'metrics', 'trend', 'sync-titles'):
+        print('DESKTOP_EVENT ' + json.dumps({'phase': '旧包资料复查完成' if not IS_BANNED else '来源停止，保留已有资料',
+              'processed': processed, 'total': len(targets)}, ensure_ascii=False), flush=True)
     complete = probe_complete and not IS_BANNED and COLLECTION_STATS["failed"] == 0
     changes = new_count + refreshed + trend_count + version_count
     write_collection_result("mcmod", request_completed=complete, fetched_count=changes,
@@ -1916,7 +1939,7 @@ def main():
             "运行模式：\n"
             "  new         - 仅向上探测全新整合包 (含走势与版本日志，秒级完成，默认)\n"
             "  trend       - 并发刷新存量整合包走势（执行无限时间线缝合）与版本更新日志\n"
-            "  versions    - 只补抓未核实旧包的完整版本历史与正文\n"
+            "  versions    - 复查已有包的完整版本历史与正文（不设 limit 时全量）\n"
             "  metrics     - 多线程定向刷新存量整合包基础指标 (浏览量/指数/投票等)\n"
             "  sync-titles - 并发扫描存量整合包更名情况，更新标题并记录历史别名 (解决更名后搜不到问题)\n"
             "  covers      - 仅补充隔离工作区中已收录条目的缺失封面字段\n"
@@ -2166,4 +2189,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

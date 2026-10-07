@@ -205,7 +205,7 @@ export interface DesktopDataLibrary {
 }
 
 export interface DesktopRecordQuery {
-  bilibiliContent?: 'candidates' | 'all' | 'excluded';
+  bilibiliContent?: 'candidates' | 'secondary' | 'all' | 'excluded';
   query?: string;
   version?: string;
   loader?: string;
@@ -259,7 +259,7 @@ export interface DesktopApi {
   updatePersonalStatus: (platform: Platform, sourceId: string, patch: Partial<Pick<PersonalStatus, 'favorite' | 'wantToPlay' | 'played' | 'rating' | 'note'>>) => Promise<{ key: string; status: PersonalStatus }>;
   getAuditDiff: (round?: number | string | null) => Promise<DesktopAuditResult>;
   getSourceRecord?: (platform: Platform, sourceId: string) => Promise<DesktopRecord | null>;
-  getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ bilibiliCounts?: { all: number; candidates: number; excluded: number }; platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availableCategoryCounts?: DesktopFilterOption[]; availableIncludedMods: DesktopFilterOption[]; availableGameplayCategories: DesktopFilterOption[]; availablePans: string[]; error?: string | null }>;
+  getPlatformRecords: (platform: Platform, options?: DesktopRecordQuery) => Promise<{ bilibiliCounts?: { all: number; candidates: number; secondary: number; excluded: number }; platform: Platform; total: number; page: number; pageSize: number; records: DesktopRecord[]; availableVersions: string[]; availableLoaders: string[]; availableCategories: string[]; availableCategoryCounts?: DesktopFilterOption[]; availableIncludedMods: DesktopFilterOption[]; availableGameplayCategories: DesktopFilterOption[]; availablePans: string[]; error?: string | null }>;
   getPlatformComments: (platform: Platform, sourceId: string) => Promise<DesktopCommentsResult>;
   getDataLibrary: () => Promise<DesktopDataLibrary>;
   chooseDataDirectory: (path?: string) => Promise<{ cancelled: boolean; data?: DesktopDataState }>;
@@ -402,6 +402,8 @@ const state = {
   stickyCatSearch: '',
   viewMode: 'cards' as ViewMode,
   biliViewMode: 'grouped' as BiliViewMode,
+  bilibiliContent: 'candidates' as 'candidates' | 'secondary' | 'all' | 'excluded',
+  bilibiliCounts: {all:0,candidates:0,secondary:0,excluded:0},
   biliGroups: [] as BiliGroup[],
   records: [] as DesktopRecord[],
   total: 0,
@@ -536,6 +538,7 @@ function ensureMcmodModIndex(record: DesktopRecord): Promise<void> {
 }
 
 interface PlatformCacheEntry {
+  bilibiliCounts?: {all:number;candidates:number;secondary:number;excluded:number};
   records: DesktopRecord[];
   biliGroups: BiliGroup[];
   total: number;
@@ -551,7 +554,7 @@ interface PlatformCacheEntry {
 const platformRecordCache = new Map<string, PlatformCacheEntry>();
 
 function isDefaultPlatformFilters(): boolean {
-  return !state.query
+  return state.bilibiliContent === 'candidates' && !state.query
     && !state.version
     && !state.loader
     && !state.category
@@ -2079,6 +2082,11 @@ export function setStickyFollowStateForTest(params: {
   if (params.records) state.records = params.records;
 }
 
+function renderBiliContentControls(): string {
+  if (state.platform !== 'bilibili') return '';
+  return `<section class="notice pages-bili-content-controls" aria-label="B站内容筛选"><div>${([['candidates','发布 / 更新 / 预告'],['secondary','分享 / 推荐 / 介绍'],['excluded','已过滤 / 待核验'],['all','全部存档']] as const).map(([key,label]) => `<button type="button" class="button ${state.bilibiliContent === key ? 'primary' : 'secondary'} small" data-action="set-bili-content" data-content="${key}">${label}${state.bilibiliCounts.all ? ' ' + formatCount(state.bilibiliCounts[key]) : ''}</button>`).join('')}</div><p>默认只看发布、更新与预告线索；分享、推荐、介绍和转载另列，不作为UP主原创发布。明确自制的分享保留在发布线索中；标题不必使用固定格式。下载链接和视频日期不能证明作者归属或新版本。实况、教程、推广及待核验记录另列；全部存档保留。</p></section>`;
+}
+
 function renderResultsWorkspace(selectedName: string): string {
   if (isStaticOverview()) {
     return `<section class="notice" data-pages-summary-ready="${Boolean(state.data?.hasData)}"><h2>${state.data?.hasData ? '选择来源，开始浏览' : '正在读取公开目录…'}</h2><p>上方数量与更新时间来自公开目录，记录尚未全部加载。打开一个来源只加载该来源；输入关键词后在六平台完整数据中搜索。代表记录在加载后展示。</p></section>`;
@@ -2117,7 +2125,7 @@ function renderResultsWorkspace(selectedName: string): string {
       : state.recordsError && !records.length
         ? recordsFailure
         : `${state.recordsError ? recordsFailure : ''}${resultBody}${state.hasMore ? `<div class="load-more"><button class="button secondary" data-action="load-more">${loadMoreLabel}</button></div>` : ''}`;
-  return `<div class="content-grid"><section class="results-column">${renderStickyFollowBar()}<div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : state.recordsError && !records.length ? '加载失败' : resultHeading}</h2></div><span class="result-count">${state.loading || (state.recordsError && !records.length) ? '' : resultCount}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${recordsBody}</section></div>`;
+  return `<div class="content-grid"><section class="results-column">${renderStickyFollowBar()}${renderBiliContentControls()}<div class="results-heading"><div><span class="eyebrow">${esc(selectedName)}</span><h2>${state.loading ? '正在读取数据…' : state.recordsError && !records.length ? '加载失败' : resultHeading}</h2></div><span class="result-count">${state.loading || (state.recordsError && !records.length) ? '' : resultCount}</span></div>${state.message ? `<div class="notice">${esc(state.message)}</div>` : ''}${recordsBody}</section></div>`;
 }
 
 function renderRelease(release: Record<string, unknown>): string {
@@ -4825,6 +4833,7 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
 
     const cached = !isStaticOverview() && isDefaultPlatformFilters() ? platformRecordCache.get(nextPlatform) : undefined;
     if (cached) {
+      if (cached.bilibiliCounts) state.bilibiliCounts = cached.bilibiliCounts;
       state.records = [...cached.records];
       state.biliGroups = [...cached.biliGroups];
       state.total = cached.total;
@@ -4927,7 +4936,10 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
         limit: otherLimit ? Number(otherLimit) : undefined,
         mcmodLimit: oldMode ? state.mcmodOldLimit : undefined,
         mode: state.mcmodUpdateMode,
-        otherMode: state.otherUpdateMode === 'existing' ? 'existing' : undefined,
+        // Preserve the selected non-MC百科 mode. Dropping `catalog` here
+        // silently turned a requested B站/CF catalog pass into the worker's
+        // default `new` mode and its much smaller request budget.
+        otherMode: state.otherUpdateMode,
       },
       handledTaskId: '',
     };
@@ -5323,6 +5335,12 @@ async function handleAction(element: HTMLElement, event?: Event): Promise<void> 
       if (viewMode !== 'table') state.expandedMcmodTableMods = '';
       render();
     }
+  } else if (action === 'set-bili-content') {
+    const mode = element.dataset.content;
+    if (mode === 'all' || mode === 'excluded' || mode === 'candidates' || mode === 'secondary') {
+      state.bilibiliContent = mode;
+      await loadRecords(true);
+    }
   } else if (action === 'set-bili-view-mode') {
     const viewMode = element.dataset.biliViewMode;
     if (viewMode === 'grouped' || viewMode === 'flat') {
@@ -5383,6 +5401,7 @@ async function loadRecords(reset = true, backgroundRevalidate = false): Promise<
       dateRange: state.dateRange,
       serverOnly: state.serverOnly,
       personalStatus: groupedBili ? '' : state.personalFilter,
+      bilibiliContent: state.bilibiliContent,
       sort: state.platform === 'all' ? 'updated_desc' : state.sort,
       page,
       pageSize: requestPageSize,
@@ -5412,6 +5431,8 @@ async function loadRecords(reset = true, backgroundRevalidate = false): Promise<
       if (failures.length) state.recordsError = `部分平台加载失败；已保留其他平台结果。${failures.join('；')}`;
     }
     if (requestId !== activeLoadRequestId) return;
+    const counts = results.find(result => result.bilibiliCounts)?.bilibiliCounts;
+    if (counts) state.bilibiliCounts = counts;
     const nextRecords = results.flatMap((result) => result.records);
     state.records = reset ? nextRecords : [...state.records, ...nextRecords];
     for (const record of nextRecords) state.compareRecords[record.id] = record;
@@ -5419,7 +5440,7 @@ async function loadRecords(reset = true, backgroundRevalidate = false): Promise<
     state.biliGroups = groupedBili
       ? filterBilibiliGroupsByPersonalStatus(groupedResults, state.personalLibrary, state.personalFilter)
       : [];
-    state.total = results.reduce((sum, result) => sum + result.total, 0);
+    state.total = groupedBili ? (results[0]?.total || 0) : results.reduce((sum, result) => sum + result.total, 0);
     state.availableVersions = [...new Set(results.flatMap((result) => result.availableVersions || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availableLoaders = [...new Set(results.flatMap((result) => result.availableLoaders || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
     state.availableCategories = [...new Set(results.flatMap((result) => result.availableCategories || []))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
@@ -5442,6 +5463,7 @@ async function loadRecords(reset = true, backgroundRevalidate = false): Promise<
 
     if (reset && isDefaultPlatformFilters()) {
       platformRecordCache.set(state.platform, {
+        bilibiliCounts: state.bilibiliCounts,
         records: state.records,
         biliGroups: state.biliGroups,
         total: state.total,
@@ -5585,6 +5607,7 @@ async function warmupPlatformCache(): Promise<void> {
         dateRange: '',
         serverOnly: false,
         personalStatus: '',
+        bilibiliContent: 'candidates',
         sort: 'updated_desc',
         page: 1,
         pageSize: requestPageSize,
@@ -5592,6 +5615,7 @@ async function warmupPlatformCache(): Promise<void> {
       if (result.records && !result.error && state.data?.snapshotId === currentSnapshotId) {
         const biliGroups = groupedBili ? buildBilibiliGroups(result.records) : [];
         platformRecordCache.set(platform, {
+          bilibiliCounts: result.bilibiliCounts,
           records: result.records,
           biliGroups,
           total: result.total,

@@ -81,11 +81,10 @@ export function renderBiliGroupedCard(g: BiliGroup, options: BiliCardRenderOptio
   }
   const descriptionCheckedAt = latest.desc_checked_at || latest.source_html_checked_at;
   const descriptionRecordedAt = g.desc_updated_at || latest.desc_updated_at;
-  if (staticMode && (descriptionCheckedAt || descriptionRecordedAt)) {
+  if (descriptionCheckedAt || descriptionRecordedAt) {
     const descriptionTime = descriptionCheckedAt || descriptionRecordedAt;
     tagsHtml += '<span class="bili-desc-updated-tag" title="聚合记录的核查或记录时间，不代表UP主修改简介或发布新版本">' + (descriptionCheckedAt ? '简介核查: ' : '简介记录: ') + escHtml(formatStaticDescriptionTime(descriptionTime)) + '</span>';
-  } else if (!staticMode && descriptionRecordedAt) {
-    tagsHtml += '<span class="bili-desc-updated-tag" title="UP主于简介或置顶评论更新版本：' + escHtml(descriptionRecordedAt) + '">🔄 简介更新: ' + escHtml(descriptionRecordedAt) + '</span>';
+
   }
   if (vers.length) {
     tagsHtml += '<span class="bili-tag-mc" title="来自标题或简介的版本线索，未必是 Minecraft 版本">版本线索 ' + vers.slice(0, 2).map((v) => escHtml(v)).join(' / ') + '</span>';
@@ -186,7 +185,7 @@ export function renderBiliGroupedCard(g: BiliGroup, options: BiliCardRenderOptio
     '<div class="bili-card-meta platform-card-meta">' +
     '<span>UP: <b class="bili-author-tag">' + escHtml(latest.author) + '</b></span>' +
     '<span>·</span>' +
-    '<span>' + (staticMode ? '视频发布: ' : '最新: ') + escHtml(g.latestPubTime) + '</span>' +
+    '<span>' + '视频发布: ' + escHtml(g.latestPubTime) + '</span>' +
     '</div>' +
     (tagsHtml ? '<div class="bili-card-tags platform-card-tags">' + tagsHtml + '</div>' : '<div class="platform-card-tags" aria-hidden="true"></div>') +
     groupVerBannerHtml +
@@ -221,11 +220,10 @@ export function renderBiliFlatCard(p: BilibiliPack, options: BiliCardRenderOptio
   }
   const descriptionCheckedAt = p.desc_checked_at || p.source_html_checked_at;
   const descriptionRecordedAt = p.desc_updated_at;
-  if (staticMode && (descriptionCheckedAt || descriptionRecordedAt)) {
+  if (descriptionCheckedAt || descriptionRecordedAt) {
     const descriptionTime = descriptionCheckedAt || descriptionRecordedAt;
     tagsHtml += '<span class="bili-desc-updated-tag" title="聚合记录的核查或记录时间，不代表UP主修改简介或发布新版本">' + (descriptionCheckedAt ? '简介核查: ' : '简介记录: ') + escHtml(formatStaticDescriptionTime(descriptionTime)) + '</span>';
-  } else if (!staticMode && p.desc_updated_at) {
-    tagsHtml += '<span class="bili-desc-updated-tag" title="UP主于简介或置顶评论更新版本：' + escHtml(p.desc_updated_at) + '">🔄 简介更新: ' + escHtml(p.desc_updated_at) + '</span>';
+
   }
   if (p.mc_version && p.mc_version !== '未知') tagsHtml += '<span class="bili-tag-mc" title="来自标题或简介的版本线索，未必是 Minecraft 版本">🔎 版本线索 ' + escHtml(p.mc_version) + '</span>';
   if (p.loaders && Array.isArray(p.loaders)) {
@@ -299,7 +297,7 @@ export function renderBiliFlatCard(p: BilibiliPack, options: BiliCardRenderOptio
     '<div class="bili-card-meta platform-card-meta">' +
     '<span>UP: <b class="bili-author-tag">' + escHtml(p.author) + '</b></span>' +
     '<span>·</span>' +
-    '<span>' + escHtml(p.pub_time) + '</span>' +
+    '<span>' + '视频发布: ' + escHtml(p.pub_time) + '</span>' +
     '</div>' +
     (tagsHtml ? '<div class="bili-card-tags platform-card-tags">' + tagsHtml + '</div>' : '<div class="platform-card-tags" aria-hidden="true"></div>') +
     groupVerBannerHtml +

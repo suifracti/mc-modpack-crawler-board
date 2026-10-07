@@ -17,6 +17,7 @@ import sys
 import time
 import json
 import random
+import re
 import argparse
 import urllib.request
 import urllib.parse
@@ -24,6 +25,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Any, Optional
 from desktop_collection_contract import write_collection_result
+from public_api_transport import read_public_api_json
+from catalog_refresh_policy import load_previous, select_daily_versions, retain_cached_versions
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -38,8 +41,12 @@ BASE_API = "https://api.bbsmc.net/v2"
 class BbsmcCrawler:
     def __init__(self, api_base: str = BASE_API, max_workers: int = 10):
         self.api_base = api_base.rstrip('/')
-        self.max_workers = max_workers
+        self.max_workers = min(max_workers, 2)
         self.headers = dict(HEADERS)
+        self.source_stopped = False
+        self.catalog_completed = False
+        self.versions_checked = 0
+        self.version_parse_failures = 0
         self.stats = {"requests": 0, "successful": 0, "failed": 0, "errors": [], "pages_completed": 0}
 
     def _get_json(self, endpoint: str, params: Optional[Dict[str, Any]] = None, timeout: int = 10) -> Optional[Any]:
@@ -47,19 +54,21 @@ class BbsmcCrawler:
         if params:
             qs = urllib.parse.urlencode(params)
             url = f"{url}?{qs}"
-        req = urllib.request.Request(url, headers=self.headers)
         for attempt in range(3):
+            if self.source_stopped:
+                return None
             try:
                 self.stats["requests"] += 1
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    if resp.status == 200:
-                        value = json.loads(resp.read().decode('utf-8'))
-                        self.stats["successful"] += 1
-                        return value
-                    if attempt == 2:
-                        self.stats["failed"] += 1
-                        self.stats["errors"].append(f"HTTP {resp.status} {endpoint}")
+                value = read_public_api_json(url, self.headers, timeout)
+                self.stats["successful"] += 1
+                return value
             except urllib.error.HTTPError as e:
+                if e.code in {401, 403, 412, 429}:
+                    self.source_stopped = True
+                    print(f"[来源停止] HTTP {e.code} {endpoint}；本轮不再访问此来源。", flush=True)
+                    self.stats["failed"] += 1
+                    self.stats["errors"].append(f"HTTP {e.code} {endpoint}; source stopped")
+                    return None
                 if e.code == 404:
                     self.stats["failed"] += 1
                     self.stats["errors"].append(f"HTTP 404 {endpoint}")
@@ -119,6 +128,7 @@ class BbsmcCrawler:
 
             time.sleep(0.15)
 
+        self.catalog_completed = total_hits is not None and len(all_hits) >= total_hits
         print(f"[+] 列表检索完成，共纳录 {len(all_hits)} 款项目元数据。\n")
         return all_hits
 
@@ -126,8 +136,10 @@ class BbsmcCrawler:
         """获取单个项目的版本发布历史与文件下载直链"""
         data = self._get_json(f"project/{project_id}/version", timeout=8)
         if isinstance(data, list):
+            self.versions_checked += 1
             return data
-        return []
+        if data is not None:raise ValueError('BBSMC version endpoint did not return a list')
+        return None
 
     def enrich_project_downloads(self, projects: List[Dict[str, Any]], max_enrich: int = 300) -> None:
         """并发丰富前 N 款热门项目的实际下载网盘与直链"""
@@ -142,10 +154,16 @@ class BbsmcCrawler:
             future_to_proj = {executor.submit(self.fetch_project_versions, p['project_id']): p for p in to_enrich}
             for future in as_completed(future_to_proj):
                 p = future_to_proj[future]
+                p["version_attempted_at"] = datetime.now().astimezone().isoformat()
+                p['version_refresh_pending'] = True
                 completed += 1
                 try:
                     versions = future.result()
+                    if isinstance(versions,list):
+                        p['version_refresh_pending'] = False
+                        p['version_checked_at'] = p['version_attempted_at']
                     if versions:
+                        p["version_checked_at"] = p["version_attempted_at"]
                         download_links = self._extract_download_links(versions)
                         p['download_links'] = download_links
                         cleaned_versions = []
@@ -172,8 +190,10 @@ class BbsmcCrawler:
                         p['has_server'] = any(fl.get('is_server') for ver in cleaned_versions for fl in ver.get('files', [])) or bool(re.search(r'(?:服务端|server|开服|服端)', (p.get('title') or "") + " " + (p.get('description') or ""), re.I))
                         if download_links:
                             enriched_count += 1
-                except Exception:
-                    pass
+                except Exception as error:
+                    self.version_parse_failures += 1
+                    self.stats["failed"] += 1
+                    self.stats["errors"].append(f"version parse {p.get('project_id')}: {error}")
 
                 if completed % 50 == 0 or completed == len(to_enrich):
                     elapsed = time.time() - start_time
@@ -315,12 +335,13 @@ def standardize_pack(item: Dict[str, Any]) -> Dict[str, Any]:
         "modified_timestamp": modified_ts,
         "download_links": item.get('download_links', []),
         "latest_version": item.get('latest_version', ''),
+        "catalog_version_id": item.get('latest_version', ''),
         "has_server": item.get('has_server', False),
         "versions_data": item.get('versions_data', [])
     }
 
 
-def crawl_bbsmc(project_type: str = "modpack", max_total: int = 0, enrich_versions_count: int = 400) -> List[Dict[str, Any]]:
+def crawl_bbsmc(project_type: str = "modpack", max_total: int = 0, enrich_versions_count: int = 400, daily: bool = False) -> List[Dict[str, Any]]:
     """主采集流水线"""
     print("=" * 65)
     print(f"  BBSMC (好创/BBSMC) Minecraft 资源专版采集引擎启动")
@@ -329,6 +350,8 @@ def crawl_bbsmc(project_type: str = "modpack", max_total: int = 0, enrich_versio
     print("=" * 65)
 
     crawler = BbsmcCrawler()
+    repo_root = os.path.abspath(os.environ.get("MC_DESKTOP_WORKSPACE") or os.path.dirname(os.path.abspath(__file__)))
+    previous = load_previous(os.path.join(repo_root, "crawler_output", "bbsmc_modpacks.json")) if daily else []
     raw_projects = crawler.search_all_projects(project_type=project_type, max_total=max_total)
 
     if not raw_projects:
@@ -347,11 +370,16 @@ def crawl_bbsmc(project_type: str = "modpack", max_total: int = 0, enrich_versio
 
     # 丰富前 N 款热门项目的实际下载链接
     if enrich_versions_count > 0:
-        actual_enrich = min(len(raw_projects), enrich_versions_count)
-        crawler.enrich_project_downloads(raw_projects, max_enrich=actual_enrich)
+        targets = select_daily_versions(raw_projects, previous, standardize_pack) if daily else raw_projects[:enrich_versions_count]
+        crawler.enrich_project_downloads(targets, max_enrich=len(targets))
 
     # 标准化转换
-    processed = [standardize_pack(p) for p in raw_projects]
+    processed = [standardize_pack(item) for item in raw_projects]
+    prior_by_id = {str(p["project_id"]):p for p in previous if p.get("project_id")}
+    for raw, row in zip(raw_projects, processed):
+        for field in ("version_attempted_at", "version_checked_at", "version_refresh_pending"):
+            if field in raw:row[field] = raw[field]
+        if daily:retain_cached_versions(row, prior_by_id.get(str(row["project_id"])))
 
     # 按下载量降序排序
     processed.sort(key=lambda x: x['downloads'], reverse=True)
@@ -397,7 +425,7 @@ def crawl_bbsmc(project_type: str = "modpack", max_total: int = 0, enrich_versio
         failed_requests=int(crawler.stats["failed"]),
         errors=crawler.stats["errors"],
         status="success" if request_completed else "partial",
-        details={"outputCount": len(processed), "requestedLimit": max_total or None},
+        details={"outputCount": len(processed), "requestedLimit": max_total or None, "catalogCompleted": crawler.catalog_completed, "versionsChecked": crawler.versions_checked, "sourceStopped": crawler.source_stopped, "versionParseFailures": crawler.version_parse_failures, "versionRefreshMode": "changed-and-oldest-50" if daily else "full-requested-range"},
     )
 
     return processed
@@ -408,6 +436,7 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--type", default="modpack", choices=["modpack", "mod"], help="项目类型: modpack(整合包, 默认) 或 mod(单体模组)")
     parser.add_argument("-m", "--max", type=int, default=0, help="最多拉取条数（默认: 0 为全量）")
     parser.add_argument("-e", "--enrich", type=int, default=400, help="深入解析下载网盘直链的项目数（默认: 400 款）")
+    parser.add_argument("--daily", action="store_true", help="完整目录核对，版本只读新增/变更及轮换50个旧包")
     args = parser.parse_args()
 
-    crawl_bbsmc(project_type=args.type, max_total=args.max, enrich_versions_count=args.enrich)
+    crawl_bbsmc(project_type=args.type, max_total=args.max, enrich_versions_count=args.enrich, daily=args.daily)

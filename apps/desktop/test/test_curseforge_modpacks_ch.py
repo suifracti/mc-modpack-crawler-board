@@ -1,4 +1,4 @@
-import unittest,tempfile,json,sys,urllib.error,os,subprocess
+import unittest,tempfile,json,sys,urllib.error,urllib.request,os,subprocess,ssl
 from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
@@ -14,6 +14,15 @@ class Transport:
   if '/browse/' in route:return {'status':'success','page':'2' if route.endswith('/2') else '1','pages':2,'packs':[pack(2 if route.endswith('/2') else 1)]},{'sha256':'fixture'}
   return {**pack(2),'status':'success','links':[{'link':'https://www.curseforge.com/minecraft/modpacks/new-pack'}],'versions':[]},{'sha256':'fixture'}
 class Tests(unittest.TestCase):
+ def test_catalog_keeps_current_version_summary_separate_from_original_file_history(self):
+  detail={**pack(1),'versions':[{'id':123,'name':'Pack v0.3.0','updated':1790724600,'private':False}]}
+  old={'project_id':'1','url':'https://www.curseforge.com/minecraft/modpacks/a','releases':[{'id':99,'displayName':'Pack v0.2.0','fileDate':'2026-02-16'}]}
+  row=catalog.merge_pack(detail,old,{'observedAt':'2026-10-06T11:00:00Z'})
+  self.assertEqual(row['releases'],old['releases'])
+  self.assertEqual(row['catalog_latest_version']['name'],'Pack v0.3.0')
+  self.assertEqual(row['catalog_latest_version']['provider'],'modpacks-ch')
+  self.assertNotIn('downloadUrl',row['catalog_latest_version'])
+
  def test_daily_worker_uses_public_catalog_without_manual_mode_override(self):
   sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
   from collector_worker import build_script_args
@@ -21,6 +30,89 @@ class Tests(unittest.TestCase):
   with patch.dict(os.environ,{'CURSEFORGE_PROVIDER':'cfwidget'}):
    actual=build_script_args('curseforge',args)
   self.assertIn('--public-catalog',actual);self.assertIn('--recent-pages',actual)
+ def test_explicit_catalog_mode_requests_the_full_provider_visible_page_cap(self):
+  sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+  from collector_worker import build_script_args
+  args=SimpleNamespace(mode='catalog',limit=None,pages=200,source_root=str(Path(__file__).resolve().parents[3]))
+  with patch.dict(os.environ,{'CURSEFORGE_PROVIDER':'cfwidget'}):actual=build_script_args('curseforge',args)
+  self.assertEqual(actual,['--max','0','--recent-pages','200','--public-catalog'])
+
+ def test_catalog_mode_defaults_to_full_page_cap_when_pages_were_not_supplied(self):
+  sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+  from collector_worker import build_script_args,parse_args
+  with patch.object(sys,'argv',['collector_worker.py','--platform','curseforge','--workspace','/tmp/cf-workspace','--source-root',str(Path(__file__).resolve().parents[3]),'--mode','catalog']):args=parse_args()
+  with patch.dict(os.environ,{'CURSEFORGE_PROVIDER':'cfwidget'}):actual=build_script_args('curseforge',args)
+  self.assertEqual(actual,['--max','0','--recent-pages','200','--public-catalog'])
+
+ def test_catalog_resumes_from_saved_page_when_page_cap_is_expanded(self):
+  class Full(Transport):
+   def get(self,route):
+    self.calls.append(route)
+    if '/browse/' in route:
+     page=2 if route.endswith('/2') else 1
+     return {'status':'success','page':str(page),'pages':2,'refreshed':1791290528,'packs':[pack(page)]},{'sha256':'fixture'}
+    ident=int(route.rsplit('/',1)[-1])
+    return {**pack(ident),'description':'detail-'+str(ident),'links':[{'link':f'https://www.curseforge.com/minecraft/modpacks/pack-{ident}'}],'versions':[],'status':'success'},{'sha256':'fixture-detail'}
+  with tempfile.TemporaryDirectory() as temp:
+   raw=Path(temp)/'raw.json';side=Path(temp)/'data.js';checkpoint=Path(temp)/'state'/'checkpoint.json';raw.write_text('[]')
+   first=Full();partial=catalog.refresh_catalog(raw,side,recent_pages=1,transport=first,checkpoint_path=checkpoint)
+   self.assertEqual(partial['details']['pagesObserved'],1);self.assertFalse(partial['requestCompleted'])
+   resumed=catalog.refresh_catalog(raw,side,recent_pages=2,transport=Full(),checkpoint_path=checkpoint)
+   self.assertEqual(resumed['details']['resumedFromPage'],1)
+   self.assertEqual(resumed['details']['pagesObserved'],2)
+   self.assertTrue(resumed['requestCompleted'])
+   self.assertTrue(json.loads(checkpoint.read_text())['complete'])
+
+ def test_resumed_catalog_clears_stale_end_time_and_persists_request_failure(self):
+  class SnapshotTransport:
+   def __init__(self,checkpoint=None,fail_page=None):self.calls=[];self.checkpoint=checkpoint;self.fail_page=fail_page;self.state_at_first_request=None
+   def get(self,route):
+    self.calls.append(route)
+    if self.checkpoint and self.state_at_first_request is None:
+     state=json.loads(self.checkpoint.read_text());self.state_at_first_request=(state.get('runStatus'),state.get('endedAt'))
+    if '/browse/' in route:
+     page=int(route.rsplit('/',1)[-1]) if route.rsplit('/',1)[-1].isdigit() else 1
+     if self.fail_page==page:raise catalog.CatalogRefusal('HTTP 503 fixture')
+     return {'status':'success','page':str(page),'pages':2,'packs':[pack(page)]},{'sourceUrl':catalog.ORIGIN+route,'observedAt':'2026-10-06T13:00:00Z'}
+    ident=int(route.rsplit('/',1)[-1])
+    return {**pack(ident),'description':'detail-'+str(ident),'links':[{'link':f'https://www.curseforge.com/minecraft/modpacks/pack-{ident}'}],'versions':[],'status':'success'},{'sourceUrl':catalog.ORIGIN+route,'observedAt':'2026-10-06T13:00:01Z'}
+  with tempfile.TemporaryDirectory() as d:
+   raw=Path(d)/'raw.json';side=Path(d)/'data.js';checkpoint=Path(d)/'state'/'checkpoint.json';raw.write_text('[]')
+   first=catalog.refresh_catalog(raw,side,recent_pages=1,transport=SnapshotTransport(),checkpoint_path=checkpoint)
+   previous=json.loads(checkpoint.read_text());previous_end=previous['endedAt']
+   self.assertEqual(previous['runStatus'],'finished')
+   self.assertEqual(first['details']['pagesObserved'],1)
+   resumed_transport=SnapshotTransport(checkpoint=checkpoint,fail_page=2)
+   result=catalog.refresh_catalog(raw,side,recent_pages=2,transport=resumed_transport,checkpoint_path=checkpoint)
+   after=json.loads(checkpoint.read_text())
+   self.assertEqual(resumed_transport.state_at_first_request,('running',None))
+   self.assertNotEqual(after['endedAt'],previous_end)
+   self.assertEqual(after['runStatus'],'failed')
+   self.assertIn('HTTP 503 fixture',after['lastError'])
+   self.assertFalse(after['complete'])
+   self.assertFalse(result['requestCompleted'])
+
+ def test_unexpected_resumed_catalog_exception_is_recorded_before_propagating(self):
+  class StableTransport:
+   def get(self,route):
+    if '/browse/' in route:
+     page=int(route.rsplit('/',1)[-1]) if route.rsplit('/',1)[-1].isdigit() else 1
+     return {'status':'success','page':str(page),'pages':2,'packs':[pack(page)]},{'sourceUrl':catalog.ORIGIN+route,'observedAt':'2026-10-06T13:00:00Z'}
+    ident=int(route.rsplit('/',1)[-1])
+    return {**pack(ident),'description':'detail-'+str(ident),'links':[{'link':f'https://www.curseforge.com/minecraft/modpacks/pack-{ident}'}],'versions':[],'status':'success'},{'sourceUrl':catalog.ORIGIN+route,'observedAt':'2026-10-06T13:00:01Z'}
+  class CrashAtPageTwo(StableTransport):
+   def get(self,route):
+    if '/browse/' in route and route.endswith('/2'):raise RuntimeError('fixture programming failure')
+    return super().get(route)
+  with tempfile.TemporaryDirectory() as d:
+   raw=Path(d)/'raw.json';side=Path(d)/'data.js';checkpoint=Path(d)/'state'/'checkpoint.json';raw.write_text('[]')
+   catalog.refresh_catalog(raw,side,recent_pages=1,transport=StableTransport(),checkpoint_path=checkpoint)
+   with self.assertRaisesRegex(RuntimeError,'fixture programming failure'):
+    catalog.refresh_catalog(raw,side,recent_pages=2,transport=CrashAtPageTwo(),checkpoint_path=checkpoint)
+   after=json.loads(checkpoint.read_text())
+   self.assertEqual(after['runStatus'],'failed')
+   self.assertIn('fixture programming failure',after['lastError'])
+   self.assertFalse(after['complete'])
 
  def test_catalog_hydrates_new_and_changed_provider_projects_in_the_same_task(self):
   class Full(Transport):
@@ -55,6 +147,68 @@ class Tests(unittest.TestCase):
    raw=Path(d)/'raw.json';side=Path(d)/'data.js';old={'project_id':'1','title':'旧标题','url':'https://www.curseforge.com/minecraft/modpacks/old-pack','downloads':200,'description':'原站完整正文比摘要更长','date_modified':'2026-10-06 16:00:00','releases':[{'file_id':99,'changelog':'retain'}],'gallery':['https://example.com/a.jpg']};raw.write_text(json.dumps([old]));t=Transport()
    with patch.dict('os.environ',{'MC_DESKTOP_COLLECTION_RESULT':str(Path(d)/'result.json')}):r=catalog.refresh_catalog(raw,side,transport=t)
    rows=json.loads(raw.read_text());self.assertEqual([x['project_id'] for x in rows],['1','2']);self.assertEqual(rows[0]['description'],old['description']);self.assertEqual(rows[0]['downloads'],200);self.assertEqual(rows[0]['releases'],old['releases']);self.assertEqual(rows[0]['date_modified'],old['date_modified']);self.assertEqual(rows[1]['url'],'https://www.curseforge.com/minecraft/modpacks/new-pack');self.assertEqual(r['details']['pagesObserved'],2);self.assertFalse(r['details']['fullRefresh']);self.assertEqual(r['status'],'partial')
+
+ def test_public_catalog_scan_resumes_after_last_verified_page_and_keeps_old_ids(self):
+  class SnapshotTransport:
+   def __init__(self,fail_page=None):self.calls=[];self.fail_page=fail_page
+   def get(self,route):
+    self.calls.append(route)
+    if '/browse/' in route:
+     page=int(route.rsplit('/',1)[-1]) if route.rsplit('/',1)[-1].isdigit() else 1
+     if self.fail_page==page:raise catalog.CatalogRefusal('HTTP 503 fixture')
+     refreshed=1791290528 if page==1 else '1791290528'
+     return {'status':'success','page':str(page),'pages':2,'refreshed':refreshed,'packs':[pack(page)]},{'sourceUrl':catalog.ORIGIN+route,'observedAt':'2026-10-06T13:00:00Z','sha256':'fixture'}
+    ident=int(route.rsplit('/',1)[-1])
+    return {**pack(ident),'description':'detail-'+str(ident),'links':[{'link':f'https://www.curseforge.com/minecraft/modpacks/pack-{ident}'}],'versions':[],'status':'success'},{'sourceUrl':catalog.ORIGIN+route,'observedAt':'2026-10-06T13:00:01Z','sha256':'fixture-detail'}
+  with tempfile.TemporaryDirectory() as d:
+   raw=Path(d)/'raw.json';side=Path(d)/'data.js';checkpoint=Path(d)/'collector-state'/'cf-checkpoint.json'
+   raw.write_text(json.dumps([{'project_id':'99','url':'https://www.curseforge.com/minecraft/modpacks/old','releases':[{'id':990}]}]))
+   first=SnapshotTransport(fail_page=2);partial=catalog.refresh_catalog(raw,side,transport=first,checkpoint_path=checkpoint)
+   self.assertEqual(partial['details']['pagesObserved'],1);self.assertFalse(partial['requestCompleted']);self.assertEqual(partial['details']['checkpointPage'],1)
+   second=SnapshotTransport();complete=catalog.refresh_catalog(raw,side,transport=second,checkpoint_path=checkpoint)
+   self.assertEqual(second.calls,['/public/curseforge/browse/updated','/public/curseforge/browse/updated/2','/public/curseforge/2','/public/curseforge/browse/updated','/public/curseforge/browse/updated/2'])
+   rows=json.loads(raw.read_text());self.assertEqual({row['project_id'] for row in rows},{'99','1','2'});self.assertEqual(rows[0]['releases'],[{'id':990}])
+   self.assertEqual(complete['details']['pagesObserved'],2);self.assertEqual(complete['details']['observedCount'],2);self.assertEqual(complete['details']['newCount'],2)
+   self.assertEqual(complete['details']['resumedFromPage'],1);self.assertTrue(complete['requestCompleted']);self.assertEqual(complete['details']['duplicateCount'],0)
+ def test_public_catalog_treats_refresh_tokens_as_per_page_metadata_and_saves_responses(self):
+  class ChangedSnapshotTransport:
+   def __init__(self):self.calls=[]
+   def get(self,route):
+    self.calls.append(route)
+    if '/browse/' in route:
+     page=int(route.rsplit('/',1)[-1]) if route.rsplit('/',1)[-1].isdigit() else 1
+     refreshed=1791290528 if page==1 else '1791290588'
+     return {'status':'success','page':str(page),'pages':2,'refreshed':refreshed,'packs':[pack(page)]},{'sourceUrl':catalog.ORIGIN+route,'observedAt':'2026-10-06T13:00:00Z','sha256':'fixture'}
+    ident=int(route.rsplit('/',1)[-1])
+    return {**pack(ident),'description':'detail-'+str(ident),'links':[{'link':f'https://www.curseforge.com/minecraft/modpacks/pack-{ident}'}],'versions':[],'status':'success'},{'sourceUrl':catalog.ORIGIN+route,'observedAt':'2026-10-06T13:00:01Z','sha256':'fixture-detail'}
+  with tempfile.TemporaryDirectory() as d:
+   raw=Path(d)/'raw.json';side=Path(d)/'data.js';checkpoint=Path(d)/'collector-state'/'cf-checkpoint.json';raw.write_text('[]');t=ChangedSnapshotTransport()
+   result=catalog.refresh_catalog(raw,side,recent_pages=2,transport=t,checkpoint_path=checkpoint)
+   self.assertEqual(result['details']['pagesObserved'],2);self.assertTrue(result['requestCompleted'])
+   self.assertEqual(result['details']['providerRefreshTokensByPage'],{'1':'1791290528','2':'1791290588'})
+   self.assertTrue(result['details']['coverageValidation']['complete'])
+   self.assertTrue(result['details']['fullPageResponsesSaved'])
+   manifest=json.loads(checkpoint.read_text());page1=json.loads((checkpoint.parent/manifest['pageDirectory']/'page-0001.json').read_text())
+   self.assertEqual(page1['providerResponse']['packs'][0]['id'],1)
+
+ def test_public_catalog_records_page_count_drift_and_keeps_visible_window_partial(self):
+  class DriftingTransport:
+   def __init__(self):self.calls=[]
+   def get(self,route):
+    self.calls.append(route)
+    if '/browse/' in route:
+     page=int(route.rsplit('/',1)[-1]) if route.rsplit('/',1)[-1].isdigit() else 1
+     count=2 if page==1 and len(self.calls)==1 else 3
+     return {'status':'success','page':str(page),'pages':count,'refreshed':1791290528+page,'packs':[pack(page)]},{'sourceUrl':catalog.ORIGIN+route,'observedAt':'2026-10-06T13:00:00Z','sha256':'fixture'}
+    ident=int(route.rsplit('/',1)[-1])
+    return {**pack(ident),'description':'detail-'+str(ident),'links':[{'link':f'https://www.curseforge.com/minecraft/modpacks/pack-{ident}'}],'versions':[],'status':'success'},{'sourceUrl':catalog.ORIGIN+route,'observedAt':'2026-10-06T13:00:01Z','sha256':'fixture-detail'}
+  with tempfile.TemporaryDirectory() as d:
+   raw=Path(d)/'raw.json';side=Path(d)/'data.js';raw.write_text('[]');transport=DriftingTransport()
+   result=catalog.refresh_catalog(raw,side,recent_pages=3,transport=transport,checkpoint_path=Path(d)/'state'/'checkpoint.json')
+   self.assertEqual(result['details']['pagesObserved'],3)
+   self.assertTrue(result['details']['paginationDrift'])
+   self.assertFalse(result['requestCompleted']);self.assertTrue(result['truncated'])
+   self.assertEqual(result['details']['uniqueIdsObserved'],3)
  def test_refusal_stops_without_provider_switch_or_deleting_old_ids(self):
   with tempfile.TemporaryDirectory() as d:
    raw=Path(d)/'raw.json';side=Path(d)/'data.js';raw.write_text(json.dumps([{'project_id':'1','url':'https://www.curseforge.com/minecraft/modpacks/p','releases':[{'id':99}]}]));t=Transport(fail=True)
@@ -65,6 +219,8 @@ class Tests(unittest.TestCase):
   with self.assertRaises(ValueError):catalog.merge_pack({**pack(),'links':[{'link':'https://evil.invalid/p'}]},None,{})
  def test_transport_rejects_unapproved_host_paths_and_never_sends_credentials(self):
   t=catalog.PublicCatalogTransport()
+  handler=next(h for h in t.opener.handlers if isinstance(h,urllib.request.HTTPSHandler))
+  self.assertTrue(handler._context.check_hostname);self.assertEqual(handler._context.verify_mode,ssl.CERT_REQUIRED);self.assertGreater(handler._context.cert_store_stats()['x509_ca'],0)
   for route in ['/public/curseforge/import/test','/public/curseforge/1/2/server/linux','https://api.curseforge.com/v1/mods/1']:
    with self.assertRaises(ValueError):t.get(route)
 
@@ -78,6 +234,25 @@ class Tests(unittest.TestCase):
    with patch.dict(os.environ,{'CURSEFORGE_PROVIDER':'cfwidget'}),patch.object(catalog,'PublicCatalogTransport',return_value=Transport()):run_selected_collector(args)
    contract=json.loads((workspace/'build/desktop_update_result.json').read_text())
    self.assertEqual(contract['outcome'],'partial_update');self.assertEqual(contract['crawlerResult']['details']['provider'],'modpacks-ch');self.assertTrue(contract['previousIdsPreserved']);self.assertEqual(contract['rawCount'],2);self.assertTrue((workspace/'build/desktop_snapshot_manifest.json').exists());self.assertEqual(len(json.loads((workspace/'crawler_output/curseforge_modpacks.json').read_text())),2)
+
+ def test_daily_recent_window_preserves_the_full_catalog_checkpoint(self):
+  sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+  from collector_worker import run_selected_collector
+  root=Path(__file__).resolve().parents[3]
+  class RecentTransport(Transport):
+   def get(self,route):
+    if '/browse/' in route:return super().get(route)
+    ident=int(route.rsplit('/',1)[-1]);self.calls.append(route)
+    return {**pack(ident),'status':'success','description':'Fixture detail','links':[{'link':f'https://www.curseforge.com/minecraft/modpacks/pack-{ident}'}]},{'sha256':'fixture'}
+  with tempfile.TemporaryDirectory() as d:
+   data_root=Path(d);workspace=data_root/'incoming/daily-job';raw=workspace/'crawler_output/curseforge_modpacks.json';raw.parent.mkdir(parents=True);raw.write_text(json.dumps([{'project_id':'1','title':'Old','url':'https://www.curseforge.com/minecraft/modpacks/old-pack','releases':[{'id':99}]}]))
+   checkpoint=data_root/'collector-state/curseforge-public-catalog-v2/checkpoint.json';checkpoint.parent.mkdir(parents=True)
+   checkpoint.write_text(json.dumps({'schema':2,'provider':'modpacks-ch','requestedPages':200,'providerPages':200,'lastCompletedPage':124,'complete':False,'pageDigests':{},'pageDirectory':'curseforge-public-catalog-pages-20261007T090750450509Z-52053'}));before=checkpoint.read_bytes()
+   args=SimpleNamespace(platform='curseforge',workspace=str(workspace),source_root=str(root),limit=None,pages=2,mode='recent',until=None)
+   with patch.dict(os.environ,{'CURSEFORGE_PROVIDER':'cfwidget'}),patch.object(catalog,'PublicCatalogTransport',return_value=RecentTransport()):run_selected_collector(args)
+   self.assertEqual(checkpoint.read_bytes(),before)
+   recent=data_root/'collector-state/curseforge-public-catalog-recent-v2/daily-job-checkpoint.json'
+   self.assertTrue(recent.exists());self.assertEqual(json.loads(recent.read_text())['requestedPages'],2)
 
  def test_cli_resolves_configuration_before_starting_requests(self):
   root=Path(__file__).resolve().parents[3]

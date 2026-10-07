@@ -27,8 +27,8 @@ def content_decision(title,author,description='',tags=None):
     if hit('featureRelease',title):return decision('non_pack','发布对象是统计表、补丁或武器包，不能当作整合包发布')
     if hit('roundup',title):return decision('roundup','推荐合集、排行榜或求包视频不能对应一款整合包')
     if hit('gameplay',title) or hit('gameplayAuthor',author):return decision('gameplay','标题或账号标注实况、录播、速通或分集内容')
-    if hit('unreleased',title):return decision('uncertain','标题说明尚未发布、开发计划或仅预览，不能把计划当作已发布整合包')
-    if hit('firstReleaseFuture',description):return decision('uncertain','简介仍说明首个版本将在未来发布，现有快照不能确认已发布')
+    if hit('unreleased',title) and not hit('announcement',title):return decision('uncertain','标题说明尚未发布、开发计划或仅预览，不能把计划当作已发布整合包')
+    if hit('firstReleaseFuture',description) and not hit('announcement',title):return decision('uncertain','简介仍说明首个版本将在未来发布，现有快照不能确认已发布')
     if hit('serverPromotion',title):return decision('promotion','主要内容为服务器招募、充值或福利推广')
     if hit('directPromotion',title) or sum(bool(re.search(pattern,title,re.I)) for pattern in rules['promotionMarkers'])>=2:return decision('promotion','标题出现直装、主播同款、购买或夸张解锁措辞，需核对实际发布者')
     if hit('paidPromotion',title+'\n'+description):return decision('promotion','资料要求私信或进群购买，另存供核对')
@@ -41,8 +41,12 @@ def content_decision(title,author,description='',tags=None):
     if hit('discussion',title):return decision('uncertain','主要讨论整合包相关话题，不能仅凭引用原页当作发布或整体介绍')
     if hit('tutorial',title) and not (hit('release',title) and (spec or project or strong_mc_body)):return decision('tutorial','视频主要讲下载、安装、制作或迁移操作')
     if hit('dynamicAcquisition',description) and not pack_details:return decision('uncertain','简介引导点头像去动态获取，未提供可核对的整合包构成或项目资料；标题不能单独证明实际发布内容')
-    if not hit('packObject',title) and not spec:return decision('non_pack','未明确发布或介绍整合包；单模组/枪包/模型汉化不能当整合包')
+    if not hit('packObject',title) and not spec and not project:return decision('non_pack','未明确发布或介绍整合包；单模组/枪包/模型汉化不能当整合包')
     if not mc_identity:return decision('uncertain','标题、简介和已观测标签不足以确认Minecraft整合包')
+    original_claim=hit('originalClaim',title) and not hit('notOriginalClaim',title)
+    if hit('secondary',title) and not original_claim:return decision('showcase','标题标注分享、推荐或转载；项目原页、下载链接和视频日期不能证明是UP主原创发布',True)
+    if original_claim:return decision('release','标题明确声称自制或本人制作；保留发布线索，作者归属仍需原页核验',True)
+    if hit('announcement',title):return decision('announcement','具名MC整合包预告，尚不能确认新版本已发布',True)
     if hit('release',title):return decision('release','MC身份、整合包对象和发布/更新意图均有文字依据',True)
     if (project or spec) and hit('projectReleaseIntent',title):return decision('release','标题有发布/更新意图，简介提供MC整合包项目原页或具名规格',True)
     if hit('showcase',title):return decision('showcase','MC身份、整合包对象和介绍/展示意图均有文字依据',True)
@@ -56,6 +60,10 @@ class InvalidPublicVideo(ValueError):pass
 class UnavailablePublicVideo(InvalidPublicVideo):
     def __init__(self,message,true_code=-404):
         super().__init__(message);self.true_code=true_code
+class RestrictedPublicVideo(InvalidPublicVideo):
+    """A correctly identified single video is private/paid; do not stop the queue."""
+    def __init__(self,message,reason_code):
+        super().__init__(message);self.reason_code=reason_code
 
 class _Parser(HTMLParser):
     def __init__(self):
@@ -107,11 +115,15 @@ def parse_public_video(html,bvid):
             and ''.join(parser.title).strip() in ('视频去哪了呢？_哔哩哔哩_bilibili','视频去哪了呢?_哔哩哔哩_bilibili')
             and isinstance(missing_video,dict) and not any(missing_video.get(k) for k in ('bvid','title','pubdate'))):
             raise UnavailablePublicVideo('Official video unavailable (initial-state 404)',error['trueCode'])
-    if not isinstance(state,dict) or state.get('error'):raise InvalidPublicVideo('Missing or error initial state')
+    if not isinstance(state,dict):raise InvalidPublicVideo('Missing or error initial state')
+    if state.get('error'):raise InvalidPublicVideo('Unclassified initial-state error')
     video=state.get('videoData')
     if not isinstance(video,dict) or state.get('bvid')!=bvid or video.get('bvid')!=bvid:raise InvalidPublicVideo('BVID mismatch')
-    if video.get('state')!=0:raise InvalidPublicVideo('Video is not public')
-    if any(video.get(k) for k in ['is_upower_exclusive','is_upower_play','is_upower_preview','is_chargeable_season']):raise InvalidPublicVideo('Paid or restricted video')
+    if type(video.get('state')) is not int:raise InvalidPublicVideo('Missing or invalid publication state')
+    if video['state']!=0:raise RestrictedPublicVideo('Video is not public','non-public-state')
+    restriction_fields=['is_upower_exclusive','is_upower_play','is_upower_preview','is_chargeable_season']
+    if any(k in video and type(video[k]) is not bool for k in restriction_fields):raise InvalidPublicVideo('Invalid restriction flag')
+    if any(video.get(k) is True for k in restriction_fields):raise RestrictedPublicVideo('Paid or restricted video','paid-or-restricted')
     canonical=parser.meta.get('og:url')
     if canonical and canonical.rstrip('/')!=f'https://www.bilibili.com/video/{bvid}':raise InvalidPublicVideo('Canonical URL mismatch')
     if not isinstance(video.get('title'),str) or not isinstance(video.get('owner'),dict) or not isinstance(video['owner'].get('name'),str):raise InvalidPublicVideo('Missing identity fields')

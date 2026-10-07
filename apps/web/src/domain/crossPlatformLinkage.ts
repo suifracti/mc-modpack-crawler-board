@@ -54,6 +54,7 @@ export type PublicLinkIndex = {
   schema: number;
   catalogCount: number;
   records: Record<string, { platform: Platform; sourceId: string; title: string; url: string; author?: string; packVersion?: string }>;
+  searchAliases?: Record<string, string[]>;
   links: Record<string, Array<{ id: string; reason: string }>>;
 };
 let publicIndex: PublicLinkIndex | undefined;
@@ -62,6 +63,7 @@ export function installPublicAssociations(index: PublicLinkIndex): void {
   if (index.schema !== 1 || !index.records || !index.links) throw new Error('跨来源索引格式不匹配');
   publicIndex = index;
 }
+export function publicSearchAliases(id: string): string[] { return publicIndex?.searchAliases?.[id] || []; }
 export function publicAssociationScope(): string {
   return publicIndex ? `关联检查覆盖 ${publicIndex.catalogCount.toLocaleString('zh-CN')} 条${publicIndex.source === 'local' ? '本地' : '公开'}记录；同名或原页指向均为线索，版本与作者需到原站核对。` : '关联索引尚未加载，以下仅扫描当前已加载记录。';
 }

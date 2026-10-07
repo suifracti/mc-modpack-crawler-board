@@ -242,8 +242,16 @@ class UpdateManager extends EventEmitter {
           outcome: validation.outcome, failedRequests,
           provider:coverageDetails.provider,coverage:coverageDetails.coverage,observedCount:coverageDetails.observedCount,
           pagesObserved:coverageDetails.pagesObserved,providerPages:coverageDetails.providerPages,
+          requestedPageLimit:coverageDetails.requestedPageLimit,pageSize:coverageDetails.pageSize,
+          visibleProjectSlots:coverageDetails.visibleProjectSlots,uniqueIdsObserved:coverageDetails.uniqueIdsObserved,
+          duplicateCount:coverageDetails.duplicateCount,browseRequests:coverageDetails.browseRequests,
+          detailRequests:coverageDetails.detailRequests,httpRequestsThisRun:coverageDetails.httpRequestsThisRun,
+          checkpointEnabled:coverageDetails.checkpointEnabled,checkpointPage:coverageDetails.checkpointPage,
+          resumedFromPage:coverageDetails.resumedFromPage,sourceRefreshedAt:coverageDetails.sourceRefreshedAt,
           providerPagesCompleted:coverageDetails.providerPagesCompleted,fullRefresh:coverageDetails.fullRefresh,
           knownCatalogCompleted:coverageDetails.knownCatalogCompleted,sourceStop:coverageDetails.sourceStop,
+          catalogCompleted:coverageDetails.catalogCompleted,versionsChecked:coverageDetails.versionsChecked,
+          unverifiedLatestVersionCount:coverageDetails.unverifiedLatestVersionCount,
           unverifiedQueuedCount:coverageDetails.unverifiedQueuedCount,pendingTransportFailureCount:coverageDetails.pendingTransportFailureCount,
           ...(htmlCoverage ? { coverage: coverageDetails.coverage, observedCount: coverageDetails.observedCount,
             newCount: coverageDetails.newCount, updatedCount: coverageDetails.updatedCount,
@@ -268,10 +276,10 @@ class UpdateManager extends EventEmitter {
       return this.getStatus();
     } finally {
       await this.releaseCancelledHtmlLock(active);
-      if (prepared && (['versions', 'existing'].includes(normalizedOptions.mode)
+      if (prepared && (!active.cancelled || ['versions', 'existing'].includes(normalizedOptions.mode)
           || (active.platform === 'mcmod' && ['new', 'trend', 'metrics', 'all'].includes(normalizedOptions.mode)))
           && !active.committed) {
-        this.appendLog(`旧包复查未提交；已保留中途结果：${prepared.workspace}。重试前请先核对该目录。`);
+        this.appendLog(`任务未提交；已保留中途结果：${prepared.workspace}。重试前请先核对该目录。`);
       } else if (prepared) {
         await this.store.cleanupWorkspace(prepared.workspace).catch(() => {});
       }

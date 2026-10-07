@@ -25,6 +25,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Any, Optional
 from desktop_collection_contract import write_collection_result
+from public_api_transport import read_public_api_json
+from catalog_refresh_policy import load_previous, select_daily_versions, retain_cached_versions
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -40,8 +42,12 @@ BASE_API = "https://resource-api.xyeidc.com"
 class XyebbsCrawler:
     def __init__(self, api_base: str = BASE_API, max_workers: int = 20):
         self.api_base = api_base.rstrip('/')
-        self.max_workers = max_workers
+        self.max_workers = min(max_workers, 4)
         self.headers = dict(HEADERS)
+        self.source_stopped = False
+        self.catalog_completed = False
+        self.versions_checked = 0
+        self.version_parse_failures = 0
         self.stats = {"requests": 0, "successful": 0, "failed": 0, "errors": [], "pages_completed": 0}
 
     def _get_json(self, endpoint: str, params: Optional[Dict[str, Any]] = None, timeout: int = 10) -> Optional[Any]:
@@ -49,19 +55,21 @@ class XyebbsCrawler:
         if params:
             qs = urllib.parse.urlencode(params)
             url = f"{url}?{qs}"
-        req = urllib.request.Request(url, headers=self.headers)
         for attempt in range(3):
+            if self.source_stopped:
+                return None
             try:
                 self.stats["requests"] += 1
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    if resp.status == 200:
-                        value = json.loads(resp.read().decode('utf-8'))
-                        self.stats["successful"] += 1
-                        return value
-                    if attempt == 2:
-                        self.stats["failed"] += 1
-                        self.stats["errors"].append(f"HTTP {resp.status} {endpoint}")
+                value = read_public_api_json(url, self.headers, timeout)
+                self.stats["successful"] += 1
+                return value
             except urllib.error.HTTPError as e:
+                if e.code in {401, 403, 412, 429}:
+                    self.source_stopped = True
+                    print(f"[来源停止] HTTP {e.code} {endpoint}；本轮不再访问此来源。", flush=True)
+                    self.stats["failed"] += 1
+                    self.stats["errors"].append(f"HTTP {e.code} {endpoint}; source stopped")
+                    return None
                 if e.code == 404:
                     self.stats["failed"] += 1
                     self.stats["errors"].append(f"HTTP 404 {endpoint}")
@@ -128,6 +136,7 @@ class XyebbsCrawler:
             time.sleep(0.08)
 
         print(f"[+] 列表检索完成，共纳录 {len(all_items)} 款整合包项目元数据。\n")
+        self.catalog_completed = total_count is not None and len(all_items) >= total_count
         return all_items
 
     def fetch_resource_releases(self, resource_id: int) -> List[Dict[str, Any]]:
@@ -136,10 +145,15 @@ class XyebbsCrawler:
         if data and isinstance(data, dict):
             inner = data.get('data')
             if isinstance(inner, dict):
-                return inner.get('data', [])
+                releases=inner.get('data')
+                if not isinstance(releases,list):raise ValueError('XYEBBS releases endpoint did not return a list')
+                self.versions_checked += 1
+                return releases
             elif isinstance(inner, list):
+                self.versions_checked += 1
                 return inner
-        return []
+        if data is not None:raise ValueError('XYEBBS releases endpoint did not return a list')
+        return None
 
     def enrich_resource_downloads(self, resources: List[Dict[str, Any]], max_enrich: int = 1500) -> None:
         """并发丰富前 N 款热门整合包的实际下载网盘直链"""
@@ -154,10 +168,16 @@ class XyebbsCrawler:
             future_to_res = {executor.submit(self.fetch_resource_releases, r['id']): r for r in to_enrich}
             for future in as_completed(future_to_res):
                 r = future_to_res[future]
+                r['version_attempted_at'] = datetime.now().astimezone().isoformat()
+                r['version_refresh_pending'] = True
                 completed += 1
                 try:
                     releases = future.result()
+                    if isinstance(releases,list):
+                        r['version_refresh_pending'] = False
+                        r['version_checked_at'] = r['version_attempted_at']
                     if releases:
+                        r['version_checked_at'] = r['version_attempted_at']
                         download_links = self._extract_download_links(releases, r['id'])
                         r['download_links'] = download_links
                         cleaned_releases = []
@@ -203,8 +223,10 @@ class XyebbsCrawler:
                         r['has_server'] = any(lk.get('is_server') for rel in cleaned_releases for lk in rel.get('links', [])) or bool(re.search(r'(?:服务端|server|开服|服端)', (r.get('title') or "") + " " + (r.get('description') or "") + " " + (r.get('sub_title') or ""), re.I))
                         if download_links:
                             enriched_count += 1
-                except Exception:
-                    pass
+                except Exception as error:
+                    self.version_parse_failures += 1
+                    self.stats["failed"] += 1
+                    self.stats["errors"].append(f"version parse {r.get('id')}: {error}")
 
                 if completed % 100 == 0 or completed == len(to_enrich):
                     elapsed = time.time() - start_time
@@ -408,7 +430,7 @@ def standardize_pack(item: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def crawl_xyebbs(max_total: int = 0, enrich_count: int = 1500) -> List[Dict[str, Any]]:
+def crawl_xyebbs(max_total: int = 0, enrich_count: int = 1500, daily: bool = False) -> List[Dict[str, Any]]:
     """主采集流水线"""
     print("=" * 65)
     print(f"  XYEBBS (小叶论坛/像素世界) 整合包专区采集引擎启动")
@@ -417,6 +439,8 @@ def crawl_xyebbs(max_total: int = 0, enrich_count: int = 1500) -> List[Dict[str,
     print("=" * 65)
 
     crawler = XyebbsCrawler(max_workers=25)
+    previous_root=os.path.abspath(os.environ.get('MC_DESKTOP_WORKSPACE') or os.path.dirname(os.path.abspath(__file__)))
+    previous=load_previous(os.path.join(previous_root,'crawler_output','xyebbs_modpacks.json')) if daily else []
     repo_root = os.path.abspath(
         os.environ.get("MC_DESKTOP_WORKSPACE")
         or os.path.dirname(os.path.abspath(__file__))
@@ -455,11 +479,16 @@ def crawl_xyebbs(max_total: int = 0, enrich_count: int = 1500) -> List[Dict[str,
 
     # 丰富前 N 款热门项目的实际网盘链接
     if enrich_count > 0:
-        actual_enrich = min(len(raw_items), enrich_count)
-        crawler.enrich_resource_downloads(raw_items, max_enrich=actual_enrich)
+        targets=select_daily_versions(raw_items,previous,standardize_pack) if daily else raw_items[:enrich_count]
+        crawler.enrich_resource_downloads(targets,max_enrich=len(targets))
 
     # 标准化数据
     standardized = [standardize_pack(it) for it in raw_items]
+    prior_by_id={str(p['project_id']):p for p in previous if p.get('project_id')}
+    for raw,row in zip(raw_items,standardized):
+        for field in ('version_attempted_at','version_checked_at','version_refresh_pending'):
+            if field in raw:row[field]=raw[field]
+        if daily:retain_cached_versions(row,prior_by_id.get(str(row['project_id'])))
 
     # 保存路径
     repo_root = os.path.abspath(
@@ -507,7 +536,7 @@ def crawl_xyebbs(max_total: int = 0, enrich_count: int = 1500) -> List[Dict[str,
         failed_requests=int(crawler.stats["failed"]),
         errors=crawler.stats["errors"],
         status="success" if request_completed else "partial",
-        details={"outputCount": len(standardized), "requestedLimit": max_total or None},
+        details={"outputCount": len(standardized), "requestedLimit": max_total or None, "catalogCompleted": crawler.catalog_completed, "versionsChecked": crawler.versions_checked, "sourceStopped": crawler.source_stopped, "versionParseFailures": crawler.version_parse_failures,"versionRefreshMode":"changed-and-oldest-50" if daily else "full-requested-range"},
     )
 
     return standardized
@@ -517,6 +546,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="XYEBBS 整合包专区全量采集引擎")
     parser.add_argument("--max", type=int, default=0, help="最多抓取整合包数量 (0 表示全量)")
     parser.add_argument("--enrich", type=int, default=1500, help="并发深度解析下载网盘的前 N 款热门包")
+    parser.add_argument('--daily',action='store_true',help='完整目录核对，版本只读新增/变更及轮换50个旧包')
     args = parser.parse_args()
 
-    crawl_xyebbs(max_total=args.max, enrich_count=args.enrich)
+    crawl_xyebbs(max_total=args.max, enrich_count=args.enrich,daily=args.daily)

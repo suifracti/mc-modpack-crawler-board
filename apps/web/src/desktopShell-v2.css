@@ -979,6 +979,32 @@
   flex-wrap: wrap;
 }
 
+[data-bili-discovery] > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+[data-bili-discovery] > p {
+  line-height: 1.7;
+  margin: 10px 0;
+}
+
+.js-bili-discovery-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 88px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  line-height: 1.6;
+  resize: vertical;
+}
+
 .update-option-buttons {
   display: flex;
   gap: 6px;
