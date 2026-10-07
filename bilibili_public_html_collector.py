@@ -4,7 +4,7 @@ Never imports the legacy API/login collector. Old full descriptions, auxiliary
 observations and derived release fields survive a metadata observation unchanged.
 """
 from __future__ import annotations
-import argparse,copy,gzip,hashlib,io,json,os,re,ssl,tempfile,time
+import argparse,copy,gzip,hashlib,io,json,os,re,ssl,tempfile,time,socket
 import urllib.request,urllib.error,urllib.parse,urllib.robotparser
 from datetime import datetime,timezone,timedelta
 from pathlib import Path
@@ -168,6 +168,11 @@ def is_tls_eof(error):
  reason=error.reason if isinstance(error,urllib.error.URLError) and not isinstance(error,urllib.error.HTTPError) else error
  return isinstance(reason,ssl.SSLEOFError)
 
+def is_network_timeout(error):
+ """Identify transport timeouts without treating HTTP or HTML failures as transient."""
+ reason=error.reason if isinstance(error,urllib.error.URLError) and not isinstance(error,urllib.error.HTTPError) else error
+ return isinstance(reason,(TimeoutError,socket.timeout))
+
 def resume_transport_state(state):
  """A new user-requested task may recheck a cooled-off connection interruption.
 
@@ -177,9 +182,13 @@ def resume_transport_state(state):
  stop=state.get('stopped')
  if not isinstance(stop,dict):return False
  eof_text=re.fullmatch(r'<urlopen error \[SSL: UNEXPECTED_EOF_WHILE_READING\] EOF occurred in violation of protocol \(_ssl\.c:\d+\)>',str(stop.get('error','')))
- typed=(stop.get('stopKind')=='transport' and stop.get('reason')=='tls-eof-unverified'
-        and (stop.get('transportErrorType')=='SSLEOFError' or eof_text))
- legacy=(not stop.get('stopKind') and eof_text)
+ legacy_timeout=re.fullmatch(r'<urlopen error _ssl\.c:\d+: The handshake operation timed out>',str(stop.get('error','')))
+ timeout_type=stop.get('transportErrorType') in {'TimeoutError','socket.timeout'}
+ tls_type=stop.get('transportErrorType')=='SSLEOFError' or eof_text
+ typed=(stop.get('stopKind')=='transport' and
+        ((stop.get('reason')=='tls-eof-unverified' and tls_type) or
+         (stop.get('reason')=='network-timeout-unverified' and timeout_type)))
+ legacy=(not stop.get('stopKind') and (eof_text or legacy_timeout))
  if not (typed or legacy) or stop.get('httpStatus') is not None or 'htmlEvidence' in stop:return False
  try:
   at=datetime.fromisoformat(stop['at']);now=datetime.fromisoformat(utc())
@@ -358,7 +367,7 @@ def collect(workspace,state_path,*,mode='existing',limit=3,bvid=None,until=None,
    except Exception as exc:
     details['restrictedRobots'][host]={'checkedAt':utc(),'error':str(exc),'businessRequests':0,'routeEnabled':False}
     close_http_error(exc)
-  queue=seeds[:];seen=set(attempted)|set(unavailable)|set(restricted_videos);attempt_count=0;parse_failures_this_run=0
+  queue=seeds[:];seen=set(attempted)|set(unavailable)|set(restricted_videos);attempt_count=0;parse_failures_this_run=0;deferred_transport=[]
   cutoff=datetime.fromisoformat(until).replace(tzinfo=timezone.utc).timestamp() if until else None
   while queue and attempt_count<limit and len(attempted)<daily_budget:
    ident=queue.pop(0)
@@ -369,6 +378,9 @@ def collect(workspace,state_path,*,mode='existing',limit=3,bvid=None,until=None,
    body=None
    try:
     body=transport.fetch(url,8*1024*1024)
+    # A completed response ends the consecutive transport-failure streak even
+    # if its HTML later proves unavailable or cannot be parsed.
+    state['transportFailureStreak']=0
     title=re.search(r'<title[^>]*>(.*?)</title>',body,re.I|re.S)
     if title and re.search(r'验证码|访问被拒绝|安全验证|Forbidden|Access Denied|Precondition Failed|请先登录',title.group(1),re.I):raise Refusal('HTTP200 access-gate title')
     video,tags=parse_public_video(body,ident);at=utc();patch,decision=metadata_patch(video,tags,body,at)
@@ -406,26 +418,37 @@ def collect(workspace,state_path,*,mode='existing',limit=3,bvid=None,until=None,
     if parse_failures_this_run>=MAX_UNPARSEABLE_FAILURES_PER_RUN:details['perVideoFailureThresholdReached']=True;break
    except Exception as exc:
     failed_count+=1;failure={'at':utc(),'bvid':ident,'error':str(exc),'httpStatus':getattr(exc,'code',None)}
-    if body is None and is_tls_eof(exc):
-     transport_failures[ident]={**failure,'reason':'tls-eof-unverified','oldRecordRetained':True,'retried':False}
-     state['transportFailureStreak']=int(state.get('transportFailureStreak') or 0)+1;errors.append(f'{ident}: TLS EOF; unverified, no retry')
-     print('DESKTOP_EVENT '+json.dumps({'phase':'网络中断记录（不重试）','processed':attempt_count,'total':limit},ensure_ascii=False),flush=True)
+    transport_reason=('tls-eof-unverified' if body is None and is_tls_eof(exc) else
+                      'network-timeout-unverified' if body is None and is_network_timeout(exc) else None)
+    if transport_reason:
+     error_type='SSLEOFError' if transport_reason=='tls-eof-unverified' else type(exc.reason if isinstance(exc,urllib.error.URLError) else exc).__name__
+     transport_failures[ident]={**failure,'reason':transport_reason,'transportErrorType':error_type,'oldRecordRetained':True,'retried':False}
+     state['transportFailureStreak']=int(state.get('transportFailureStreak') or 0)+1
+     deferred_transport.append(ident)
+     errors.append(f'{ident}: {"TLS EOF" if transport_reason=="tls-eof-unverified" else "network timeout"}; retained in discovery queue')
+     print('DESKTOP_EVENT '+json.dumps({'phase':'单条网络中断已排队','processed':attempt_count,'total':limit,'streak':state['transportFailureStreak']},ensure_ascii=False),flush=True)
      if state['transportFailureStreak']<3:atomic_json(state_path,state);continue
      failure['transportFailureCircuitOpen']=True
-     failure.update(stopKind='transport',reason='tls-eof-unverified',transportErrorType='SSLEOFError',stage='video',retryAfter=(datetime.fromisoformat(utc())+timedelta(seconds=TRANSPORT_COOLDOWN_SECONDS)).isoformat())
+     failure.update(stopKind='transport',reason=transport_reason,transportErrorType=error_type,stage='video',retryAfter=(datetime.fromisoformat(utc())+timedelta(seconds=TRANSPORT_COOLDOWN_SECONDS)).isoformat())
     state['stopped']=failure
     if isinstance(body,str):state['stopped']['htmlEvidence']=save_html_evidence(state_path,ident,body)
     atomic_json(state_path,state);errors.append(str(exc));close_http_error(exc);break
-  state['discoveryQueue']=list(dict.fromkeys(x for x in list(state.get('discoveryQueue',[]))+queue if x not in seen and x not in unavailable and x not in restricted_videos));atomic_json(state_path,state)
+  remaining=[x for x in list(state.get('discoveryQueue',[]))+queue if x not in seen and x not in unavailable and x not in restricted_videos]
+  for ident in deferred_transport:
+   if ident not in unavailable and ident not in restricted_videos and ident not in remaining:remaining.append(ident)
+  state['discoveryQueue']=list(dict.fromkeys(remaining));atomic_json(state_path,state)
   details['dailyCandidatesUsed']=len(attempted);details['unverifiedQueuedCount']=max(len(queue),len(state.get('discoveryQueue',[])),max(0,details['knownCandidateCount']-attempt_count))
   details['pendingTransportFailureCount']=len(transport_failures)
   details['knownCatalogCompleted']=mode=='catalog' and not details['unverifiedQueuedCount'] and not state.get('stopped') and not transport_failures
  except FileExistsError:errors.append('HTML state is locked by another task or an interrupted task; no requests made')
  except Exception as exc:
   errors.append(str(exc))
-  if is_tls_eof(exc) and not state.get('stopped'):
+  if (is_tls_eof(exc) or is_network_timeout(exc)) and not state.get('stopped'):
    failed_count+=1
-   state['stopped']={'at':utc(),'error':str(exc),'httpStatus':None,'stopKind':'transport','reason':'tls-eof-unverified','transportErrorType':'SSLEOFError','stage':'robots','retryAfter':(datetime.fromisoformat(utc())+timedelta(seconds=TRANSPORT_COOLDOWN_SECONDS)).isoformat()};atomic_json(state_path,state)
+   reason='tls-eof-unverified' if is_tls_eof(exc) else 'network-timeout-unverified'
+   nested=exc.reason if isinstance(exc,urllib.error.URLError) else exc
+   transport_type='SSLEOFError' if reason=='tls-eof-unverified' else type(nested).__name__
+   state['stopped']={'at':utc(),'error':str(exc),'httpStatus':None,'stopKind':'transport','reason':reason,'transportErrorType':transport_type,'stage':'robots','retryAfter':(datetime.fromisoformat(utc())+timedelta(seconds=TRANSPORT_COOLDOWN_SECONDS)).isoformat()};atomic_json(state_path,state)
   elif isinstance(exc,Refusal) and not state.get('stopped'):
    state['stopped']={'at':utc(),'error':str(exc),'httpStatus':getattr(exc,'code',None)};atomic_json(state_path,state)
   elif isinstance(exc,(urllib.error.URLError,urllib.error.HTTPError)):
@@ -433,7 +456,7 @@ def collect(workspace,state_path,*,mode='existing',limit=3,bvid=None,until=None,
   close_http_error(exc)
  finally:
   if lock_fd is not None:os.close(lock_fd);lock_path.unlink()
- details.update(observedCount=len(observations),newCount=new_count,updatedCount=updated_count,failedCount=failed_count,perVideoParseFailureCount=parse_failures_this_run if 'parse_failures_this_run' in locals() else 0,knownParseFailureCount=len(state.get('parseFailures') or {}),stopped=state.get('stopped'),knownUnavailableCount=len(state.get('unavailable') or {}),knownRestrictedCount=len(state.get('restricted') or {}),observations=observations,requests=getattr(transport,'requests',[]))
+ details.update(observedCount=len(observations),newCount=new_count,updatedCount=updated_count,failedCount=failed_count,perVideoParseFailureCount=parse_failures_this_run if 'parse_failures_this_run' in locals() else 0,knownParseFailureCount=len(state.get('parseFailures') or {}),stopped=state.get('stopped'),knownUnavailableCount=len(state.get('unavailable') or {}),knownRestrictedCount=len(state.get('restricted') or {}),pendingTransportTimeoutCount=sum(1 for value in (state.get('transportFailures') or {}).values() if isinstance(value,dict) and value.get('reason')=='network-timeout-unverified'),observations=observations,requests=getattr(transport,'requests',[]))
  if observations:
   save_observation_checkpoint(raw_path,sidecar,records)
  result=write_collection_result('bilibili',request_completed=False,fetched_count=len(observations),pages_completed=len(observations),pages_expected=limit,failed_requests=failed_count,errors=errors,status='partial' if observations else 'failed',details=details)

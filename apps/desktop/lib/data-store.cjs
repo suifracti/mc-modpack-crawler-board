@@ -786,9 +786,17 @@ class DataStore {
     }
     const isPartial = contract.outcome === 'partial_update';
     const details = contract.crawlerResult?.details || {};
+    const duplicateCatalogPartial = details.catalogCoverage === 'complete-pages-with-duplicate-ids'
+      && Number(details.catalogDuplicateCount) > 0
+      && Number(details.catalogUniqueCount) > 0
+      && details.scanPagesComplete === true
+      && Number(contract.crawlerResult?.pagesExpected) > 0
+      && Number(contract.crawlerResult?.pagesCompleted || 0) >= Number(contract.crawlerResult?.pagesExpected || 0)
+      && Number(contract.crawlerResult?.failedRequests || 0) === 0
+      && !contract.crawlerResult?.truncated;
     const verifiedCatalogPartial = contract.partialScope === 'catalog'
       && ['bbsmc', 'xyebbs', 'modrinth'].includes(platform)
-      && details.catalogCompleted === true && Number(details.versionsChecked) > 0
+      && (details.catalogCompleted === true || duplicateCatalogPartial) && Number(details.versionsChecked) > 0
       && !details.sourceStopped && Number(details.versionParseFailures || 0) === 0;
     if (isPartial && (!verifiedCatalogPartial && !(contract.partialScope === 'existing' && platform !== 'mcmod')
         && !(contract.partialScope === 'catalog' && ['bilibili', 'curseforge'].includes(platform))

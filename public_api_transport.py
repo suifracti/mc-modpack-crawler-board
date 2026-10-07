@@ -1,5 +1,6 @@
 """Read public JSON, retaining TLS verification when Python sees TLS EOF."""
 import json
+import shutil
 import ssl
 import subprocess
 import urllib.error
@@ -9,7 +10,7 @@ from verified_tls import get_verified_context
 
 SYSTEM_TLS_ORIGINS = set()
 MAX_BYTES = 8 * 1024 * 1024
-ALLOWED_HOSTS = {'api.bbsmc.net', 'resource-api.xyeidc.com'}
+ALLOWED_HOSTS = {'api.bbsmc.net', 'resource-api.xyeidc.com', 'api.modrinth.com'}
 
 
 def read_public_api_json(url, headers, timeout=10):
@@ -19,6 +20,7 @@ def read_public_api_json(url, headers, timeout=10):
         raise ValueError('Unsupported public API origin')
     if any(key.lower() in {'authorization', 'cookie', 'x-api-key'} for key in headers):
         raise ValueError('Public metadata transport cannot send credentials')
+    curl_fallback_reason = None
     if parsed.hostname not in SYSTEM_TLS_ORIGINS:
         try:
             request = urllib.request.Request(url, headers=headers)
@@ -28,14 +30,23 @@ def read_public_api_json(url, headers, timeout=10):
                 raise ValueError('Public API response too large')
             return json.loads(data)
         except urllib.error.URLError as error:
-            if not isinstance(error.reason, ssl.SSLEOFError):
+            if isinstance(error.reason, ssl.SSLEOFError):
+                curl_fallback_reason = 'Python TLS EOF'
+            elif isinstance(error.reason, ssl.SSLCertVerificationError):
+                # Ask curl to verify the same host with the operating system's
+                # trust store. This keeps hostname/chain validation enabled.
+                curl_fallback_reason = 'Python trust store rejected the certificate'
+            else:
                 raise
             SYSTEM_TLS_ORIGINS.add(parsed.hostname)
-            print('[网络连接] Python TLS EOF；同一公开API改用系统TLS，保留证书校验。', flush=True)
+            print(f'[网络连接] {curl_fallback_reason}；同一公开 API 改用系统 curl 信任库校验。', flush=True)
 
     # Same URL and public headers; certificate errors, redirects and access
     # denials are never worked around. Only the TLS implementation changes.
-    command = ['/usr/bin/curl', '--silent', '--show-error', '--max-time', str(timeout),
+    curl = shutil.which('curl')
+    if not curl:
+        raise OSError('System curl is unavailable; refusing to weaken TLS verification')
+    command = [curl, '--disable', '--silent', '--show-error', '--max-time', str(timeout),
                '--proto', '=https', '--max-filesize', str(MAX_BYTES),
                '--write-out', '\n__PUBLIC_STATUS__:%{http_code}']
     for key, value in headers.items():

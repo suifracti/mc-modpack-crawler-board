@@ -259,8 +259,18 @@ def collect_output_contract(
             raise ValueError("crawler 采集结果合同的平台不匹配")
         truncated_catalog_allowed = platform == "curseforge" and not allow_existing_partial and not allow_mcmod_partial
         details = crawler_result.get("details") or {}
+        duplicate_catalog_partial = (
+            details.get("catalogCoverage") == "complete-pages-with-duplicate-ids"
+            and int(details.get("catalogDuplicateCount") or 0) > 0
+            and int(details.get("catalogUniqueCount") or 0) > 0
+            and details.get("scanPagesComplete") is True
+            and crawler_result.get("pagesExpected")
+            and int(crawler_result.get("pagesCompleted") or 0) >= int(crawler_result.get("pagesExpected") or 0)
+            and int(crawler_result.get("failedRequests") or 0) == 0
+            and not crawler_result.get("truncated")
+        )
         verified_catalog_partial = (platform in {"bbsmc", "xyebbs", "modrinth"}
-                                    and details.get("catalogCompleted") is True
+                                    and (details.get("catalogCompleted") is True or duplicate_catalog_partial)
                                     and int(details.get("versionsChecked") or 0) > 0
                                     and not details.get("sourceStopped")
                                     and int(details.get("versionParseFailures") or 0) == 0)
@@ -355,7 +365,7 @@ def run_selected_collector(args: argparse.Namespace) -> None:
         shutil.copy2(source_root / "curseforge_modpacks_ch.py", isolated_script.parent / "curseforge_modpacks_ch.py")
         shutil.copy2(source_root / "verified_tls.py", isolated_script.parent / "verified_tls.py")
 
-    if args.platform in {"bbsmc", "xyebbs"}:
+    if args.platform in {"bbsmc", "xyebbs", "modrinth"}:
         shutil.copy2(source_root / "public_api_transport.py", isolated_script.parent / "public_api_transport.py")
     if args.platform in {"bbsmc", "xyebbs", "modrinth"}:
         shutil.copy2(source_root / "verified_tls.py", isolated_script.parent / "verified_tls.py")

@@ -7,12 +7,12 @@ import os
 import sys
 import json
 import time
-import urllib.request
+import urllib.error
 import urllib.parse
 import argparse
 from datetime import datetime
 from desktop_collection_contract import write_collection_result
-from verified_tls import get_verified_context
+from public_api_transport import read_public_api_json
 from catalog_refresh_policy import load_previous
 
 try:
@@ -51,22 +51,22 @@ def fetch_page(offset, limit=100, retries=3):
     for attempt in range(retries):
         try:
             REQUEST_STATS["requests"] += 1
-            req = urllib.request.Request(url, headers=HEADERS)
-            with urllib.request.urlopen(req, timeout=15, context=get_verified_context()) as resp:
-                if resp.status == 200:
-                    value = json.loads(resp.read().decode("utf-8"))
-                    REQUEST_STATS["successful"] += 1
-                    return value
-                if attempt == retries - 1:
-                    REQUEST_STATS["failed"] += 1
-                    REQUEST_STATS["errors"].append(f"HTTP {resp.status} offset={offset}")
-        except Exception as e:
-            if isinstance(e, urllib.error.HTTPError) and e.code in {401, 403, 412, 429}:
+            value = read_public_api_json(url, HEADERS, timeout=15)
+            REQUEST_STATS["successful"] += 1
+            return value
+        except urllib.error.HTTPError as e:
+            if e.code in {401, 403, 412, 429}:
                 SOURCE_STOPPED = True
                 REQUEST_STATS["failed"] += 1
                 REQUEST_STATS["errors"].append(f"HTTP {e.code} offset={offset}; source stopped")
                 print(f"[来源停止] HTTP {e.code}；本轮不再访问 Modrinth。", flush=True)
                 return None
+            if attempt == retries - 1:
+                REQUEST_STATS["failed"] += 1
+                REQUEST_STATS["errors"].append(f"HTTP {e.code} offset={offset}")
+            else:
+                time.sleep(2)
+        except Exception as e:
             if attempt < retries - 1:
                 time.sleep(2)
             else:
@@ -84,8 +84,7 @@ def fetch_versions(ids):
     url='https://api.modrinth.com/v2/versions?'+urllib.parse.urlencode({'ids':json.dumps(ids,separators=(',',':'))})
     REQUEST_STATS['requests']+=1
     try:
-        with urllib.request.urlopen(urllib.request.Request(url,headers=HEADERS),timeout=20,context=get_verified_context()) as response:
-            value=json.loads(response.read().decode('utf-8'))
+        value=read_public_api_json(url,HEADERS,timeout=20)
         if not isinstance(value,list):raise ValueError('Invalid multiple-version response')
         found={v['id']:v for v in value if isinstance(v,dict) and v.get('id') in ids and v.get('project_id')}
         missing=set(ids)-set(found)
@@ -199,6 +198,33 @@ def standardize_pack(item, releases_by_id=None):
         record.update(latest_version=release['version_number'],releases=[release],version_checked_at=datetime.now().astimezone().isoformat())
     return record
 
+def deduplicate_catalog(records):
+    """Collapse exact repeated page observations while keeping the latest local check."""
+    positions = {}
+    unique = []
+    duplicate_ids = []
+    duplicate_count = 0
+    for record in records:
+        ident = str(record.get("project_id") or "")
+        if not ident:
+            raise ValueError("Modrinth catalog row has no stable project ID")
+        if ident not in positions:
+            positions[ident] = len(unique)
+            unique.append(record)
+            continue
+        duplicate_count += 1
+        if ident not in duplicate_ids:
+            duplicate_ids.append(ident)
+        index = positions[ident]
+        previous = unique[index]
+        previous_source = {key: value for key, value in previous.items() if key != "version_checked_at"}
+        current_source = {key: value for key, value in record.items() if key != "version_checked_at"}
+        if previous_source != current_source:
+            raise ValueError(f"Modrinth repeated project ID has conflicting source fields: {ident}")
+        if str(record.get("version_checked_at") or "") > str(previous.get("version_checked_at") or ""):
+            unique[index] = record
+    return unique, duplicate_count, duplicate_ids
+
 def main(max_total=None, daily=False):
     previous=load_previous(OUTPUT_JSON) if daily else []
     prior_by_id={str(row['project_id']):row for row in previous if row.get('project_id')}
@@ -265,6 +291,10 @@ def main(max_total=None, daily=False):
         if len(hits) < limit:
             break
             
+    fetched_rows = len(all_packs)
+    all_packs, duplicate_count, duplicate_ids = deduplicate_catalog(all_packs)
+    if duplicate_count:
+        REQUEST_STATS["errors"].append(f"Catalog pagination repeated {duplicate_count} project IDs; duplicate observations were collapsed")
     elapsed = time.time() - start_time
     print(f"\n[完成] 成功采集并标准化 {len(all_packs)} 款 Modrinth 整合包 (耗时 {elapsed:.1f}s)")
     print(f"  平台总收录量: {total_available:,} 款")
@@ -283,21 +313,24 @@ def main(max_total=None, daily=False):
         request_completed
         and not target_reached
         and total_available
-        and len(all_packs) < total_available
+        and fetched_rows < total_available
     )
     catalog_completed = bool(total_available and len(all_packs) >= total_available)
-    status = "success" if all_packs and request_completed and not truncated and not MISSING_LATEST_IDS else "empty" if request_completed and not all_packs else "partial" if all_packs and catalog_completed and not SOURCE_STOPPED else "failed"
+    pages_expected = (total_available + PAGE_LIMIT - 1) // PAGE_LIMIT if total_available else None
+    scan_pages_complete = bool(request_completed and not truncated and not SOURCE_STOPPED
+                               and pages_expected and pages_completed >= pages_expected)
+    status = "success" if all_packs and scan_pages_complete and catalog_completed and not MISSING_LATEST_IDS else "empty" if request_completed and not all_packs else "partial" if all_packs and scan_pages_complete else "failed"
     write_collection_result(
         "modrinth",
         request_completed=request_completed,
         fetched_count=len(all_packs),
         pages_completed=pages_completed,
-        pages_expected=(total_available + PAGE_LIMIT - 1) // PAGE_LIMIT if total_available else None,
+        pages_expected=pages_expected,
         truncated=truncated,
         failed_requests=int(REQUEST_STATS["failed"]),
         errors=REQUEST_STATS["errors"],
         status=status,
-        details={"totalAvailable": total_available, "targetCount": target_count, "targetReached": target_reached, "catalogCompleted": catalog_completed, "versionsChecked": VERSIONS_CHECKED, "versionsReused":versions_reused,"versionRefreshMode":"reuse-exact-release-id" if daily else "full-requested-range", "sourceStopped": SOURCE_STOPPED, "versionParseFailures": 0, "missingLatestReleaseIds": sorted(MISSING_LATEST_IDS), "unverifiedLatestVersionCount": len(MISSING_LATEST_IDS)},
+        details={"totalAvailable": total_available, "targetCount": target_count, "targetReached": target_reached, "catalogCompleted": catalog_completed, "catalogCoverage": "complete-pages-with-duplicate-ids" if duplicate_count and scan_pages_complete else "complete-pages" if scan_pages_complete else "incomplete-pages", "catalogDuplicateCount": duplicate_count, "catalogDuplicateIds": duplicate_ids, "catalogUniqueCount": len(all_packs), "catalogFetchedRows": fetched_rows, "scanPagesComplete": scan_pages_complete, "versionsChecked": VERSIONS_CHECKED, "versionsReused":versions_reused,"versionRefreshMode":"reuse-exact-release-id" if daily else "full-requested-range", "sourceStopped": SOURCE_STOPPED, "versionParseFailures": 0, "missingLatestReleaseIds": sorted(MISSING_LATEST_IDS), "unverifiedLatestVersionCount": len(MISSING_LATEST_IDS)},
     )
     print(f"  [OK] 保存 JS: {OUTPUT_JS} ({os.path.getsize(OUTPUT_JS) / 1024 / 1024:.2f} MB)")
 
